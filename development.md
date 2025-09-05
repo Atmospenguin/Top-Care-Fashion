@@ -1,4 +1,4 @@
-# Top Care Fashion – Developer Guide
+# TOP App – Development Doc
 
 > Theme: Primary brand color is #F54B3D. Use for CTAs, highlights, and primary buttons.
 
@@ -70,6 +70,19 @@ root/
 ├── docs/               # Documentation (PRD, SRS, TDM, etc.)
 └── scripts/            # Deployment and automation scripts
 ```
+
+---
+
+## Brand Assets
+
+- Three static logo files (placed in web/public)
+- web/public/Icon.svg — Small icon/favicon/app icon (for small sizes like 32x32/64x64)
+- web/public/Logo_BrandColor.svg — Primary brand color version (for light backgrounds/page headers)
+- web/public/Logo_White.svg — White version (for dark backgrounds/overlay images)
+- Recommended usage:
+- Icon.svg: Use for favicons, mobile icons, and social media card thumbnails.
+- Logo_BrandColor.svg: Preferred for site headers, landing pages, and marketing pages on light backgrounds.
+- Logo_White.svg: Use for footers on dark backgrounds or when overlaying images to ensure accessible contrast. - Reference example (Web): Use a public path to reference directly, such as `/Icon.svg` or `/Logo_BrandColor.svg`.
 
 ---
 
