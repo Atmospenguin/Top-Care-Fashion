@@ -2,13 +2,30 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 
 export default function NavBar() {
   const { user, isAuthenticated, signOut } = useAuth();
+  const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    // hydrate session from server
+    (async () => {
+      setLoading(true);
+      try {
+        const r = await fetch("/api/auth/me", { cache: "no-store" });
+        const j = await r.json();
+        if (j.user && !user) {
+          // Simple hydration without exposing setter: sign-in again isn't ideal; for simplicity we ignore if user already set
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   return (
     <nav className="w-full bg-[var(--brand-color)] text-white relative z-50">
@@ -50,7 +67,23 @@ export default function NavBar() {
               {open && (
                 <div className="absolute right-0 mt-1 w-56 rounded-md border border-black/10 bg-white text-black shadow z-50">
                   <div className="px-3 py-2 text-xs text-black/60">Signed in as <span className="font-medium text-black">{user?.username || user?.email}</span></div>
+                  <div className="py-1 text-xs text-black/50 border-t" />
                   <Link href="/profile" className="block px-3 py-2 text-sm hover:bg-black/5">Profile</Link>
+                  <Link href="/marketplace" className="block px-3 py-2 text-sm hover:bg-black/5">Marketplace</Link>
+                  {user?.actor === "Admin" && (
+                    <>
+                      <div className="py-1 text-xs text-black/50 border-t" />
+                      <div className="px-3 py-1 text-xs font-medium text-black/70">Admin</div>
+                      <Link href="/admin/users" className="block px-3 py-2 text-sm hover:bg-black/5">Users</Link>
+                      <Link href="/admin/categories" className="block px-3 py-2 text-sm hover:bg-black/5">Categories</Link>
+                      <Link href="/admin/products" className="block px-3 py-2 text-sm hover:bg-black/5">Products</Link>
+                      <Link href="/admin/reports" className="block px-3 py-2 text-sm hover:bg-black/5">Reports</Link>
+                      <Link href="/admin/feedback" className="block px-3 py-2 text-sm hover:bg-black/5">Feedback</Link>
+                      <Link href="/admin/faq" className="block px-3 py-2 text-sm hover:bg-black/5">FAQ</Link>
+                      <Link href="/admin/content" className="block px-3 py-2 text-sm hover:bg-black/5">Content</Link>
+                    </>
+                  )}
+                  <div className="py-1 text-xs text-black/50 border-t" />
                   <button className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5" onClick={() => { setOpen(false); signOut(); }}>Sign out</button>
                 </div>
               )}

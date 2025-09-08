@@ -3,10 +3,53 @@ import Link from "next/link";
 import AppScreensCarousel from "@/components/AppScreensCarousel";
 import { useAuth } from "@/components/AuthContext";
 import AIFeatures from "@/components/AIFeatures";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+interface Testimonial {
+  id: string | number;
+  user: string;
+  text: string;
+  rating: number;
+  tags: Array<"mixmatch" | "ailisting" | "premium">;
+  ts: number;
+}
+
+interface SiteStats {
+  downloads: number;
+  listings: number;
+  sold: number;
+  rating: number;
+}
+
+interface PricingPlan {
+  type: string;
+  name: string;
+  description: string;
+  pricing: {
+    monthly: number;
+    quarterly?: number;
+    annual?: number;
+  };
+  features: string[];
+  isPopular: boolean;
+}
+
+interface LandingContent {
+  heroTitle: string;
+  heroSubtitle: string;
+}
 
 export default function Home() {
   const { isAuthenticated } = useAuth();
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+  const [stats, setStats] = useState<SiteStats>({ downloads: 12000, listings: 38000, sold: 9400, rating: 4.8 });
+  const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
+  const [landingContent, setLandingContent] = useState<LandingContent>({
+    heroTitle: 'Discover outfits powered by AI',
+    heroSubtitle: 'Mix & Match is an AI outfit recommender that builds looks from listed items. Snap, list, and get smart suggestions instantly.'
+  });
+  const [loading, setLoading] = useState(true);
+
   const FILTERS = [
     { key: "all", label: "All (Past 3 weeks)" },
     { key: "mixmatch", label: "Mix & Match" },
@@ -16,18 +59,52 @@ export default function Home() {
 
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch all data in parallel
+        const [testimonialsRes, statsRes, plansRes, contentRes] = await Promise.all([
+          fetch('/api/testimonials'),
+          fetch('/api/site-stats'),
+          fetch('/api/pricing-plans'),
+          fetch('/api/landing-content')
+        ]);
+
+        if (testimonialsRes.ok) {
+          const testimonialsData = await testimonialsRes.json();
+          setTestimonials(testimonialsData.testimonials);
+        }
+
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          setStats(statsData.stats);
+        }
+
+        if (plansRes.ok) {
+          const plansData = await plansRes.json();
+          setPricingPlans(plansData.plans);
+        }
+
+        if (contentRes.ok) {
+          const contentData = await contentRes.json();
+          setLandingContent(contentData);
+        }
+      } catch (error) {
+        console.error('Error fetching homepage data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   const threeWeeks = 21 * 24 * 60 * 60 * 1000;
   const now = Date.now();
-  const TESTIMONIALS: Array<{ id: number; user: string; text: string; rating: number; tags: Array<"mixmatch" | "ailisting" | "premium">; ts: number }>
-    = [
-      { id: 1, user: "Ava", text: "Mix & Match nailed my vibe in minutes.", rating: 5, tags: ["mixmatch"], ts: now - 2 * 24 * 60 * 60 * 1000 },
-      { id: 2, user: "Leo", text: "AI Listing wrote better titles than I do.", rating: 5, tags: ["ailisting"], ts: now - 5 * 24 * 60 * 60 * 1000 },
-      { id: 3, user: "Mia", text: "Premium perks are worth it for frequent sellers.", rating: 5, tags: ["premium"], ts: now - 7 * 24 * 60 * 60 * 1000 },
-      { id: 4, user: "Kai", text: "Found full outfits with Mix & Match.", rating: 4, tags: ["mixmatch"], ts: now - 19 * 24 * 60 * 60 * 1000 },
-      { id: 5, user: "Zoe", text: "AI Listing saved me tons of time.", rating: 5, tags: ["ailisting"], ts: now - 25 * 24 * 60 * 60 * 1000 },
-    ];
 
-  const visible = TESTIMONIALS.filter((t) =>
+  const visible = testimonials.filter((t) =>
     filter === "all" ? now - t.ts <= threeWeeks : t.tags.includes(filter as any)
   );
   return (
@@ -36,10 +113,10 @@ export default function Home() {
       <section className="grid grid-cols-1 md:grid-cols-2 items-center gap-12">
         <div>
           <h1 className="text-5xl font-semibold leading-tight tracking-tight">
-            Discover outfits powered by AI
+            {landingContent.heroTitle}
           </h1>
           <p className="mt-4 text-lg text-black/70 max-w-prose">
-            Mix & Match is an AI outfit recommender that builds looks from listed items. Snap, list, and get smart suggestions instantly.
+            {landingContent.heroSubtitle}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             {!isAuthenticated ? (
@@ -88,19 +165,19 @@ export default function Home() {
         {/* Inline Stats */}
         <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="rounded-xl border border-black/10 p-6 text-center bg-white">
-            <div className="text-3xl font-semibold">12k+</div>
+            <div className="text-3xl font-semibold">{stats.downloads >= 1000 ? `${Math.floor(stats.downloads/1000)}k+` : stats.downloads}</div>
             <div className="text-xs text-black/60">Downloads</div>
           </div>
           <div className="rounded-xl border border-black/10 p-6 text-center bg-white">
-            <div className="text-3xl font-semibold">38k+</div>
+            <div className="text-3xl font-semibold">{stats.listings >= 1000 ? `${Math.floor(stats.listings/1000)}k+` : stats.listings}</div>
             <div className="text-xs text-black/60">Items listed</div>
           </div>
           <div className="rounded-xl border border-black/10 p-6 text-center bg-white">
-            <div className="text-3xl font-semibold">9.4k</div>
+            <div className="text-3xl font-semibold">{stats.sold >= 1000 ? `${(stats.sold/1000).toFixed(1)}k` : stats.sold}</div>
             <div className="text-xs text-black/60">Items sold</div>
           </div>
           <div className="rounded-xl border border-black/10 p-6 text-center bg-white">
-            <div className="text-3xl font-semibold">4.8★</div>
+            <div className="text-3xl font-semibold">{stats.rating}★</div>
             <div className="text-xs text-black/60">Avg. rating</div>
           </div>
         </div>
@@ -110,50 +187,78 @@ export default function Home() {
       {/* Pricing */}
       <section>
         <h2 className="text-3xl font-semibold tracking-tight">Plans & Pricing</h2>
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Free Plan */}
-          <div className="relative rounded-2xl border border-black/10 p-6 bg-white shadow-sm">
-            <div className="text-xs font-medium tracking-wide text-black/60">Starter</div>
-            <h3 className="mt-1 text-xl font-semibold">Free</h3>
-            <p className="mt-1 text-sm">$0 / month</p>
-            <ul className="mt-4 text-sm space-y-2 text-black/80">
-              <li>• Up to 2 active listings</li>
-              <li>• Promotion: $2.90 / 3-day</li>
-              <li>• Free promo credits: None</li>
-              <li>• Commission: 10% per sale</li>
-              <li>• Mix & Match AI: 3 total uses</li>
-              <li>• Seller badge: None</li>
-              <li>• Payment options: Free</li>
-            </ul>
-            {!isAuthenticated ? (
-              <Link href="/register" className="mt-6 inline-block text-[var(--brand-color)] hover:underline">Get started</Link>
-            ) : (
-              <a href="#download" className="mt-6 inline-block text-[var(--brand-color)] hover:underline">Download the app</a>
-            )}
+        {loading ? (
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="animate-pulse rounded-2xl border border-black/10 p-6 bg-white shadow-sm">
+              <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
+              <div className="h-6 bg-gray-200 rounded w-1/3 mb-1"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+              <div className="space-y-2">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="h-3 bg-gray-200 rounded w-full"></div>
+                ))}
+              </div>
+            </div>
+            <div className="animate-pulse rounded-2xl border border-black/10 p-6 bg-white shadow-sm">
+              <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
+              <div className="h-6 bg-gray-200 rounded w-1/3 mb-1"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+              <div className="space-y-2">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="h-3 bg-gray-200 rounded w-full"></div>
+                ))}
+              </div>
+            </div>
           </div>
-
-          {/* Premium Plan */}
-          <div className="relative rounded-2xl border border-black/10 p-6 bg-gradient-to-b from-white to-[#fff5f4] shadow-sm">
-            <div className="absolute -top-3 right-4 text-[10px] px-2 py-1 rounded-full bg-[var(--brand-color)] text-white shadow">POPULAR</div>
-            <div className="text-xs font-medium tracking-wide text-black/60">Pro</div>
-            <h3 className="mt-1 text-xl font-semibold">Premium</h3>
-            <p className="mt-1 text-sm">Monthly / Quarterly / Annual</p>
-            <ul className="mt-4 text-sm space-y-2 text-black/80">
-              <li>• Unlimited listings</li>
-              <li>• Promotion: $2.00 / 3-day (30% off)</li>
-              <li>• First 3 listings: 3 days free promotion</li>
-              <li>• Commission: 5% per sale</li>
-              <li>• Mix & Match AI: Unlimited usage & saves</li>
-              <li>• Seller badge: Premium badge on profile & listings</li>
-              <li>• Pricing: 1 mo $6.90 · 3 mo $18.90 ($6.30/mo) · 12 mo $59.90 ($4.99/mo)</li>
-            </ul>
-            {!isAuthenticated ? (
-              <Link href="/register" className="mt-6 inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-4 py-2 text-sm hover:opacity-90">Upgrade</Link>
-            ) : (
-              <a href="#download" className="mt-6 inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-4 py-2 text-sm hover:opacity-90">Download the app</a>
-            )}
+        ) : (
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {pricingPlans.map((plan) => (
+              <div 
+                key={plan.type} 
+                className={`relative rounded-2xl border border-black/10 p-6 shadow-sm ${
+                  plan.isPopular ? 'bg-gradient-to-b from-white to-[#fff5f4]' : 'bg-white'
+                }`}
+              >
+                {plan.isPopular && (
+                  <div className="absolute -top-3 right-4 text-[10px] px-2 py-1 rounded-full bg-[var(--brand-color)] text-white shadow">POPULAR</div>
+                )}
+                <div className="text-xs font-medium tracking-wide text-black/60">
+                  {plan.type === 'free' ? 'Starter' : 'Pro'}
+                </div>
+                <h3 className="mt-1 text-xl font-semibold">{plan.name}</h3>
+                <p className="mt-1 text-sm">{plan.description}</p>
+                <ul className="mt-4 text-sm space-y-2 text-black/80">
+                  {plan.features.map((feature, index) => (
+                    <li key={index}>• {feature}</li>
+                  ))}
+                </ul>
+                {!isAuthenticated ? (
+                  <Link 
+                    href="/register" 
+                    className={`mt-6 inline-flex items-center rounded-md px-4 py-2 text-sm hover:opacity-90 ${
+                      plan.isPopular 
+                        ? 'bg-[var(--brand-color)] text-white' 
+                        : 'text-[var(--brand-color)] hover:underline'
+                    }`}
+                  >
+                    {plan.type === 'free' ? 'Get started' : 'Upgrade'}
+                  </Link>
+                ) : (
+                  <a 
+                    href="#download" 
+                    className={`mt-6 inline-flex items-center rounded-md px-4 py-2 text-sm hover:opacity-90 ${
+                      plan.isPopular 
+                        ? 'bg-[var(--brand-color)] text-white' 
+                        : 'text-[var(--brand-color)] hover:underline'
+                    }`}
+                  >
+                    Download the app
+                  </a>
+                )}
+              </div>
+            ))}
           </div>
-        </div>
+        )}
       </section>
 
       {/* CTA */}

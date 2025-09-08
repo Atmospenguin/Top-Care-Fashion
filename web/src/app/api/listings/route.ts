@@ -7,23 +7,25 @@ export async function GET() {
     const connection = await getConnection();
     console.log("Connected!");
 
-    // Query: join listings with items + categories
+    // Query products table for public marketplace
     const [rows] = await connection.execute(
-      `SELECT l.id,
-              i.name AS title,
-              c.name AS category,
-              l.listing_price AS price
-       FROM listings l
-       JOIN items i ON l.item_id = i.id
-       JOIN categories c ON i.category_id = c.id`
+      `SELECT id, name AS title, description, category_id AS categoryId, 
+              price, image_url AS imageUrl, image_urls AS imageUrls,
+              brand, size, condition_type AS conditionType, tags,
+              created_at AS createdAt
+       FROM products 
+       WHERE listed = 1 
+       ORDER BY created_at DESC`
     );
 
     await connection.end();
 
-    // Convert price from string → number
+    // Convert and normalize data
     const items = (rows as any[]).map(row => ({
       ...row,
       price: Number(row.price),
+      imageUrls: row.imageUrls ? JSON.parse(row.imageUrls) : null,
+      tags: row.tags ? JSON.parse(row.tags) : null,
     }));
 
     console.log("Items returned:", items);

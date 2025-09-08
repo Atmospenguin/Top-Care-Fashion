@@ -10,24 +10,33 @@ export default function FAQPage() {
   const [list, setList] = useState<QA[]>([]);
   const [q, setQ] = useState("");
 
-  useEffect(() => {
+  const load = async () => {
     try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) setList(JSON.parse(raw));
-    } catch {}
+      const r = await fetch("/api/faq", { cache: "no-store" });
+      const j = await r.json();
+      setList((j.faqs || []).map((x: any) => ({ q: x.question, a: x.answer || undefined, ts: x.id })));
+    } catch {
+      // fallback to empty
+      setList([]);
+    }
+  };
+
+  useEffect(() => {
+    load();
   }, []);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(list));
-    } catch {}
-  }, [list]);
-
-  function addQuestion(e: React.FormEvent) {
+  async function addQuestion(e: React.FormEvent) {
     e.preventDefault();
     if (!q.trim()) return;
-    setList([{ q: q.trim(), user: user?.username || user?.email, ts: Date.now() }, ...list]);
-    setQ("");
+    try {
+      await fetch("/api/faq", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q.trim() }) });
+      setQ("");
+      await load();
+    } catch {
+      // show optimistic add locally if POST fails
+      setList([{ q: q.trim(), user: user?.username || user?.email, ts: Date.now() }, ...list]);
+      setQ("");
+    }
   }
 
   return (

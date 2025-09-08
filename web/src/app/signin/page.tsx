@@ -13,9 +13,13 @@ export default function SignInPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setStatus("Signing in...");
-    await signIn(email, password);
-    setStatus("Success");
-    router.push("/");
+    try {
+      await signIn(email, password);
+      setStatus("Success");
+      router.push("/");
+    } catch (err: any) {
+      setStatus(err?.message || "Sign in failed");
+    }
   }
 
   return (

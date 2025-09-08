@@ -18,15 +18,39 @@ export default function App() {
   }
 
   async function loadListings() {
-    // local mocked data similar to web
-    const data = {
-      items: [
-        { id: '1', title: 'Classic White Tee', category: 'Top', price: 19.99 },
-        { id: '2', title: 'Denim Jacket', category: 'Outerwear', price: 59.99 },
-        { id: '3', title: 'Black Slim Jeans', category: 'Bottom', price: 39.99 },
-      ],
-    };
-    setItems(data.items);
+    try {
+      // Connect to the web app API to get real data from database
+      const response = await fetch('http://localhost:3001/api/listings');
+      if (response.ok) {
+        const data = await response.json();
+        setItems(data.items || []);
+      } else {
+        // Fallback to local data if API is not available
+        const data = {
+          items: [
+            { id: '1', title: 'Classic White Tee', category: 'Tops', price: 19.99 },
+            { id: '2', title: 'Denim Jacket', category: 'Outerwear', price: 59.99 },
+            { id: '3', title: 'Black Slim Jeans', category: 'Bottoms', price: 39.99 },
+            { id: '4', title: 'Floral Summer Dress', category: 'Dresses', price: 45.00 },
+            { id: '5', title: 'Leather Boots', category: 'Shoes', price: 89.99 },
+          ],
+        };
+        setItems(data.items);
+      }
+    } catch (error) {
+      console.error('Error loading listings:', error);
+      // Fallback to local data on error
+      const data = {
+        items: [
+          { id: '1', title: 'Classic White Tee', category: 'Tops', price: 19.99 },
+          { id: '2', title: 'Denim Jacket', category: 'Outerwear', price: 59.99 },
+          { id: '3', title: 'Black Slim Jeans', category: 'Bottoms', price: 39.99 },
+          { id: '4', title: 'Floral Summer Dress', category: 'Dresses', price: 45.00 },
+          { id: '5', title: 'Leather Boots', category: 'Shoes', price: 89.99 },
+        ],
+      };
+      setItems(data.items);
+    }
   }
 
   return (

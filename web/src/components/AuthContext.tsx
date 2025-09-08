@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 export type Gender = "Male" | "Female" | "Other" | "Prefer not to say";
-export type Actor = "Buyer" | "Seller" | "Admin";
+export type Actor = "User" | "Admin";
 
 export type User = {
   username: string;
@@ -11,6 +11,7 @@ export type User = {
   dob?: string; // ISO date string
   gender?: Gender;
   actor: Actor;
+  isPremium?: boolean;
 };
 
 type AuthContextType = {
@@ -38,6 +39,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, []);
 
+  // Hydrate from server session
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/auth/me", { cache: "no-store" });
+        const j = await r.json();
+        if (j.user) {
+          setUser({
+            username: j.user.username,
+            email: j.user.email,
+            actor: j.user.role === "Admin" ? "Admin" : "User",
+            isPremium: !!j.user.isPremium,
+          });
+        }
+      } catch {}
+    })();
+  }, []);
+
   useEffect(() => {
     try {
       if (user) localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
@@ -46,18 +65,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const signUp: AuthContextType["signUp"] = async ({ username, email, password, dob, gender }) => {
-    // Mocked signup; password is ignored in storage for prototype
-    await new Promise((r) => setTimeout(r, 300));
-    setUser({ username, email, dob, gender, actor: "Buyer" });
+    const res = await fetch("/api/auth/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, email, password }) });
+    if (!res.ok) throw new Error("Register failed");
+    const j = await res.json();
+    setUser({ username: j.user.username, email: j.user.email, dob, gender, actor: j.user.role === "Admin" ? "Admin" : "User" });
   };
 
-  const signIn: AuthContextType["signIn"] = async (email, _password) => {
-    await new Promise((r) => setTimeout(r, 250));
-    // If an account exists in storage, use it; otherwise create a lightweight session
-    setUser((prev) => prev ?? { username: email.split("@")[0] || "User", email, actor: "Buyer" });
+  const signIn: AuthContextType["signIn"] = async (email, password) => {
+    const res = await fetch("/api/auth/signin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+    let j: any = null;
+    try { j = await res.json(); } catch {}
+    if (!res.ok) {
+      const msg = (j && (j.error || j.message)) || "Invalid credentials";
+      throw new Error(msg);
+    }
+    setUser({ username: j.user.username, email: j.user.email, actor: j.user.role === "Admin" ? "Admin" : "User" });
   };
 
-  const signOut = () => setUser(null);
+  const signOut = () => { fetch("/api/auth/signout", { method: "POST" }); setUser(null); };
 
   const resetPassword: AuthContextType["resetPassword"] = async (_email) => {
     await new Promise((r) => setTimeout(r, 250));
@@ -69,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser((u) => (u ? { ...u, ...data } : u));
   };
 
-  const setActor = (actor: Actor) => setUser((u) => (u ? { ...u, actor } : u));
+  const setActor = (_actor: Actor) => {};
 
   const value = useMemo<AuthContextType>(
     () => ({ user, isAuthenticated: !!user, signUp, signIn, signOut, resetPassword, updateProfile, setActor }),
