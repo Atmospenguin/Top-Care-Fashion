@@ -1,23 +1,25 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useAuth } from "@/components/AuthContext";
 
 export default function RegisterPage() {
+  const router = useRouter();
+  const { signUp } = useAuth();
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [dob, setDob] = useState("");
+  const [gender, setGender] = useState("Prefer not to say");
   const [status, setStatus] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setStatus("Submitting...");
     try {
-      const res = await fetch("/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Registration failed");
-      setStatus("Success! You can now go to the marketplace.");
+      await signUp({ username, email, password, dob, gender: gender as any });
+      setStatus("Success! Redirecting...");
+      router.push("/");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       setStatus(message);
@@ -27,8 +29,18 @@ export default function RegisterPage() {
   return (
     <section className="max-w-md">
       <h1 className="text-3xl font-semibold tracking-tight">Create your account</h1>
-      <p className="text-sm text-black/70 mt-1">Mocked registration. No real data is stored.</p>
+      <p className="text-sm text-black/70 mt-1">Demo signup. No real password storage.</p>
       <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
+        <label className="text-sm">
+          Username
+          <input
+            type="text"
+            className="mt-1 w-full border border-black/10 rounded-md px-3 py-2 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-color)]/30 focus:border-[var(--brand-color)]"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
+        </label>
         <label className="text-sm">
           Email
           <input
@@ -49,11 +61,33 @@ export default function RegisterPage() {
             required
           />
         </label>
+        <label className="text-sm">
+          Date of Birth
+          <input
+            type="date"
+            className="mt-1 w-full border border-black/10 rounded-md px-3 py-2 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-color)]/30 focus:border-[var(--brand-color)]"
+            value={dob}
+            onChange={(e) => setDob(e.target.value)}
+          />
+        </label>
+        <label className="text-sm">
+          Gender
+          <select
+            className="mt-1 w-full border border-black/10 rounded-md px-3 py-2 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-color)]/30 focus:border-[var(--brand-color)]"
+            value={gender}
+            onChange={(e) => setGender(e.target.value)}
+          >
+            <option>Male</option>
+            <option>Female</option>
+            <option>Other</option>
+            <option>Prefer not to say</option>
+          </select>
+        </label>
         <button
           type="submit"
           className="inline-flex items-center justify-center rounded-md bg-[var(--brand-color)] text-white px-4 py-2 text-sm hover:opacity-90"
         >
-          Register
+          Sign up
         </button>
       </form>
       {status && <p className="mt-4 text-sm">{status}</p>}

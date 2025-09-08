@@ -1,7 +1,35 @@
+"use client";
 import Link from "next/link";
 import AppScreensCarousel from "@/components/AppScreensCarousel";
+import { useAuth } from "@/components/AuthContext";
+import AIFeatures from "@/components/AIFeatures";
+import { useState } from "react";
 
 export default function Home() {
+  const { isAuthenticated } = useAuth();
+  const FILTERS = [
+    { key: "all", label: "All (Past 3 weeks)" },
+    { key: "mixmatch", label: "Mix & Match" },
+    { key: "ailisting", label: "AI Listing" },
+    { key: "premium", label: "Premium Member" },
+  ] as const;
+
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
+
+  const threeWeeks = 21 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const TESTIMONIALS: Array<{ id: number; user: string; text: string; rating: number; tags: Array<"mixmatch" | "ailisting" | "premium">; ts: number }>
+    = [
+      { id: 1, user: "Ava", text: "Mix & Match nailed my vibe in minutes.", rating: 5, tags: ["mixmatch"], ts: now - 2 * 24 * 60 * 60 * 1000 },
+      { id: 2, user: "Leo", text: "AI Listing wrote better titles than I do.", rating: 5, tags: ["ailisting"], ts: now - 5 * 24 * 60 * 60 * 1000 },
+      { id: 3, user: "Mia", text: "Premium perks are worth it for frequent sellers.", rating: 5, tags: ["premium"], ts: now - 7 * 24 * 60 * 60 * 1000 },
+      { id: 4, user: "Kai", text: "Found full outfits with Mix & Match.", rating: 4, tags: ["mixmatch"], ts: now - 19 * 24 * 60 * 60 * 1000 },
+      { id: 5, user: "Zoe", text: "AI Listing saved me tons of time.", rating: 5, tags: ["ailisting"], ts: now - 25 * 24 * 60 * 60 * 1000 },
+    ];
+
+  const visible = TESTIMONIALS.filter((t) =>
+    filter === "all" ? now - t.ts <= threeWeeks : t.tags.includes(filter as any)
+  );
   return (
     <div className="flex flex-col gap-24">
       {/* Hero with carousel */}
@@ -14,21 +42,12 @@ export default function Home() {
             Mix & Match is an AI outfit recommender that builds looks from listed items. Snap, list, and get smart suggestions instantly.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link
-              href="/register"
-              className="inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-5 py-3 text-sm font-medium hover:opacity-90"
-            >
-              Join for free
-            </Link>
-            <Link
-              href="/marketplace"
-              className="inline-flex items-center rounded-md border border-black/10 px-5 py-3 text-sm font-medium hover:bg-black/5"
-            >
-              Browse marketplace
-            </Link>
-          </div>
-          <div className="mt-4 text-xs text-black/60">
-            No credit card required · Cancel anytime
+            {!isAuthenticated ? (
+              <Link href="/register" className="inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-5 py-3 text-sm font-medium hover:opacity-90">Join for free</Link>
+            ) : (
+              <a href="#download" className="inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-5 py-3 text-sm font-medium hover:opacity-90">Download the app</a>
+            )}
+            <Link href="/faq" className="inline-flex items-center rounded-md border border-black/10 px-5 py-3 text-sm font-medium hover:bg-black/5">FAQ</Link>
           </div>
         </div>
         <div className="relative w-full">
@@ -36,43 +55,57 @@ export default function Home() {
         </div>
       </section>
 
-      {/* AI Features */}
+      {/* AI Features with screenshots + carousels */}
+      <AIFeatures />
+
+      {/* Social proof + Stats merged */}
       <section>
-        <h2 className="text-3xl font-semibold tracking-tight">AI Features</h2>
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div className="rounded-xl border border-black/10 p-6 shadow-sm hover:shadow transition-shadow">
-            <h3 className="font-medium">Mix & Match</h3>
-            <p className="text-sm text-black/70 mt-1">AI outfit recommendations based on listed items and style preferences.</p>
+        <h2 className="text-3xl font-semibold tracking-tight">Loved by Trendsetters</h2>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`px-3 py-1.5 rounded-full text-sm border ${filter === f.key ? "bg-[var(--brand-color)] text-white border-[var(--brand-color)]" : "border-black/15 hover:bg-black/5"}`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
+          {visible.map((t) => (
+            <div key={t.id} className="rounded-xl border border-black/10 p-6 shadow-sm bg-white">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-full bg-black/10" />
+                <span className="text-sm font-medium">{t.user}</span>
+              </div>
+              <p className="mt-3 text-sm text-black/70">“{t.text}”</p>
+              <div className="mt-3 text-[var(--brand-color)]">{"★★★★★".slice(0, t.rating)}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Inline Stats */}
+        <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="rounded-xl border border-black/10 p-6 text-center bg-white">
+            <div className="text-3xl font-semibold">12k+</div>
+            <div className="text-xs text-black/60">Downloads</div>
           </div>
-          <div className="rounded-xl border border-black/10 p-6 shadow-sm hover:shadow transition-shadow">
-            <h3 className="font-medium">Smart Listing</h3>
-            <p className="text-sm text-black/70 mt-1">Auto-generate titles, categories, tags, and descriptions from photos.</p>
+          <div className="rounded-xl border border-black/10 p-6 text-center bg-white">
+            <div className="text-3xl font-semibold">38k+</div>
+            <div className="text-xs text-black/60">Items listed</div>
           </div>
-          <div className="rounded-xl border border-black/10 p-6 shadow-sm hover:shadow transition-shadow">
-            <h3 className="font-medium">Search Assist</h3>
-            <p className="text-sm text-black/70 mt-1">Natural language and image-based search to find the perfect piece.</p>
+          <div className="rounded-xl border border-black/10 p-6 text-center bg-white">
+            <div className="text-3xl font-semibold">9.4k</div>
+            <div className="text-xs text-black/60">Items sold</div>
+          </div>
+          <div className="rounded-xl border border-black/10 p-6 text-center bg-white">
+            <div className="text-3xl font-semibold">4.8★</div>
+            <div className="text-xs text-black/60">Avg. rating</div>
           </div>
         </div>
       </section>
 
-      {/* Social proof */}
-      <section>
-        <h2 className="text-3xl font-semibold tracking-tight">Loved by early users</h2>
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-5">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-xl border border-black/10 p-6 shadow-sm bg-white">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-black/10" />
-                <span className="text-sm font-medium">User {i}</span>
-              </div>
-              <p className="mt-3 text-sm text-black/70">
-                &ldquo;Smooth listing flow and clean design. Excited for AI outfits!&rdquo;
-              </p>
-              <div className="mt-3 text-[var(--brand-color)]">★★★★★</div>
-            </div>
-          ))}
-        </div>
-      </section>
 
       {/* Pricing */}
       <section>
@@ -92,9 +125,11 @@ export default function Home() {
               <li>• Seller badge: None</li>
               <li>• Payment options: Free</li>
             </ul>
-            <Link href="/register" className="mt-6 inline-block text-[var(--brand-color)] hover:underline">
-              Get started
-            </Link>
+            {!isAuthenticated ? (
+              <Link href="/register" className="mt-6 inline-block text-[var(--brand-color)] hover:underline">Get started</Link>
+            ) : (
+              <a href="#download" className="mt-6 inline-block text-[var(--brand-color)] hover:underline">Download the app</a>
+            )}
           </div>
 
           {/* Premium Plan */}
@@ -112,12 +147,11 @@ export default function Home() {
               <li>• Seller badge: Premium badge on profile & listings</li>
               <li>• Pricing: 1 mo $6.90 · 3 mo $18.90 ($6.30/mo) · 12 mo $59.90 ($4.99/mo)</li>
             </ul>
-            <Link
-              href="/register"
-              className="mt-6 inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-4 py-2 text-sm hover:opacity-90"
-            >
-              Upgrade
-            </Link>
+            {!isAuthenticated ? (
+              <Link href="/register" className="mt-6 inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-4 py-2 text-sm hover:opacity-90">Upgrade</Link>
+            ) : (
+              <a href="#download" className="mt-6 inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-4 py-2 text-sm hover:opacity-90">Download the app</a>
+            )}
           </div>
         </div>
       </section>
@@ -127,12 +161,14 @@ export default function Home() {
         <h2 className="text-2xl font-semibold">Ready to try?</h2>
         <p className="mt-2 text-black/70">Create your account and list your first item in minutes.</p>
         <div className="mt-6">
-          <Link
-            href="/register"
-            className="inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-6 py-3 text-sm font-medium hover:opacity-90"
-          >
-            Sign up now
-          </Link>
+          {!isAuthenticated ? (
+            <Link href="/register" className="inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-6 py-3 text-sm font-medium hover:opacity-90">Sign up now</Link>
+          ) : (
+            <a href="#download" className="inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-6 py-3 text-sm font-medium hover:opacity-90">Download the app</a>
+          )}
+        </div>
+        <div className="mt-6">
+          <Link href="/faq" className="text-sm text-[var(--brand-color)] hover:underline">FAQ</Link>
         </div>
       </section>
     </div>
