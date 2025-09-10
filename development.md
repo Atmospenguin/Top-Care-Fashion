@@ -145,19 +145,19 @@ CREATE TABLE feedback (
 
 The database now contains comprehensive sample data:
 
-**Users (10 accounts)**:
-- `admin` / `admin@topcare.com` (Admin, Premium)
-- `fashionista_emma` / `emma@example.com` (Premium User)
-- `vintage_hunter` / `vintage@gmail.com` (Regular User)
-- `style_guru_alex` / `alex@fashion.co` (Premium User)
-- `casual_buyer` / `buyer@email.com` (Regular User)
-- `premium_seller` / `seller@pro.com` (Premium User)
-- `trend_setter` / `trends@style.net` (Regular User)
-- `eco_warrior` / `eco@green.org` (Premium User)
-- `budget_shopper` / `budget@student.edu` (Regular User)
-- `luxury_lover` / `luxury@designer.com` (Premium User)
+**Users (10 accounts)** - Ready to login with real passwords:
+- `admin` / `admin@topcare.com` / `admin123` (Admin, Premium)
+- `fashionista_emma` / `emma@example.com` / `password123` (Premium User)
+- `vintage_hunter` / `vintage@gmail.com` / `password123` (Regular User)
+- `style_guru_alex` / `alex@fashion.co` / `password123` (Premium User)
+- `casual_buyer` / `buyer@email.com` / `password123` (Regular User)
+- `premium_seller` / `seller@pro.com` / `password123` (Premium User)
+- `trend_setter` / `trends@style.net` / `password123` (Regular User)
+- `eco_warrior` / `eco@green.org` / `password123` (Premium User)
+- `budget_shopper` / `budget@student.edu` / `password123` (Regular User)
+- `luxury_lover` / `luxury@designer.com` / `password123` (Premium User)
 
-**Note**: All user passwords are hashed placeholders. For testing, implement a password reset flow or update manually.
+**📋 详细测试信息**: 查看 `TEST_ACCOUNTS.md` 获取完整的测试账户信息和使用建议。
 
 **Content Data**:
 - **29 Feedback/Testimonials**: 21 testimonials (8 featured) + 8 user feedback

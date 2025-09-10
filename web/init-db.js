@@ -117,22 +117,37 @@ async function initializeDatabase() {
       console.log('Testimonials/Feedback error:', error.message);
     }
     
-    // Insert sample users
+    // Insert sample users with SHA256 hashed passwords (matching current auth system)
+    // admin password: admin123 (SHA256: 240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9)
+    // all other users password: password123 (SHA256: ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f)
+    const crypto = require('crypto');
+    const adminPasswordHash = crypto.createHash('sha256').update('admin123').digest('hex');
+    const userPasswordHash = crypto.createHash('sha256').update('password123').digest('hex');
+    
     try {
       await connection.execute(`
         INSERT IGNORE INTO users (username, email, password_hash, role, status, is_premium, premium_until, created_at) VALUES 
-        ('admin', 'admin@topcare.com', '$2b$10$hashedpassword1', 'Admin', 'active', 1, DATE_ADD(NOW(), INTERVAL 1 YEAR), DATE_SUB(NOW(), INTERVAL 365 DAY)),
-        ('fashionista_emma', 'emma@example.com', '$2b$10$hashedpassword2', 'User', 'active', 1, DATE_ADD(NOW(), INTERVAL 6 MONTH), DATE_SUB(NOW(), INTERVAL 120 DAY)),
-        ('vintage_hunter', 'vintage@gmail.com', '$2b$10$hashedpassword3', 'User', 'active', 0, NULL, DATE_SUB(NOW(), INTERVAL 90 DAY)),
-        ('style_guru_alex', 'alex@fashion.co', '$2b$10$hashedpassword4', 'User', 'active', 1, DATE_ADD(NOW(), INTERVAL 3 MONTH), DATE_SUB(NOW(), INTERVAL 60 DAY)),
-        ('casual_buyer', 'buyer@email.com', '$2b$10$hashedpassword5', 'User', 'active', 0, NULL, DATE_SUB(NOW(), INTERVAL 30 DAY)),
-        ('premium_seller', 'seller@pro.com', '$2b$10$hashedpassword6', 'User', 'active', 1, DATE_ADD(NOW(), INTERVAL 9 MONTH), DATE_SUB(NOW(), INTERVAL 180 DAY)),
-        ('trend_setter', 'trends@style.net', '$2b$10$hashedpassword7', 'User', 'active', 0, NULL, DATE_SUB(NOW(), INTERVAL 45 DAY)),
-        ('eco_warrior', 'eco@green.org', '$2b$10$hashedpassword8', 'User', 'active', 1, DATE_ADD(NOW(), INTERVAL 1 YEAR), DATE_SUB(NOW(), INTERVAL 200 DAY)),
-        ('budget_shopper', 'budget@student.edu', '$2b$10$hashedpassword9', 'User', 'active', 0, NULL, DATE_SUB(NOW(), INTERVAL 15 DAY)),
-        ('luxury_lover', 'luxury@designer.com', '$2b$10$hashedpassword10', 'User', 'active', 1, DATE_ADD(NOW(), INTERVAL 2 YEAR), DATE_SUB(NOW(), INTERVAL 300 DAY))
-      `);
-      console.log('Sample users inserted successfully');
+        ('admin', 'admin@topcare.com', ?, 'Admin', 'active', 1, DATE_ADD(NOW(), INTERVAL 1 YEAR), DATE_SUB(NOW(), INTERVAL 365 DAY)),
+        ('fashionista_emma', 'emma@example.com', ?, 'User', 'active', 1, DATE_ADD(NOW(), INTERVAL 6 MONTH), DATE_SUB(NOW(), INTERVAL 120 DAY)),
+        ('vintage_hunter', 'vintage@gmail.com', ?, 'User', 'active', 0, NULL, DATE_SUB(NOW(), INTERVAL 90 DAY)),
+        ('style_guru_alex', 'alex@fashion.co', ?, 'User', 'active', 1, DATE_ADD(NOW(), INTERVAL 3 MONTH), DATE_SUB(NOW(), INTERVAL 60 DAY)),
+        ('casual_buyer', 'buyer@email.com', ?, 'User', 'active', 0, NULL, DATE_SUB(NOW(), INTERVAL 30 DAY)),
+        ('premium_seller', 'seller@pro.com', ?, 'User', 'active', 1, DATE_ADD(NOW(), INTERVAL 9 MONTH), DATE_SUB(NOW(), INTERVAL 180 DAY)),
+        ('trend_setter', 'trends@style.net', ?, 'User', 'active', 0, NULL, DATE_SUB(NOW(), INTERVAL 45 DAY)),
+        ('eco_warrior', 'eco@green.org', ?, 'User', 'active', 1, DATE_ADD(NOW(), INTERVAL 1 YEAR), DATE_SUB(NOW(), INTERVAL 200 DAY)),
+        ('budget_shopper', 'budget@student.edu', ?, 'User', 'active', 0, NULL, DATE_SUB(NOW(), INTERVAL 15 DAY)),
+        ('luxury_lover', 'luxury@designer.com', ?, 'User', 'active', 1, DATE_ADD(NOW(), INTERVAL 2 YEAR), DATE_SUB(NOW(), INTERVAL 300 DAY))
+      `, [
+        adminPasswordHash,
+        userPasswordHash, userPasswordHash, userPasswordHash, userPasswordHash, 
+        userPasswordHash, userPasswordHash, userPasswordHash, userPasswordHash, userPasswordHash
+      ]);
+      console.log('Sample users with SHA256 hashed passwords inserted successfully');
+      console.log('💡 Login credentials:');
+      console.log('   Admin: admin@topcare.com / admin123');
+      console.log('   Users: [any user email] / password123');
+      console.log('   📋 See TEST_ACCOUNTS.md for full list');
+      console.log('   🔐 Password hashing: SHA256 (matches current auth system)');
     } catch (error) {
       console.log('Users error:', error.message);
     }
