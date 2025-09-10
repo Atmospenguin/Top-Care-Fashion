@@ -10,10 +10,10 @@ export async function GET() {
     `SELECT id, name, description, category_id AS categoryId, seller_id AS sellerId, 
             listed, price, image_url AS imageUrl, image_urls AS imageUrls, 
             brand, size, condition_type AS conditionType, tags, 
-            created_at AS createdAt FROM products ORDER BY id`
+            created_at AS createdAt FROM listings ORDER BY id`
   );
   await conn.end();
-  const products = (rows || []).map((r: any) => ({
+  const listings = (rows || []).map((r: any) => ({
     ...r,
     // mysql2 returns DECIMAL as string by default; ensure number for UI formatting
     price: typeof r.price === "string" ? Number(r.price) : r.price,
@@ -23,7 +23,7 @@ export async function GET() {
     imageUrls: r.imageUrls ? JSON.parse(r.imageUrls) : null,
     tags: r.tags ? JSON.parse(r.tags) : null,
   }));
-  return NextResponse.json({ products });
+  return NextResponse.json({ listings });
 }
 
 export async function POST(req: NextRequest) {
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   const conn = await getConnection();
   try {
     const [result]: any = await conn.execute(
-      `INSERT INTO products (name, description, category_id, seller_id, listed, price, 
+      `INSERT INTO listings (name, description, category_id, seller_id, listed, price, 
                             image_url, image_urls, brand, size, condition_type, tags, created_at) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
@@ -54,27 +54,27 @@ export async function POST(req: NextRequest) {
       ]
     );
     
-    const [newProduct]: any = await conn.execute(
+    const [newListing]: any = await conn.execute(
       `SELECT id, name, description, category_id AS categoryId, seller_id AS sellerId, 
               listed, price, image_url AS imageUrl, image_urls AS imageUrls, 
               brand, size, condition_type AS conditionType, tags, 
-              created_at AS createdAt FROM products WHERE id = ?`,
+              created_at AS createdAt FROM listings WHERE id = ?`,
       [result.insertId]
     );
     
     await conn.end();
     
-    const product = newProduct[0];
+    const listing = newListing[0];
     return NextResponse.json({
-      ...product,
-      price: typeof product.price === "string" ? Number(product.price) : product.price,
-      listed: typeof product.listed === "number" ? product.listed === 1 : !!product.listed,
-      imageUrls: product.imageUrls ? JSON.parse(product.imageUrls) : null,
-      tags: product.tags ? JSON.parse(product.tags) : null,
+      ...listing,
+      price: typeof listing.price === "string" ? Number(listing.price) : listing.price,
+      listed: typeof listing.listed === "number" ? listing.listed === 1 : !!listing.listed,
+      imageUrls: listing.imageUrls ? JSON.parse(listing.imageUrls) : null,
+      tags: listing.tags ? JSON.parse(listing.tags) : null,
     });
   } catch (error) {
     await conn.end();
-    console.error("Error creating product:", error);
-    return NextResponse.json({ error: "Failed to create product" }, { status: 500 });
+    console.error("Error creating listing:", error);
+    return NextResponse.json({ error: "Failed to create listing" }, { status: 500 });
   }
 }

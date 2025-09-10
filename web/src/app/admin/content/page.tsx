@@ -64,7 +64,7 @@ export default function ContentManagementPage() {
       const [statsRes, contentRes, testimonialsRes, pricingRes] = await Promise.all([
         fetch('/api/site-stats'),
         fetch('/api/landing-content'),
-        fetch('/api/testimonials'),
+        fetch('/api/testimonials'), // This now uses the unified feedback system
         fetch('/api/pricing-plans')
       ]);
 

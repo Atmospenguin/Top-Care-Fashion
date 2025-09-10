@@ -76,7 +76,8 @@ export default function NavBar() {
                       <div className="px-3 py-1 text-xs font-medium text-black/70">Admin</div>
                       <Link href="/admin/users" className="block px-3 py-2 text-sm hover:bg-black/5">Users</Link>
                       <Link href="/admin/categories" className="block px-3 py-2 text-sm hover:bg-black/5">Categories</Link>
-                      <Link href="/admin/products" className="block px-3 py-2 text-sm hover:bg-black/5">Products</Link>
+                      <Link href="/admin/listings" className="block px-3 py-2 text-sm hover:bg-black/5">Listings</Link>
+                      <Link href="/admin/transactions" className="block px-3 py-2 text-sm hover:bg-black/5">Transactions</Link>
                       <Link href="/admin/reports" className="block px-3 py-2 text-sm hover:bg-black/5">Reports</Link>
                       <Link href="/admin/feedback" className="block px-3 py-2 text-sm hover:bg-black/5">Feedback</Link>
                       <Link href="/admin/faq" className="block px-3 py-2 text-sm hover:bg-black/5">FAQ</Link>

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ProductCategory } from "@/types/admin";
+import type { ListingCategory } from "@/types/admin";
 
-interface ExtendedCategory extends ProductCategory {
+interface ExtendedCategory extends ListingCategory {
   editing?: boolean;
 }
 

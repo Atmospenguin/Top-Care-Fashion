@@ -6,19 +6,19 @@ export async function GET() {
     const connection = await getConnection();
     
     const [testimonials] = await connection.execute(
-      `SELECT id, user_name, text, rating, tags, created_at 
-       FROM testimonials 
-       WHERE featured = 1 
+      `SELECT id, user_name, message, rating, tags, created_at 
+       FROM feedback 
+       WHERE feedback_type = 'testimonial' AND featured = 1 
        ORDER BY created_at DESC`
     );
     
     await connection.end();
     
-    // Parse JSON fields and format data for frontend
+    // Parse JSON fields and format data for frontend (maintaining backward compatibility)
     const formattedTestimonials = (testimonials as any[]).map(t => ({
-      id: t.id, // Use actual database ID instead of user_name
+      id: t.id,
       user: t.user_name,
-      text: t.text,
+      text: t.message, // Map message to text for backward compatibility
       rating: t.rating,
       tags: t.tags ? JSON.parse(t.tags) : [],
       ts: new Date(t.created_at).getTime()

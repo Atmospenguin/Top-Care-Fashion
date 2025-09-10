@@ -102,22 +102,81 @@ root/
 
 ---
 
-## 5. Database (not settled yet)
-## Database Setup
+## 5. Database Setup & Recent Updates
 
-1. Ensure MySQL is running.
+### Quick Database Initialization
+```bash
+cd web
+node init-db.js
+```
 
-2. Create schema:
-   ```bash
-   mysql -u root -p top_care_fashion < database/schema.sql
-   mysql -u root -p top_care_fashion < database/seed.sql
-   mysql -u root -p top_care_fashion < database/triggers.sql
+This script automatically:
+1. Creates the `top_care_fashion` database
+2. Sets up all tables with unified schema
+3. Populates with comprehensive sample data
 
-3. Update .env.local with your MySQL credentials:
+### Recent Major Update: Testimonials Integration (v2.1.0)
+
+**Overview**: Integrated testimonials into a unified feedback system for better content management.
+
+**Key Changes**:
+- **Unified Schema**: Merged `testimonials` table into `feedback` table
+- **Enhanced Types**: Added `feedback_type` enum ('feedback'|'testimonial')
+- **New Fields**: Added `user_name`, `rating`, `tags`, `featured` to feedback table
+- **API Updates**: All testimonials APIs now use unified feedback system
+- **Admin Interface**: Complete rewrite for managing both content types
+
+**Database Schema**:
+```sql
+CREATE TABLE feedback (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_email VARCHAR(191) NULL,
+  user_name VARCHAR(100) NULL COMMENT 'Display name for testimonials',
+  message TEXT NOT NULL,
+  rating TINYINT NULL COMMENT 'Rating 1-5 for testimonials',
+  tags JSON NULL COMMENT 'Array of tags for testimonials',
+  featured TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Featured on homepage',
+  feedback_type ENUM('feedback', 'testimonial') NOT NULL DEFAULT 'feedback',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Sample Data Included
+
+The database now contains comprehensive sample data:
+
+**Users (10 accounts)**:
+- `admin` / `admin@topcare.com` (Admin, Premium)
+- `fashionista_emma` / `emma@example.com` (Premium User)
+- `vintage_hunter` / `vintage@gmail.com` (Regular User)
+- `style_guru_alex` / `alex@fashion.co` (Premium User)
+- `casual_buyer` / `buyer@email.com` (Regular User)
+- `premium_seller` / `seller@pro.com` (Premium User)
+- `trend_setter` / `trends@style.net` (Regular User)
+- `eco_warrior` / `eco@green.org` (Premium User)
+- `budget_shopper` / `budget@student.edu` (Regular User)
+- `luxury_lover` / `luxury@designer.com` (Premium User)
+
+**Note**: All user passwords are hashed placeholders. For testing, implement a password reset flow or update manually.
+
+**Content Data**:
+- **29 Feedback/Testimonials**: 21 testimonials (8 featured) + 8 user feedback
+- **10 Categories**: Tops, Bottoms, Dresses, Outerwear, Shoes, etc.
+- **15 Listings**: Various clothing items ($25-200 price range)
+- **10 Transactions**: Different statuses (completed, shipped, pending)
+- **8 Reviews**: User reviews with ratings
+- **8 FAQ Entries**: Common questions and answers
+- **4 Reports**: Sample moderation cases
+- **Site Stats**: 25,847 downloads, 15,674 listings, 8,932 sold
+
+### Environment Configuration
+```bash
+# .env.local (web directory)
 DB_HOST=localhost
 DB_USER=root
 DB_PASSWORD=yourpassword
-DB_NAME=marketplace
+DB_NAME=top_care_fashion
+```
 
 ---
 

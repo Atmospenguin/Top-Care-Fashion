@@ -8,7 +8,7 @@ export async function GET(_req: Request, context: { params: { id: string } | Pro
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const conn = await getConnection();
   const [rows] = await conn.execute(
-    "SELECT id, product_id AS productId, author, author_user_id AS authorUserId, rating, comment, transaction_id AS transactionId, created_at AS createdAt FROM reviews WHERE product_id = ? ORDER BY id DESC",
+    "SELECT id, listing_id AS listingId, author, author_user_id AS authorUserId, rating, comment, transaction_id AS transactionId, created_at AS createdAt FROM reviews WHERE listing_id = ? ORDER BY id DESC",
     [params.id]
   );
   await conn.end();
