@@ -1,0 +1,90 @@
+Top Care Fashion
+├── Guest (Web App)
+│   ├── View Landing Page
+│   │   ├── View App Introduction
+│   │   ├── View User Feedbacks
+│   │   ├── View Demographic Statistics
+│   │   └── View Support Contact
+│   ├── View FAQ Page
+│   │   └── Submit Question/Queries
+│   └── View Sign-up Page
+│       └── Create Account
+│
+├── Registered User
+│   ├── (Web App)
+│   │   ├── View Landing Page
+│   │   │   ├── View App Introduction
+│   │   │   ├── View User Feedbacks
+│   │   │   ├── View Demographic Statistics
+│   │   │   └── View Support Contact
+│   │   ├── View FAQ Page
+│   │   │   └── Submit Question/Queries
+│   │   ├── Login / Logout
+│   │   │   └── Reset Password
+│   │   ├── View Profile Page
+│   │   │   ├── Manage Profile
+│   │   │   └── Update Preference
+│   │   └── Download Mobile App
+│
+│   ├── (Mobile App)
+│   │   ├── View Premium Membership
+│   │   │   └── Upgrade to Premium Membership
+│   │   ├── View Marketplace
+│   │   │   ├── Search and Filter
+│   │   │   ├── Browse Products
+│   │   │   ├── View Product Details
+│   │   │   │   ├── Favorite Product
+│   │   │   │   ├── Unfavorite Product
+│   │   │   │   ├── Report Product
+│   │   │   │   ├── Add Product to Cart
+│   │   │   │   ├── Buy Product Now
+│   │   │   │   │   └── Leave Product Review
+│   │   │   │   ├── Mix & Match
+│   │   │   │   │   └── Favorite/Add to Cart
+│   │   │   │   └── View User Page
+│   │   │   │       ├── View User Details
+│   │   │   │       ├── View User Ratings
+│   │   │   │       ├── View User Reviews
+│   │   │   │       └── Report User
+│   │   │   ├── View Favorite Products
+│   │   │   └── View Cart
+│   │   ├── List Products
+│   │   │   ├── Upload Product Image
+│   │   │   │   └── AI Tagging
+│   │   │   └── Enter Product Info
+│   │   │       └── Listed
+│   │   │           └── Promote Listing
+│   │   ├── View Listed Products
+│   │   │   └── Manage Listing
+│   │   └── User Feedback
+│
+├── Premium User (Mobile App)
+│   ├── View Premium Membership Page
+│   │   ├── Manage Premium Membership
+│   │   │   ├── Renew Premium Membership
+│   │   │   └── Cancel Premium Membership
+│   │   └── Purchase Premium Membership Add-ons
+│   ├── Reduce Commission
+│   ├── Unlimited Product Listing
+│   └── Unlimited Mix & Match
+│
+└── Admin (Web App)
+    ├── View User Accounts
+    │   ├── View User Account Details
+    │   ├── Suspend User Account
+    │   └── Unsuspend User Account
+    ├── View Product Categories
+    │   ├── Create Product Category
+    │   ├── Update Product Category
+    │   └── Delete Product Category
+    ├── View Listed Products
+    │   ├── View Listed Product Details
+    │   ├── Unlist Listed Product
+    │   ├── Delete Listed Product
+    │   └── View Product Reviews
+    ├── View Report(s)
+    ├── View User Feedbacks
+    │   └── Manage User Feedbacks
+    ├── View FAQ Queries
+    │   └── Manage FAQ
+    └── Edit Landing Page
