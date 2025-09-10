@@ -116,6 +116,22 @@ Transactions
 Feedback
 - id (PK), user_id (FK), rating, comment, created_at
 
+## Database Setup
+
+1. Ensure MySQL is running.
+
+2. Create schema:
+   ```bash
+   mysql -u root -p top_care_fashion < database/schema.sql
+   mysql -u root -p top_care_fashion < database/seed.sql
+   mysql -u root -p top_care_fashion < database/triggers.sql
+
+3. Update .env.local with your MySQL credentials:
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=yourpassword
+DB_NAME=marketplace
+
 ---
 
 ## 6. API Standards

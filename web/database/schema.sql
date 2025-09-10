@@ -4,16 +4,25 @@ CREATE DATABASE IF NOT EXISTS `top_care_fashion`
   COLLATE utf8mb4_unicode_ci;
 USE `top_care_fashion`;
 
+CREATE TABLE IF NOT EXISTS roles (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(50) NOT NULL UNIQUE, -- e.g., "User", "Admin", "Moderator"
+  description VARCHAR(255) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   username VARCHAR(64) NOT NULL UNIQUE,
   email VARCHAR(191) NOT NULL UNIQUE,
   password_hash VARCHAR(191) NULL,
-  role ENUM('User','Admin') NOT NULL DEFAULT 'User',
+  role_id INT NOT NULL, -- reference to roles.id
   status ENUM('active','suspended') NOT NULL DEFAULT 'active',
   is_premium TINYINT(1) NOT NULL DEFAULT 0,
   premium_until TIMESTAMP NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE RESTRICT
 );
 
 CREATE TABLE IF NOT EXISTS product_categories (

@@ -1,10 +1,14 @@
 -- Seed data for Top Care Fashion
+INSERT INTO roles (name, description) VALUES
+  ('User', 'Standard account'),
+  ('Admin', 'Full system access'),
+  ('Moderator', 'Manages reports and reviews');
 
-INSERT INTO users (username, email, role, status, is_premium) VALUES
-  ('alice','alice@example.com','User','active', 1),
-  ('bob','bob@example.com','User','suspended', 0),
-  ('admin','admin@topcarefashion.com','Admin','active', 0)
-ON DUPLICATE KEY UPDATE role=VALUES(role), status=VALUES(status), is_premium=VALUES(is_premium);
+-- Users referencing role_id
+INSERT INTO users (username, email, password_hash, role_id, status, is_premium) VALUES
+  ('alice','alice@example.com','hashed_pw1', 1, 'active', 1),
+  ('bob','bob@example.com','hashed_pw2', 1, 'suspended', 0),
+  ('admin','admin@topcarefashion.com','hashed_pw3', 2, 'active', 0);
 
 INSERT INTO product_categories (name, description) VALUES
   ('Tops', 'Shirts, blouses, t-shirts, and upper body clothing'),
@@ -54,8 +58,8 @@ INSERT INTO testimonials (user_name, text, rating, tags, featured, created_at) V
 ('Sofia', 'Love the AI recommendations!', 5, '["ailisting", "mixmatch"]', 1, DATE_SUB(NOW(), INTERVAL 8 DAY));
 
 -- Insert site statistics
-INSERT INTO site_stats (total_downloads, total_listings, total_sold, avg_rating) VALUES 
-(12000, 38000, 9400, 4.8)
+INSERT INTO site_stats (id, total_downloads, total_listings, total_sold, avg_rating) VALUES 
+(1, 12000, 38000, 9400, 4.8)
 ON DUPLICATE KEY UPDATE 
   total_downloads=VALUES(total_downloads), 
   total_listings=VALUES(total_listings), 
