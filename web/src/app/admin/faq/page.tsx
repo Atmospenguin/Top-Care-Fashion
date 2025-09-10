@@ -5,6 +5,7 @@ import type { FaqQuery } from "@/types/admin";
 
 interface ExtendedFaq extends FaqQuery {
   editing?: boolean;
+  associatedUserName?: string;
 }
 
 export default function FAQPage() {
@@ -262,6 +263,27 @@ export default function FAQPage() {
                         </div>
                       )}
                     </div>
+                  </div>
+                </div>
+
+                {/* User Information */}
+                <div className="mb-3 p-3 bg-gray-50 rounded-md">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <span className="text-sm font-medium text-gray-700">Asked by:</span>
+                    {faq.userId ? (
+                      <div className="flex items-center space-x-2">
+                        <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                          User: {faq.associatedUserName || faq.userId}
+                        </span>
+                        {faq.userEmail && (
+                          <span className="text-sm text-gray-600">{faq.userEmail}</span>
+                        )}
+                      </div>
+                    ) : faq.userEmail ? (
+                      <span className="text-sm text-gray-600">{faq.userEmail}</span>
+                    ) : (
+                      <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">Anonymous</span>
+                    )}
                   </div>
                 </div>
 

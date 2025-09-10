@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import type { Report } from "@/types/admin";
 
 interface ExtendedReport extends Report {
@@ -119,7 +120,7 @@ export default function ReportsPage() {
   };
 
   const getTargetTypeColor = (targetType: Report["targetType"]) => {
-    return targetType === "product" 
+    return targetType === "listing" 
       ? "bg-blue-100 text-blue-800" 
       : "bg-purple-100 text-purple-800";
   };
@@ -262,7 +263,16 @@ export default function ReportsPage() {
                       <strong>Reason:</strong> {report.reason}
                     </p>
                     <p className="text-gray-600">
-                      <strong>Reporter:</strong> {report.reporter}
+                      <strong>Reporter:</strong> {report.reporterId ? (
+                        <Link
+                          href={`/admin/users/${report.reporterId}`}
+                          className="text-blue-600 hover:text-blue-800 ml-1"
+                        >
+                          {report.reporter}
+                        </Link>
+                      ) : (
+                        <span className="ml-1">{report.reporter}</span>
+                      )}
                     </p>
                     {report.notes && (
                       <div className="mt-3 p-3 bg-gray-50 rounded-md">

@@ -8,7 +8,7 @@ export async function GET() {
     const [testimonials] = await connection.execute(
       `SELECT id, user_name, message, rating, tags, created_at 
        FROM feedback 
-       WHERE feedback_type = 'testimonial' AND featured = 1 
+       WHERE featured = 1 AND rating IS NOT NULL
        ORDER BY created_at DESC`
     );
     

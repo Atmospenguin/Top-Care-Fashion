@@ -59,7 +59,7 @@ async function initializeDatabase() {
     
     // Clear existing content to avoid duplicates
     try {
-      await connection.execute('DELETE FROM feedback WHERE feedback_type = "testimonial"');
+      await connection.execute('DELETE FROM feedback');
       await connection.execute('DELETE FROM site_stats');
       await connection.execute('DELETE FROM pricing_plans');
       console.log('Cleared existing content data');
@@ -67,38 +67,37 @@ async function initializeDatabase() {
       console.log('No existing content to clear');
     }
     
-    // Insert extensive testimonials and feedback into unified feedback system
+    // Insert sample feedback (featured entries act like testimonials)
     try {
       await connection.execute(`
-        INSERT INTO feedback (user_name, user_email, message, rating, tags, featured, feedback_type, created_at) VALUES 
-        -- Featured Testimonials
-        ('Ava Chen', NULL, 'Mix & Match nailed my vibe in minutes. The AI suggestions are surprisingly accurate!', 5, '["mixmatch", "ai"]', 1, 'testimonial', DATE_SUB(NOW(), INTERVAL 2 DAY)),
-        ('Leo Martinez', NULL, 'AI Listing wrote better titles than I do. Saved me hours of work every week.', 5, '["ailisting", "productivity"]', 1, 'testimonial', DATE_SUB(NOW(), INTERVAL 5 DAY)),
-        ('Mia Johnson', NULL, 'Premium perks are worth it for frequent sellers. The commission reduction pays for itself.', 5, '["premium", "savings"]', 1, 'testimonial', DATE_SUB(NOW(), INTERVAL 7 DAY)),
-        ('Kai Nakamura', NULL, 'Found full outfits with Mix & Match. Love how it combines pieces I never thought would work together.', 4, '["mixmatch", "outfits"]', 1, 'testimonial', DATE_SUB(NOW(), INTERVAL 19 DAY)),
-        ('Zoe Williams', NULL, 'AI Listing saved me tons of time. The descriptions are professional and engaging.', 5, '["ailisting", "time-saving"]', 1, 'testimonial', DATE_SUB(NOW(), INTERVAL 25 DAY)),
-        ('Emma Rodriguez', NULL, 'The platform is so user-friendly. Sold my first item within 24 hours!', 5, '["platform", "easy-use"]', 1, 'testimonial', DATE_SUB(NOW(), INTERVAL 10 DAY)),
-        ('Ryan Thompson', NULL, 'Mix & Match helped me discover my personal style. The combinations are always on point.', 5, '["mixmatch", "style"]', 1, 'testimonial', DATE_SUB(NOW(), INTERVAL 15 DAY)),
-        ('Sofia Garcia', NULL, 'Premium badge really makes a difference. Buyers trust my listings more now.', 4, '["premium", "trust"]', 1, 'testimonial', DATE_SUB(NOW(), INTERVAL 20 DAY)),
+        INSERT INTO feedback (user_name, user_email, message, rating, tags, featured, created_at) VALUES 
+        -- Featured feedback
+        ('Ava Chen', NULL, 'Mix & Match nailed my vibe in minutes. The AI suggestions are surprisingly accurate!', 5, '["mixmatch", "ai"]', 1, DATE_SUB(NOW(), INTERVAL 2 DAY)),
+        ('Leo Martinez', NULL, 'AI Listing wrote better titles than I do. Saved me hours of work every week.', 5, '["ailisting", "productivity"]', 1, DATE_SUB(NOW(), INTERVAL 5 DAY)),
+        ('Mia Johnson', NULL, 'Premium perks are worth it for frequent sellers. The commission reduction pays for itself.', 5, '["premium", "savings"]', 1, DATE_SUB(NOW(), INTERVAL 7 DAY)),
+        ('Kai Nakamura', NULL, 'Found full outfits with Mix & Match. Love how it combines pieces I never thought would work together.', 4, '["mixmatch", "outfits"]', 1, DATE_SUB(NOW(), INTERVAL 19 DAY)),
+        ('Zoe Williams', NULL, 'AI Listing saved me tons of time. The descriptions are professional and engaging.', 5, '["ailisting", "time-saving"]', 1, DATE_SUB(NOW(), INTERVAL 25 DAY)),
+        ('Emma Rodriguez', NULL, 'The platform is so user-friendly. Sold my first item within 24 hours!', 5, '["platform", "easy-use"]', 1, DATE_SUB(NOW(), INTERVAL 10 DAY)),
+        ('Ryan Thompson', NULL, 'Mix & Match helped me discover my personal style. The combinations are always on point.', 5, '["mixmatch", "style"]', 1, DATE_SUB(NOW(), INTERVAL 15 DAY)),
+        ('Sofia Garcia', NULL, 'Premium badge really makes a difference. Buyers trust my listings more now.', 4, '["premium", "trust"]', 1, DATE_SUB(NOW(), INTERVAL 20 DAY)),
         
-        -- Regular Testimonials (not featured)
-        ('Alex Kim', 'alex.kim@example.com', 'Great app overall. The search functionality could be improved though.', 4, '["platform", "search"]', 0, 'testimonial', DATE_SUB(NOW(), INTERVAL 30 DAY)),
-        ('Jordan Lee', NULL, 'Love the community vibe here. Everyone is so helpful and friendly.', 5, '["community"]', 0, 'testimonial', DATE_SUB(NOW(), INTERVAL 35 DAY)),
-        ('Taylor Swift', NULL, 'AI recommendations are getting better every day. Impressed with the machine learning.', 4, '["ai", "improvement"]', 0, 'testimonial', DATE_SUB(NOW(), INTERVAL 40 DAY)),
-        ('Morgan Davis', 'morgan.d@gmail.com', 'The mobile app is fantastic. Much better than the web version in my opinion.', 5, '["mobile", "ui"]', 0, 'testimonial', DATE_SUB(NOW(), INTERVAL 45 DAY)),
-        ('Casey Wilson', NULL, 'Mix & Match is addictive! I spend hours browsing outfit combinations.', 4, '["mixmatch", "engagement"]', 0, 'testimonial', DATE_SUB(NOW(), INTERVAL 50 DAY)),
-        ('Riley Brown', NULL, 'Customer service is top-notch. They resolved my issue within hours.', 5, '["support", "service"]', 0, 'testimonial', DATE_SUB(NOW(), INTERVAL 55 DAY)),
-        ('Quinn Anderson', 'quinn.a@yahoo.com', 'The promotion features really work. My sales increased by 300%!', 5, '["promotion", "sales"]', 0, 'testimonial', DATE_SUB(NOW(), INTERVAL 60 DAY)),
-        ('Blake Miller', NULL, 'Sustainable fashion made easy. Love supporting eco-friendly sellers.', 4, '["sustainability", "eco"]', 0, 'testimonial', DATE_SUB(NOW(), INTERVAL 65 DAY)),
+        -- Other feedback
+        ('Alex Kim', 'alex.kim@example.com', 'Great app overall. The search functionality could be improved though.', 4, '["platform", "search"]', 0, DATE_SUB(NOW(), INTERVAL 30 DAY)),
+        ('Jordan Lee', NULL, 'Love the community vibe here. Everyone is so helpful and friendly.', 5, '["community"]', 0, DATE_SUB(NOW(), INTERVAL 35 DAY)),
+        ('Taylor Swift', NULL, 'AI recommendations are getting better every day. Impressed with the machine learning.', 4, '["ai", "improvement"]', 0, DATE_SUB(NOW(), INTERVAL 40 DAY)),
+        ('Morgan Davis', 'morgan.d@gmail.com', 'The mobile app is fantastic. Much better than the web version in my opinion.', 5, '["mobile", "ui"]', 0, DATE_SUB(NOW(), INTERVAL 45 DAY)),
+        ('Casey Wilson', NULL, 'Mix & Match is addictive! I spend hours browsing outfit combinations.', 4, '["mixmatch", "engagement"]', 0, DATE_SUB(NOW(), INTERVAL 50 DAY)),
+        ('Riley Brown', NULL, 'Customer service is top-notch. They resolved my issue within hours.', 5, '["support", "service"]', 0, DATE_SUB(NOW(), INTERVAL 55 DAY)),
+        ('Quinn Anderson', 'quinn.a@yahoo.com', 'The promotion features really work. My sales increased by 300%!', 5, '["promotion", "sales"]', 0, DATE_SUB(NOW(), INTERVAL 60 DAY)),
+        ('Blake Miller', NULL, 'Sustainable fashion made easy. Love supporting eco-friendly sellers.', 4, '["sustainability", "eco"]', 0, DATE_SUB(NOW(), INTERVAL 65 DAY)),
         
-        -- Regular Feedback
-        (NULL, 'feedback@example.com', 'Please add a dark mode option. The bright interface hurts my eyes during late-night browsing.', NULL, NULL, 0, 'feedback', DATE_SUB(NOW(), INTERVAL 3 DAY)),
-        (NULL, 'user123@gmail.com', 'The search filters are great, but could you add a size filter for shoes specifically?', NULL, NULL, 0, 'feedback', DATE_SUB(NOW(), INTERVAL 8 DAY)),
-        (NULL, 'seller_pro@outlook.com', 'Would love to see analytics on which times of day get the most views for listings.', NULL, NULL, 0, 'feedback', DATE_SUB(NOW(), INTERVAL 12 DAY)),
-        (NULL, NULL, 'Anonymous feedback: The app crashes sometimes when uploading multiple photos. Please fix.', NULL, NULL, 0, 'feedback', DATE_SUB(NOW(), INTERVAL 18 DAY)),
-        (NULL, 'fashionista@hotmail.com', 'Can you add a wishlist feature? I want to save items I am interested in but not ready to buy.', NULL, NULL, 0, 'feedback', DATE_SUB(NOW(), INTERVAL 22 DAY)),
-        (NULL, 'buyer_jane@example.com', 'The chat feature with sellers is excellent. Makes communication so much easier.', NULL, NULL, 0, 'feedback', DATE_SUB(NOW(), INTERVAL 28 DAY)),
-        (NULL, NULL, 'Love the platform but the loading times could be faster. Especially on mobile.', NULL, NULL, 0, 'feedback', DATE_SUB(NOW(), INTERVAL 32 DAY)),
+        (NULL, 'feedback@example.com', 'Please add a dark mode option. The bright interface hurts my eyes during late-night browsing.', NULL, NULL, 0, DATE_SUB(NOW(), INTERVAL 3 DAY)),
+        (NULL, 'user123@gmail.com', 'The search filters are great, but could you add a size filter for shoes specifically?', NULL, NULL, 0, DATE_SUB(NOW(), INTERVAL 8 DAY)),
+        (NULL, 'seller_pro@outlook.com', 'Would love to see analytics on which times of day get the most views for listings.', NULL, NULL, 0, DATE_SUB(NOW(), INTERVAL 12 DAY)),
+        (NULL, NULL, 'Anonymous feedback: The app crashes sometimes when uploading multiple photos. Please fix.', NULL, NULL, 0, DATE_SUB(NOW(), INTERVAL 18 DAY)),
+        (NULL, 'fashionista@hotmail.com', 'Can you add a wishlist feature? I want to save items I am interested in but not ready to buy.', NULL, NULL, 0, DATE_SUB(NOW(), INTERVAL 22 DAY)),
+        (NULL, 'buyer_jane@example.com', 'The chat feature with sellers is excellent. Makes communication so much easier.', NULL, NULL, 0, DATE_SUB(NOW(), INTERVAL 28 DAY)),
+        (NULL, NULL, 'Love the platform but the loading times could be faster. Especially on mobile.', NULL, NULL, 0, DATE_SUB(NOW(), INTERVAL 32 DAY)),
         (NULL, 'student_discount@edu.com', 'Any chance of student discounts for premium memberships?', NULL, NULL, 0, 'feedback', DATE_SUB(NOW(), INTERVAL 38 DAY)),
         (NULL, 'vintage_lover@gmail.com', 'More vintage clothing categories would be amazing. The current ones are too broad.', NULL, NULL, 0, 'feedback', DATE_SUB(NOW(), INTERVAL 42 DAY)),
         (NULL, NULL, 'The return policy information should be more prominent on listing pages.', NULL, NULL, 0, 'feedback', DATE_SUB(NOW(), INTERVAL 48 DAY)),
@@ -106,15 +105,15 @@ async function initializeDatabase() {
         (NULL, 'eco_warrior@greenmail.org', 'Love that you promote sustainable fashion! Maybe add carbon footprint info for shipping?', NULL, NULL, 0, 'feedback', DATE_SUB(NOW(), INTERVAL 58 DAY)),
         
         -- More diverse testimonials
-        ('Sam Patel', NULL, 'As a small business owner, this platform has been a game-changer for my boutique.', 5, '["business", "entrepreneur"]', 0, 'testimonial', DATE_SUB(NOW(), INTERVAL 70 DAY)),
-        ('Drew Chang', 'drew.c@fashion.com', 'The AI is scary good at predicting trends. My inventory decisions are much better now.', 5, '["ai", "trends", "business"]', 0, 'testimonial', DATE_SUB(NOW(), INTERVAL 75 DAY)),
-        ('Avery Foster', NULL, 'College budget friendly! Found designer pieces at amazing prices.', 4, '["budget", "student", "designer"]', 0, 'testimonial', DATE_SUB(NOW(), INTERVAL 80 DAY)),
-        ('River Hayes', NULL, 'The size-inclusive options are fantastic. Finally found clothes that fit perfectly!', 5, '["inclusive", "fit", "diversity"]', 0, 'testimonial', DATE_SUB(NOW(), INTERVAL 85 DAY)),
-        ('Phoenix Taylor', 'phoenix.t@creative.com', 'Mix & Match helped me build my professional wardrobe from thrift finds. Genius!', 4, '["professional", "thrift", "mixmatch"]', 0, 'testimonial', DATE_SUB(NOW(), INTERVAL 90 DAY))
+        ('Sam Patel', NULL, 'As a small business owner, this platform has been a game-changer for my boutique.', 5, '["business", "entrepreneur"]', 0, DATE_SUB(NOW(), INTERVAL 70 DAY)),
+        ('Drew Chang', 'drew.c@fashion.com', 'The AI is scary good at predicting trends. My inventory decisions are much better now.', 5, '["ai", "trends", "business"]', 0, DATE_SUB(NOW(), INTERVAL 75 DAY)),
+        ('Avery Foster', NULL, 'College budget friendly! Found designer pieces at amazing prices.', 4, '["budget", "student", "designer"]', 0, DATE_SUB(NOW(), INTERVAL 80 DAY)),
+        ('River Hayes', NULL, 'The size-inclusive options are fantastic. Finally found clothes that fit perfectly!', 5, '["inclusive", "fit", "diversity"]', 0, DATE_SUB(NOW(), INTERVAL 85 DAY)),
+        ('Phoenix Taylor', 'phoenix.t@creative.com', 'Mix & Match helped me build my professional wardrobe from thrift finds. Genius!', 4, '["professional", "thrift", "mixmatch"]', 0, DATE_SUB(NOW(), INTERVAL 90 DAY))
       `);
-      console.log('Extensive testimonials and feedback inserted successfully');
+      console.log('Sample feedback inserted successfully');
     } catch (error) {
-      console.log('Testimonials/Feedback error:', error.message);
+      console.log('Feedback insert error:', error.message);
     }
     
     // Insert sample users with SHA256 hashed passwords (matching current auth system)

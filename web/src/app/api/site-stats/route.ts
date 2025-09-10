@@ -6,7 +6,7 @@ export async function GET() {
     const connection = await getConnection();
     
     const [stats] = await connection.execute(
-      `SELECT total_downloads, total_listings, total_sold, avg_rating 
+      `SELECT total_users, total_listings, total_sold, avg_rating 
        FROM site_stats 
        WHERE id = 1`
     );
@@ -27,7 +27,7 @@ export async function GET() {
     const siteStats = (stats as any[])[0];
     return NextResponse.json({
       stats: {
-        downloads: siteStats.total_downloads,
+        downloads: siteStats.total_users,
         listings: siteStats.total_listings,
         sold: siteStats.total_sold,
         rating: siteStats.avg_rating

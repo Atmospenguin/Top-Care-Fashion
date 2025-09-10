@@ -18,11 +18,15 @@ export default function TransactionDetailPage() {
       try {
         setLoading(true);
         
-        // Load transaction details (would need to create this API endpoint)
+        // Load transaction details
         const transactionRes = await fetch(`/api/admin/transactions/${transactionId}`, { cache: "no-store" });
         if (transactionRes.ok) {
           const transactionData = await transactionRes.json();
           setTransaction(transactionData);
+        } else if (transactionRes.status === 404) {
+          setError("Transaction not found");
+        } else {
+          throw new Error(`HTTP ${transactionRes.status}: Failed to load transaction`);
         }
 
         // Load related reviews
@@ -181,7 +185,16 @@ export default function TransactionDetailPage() {
               <div key={review.id} className="border-l-4 border-blue-500 pl-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <span className="font-medium">{review.author}</span>
+                    {review.authorUserId ? (
+                      <Link
+                        href={`/admin/users/${review.authorUserId}`}
+                        className="font-medium text-blue-600 hover:text-blue-800"
+                      >
+                        {review.author}
+                      </Link>
+                    ) : (
+                      <span className="font-medium">{review.author}</span>
+                    )}
                     <div className="flex">
                       {[...Array(5)].map((_, i) => (
                         <span

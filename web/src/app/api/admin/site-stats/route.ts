@@ -14,7 +14,7 @@ export async function PUT(req: NextRequest) {
     
     await connection.execute(
       `UPDATE site_stats SET 
-       total_downloads = ?, total_listings = ?, total_sold = ?, avg_rating = ?, updated_at = NOW() 
+       total_users = ?, total_listings = ?, total_sold = ?, avg_rating = ?, updated_at = NOW() 
        WHERE id = 1`,
       [downloads, listings, sold, rating]
     );

@@ -8,7 +8,7 @@ export async function GET() {
     const [plans] = await connection.execute(
       `SELECT plan_type, name, description, price_monthly, price_quarterly, price_annual,
               listing_limit, promotion_price, promotion_discount, commission_rate,
-              mixmatch_limit, free_promotion_credits, seller_badge, features, is_popular
+              features, is_popular
        FROM pricing_plans 
        WHERE active = 1 
        ORDER BY price_monthly ASC`
@@ -30,9 +30,6 @@ export async function GET() {
       promotionPrice: plan.promotion_price,
       promotionDiscount: plan.promotion_discount,
       commissionRate: plan.commission_rate,
-      mixMatchLimit: plan.mixmatch_limit,
-      freePromotionCredits: plan.free_promotion_credits,
-      sellerBadge: plan.seller_badge,
       features: plan.features ? JSON.parse(plan.features) : [],
       isPopular: plan.is_popular === 1
     }));

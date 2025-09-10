@@ -63,6 +63,11 @@ export default function ListingTransactionsPage() {
           <p className="text-sm text-gray-600 mt-1">
             {transactions.length} transactions for this listing
           </p>
+          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+            <p className="text-xs text-yellow-800">
+              ⚠️ <strong>Second-hand Platform:</strong> Each listing represents one item. Once completed, the item should be unlisted.
+            </p>
+          </div>
         </div>
         <Link
           href="/admin/listings"
@@ -110,9 +115,9 @@ export default function ListingTransactionsPage() {
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-sm">{transaction.quantity}</td>
-                    <td className="px-4 py-3 text-sm">${transaction.priceEach?.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm">${Number(transaction.priceEach || 0).toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm font-medium">
-                      ${((transaction.priceEach || 0) * transaction.quantity).toFixed(2)}
+                      ${(Number(transaction.priceEach || 0) * transaction.quantity).toFixed(2)}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(transaction.status)}`}>

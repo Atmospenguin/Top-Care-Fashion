@@ -1,20 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Feedback, FeedbackType } from "@/types/admin";
+import Link from "next/link";
+import type { Feedback } from "@/types/admin";
 
 interface ExtendedFeedback extends Feedback {
   selected?: boolean;
+  associatedUserName?: string;
 }
 
 interface NewFeedback {
+  userId?: string;
   userEmail?: string;
   userName?: string;
   message: string;
   rating?: number;
   tags: string[];
   featured: boolean;
-  feedbackType: FeedbackType;
 }
 
 export default function FeedbackPage() {
@@ -23,13 +25,12 @@ export default function FeedbackPage() {
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [selectedFeedback, setSelectedFeedback] = useState<ExtendedFeedback | null>(null);
-  const [filter, setFilter] = useState<"all" | "feedback" | "testimonial" | "with-email" | "anonymous">("all");
+  const [filter, setFilter] = useState<"all" | "featured" | "with-rating" | "with-user" | "anonymous">("all");
   const [showAddForm, setShowAddForm] = useState(false);
   const [newFeedback, setNewFeedback] = useState<NewFeedback>({
     message: '',
     tags: [],
-    featured: false,
-    feedbackType: 'feedback'
+    featured: false
   });
   const [saving, setSaving] = useState(false);
 
@@ -77,9 +78,9 @@ export default function FeedbackPage() {
   const addFeedback = async () => {
     if (!newFeedback.message) return;
     
-    // Validate testimonial requirements
-    if (newFeedback.feedbackType === 'testimonial' && !newFeedback.userName) {
-      alert('User name is required for testimonials');
+    // Validate featured feedback requirements
+    if (newFeedback.featured && !newFeedback.userName) {
+      alert('User name is required for featured feedback');
       return;
     }
 
@@ -97,8 +98,7 @@ export default function FeedbackPage() {
         setNewFeedback({
           message: '',
           tags: [],
-          featured: false,
-          feedbackType: 'feedback'
+          featured: false
         });
         setShowAddForm(false);
         load();
@@ -114,10 +114,10 @@ export default function FeedbackPage() {
 
   const filteredFeedbacks = feedbacks.filter(feedback => {
     switch (filter) {
-      case "feedback": return feedback.feedbackType === 'feedback';
-      case "testimonial": return feedback.feedbackType === 'testimonial';
-      case "with-email": return feedback.userEmail;
-      case "anonymous": return !feedback.userEmail;
+      case "featured": return feedback.featured;
+      case "with-rating": return feedback.rating !== null && feedback.rating !== undefined;
+      case "with-user": return feedback.userId || feedback.userEmail;
+      case "anonymous": return !feedback.userId && !feedback.userEmail;
       default: return true;
     }
   });
@@ -135,7 +135,7 @@ export default function FeedbackPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Feedback & Testimonials Management</h2>
+        <h2 className="text-xl font-semibold">Feedback Management</h2>
         <div className="animate-pulse space-y-4">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="h-24 bg-gray-200 rounded"></div>
@@ -148,7 +148,7 @@ export default function FeedbackPage() {
   if (error) {
     return (
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Feedback & Testimonials Management</h2>
+        <h2 className="text-xl font-semibold">Feedback Management</h2>
         <div className="bg-red-50 border border-red-200 rounded-md p-4">
           <div className="text-red-800">Error: {error}</div>
           <button 
@@ -165,10 +165,10 @@ export default function FeedbackPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Feedback & Testimonials Management</h2>
+        <h2 className="text-xl font-semibold">Feedback Management</h2>
         <div className="flex items-center space-x-4">
           <div className="text-sm text-gray-600">
-            {feedbacks.length} total • {feedbacks.filter(f => f.feedbackType === 'testimonial').length} testimonials • {feedbacks.filter(f => f.feedbackType === 'feedback').length} feedback
+            {feedbacks.length} total • {feedbacks.filter(f => f.featured).length} featured • {feedbacks.filter(f => f.rating).length} with ratings
           </div>
           <button
             onClick={() => setShowAddForm(true)}
@@ -183,9 +183,9 @@ export default function FeedbackPage() {
       <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
         {[
           { key: "all", label: "All" },
-          { key: "feedback", label: "Feedback" },
-          { key: "testimonial", label: "Testimonials" },
-          { key: "with-email", label: "With Email" },
+          { key: "featured", label: "Featured" },
+          { key: "with-rating", label: "With Rating" },
+          { key: "with-user", label: "With User" },
           { key: "anonymous", label: "Anonymous" }
         ].map((tab) => (
           <button
@@ -200,10 +200,10 @@ export default function FeedbackPage() {
             {tab.label}
             <span className="ml-1 text-xs bg-gray-200 px-1.5 py-0.5 rounded-full">
               {tab.key === "all" ? feedbacks.length :
-               tab.key === "feedback" ? feedbacks.filter(f => f.feedbackType === 'feedback').length :
-               tab.key === "testimonial" ? feedbacks.filter(f => f.feedbackType === 'testimonial').length :
-               tab.key === "with-email" ? feedbacks.filter(f => f.userEmail).length :
-               feedbacks.filter(f => !f.userEmail).length}
+               tab.key === "featured" ? feedbacks.filter(f => f.featured).length :
+               tab.key === "with-rating" ? feedbacks.filter(f => f.rating).length :
+               tab.key === "with-user" ? feedbacks.filter(f => f.userId || f.userEmail).length :
+               feedbacks.filter(f => !f.userId && !f.userEmail).length}
             </span>
           </button>
         ))}
@@ -224,70 +224,68 @@ export default function FeedbackPage() {
           
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">User ID (Optional)</label>
+              <input
+                type="text"
+                value={newFeedback.userId || ''}
+                onChange={(e) => setNewFeedback({...newFeedback, userId: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Associate with a user ID"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">User Name</label>
+              <input
+                type="text"
+                value={newFeedback.userName || ''}
+                onChange={(e) => setNewFeedback({...newFeedback, userName: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Display name"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Rating (Optional)</label>
               <select
-                value={newFeedback.feedbackType}
-                onChange={(e) => setNewFeedback({...newFeedback, feedbackType: e.target.value as FeedbackType})}
+                title="Rating selection"
+                value={newFeedback.rating || ''}
+                onChange={(e) => setNewFeedback({...newFeedback, rating: e.target.value ? parseInt(e.target.value) : undefined})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="feedback">Feedback</option>
-                <option value="testimonial">Testimonial</option>
+                <option value="">No rating</option>
+                <option value={5}>5 Stars</option>
+                <option value={4}>4 Stars</option>
+                <option value={3}>3 Stars</option>
+                <option value={2}>2 Stars</option>
+                <option value={1}>1 Star</option>
               </select>
             </div>
-
-            {newFeedback.feedbackType === 'testimonial' && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">User Name *</label>
-                  <input
-                    type="text"
-                    value={newFeedback.userName || ''}
-                    onChange={(e) => setNewFeedback({...newFeedback, userName: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Display name for testimonial"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Rating</label>
-                  <select
-                    value={newFeedback.rating || 5}
-                    onChange={(e) => setNewFeedback({...newFeedback, rating: parseInt(e.target.value)})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value={5}>5 Stars</option>
-                    <option value={4}>4 Stars</option>
-                    <option value={3}>3 Stars</option>
-                    <option value={2}>2 Stars</option>
-                    <option value={1}>1 Star</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
-                  <input
-                    type="text"
-                    value={newFeedback.tags.join(', ')}
-                    onChange={(e) => setNewFeedback({
-                      ...newFeedback, 
-                      tags: e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag)
-                    })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="mixmatch, ailisting, premium"
-                  />
-                </div>
-                
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={newFeedback.featured}
-                    onChange={(e) => setNewFeedback({...newFeedback, featured: e.target.checked})}
-                    className="mr-2"
-                  />
-                  <label className="text-sm font-medium text-gray-700">Featured on homepage</label>
-                </div>
-              </>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+              <input
+                type="text"
+                value={newFeedback.tags.join(', ')}
+                onChange={(e) => setNewFeedback({
+                  ...newFeedback, 
+                  tags: e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag)
+                })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g. mixmatch, ailisting, premium"
+              />
+              <p className="text-xs text-gray-500 mt-1">Separate tags with commas</p>
+            </div>
+            
+            <div>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={newFeedback.featured}
+                  onChange={(e) => setNewFeedback({...newFeedback, featured: e.target.checked})}
+                  className="mr-2"
+                />
+                <span className="text-sm font-medium text-gray-700">Featured on homepage</span>
+              </label>
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email (optional)</label>
@@ -320,7 +318,7 @@ export default function FeedbackPage() {
               </button>
               <button
                 onClick={addFeedback}
-                disabled={saving || !newFeedback.message || (newFeedback.feedbackType === 'testimonial' && !newFeedback.userName)}
+                disabled={saving || !newFeedback.message || (newFeedback.featured && !newFeedback.userName)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
                 {saving ? 'Adding...' : 'Add'}
@@ -339,18 +337,35 @@ export default function FeedbackPage() {
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-2">
                     <h3 className="text-lg font-medium">
-                      {feedback.feedbackType === 'testimonial' ? 'Testimonial' : 'Feedback'} #{feedback.id}
+                      Feedback #{feedback.id}
                     </h3>
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      feedback.feedbackType === 'testimonial' 
-                        ? 'bg-purple-100 text-purple-800'
-                        : 'bg-blue-100 text-blue-800'
-                    }`}>
-                      {feedback.feedbackType === 'testimonial' ? 'Testimonial' : 'Feedback'}
-                    </span>
                     {feedback.featured && (
                       <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
                         Featured
+                      </span>
+                    )}
+                    {feedback.rating && (
+                      <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                        ★ {feedback.rating}
+                      </span>
+                    )}
+                    {feedback.userId && (
+                      <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                        User: {feedback.associatedUserName ? (
+                          <Link
+                            href={`/admin/users/${feedback.userId}`}
+                            className="text-blue-600 hover:text-blue-800 underline"
+                          >
+                            {feedback.associatedUserName}
+                          </Link>
+                        ) : (
+                          <Link
+                            href={`/admin/users/${feedback.userId}`}
+                            className="text-blue-600 hover:text-blue-800 underline"
+                          >
+                            {feedback.userId}
+                          </Link>
+                        )}
                       </span>
                     )}
                     <span className={`px-2 py-1 text-xs rounded-full ${
@@ -415,8 +430,8 @@ export default function FeedbackPage() {
                 </div>
                 <div>
                   <span className="text-gray-500">Type:</span>
-                  <div className="font-medium capitalize">
-                    {feedback.feedbackType}
+                  <div className="font-medium">
+                    {feedback.featured ? 'Featured' : 'Regular'}
                   </div>
                 </div>
               </div>
@@ -432,7 +447,7 @@ export default function FeedbackPage() {
                   {feedback.userEmail && (
                     <button
                       onClick={() => {
-                        window.location.href = `mailto:${feedback.userEmail}?subject=Re: Your ${feedback.feedbackType}&body=Hi,\n\nThank you for your ${feedback.feedbackType} about our platform.\n\nBest regards,\nTop Care Fashion Team`;
+                        window.location.href = `mailto:${feedback.userEmail}?subject=Re: Your feedback&body=Hi,\n\nThank you for your feedback about our platform.\n\nBest regards,\nTop Care Fashion Team`;
                       }}
                       className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
                     >
@@ -456,14 +471,14 @@ export default function FeedbackPage() {
       {filteredFeedbacks.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           {filter === "all" 
-            ? "No items found. User feedback and testimonials will appear here when submitted."
-            : filter === "feedback"
-            ? "No feedback found."
-            : filter === "testimonial"
-            ? "No testimonials found."
-            : filter === "with-email"
-            ? "No items from registered users found."
-            : "No anonymous items found."
+            ? "No items found. User feedback will appear here when submitted."
+            : filter === "featured"
+            ? "No featured feedback found."
+            : filter === "with-rating"
+            ? "No feedback with ratings found."
+            : filter === "with-user"
+            ? "No feedback from registered users found."
+            : "No anonymous feedback found."
           }
         </div>
       )}
@@ -474,7 +489,7 @@ export default function FeedbackPage() {
           <div className="bg-white rounded-lg p-6 w-[min(90vw,600px)] max-h-[80vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">
-                {selectedFeedback.feedbackType === 'testimonial' ? 'Testimonial' : 'Feedback'} Details
+                Feedback Details
               </h3>
               <button 
                 onClick={() => setSelectedFeedback(null)}
@@ -490,13 +505,26 @@ export default function FeedbackPage() {
                   <div>{selectedFeedback.id}</div>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-700">Type:</span>
-                  <div className="capitalize">{selectedFeedback.feedbackType}</div>
+                  <span className="font-medium text-gray-700">Featured:</span>
+                  <div>{selectedFeedback.featured ? 'Yes' : 'No'}</div>
                 </div>
                 <div>
                   <span className="font-medium text-gray-700">Email:</span>
                   <div>{selectedFeedback.userEmail || 'Not provided'}</div>
                 </div>
+                {selectedFeedback.userId && (
+                  <div>
+                    <span className="font-medium text-gray-700">User:</span>
+                    <div>
+                      <Link
+                        href={`/admin/users/${selectedFeedback.userId}`}
+                        className="text-blue-600 hover:text-blue-800 underline"
+                      >
+                        {selectedFeedback.associatedUserName || selectedFeedback.userId}
+                      </Link>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <span className="font-medium text-gray-700">Name:</span>
                   <div>{selectedFeedback.userName || 'Not provided'}</div>
@@ -539,7 +567,7 @@ export default function FeedbackPage() {
                 {selectedFeedback.userEmail && (
                   <button
                     onClick={() => {
-                      window.location.href = `mailto:${selectedFeedback.userEmail}?subject=Re: Your ${selectedFeedback.feedbackType}&body=Hi,\n\nThank you for your ${selectedFeedback.feedbackType} about our platform.\n\nBest regards,\nTop Care Fashion Team`;
+                      window.location.href = `mailto:${selectedFeedback.userEmail}?subject=Re: Your feedback&body=Hi,\n\nThank you for your feedback about our platform.\n\nBest regards,\nTop Care Fashion Team`;
                     }}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                   >

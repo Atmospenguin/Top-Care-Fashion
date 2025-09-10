@@ -8,17 +8,19 @@ export async function GET() {
   const conn = await getConnection();
   const [rows] = await conn.execute(
     `SELECT 
-      id, 
-      user_email AS userEmail, 
-      user_name AS userName,
-      message, 
-      rating,
-      tags,
-      featured,
-      feedback_type AS feedbackType,
-      created_at AS createdAt 
-    FROM feedback 
-    ORDER BY id DESC`
+      f.id, 
+      f.user_id AS userId,
+      f.user_email AS userEmail, 
+      f.user_name AS userName,
+      f.message, 
+      f.rating,
+      f.tags,
+      f.featured,
+      f.created_at AS createdAt,
+      u.username AS associatedUserName
+    FROM feedback f
+    LEFT JOIN users u ON f.user_id = u.id
+    ORDER BY f.id DESC`
   );
   await conn.end();
   
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { userEmail, userName, message, rating, tags, featured, feedbackType } = body;
+    const { userId, userEmail, userName, message, rating, tags, featured } = body;
 
     if (!message) {
       return NextResponse.json(
@@ -47,10 +49,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate testimonial-specific fields
-    if (feedbackType === 'testimonial' && !userName) {
+    // If featured (testimonial), ensure we have display name
+    if (featured && !userName) {
       return NextResponse.json(
-        { error: "userName is required for testimonials" },
+        { error: "userName is required for featured feedback" },
         { status: 400 }
       );
     }
@@ -58,16 +60,16 @@ export async function POST(req: NextRequest) {
     const connection = await getConnection();
     
     await connection.execute(
-      `INSERT INTO feedback (user_email, user_name, message, rating, tags, featured, feedback_type, created_at) 
+      `INSERT INTO feedback (user_id, user_email, user_name, message, rating, tags, featured, created_at) 
        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
+        userId || null,
         userEmail || null,
         userName || null,
         message,
         rating || null,
         tags ? JSON.stringify(tags) : null,
-        featured ? 1 : 0,
-        feedbackType || 'feedback'
+        featured ? 1 : 0
       ]
     );
     

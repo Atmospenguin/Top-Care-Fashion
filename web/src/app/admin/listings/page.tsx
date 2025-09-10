@@ -21,7 +21,6 @@ export default function ListingManagementPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [filter, setFilter] = useState<FilterType>("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   const isAdmin = user?.actor === "Admin";
@@ -265,7 +264,6 @@ export default function ListingManagementPage() {
               onEdit={startEdit}
               onDelete={deleteListing}
               onToggleListing={toggleListing}
-              onSelect={setSelectedListing}
             />
           ))}
         </div>
@@ -299,13 +297,6 @@ export default function ListingManagementPage() {
         />
       )}
 
-      {/* Detail Modal */}
-      {selectedListing && (
-        <ListingDetailModal
-          listing={selectedListing}
-          onClose={() => setSelectedListing(null)}
-        />
-      )}
     </div>
   );
 }
@@ -317,14 +308,12 @@ function ListingCard({
   onEdit, 
   onDelete, 
   onToggleListing, 
-  onSelect 
 }: {
   listing: EditingListing;
   isAdmin: boolean;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onToggleListing: (id: string, listed: boolean) => void;
-  onSelect: (listing: Listing) => void;
 }) {
   return (
     <div className="bg-white border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
@@ -363,13 +352,30 @@ function ListingCard({
           )}
         </div>
 
+        {/* Seller Information */}
+        {listing.sellerId && (
+          <div className="mt-2 flex items-center space-x-2">
+            <span className="text-xs text-gray-500">Seller:</span>
+            <Link
+              href={`/admin/users/${listing.sellerId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:text-blue-800 underline"
+            >
+              {listing.sellerName || `User ${listing.sellerId}`}
+            </Link>
+          </div>
+        )}
+
         <div className="flex gap-2 mt-4">
-          <button
-            onClick={() => onSelect(listing)}
-            className="flex-1 px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded"
+          <Link
+            href={`/admin/listings/${listing.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded text-center"
           >
             View Details
-          </button>
+          </Link>
           {isAdmin && (
             <>
               <button
@@ -682,95 +688,3 @@ function CreateListingModal({ onClose, onCreate }: {
   );
 }
 
-function ListingDetailModal({ listing, onClose }: {
-  listing: Listing;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-start mb-4">
-          <h3 className="text-lg font-semibold">{listing.name}</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            ✕
-          </button>
-        </div>
-        
-        <div className="grid md:grid-cols-2 gap-6">
-          {listing.imageUrl && (
-            <div>
-              <img 
-                src={listing.imageUrl} 
-                alt={listing.name}
-                className="w-full rounded-lg"
-              />
-            </div>
-          )}
-          
-          <div className="space-y-4">
-            <div>
-              <h4 className="text-lg font-semibold text-[var(--brand-color)]">
-                ${listing.price?.toFixed(2)}
-              </h4>
-              <span className={`px-2 py-1 text-xs rounded-full ${
-                listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-              }`}>
-                {listing.listed ? 'Listed' : 'Unlisted'}
-              </span>
-            </div>
-            
-            {listing.description && (
-              <div>
-                <h5 className="font-medium text-gray-700 mb-1">Description</h5>
-                <p className="text-gray-600">{listing.description}</p>
-              </div>
-            )}
-            
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              {listing.brand && (
-                <div>
-                  <span className="text-gray-500">Brand:</span>
-                  <div className="font-medium">{listing.brand}</div>
-                </div>
-              )}
-              {listing.size && (
-                <div>
-                  <span className="text-gray-500">Size:</span>
-                  <div className="font-medium">{listing.size}</div>
-                </div>
-              )}
-              {listing.conditionType && (
-                <div>
-                  <span className="text-gray-500">Condition:</span>
-                  <div className="font-medium capitalize">{listing.conditionType.replace('_', ' ')}</div>
-                </div>
-              )}
-              <div>
-                <span className="text-gray-500">ID:</span>
-                <div className="font-medium">{listing.id}</div>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t space-y-2">
-              <Link
-                href={`/admin/listings/${listing.id}/transactions`}
-                className="block text-blue-600 hover:text-blue-800 text-sm"
-              >
-                View Transactions →
-              </Link>
-              <Link
-                href={`/admin/listings/${listing.id}/reviews`}
-                className="block text-blue-600 hover:text-blue-800 text-sm"
-              >
-                View Reviews →
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}

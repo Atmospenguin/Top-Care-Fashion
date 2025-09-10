@@ -7,10 +7,13 @@ export async function GET() {
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const conn = await getConnection();
   const [rows]: any = await conn.execute(
-    `SELECT id, name, description, category_id AS categoryId, seller_id AS sellerId, 
-            listed, price, image_url AS imageUrl, image_urls AS imageUrls, 
-            brand, size, condition_type AS conditionType, tags, 
-            created_at AS createdAt FROM listings ORDER BY id`
+    `SELECT l.id, l.name, l.description, l.category_id AS categoryId, l.seller_id AS sellerId, 
+            l.listed, l.price, l.image_url AS imageUrl, l.image_urls AS imageUrls, 
+            l.brand, l.size, l.condition_type AS conditionType, l.tags, 
+            l.created_at AS createdAt, u.username AS sellerName
+     FROM listings l
+     LEFT JOIN users u ON l.seller_id = u.id
+     ORDER BY l.id`
   );
   await conn.end();
   const listings = (rows || []).map((r: any) => ({
