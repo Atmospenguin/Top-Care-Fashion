@@ -24,6 +24,7 @@ export type Listing = {
   description?: string;
   categoryId: string;
   sellerId?: string;
+  sellerName?: string;
   listed: boolean;
   price: number;
   imageUrl?: string;
@@ -67,6 +68,7 @@ export type Report = {
   targetType: "listing" | "user";
   targetId: string;
   reporter: string;
+  reporterId?: string; // User ID of the reporter
   reason: string;
   status: "open" | "resolved" | "dismissed";
   notes?: string;
@@ -74,17 +76,15 @@ export type Report = {
   resolvedAt?: string;
 };
 
-export type FeedbackType = "feedback" | "testimonial";
-
 export type Feedback = {
   id: string;
+  userId?: string; // Associated user ID
   userEmail?: string;
-  userName?: string; // Display name for testimonials
+  userName?: string; // Display name
   message: string;
-  rating?: number; // 1-5 rating for testimonials
-  tags?: string[]; // Tags for testimonials
-  featured: boolean; // Featured on homepage as testimonial
-  feedbackType: FeedbackType;
+  rating?: number; // 1-5 rating (required for testimonials)
+  tags?: string[]; // Tags for categorization
+  featured: boolean; // Featured on homepage
   createdAt: string;
 };
 
@@ -101,6 +101,8 @@ export type Testimonial = {
 
 export type FaqQuery = {
   id: string;
+  userId?: string; // Associated user ID
+  userEmail?: string; // Contact email
   question: string;
   answer?: string;
   createdAt: string;

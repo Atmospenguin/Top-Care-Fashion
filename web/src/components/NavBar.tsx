@@ -69,7 +69,6 @@ export default function NavBar() {
                   <div className="px-3 py-2 text-xs text-black/60">Signed in as <span className="font-medium text-black">{user?.username || user?.email}</span></div>
                   <div className="py-1 text-xs text-black/50 border-t" />
                   <Link href="/profile" className="block px-3 py-2 text-sm hover:bg-black/5">Profile</Link>
-                  <Link href="/marketplace" className="block px-3 py-2 text-sm hover:bg-black/5">Marketplace</Link>
                   {user?.actor === "Admin" && (
                     <>
                       <div className="py-1 text-xs text-black/50 border-t" />

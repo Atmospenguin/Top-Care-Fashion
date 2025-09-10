@@ -77,22 +77,26 @@ CREATE TABLE IF NOT EXISTS reviews (
 -- Unified feedback system (includes both user feedback and testimonials)
 CREATE TABLE IF NOT EXISTS feedback (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NULL,
   user_email VARCHAR(191) NULL,
-  user_name VARCHAR(100) NULL COMMENT 'Display name for testimonials',
+  user_name VARCHAR(100) NULL,
   message TEXT NOT NULL,
-  rating TINYINT NULL DEFAULT NULL COMMENT 'Rating 1-5 for testimonials',
-  tags JSON NULL COMMENT 'Array of tags for testimonials like ["mixmatch", "ailisting", "premium"]',
-  featured TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Featured on homepage as testimonial',
-  feedback_type ENUM('feedback', 'testimonial') NOT NULL DEFAULT 'feedback',
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  rating TINYINT NULL DEFAULT NULL,
+  tags JSON NULL,
+  featured TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_feedback_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS faq (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NULL,
+  user_email VARCHAR(191) NULL,
   question TEXT NOT NULL,
   answer TEXT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  answered_at TIMESTAMP NULL
+  answered_at TIMESTAMP NULL,
+  CONSTRAINT fk_faq_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS landing_content (
@@ -105,7 +109,7 @@ CREATE TABLE IF NOT EXISTS landing_content (
 -- Site statistics for homepage display
 CREATE TABLE IF NOT EXISTS site_stats (
   id TINYINT PRIMARY KEY DEFAULT 1,
-  total_downloads INT NOT NULL DEFAULT 0,
+  total_users INT NOT NULL DEFAULT 0,
   total_listings INT NOT NULL DEFAULT 0,
   total_sold INT NOT NULL DEFAULT 0,
   avg_rating DECIMAL(2,1) NOT NULL DEFAULT 4.8,
@@ -125,9 +129,6 @@ CREATE TABLE IF NOT EXISTS pricing_plans (
   promotion_price DECIMAL(6,2) NOT NULL,
   promotion_discount DECIMAL(5,2) NULL COMMENT 'Discount percentage for premium users',
   commission_rate DECIMAL(5,2) NOT NULL,
-  mixmatch_limit INT NULL COMMENT 'NULL means unlimited',
-  free_promotion_credits INT NOT NULL DEFAULT 0,
-  seller_badge VARCHAR(100) NULL,
   features JSON NULL COMMENT 'Array of plan features',
   is_popular TINYINT(1) NOT NULL DEFAULT 0,
   active TINYINT(1) NOT NULL DEFAULT 1,

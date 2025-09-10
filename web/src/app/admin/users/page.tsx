@@ -7,12 +7,16 @@ interface ExtendedUser extends UserAccount {
   editing?: boolean;
 }
 
+type FilterType = "all" | "active" | "suspended" | "premium" | "admin";
+
 export default function UsersPage() {
   const [users, setUsers] = useState<ExtendedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<ExtendedUser | null>(null);
+  const [filter, setFilter] = useState<FilterType>("all");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -31,6 +35,40 @@ export default function UsersPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const filteredUsers = users.filter(user => {
+    // Filter by status/type
+    if (filter !== "all") {
+      switch (filter) {
+        case "active":
+          if (user.status !== "active") return false;
+          break;
+        case "suspended":
+          if (user.status !== "suspended") return false;
+          break;
+        case "premium":
+          if (!user.is_premium) return false;
+          break;
+        case "admin":
+          if (user.role !== "Admin") return false;
+          break;
+      }
+    }
+    
+    // Filter by search term
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      if (
+        !user.username?.toLowerCase().includes(searchLower) &&
+        !user.email?.toLowerCase().includes(searchLower) &&
+        !user.role?.toLowerCase().includes(searchLower)
+      ) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
 
   const startEdit = (id: string) => {
     setUsers(users.map(user => ({ 
@@ -135,12 +173,49 @@ export default function UsersPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">User Management</h2>
         <div className="text-sm text-gray-600">
-          {users.length} users total • {users.filter(u => u.status === 'active').length} active
+          {filteredUsers.length} of {users.length} users • {users.filter(u => u.status === 'active').length} active
+        </div>
+      </div>
+
+      {/* Search and Filter Controls */}
+      <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 rounded-lg border">
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="Search users by name, email, or role..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="flex gap-2">
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as FilterType)}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Users</option>
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+            <option value="premium">Premium</option>
+            <option value="admin">Admins</option>
+          </select>
+          {(searchTerm || filter !== "all") && (
+            <button
+              onClick={() => {
+                setSearchTerm("");
+                setFilter("all");
+              }}
+              className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
       <div className="grid gap-4">
-        {users.map((user) => (
+        {filteredUsers.map((user) => (
           <div key={user.id} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
             {user.editing ? (
               // Edit Mode

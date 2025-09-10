@@ -8,7 +8,12 @@ export async function GET() {
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const conn = await getConnection();
   const [rows] = await conn.execute(
-    "SELECT id, target_type AS targetType, target_id AS targetId, reporter, reason, status, notes, created_at AS createdAt, resolved_at AS resolvedAt FROM reports ORDER BY id DESC"
+    `SELECT r.id, r.target_type AS targetType, r.target_id AS targetId, 
+     r.reporter, u.id AS reporterId, r.reason, r.status, r.notes, 
+     r.created_at AS createdAt, r.resolved_at AS resolvedAt 
+     FROM reports r
+     LEFT JOIN users u ON r.reporter = u.username
+     ORDER BY r.id DESC`
   );
   await conn.end();
   return NextResponse.json({ reports: rows });

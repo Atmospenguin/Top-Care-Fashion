@@ -14,6 +14,7 @@ export default function CategoriesPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newCategory, setNewCategory] = useState({ name: "", description: "" });
+  const [searchTerm, setSearchTerm] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -21,7 +22,7 @@ export default function CategoriesPage() {
     try {
       const res = await fetch("/api/admin/categories", { cache: "no-store" });
       const json = await res.json();
-      setCategories((json.categories || []).map((c: ProductCategory) => ({ ...c, editing: false })));
+      setCategories((json.categories || []).map((c: ListingCategory) => ({ ...c, editing: false })));
     } catch (e: any) {
       setError(e.message || "Load failed");
     } finally {
@@ -32,6 +33,19 @@ export default function CategoriesPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const filteredCategories = categories.filter(category => {
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      if (
+        !category.name?.toLowerCase().includes(searchLower) &&
+        !category.description?.toLowerCase().includes(searchLower)
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   const startEdit = (id: string) => {
     setCategories(categories.map(cat => ({ 
@@ -122,7 +136,7 @@ export default function CategoriesPage() {
     }
   };
 
-  const updateField = (id: string, field: keyof ProductCategory, value: any) => {
+  const updateField = (id: string, field: keyof ListingCategory, value: any) => {
     setCategories(categories.map(category => 
       category.id === id ? { ...category, [field]: value } : category
     ));
@@ -163,7 +177,28 @@ export default function CategoriesPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Category Management</h2>
         <div className="text-sm text-gray-600">
-          {categories.length} categories total
+          {filteredCategories.length} of {categories.length} categories
+        </div>
+      </div>
+
+      {/* Search Controls */}
+      <div className="bg-white p-4 rounded-lg border">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Search categories by name or description..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm("")}
+              className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
@@ -207,7 +242,7 @@ export default function CategoriesPage() {
 
       {/* Categories List */}
       <div className="grid gap-4">
-        {categories.map((category) => (
+        {filteredCategories.map((category) => (
           <div key={category.id} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
             {category.editing ? (
               // Edit Mode

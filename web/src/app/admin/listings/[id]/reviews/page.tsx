@@ -83,7 +83,16 @@ export default function ListingReviewsPage() {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-3">
                   <div>
-                    <h3 className="font-medium">{review.author}</h3>
+                    {review.authorUserId ? (
+                      <Link
+                        href={`/admin/users/${review.authorUserId}`}
+                        className="font-medium text-blue-600 hover:text-blue-800"
+                      >
+                        {review.author}
+                      </Link>
+                    ) : (
+                      <h3 className="font-medium">{review.author}</h3>
+                    )}
                     <div className="flex items-center space-x-2 mt-1">
                       <div className="flex">
                         {[...Array(5)].map((_, i) => (
