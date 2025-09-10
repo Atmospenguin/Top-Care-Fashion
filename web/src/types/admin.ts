@@ -11,14 +11,14 @@ export type UserAccount = {
   createdAt: string; // ISO
 };
 
-export type ProductCategory = {
+export type ListingCategory = {
   id: string;
   name: string;
   description?: string;
   createdAt: string;
 };
 
-export type Product = {
+export type Listing = {
   id: string;
   name: string;
   description?: string;
@@ -35,9 +35,25 @@ export type Product = {
   createdAt: string;
 };
 
+export type Transaction = {
+  id: string;
+  buyerId: string;
+  sellerId: string;
+  listingId: string;
+  quantity: number;
+  priceEach: number;
+  status: "pending" | "paid" | "shipped" | "completed" | "cancelled";
+  createdAt: string;
+  
+  // Additional info for display
+  buyerName?: string;
+  sellerName?: string;
+  listingName?: string;
+};
+
 export type Review = {
   id: string;
-  productId: string;
+  listingId: string;
   author: string;
   authorUserId?: string;
   rating: number; // 1-5
@@ -48,7 +64,7 @@ export type Review = {
 
 export type Report = {
   id: string;
-  targetType: "product" | "user";
+  targetType: "listing" | "user";
   targetId: string;
   reporter: string;
   reason: string;
@@ -58,11 +74,29 @@ export type Report = {
   resolvedAt?: string;
 };
 
+export type FeedbackType = "feedback" | "testimonial";
+
 export type Feedback = {
   id: string;
   userEmail?: string;
+  userName?: string; // Display name for testimonials
   message: string;
+  rating?: number; // 1-5 rating for testimonials
+  tags?: string[]; // Tags for testimonials
+  featured: boolean; // Featured on homepage as testimonial
+  feedbackType: FeedbackType;
   createdAt: string;
+};
+
+// Legacy type for backward compatibility
+export type Testimonial = {
+  id: string;
+  user: string;
+  text: string;
+  rating: number;
+  tags: string[];
+  featured: boolean;
+  ts: number;
 };
 
 export type FaqQuery = {

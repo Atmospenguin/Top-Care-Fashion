@@ -1,3 +1,6 @@
+-- Combined schema for Top Care Fashion (merged from schema.sql and add_content_tables.sql)
+-- Use this file to create the full database schema in a single import.
+
 -- Top Care Fashion schema (MySQL)
 CREATE DATABASE IF NOT EXISTS `top_care_fashion` 
   CHARACTER SET utf8mb4 
@@ -16,14 +19,14 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS product_categories (
+CREATE TABLE IF NOT EXISTS listing_categories (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   description VARCHAR(255) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS products (
+CREATE TABLE IF NOT EXISTS listings (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
   description TEXT NULL,
@@ -38,8 +41,8 @@ CREATE TABLE IF NOT EXISTS products (
   condition_type ENUM('new','like_new','good','fair','poor') DEFAULT 'good',
   tags TEXT NULL COMMENT 'JSON array of tags',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_products_category FOREIGN KEY (category_id) REFERENCES product_categories(id) ON DELETE SET NULL,
-  CONSTRAINT fk_products_seller FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT fk_listings_category FOREIGN KEY (category_id) REFERENCES listing_categories(id) ON DELETE SET NULL,
+  CONSTRAINT fk_listings_seller FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- Transactions connecting buyers and sellers (both are Users)
@@ -47,34 +50,40 @@ CREATE TABLE IF NOT EXISTS transactions (
   id INT AUTO_INCREMENT PRIMARY KEY,
   buyer_id INT NOT NULL,
   seller_id INT NOT NULL,
-  product_id INT NOT NULL,
+  listing_id INT NOT NULL,
   quantity INT NOT NULL DEFAULT 1,
   price_each DECIMAL(10,2) NOT NULL,
   status ENUM('pending','paid','shipped','completed','cancelled') NOT NULL DEFAULT 'pending',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_tx_buyer FOREIGN KEY (buyer_id) REFERENCES users(id) ON DELETE RESTRICT,
   CONSTRAINT fk_tx_seller FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_tx_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+  CONSTRAINT fk_tx_listing FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE RESTRICT
 );
 
 CREATE TABLE IF NOT EXISTS reviews (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  product_id INT NOT NULL,
+  listing_id INT NOT NULL,
   author VARCHAR(100) NOT NULL,
   author_user_id INT NULL,
   rating TINYINT NOT NULL,
   comment TEXT NOT NULL,
   transaction_id INT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_reviews_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  CONSTRAINT fk_reviews_listing FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE CASCADE,
   CONSTRAINT fk_reviews_author FOREIGN KEY (author_user_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_reviews_tx FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE SET NULL
 );
 
+-- Unified feedback system (includes both user feedback and testimonials)
 CREATE TABLE IF NOT EXISTS feedback (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_email VARCHAR(191) NULL,
+  user_name VARCHAR(100) NULL COMMENT 'Display name for testimonials',
   message TEXT NOT NULL,
+  rating TINYINT NULL DEFAULT NULL COMMENT 'Rating 1-5 for testimonials',
+  tags JSON NULL COMMENT 'Array of tags for testimonials like ["mixmatch", "ailisting", "premium"]',
+  featured TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Featured on homepage as testimonial',
+  feedback_type ENUM('feedback', 'testimonial') NOT NULL DEFAULT 'feedback',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -91,17 +100,6 @@ CREATE TABLE IF NOT EXISTS landing_content (
   hero_title VARCHAR(200) NOT NULL,
   hero_subtitle VARCHAR(300) NOT NULL,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
--- Testimonials/Reviews for homepage display
-CREATE TABLE IF NOT EXISTS testimonials (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_name VARCHAR(100) NOT NULL,
-  text TEXT NOT NULL,
-  rating TINYINT NOT NULL DEFAULT 5,
-  tags JSON NULL COMMENT 'Array of tags like ["mixmatch", "ailisting", "premium"]',
-  featured TINYINT(1) NOT NULL DEFAULT 1,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Site statistics for homepage display
@@ -139,7 +137,7 @@ CREATE TABLE IF NOT EXISTS pricing_plans (
 -- User reports (not sales reports)
 CREATE TABLE IF NOT EXISTS reports (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  target_type ENUM('product','user') NOT NULL,
+  target_type ENUM('listing','user') NOT NULL,
   target_id VARCHAR(64) NOT NULL,
   reporter VARCHAR(191) NOT NULL,
   reason TEXT NOT NULL,
@@ -148,3 +146,5 @@ CREATE TABLE IF NOT EXISTS reports (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   resolved_at TIMESTAMP NULL
 );
+
+-- End of combined schema

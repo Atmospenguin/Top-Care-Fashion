@@ -20,8 +20,8 @@ export async function POST(req: NextRequest) {
     const connection = await getConnection();
     
     await connection.execute(
-      `INSERT INTO testimonials (user_name, text, rating, tags, featured, created_at) 
-       VALUES (?, ?, ?, ?, ?, NOW())`,
+      `INSERT INTO feedback (user_name, message, rating, tags, featured, feedback_type, created_at) 
+       VALUES (?, ?, ?, ?, ?, 'testimonial', NOW())`,
       [
         user, 
         text, 

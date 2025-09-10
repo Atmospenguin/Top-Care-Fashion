@@ -3,92 +3,83 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthContext";
 import Image from "next/image";
+import Link from "next/link";
+import type { Listing } from "@/types/admin";
 
-type Product = {
-  id: string;
-  name: string;
-  description?: string;
-  price: number;
-  imageUrl?: string;
-  imageUrls?: string[];
-  brand?: string;
-  size?: string;
-  conditionType?: string;
-  tags?: string[];
-  listed: boolean;
+type ListingWithExtras = Listing & {
   sellerName?: string;
   categoryName?: string;
 };
 
 export default function MarketplacePage() {
   const { user } = useAuth();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [listings, setListings] = useState<ListingWithExtras[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [selectedListing, setSelectedListing] = useState<ListingWithExtras | null>(null);
+  const [editingListing, setEditingListing] = useState<ListingWithExtras | null>(null);
 
   const isAdmin = user?.actor === "Admin";
 
-  const loadProducts = async () => {
+  const loadListings = async () => {
     try {
-      const endpoint = isAdmin ? "/api/admin/products" : "/api/listings";
+      const endpoint = isAdmin ? "/api/admin/listings" : "/api/listings";
       const res = await fetch(endpoint, { cache: "no-store" });
       const data = await res.json();
-      setProducts(data.products || data.listings || []);
+      setListings(data.listings || []);
     } catch (error) {
-      console.error("Failed to load products:", error);
+      console.error("Failed to load listings:", error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadProducts();
+    loadListings();
   }, [isAdmin]);
 
-  const toggleListing = async (productId: string, currentListed: boolean) => {
+  const toggleListing = async (listingId: string, currentListed: boolean) => {
     if (!isAdmin) return;
     try {
-      await fetch(`/api/admin/products/${productId}`, {
+      await fetch(`/api/admin/listings/${listingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ listed: !currentListed })
       });
-      loadProducts();
+      loadListings();
     } catch (error) {
       console.error("Failed to toggle listing:", error);
     }
   };
 
-  const deleteProduct = async (productId: string) => {
+  const deleteListing = async (listingId: string) => {
     if (!isAdmin) return;
-    if (!confirm("Are you sure you want to delete this product?")) return;
+    if (!confirm("Are you sure you want to delete this listing?")) return;
     try {
-      await fetch(`/api/admin/products/${productId}`, { method: "DELETE" });
-      loadProducts();
+      await fetch(`/api/admin/listings/${listingId}`, { method: "DELETE" });
+      loadListings();
     } catch (error) {
-      console.error("Failed to delete product:", error);
+      console.error("Failed to delete listing:", error);
     }
   };
 
-  const saveProduct = async (product: Product) => {
+  const saveListing = async (listing: ListingWithExtras) => {
     if (!isAdmin) return;
     try {
-      const method = editingProduct?.id ? "PATCH" : "POST";
-      const url = editingProduct?.id 
-        ? `/api/admin/products/${editingProduct.id}` 
-        : "/api/admin/products";
+      const method = editingListing?.id ? "PATCH" : "POST";
+      const url = editingListing?.id 
+        ? `/api/admin/listings/${editingListing.id}` 
+        : "/api/admin/listings";
       
       await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(product)
+        body: JSON.stringify(listing)
       });
       
-      setEditingProduct(null);
-      loadProducts();
+      setEditingListing(null);
+      loadListings();
     } catch (error) {
-      console.error("Failed to save product:", error);
+      console.error("Failed to save listing:", error);
     }
   };
 
@@ -99,344 +90,279 @@ export default function MarketplacePage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold">Marketplace</h1>
+        <h1 className="text-2xl font-semibold">Listing Management</h1>
         {isAdmin && (
           <button
-            onClick={() => setEditingProduct({} as Product)}
+            onClick={() => setEditingListing({} as ListingWithExtras)}
             className="bg-[var(--brand-color)] text-white px-4 py-2 rounded-md hover:opacity-90"
           >
-            Add Product
+            Add Listing
           </button>
         )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {products.map((product) => (
-          <div key={product.id} className="border border-black/10 rounded-lg overflow-hidden bg-white">
+        {listings.map((listing) => (
+          <div key={listing.id} className="border border-black/10 rounded-lg overflow-hidden bg-white">
             <div className="aspect-square bg-gray-100 relative">
-              {product.imageUrl ? (
+              {listing.imageUrl ? (
                 <Image
-                  src={product.imageUrl}
-                  alt={product.name}
+                  src={listing.imageUrl}
+                  alt={listing.name}
                   fill
                   className="object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full text-gray-400">
                   No Image
                 </div>
               )}
-              {isAdmin && (
-                <div className="absolute top-2 right-2 flex gap-1">
-                  <button
-                    onClick={() => toggleListing(product.id, product.listed)}
-                    className={`px-2 py-1 text-xs rounded ${
-                      product.listed 
-                        ? "bg-green-100 text-green-800" 
-                        : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {product.listed ? "Listed" : "Unlisted"}
-                  </button>
-                </div>
-              )}
             </div>
             
             <div className="p-4">
-              <h3 className="font-medium text-lg truncate">{product.name}</h3>
-              <p className="text-gray-600 text-sm line-clamp-2 mt-1">{product.description}</p>
-              <div className="flex items-center justify-between mt-3">
-                <span className="text-xl font-semibold">${product.price?.toFixed(2) || "0.00"}</span>
-                <button
-                  onClick={() => setSelectedProduct(product)}
-                  className="text-[var(--brand-color)] hover:underline text-sm"
-                >
-                  View Details
-                </button>
-              </div>
+              <h3 className="font-medium text-sm mb-1 truncate">{listing.name}</h3>
+              <p className="text-2xl font-bold text-[var(--brand-color)] mb-2">
+                ${listing.price?.toFixed(2)}
+              </p>
               
-              {isAdmin && (
-                <div className="flex gap-2 mt-3 pt-3 border-t">
+              {listing.description && (
+                <p className="text-xs text-gray-600 mb-3 line-clamp-2">
+                  {listing.description}
+                </p>
+              )}
+              
+              <div className="text-xs text-gray-500 space-y-1">
+                {listing.brand && <div>Brand: {listing.brand}</div>}
+                {listing.size && <div>Size: {listing.size}</div>}
+                {listing.conditionType && (
+                  <div>Condition: {listing.conditionType.replace('_', ' ')}</div>
+                )}
+                {listing.sellerName && <div>Seller: {listing.sellerName}</div>}
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {listing.listed ? 'Listed' : 'Unlisted'}
+                  </span>
+                  
                   <button
-                    onClick={() => setEditingProduct(product)}
-                    className="flex-1 bg-blue-600 text-white py-1 text-sm rounded hover:bg-blue-700"
+                    onClick={() => setSelectedListing(listing)}
+                    className="text-xs text-blue-600 hover:text-blue-800"
                   >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => deleteProduct(product.id)}
-                    className="flex-1 bg-red-600 text-white py-1 text-sm rounded hover:bg-red-700"
-                  >
-                    Delete
+                    View Details
                   </button>
                 </div>
-              )}
+
+                {isAdmin && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setEditingListing(listing)}
+                      className="flex-1 px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-800 rounded"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => toggleListing(listing.id, listing.listed)}
+                      className={`px-3 py-1 text-xs rounded ${
+                        listing.listed 
+                          ? 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800' 
+                          : 'bg-green-100 hover:bg-green-200 text-green-800'
+                      }`}
+                    >
+                      {listing.listed ? 'Hide' : 'Show'}
+                    </button>
+                    <button
+                      onClick={() => deleteListing(listing.id)}
+                      className="px-3 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-800 rounded"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ))}
       </div>
 
-      {products.length === 0 && (
+      {listings.length === 0 && (
         <div className="text-center py-12 text-gray-500">
-          No products found
+          No listings found. {isAdmin && "Create your first listing to get started."}
         </div>
       )}
 
-      {/* Product Detail Modal */}
-      {selectedProduct && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">{selectedProduct.name}</h2>
-                <button
-                  onClick={() => setSelectedProduct(null)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </button>
-              </div>
+      {/* Detail Modal */}
+      {selectedListing && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-lg font-semibold">{selectedListing.name}</h3>
+              <button
+                onClick={() => setSelectedListing(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-6">
+              {selectedListing.imageUrl && (
+                <div>
+                  <img 
+                    src={selectedListing.imageUrl} 
+                    alt={selectedListing.name}
+                    className="w-full rounded-lg"
+                  />
+                </div>
+              )}
               
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="aspect-square bg-gray-100 rounded-lg relative">
-                  {selectedProduct.imageUrl ? (
-                    <Image
-                      src={selectedProduct.imageUrl}
-                      alt={selectedProduct.name}
-                      fill
-                      className="object-cover rounded-lg"
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-gray-400">
-                      No Image Available
-                    </div>
-                  )}
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-lg font-semibold text-[var(--brand-color)]">
+                    ${selectedListing.price?.toFixed(2)}
+                  </h4>
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    selectedListing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {selectedListing.listed ? 'Listed' : 'Unlisted'}
+                  </span>
                 </div>
                 
-                <div className="space-y-4">
+                {selectedListing.description && (
                   <div>
-                    <h3 className="font-medium text-gray-700">Price</h3>
-                    <p className="text-2xl font-semibold">${selectedProduct.price?.toFixed(2) || "0.00"}</p>
+                    <h5 className="font-medium text-gray-700 mb-1">Description</h5>
+                    <p className="text-gray-600">{selectedListing.description}</p>
                   </div>
-                  
-                  {selectedProduct.brand && (
+                )}
+                
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  {selectedListing.brand && (
                     <div>
-                      <h3 className="font-medium text-gray-700">Brand</h3>
-                      <p>{selectedProduct.brand}</p>
+                      <span className="text-gray-500">Brand:</span>
+                      <div className="font-medium">{selectedListing.brand}</div>
                     </div>
                   )}
-                  
-                  {selectedProduct.size && (
+                  {selectedListing.size && (
                     <div>
-                      <h3 className="font-medium text-gray-700">Size</h3>
-                      <p>{selectedProduct.size}</p>
+                      <span className="text-gray-500">Size:</span>
+                      <div className="font-medium">{selectedListing.size}</div>
                     </div>
                   )}
-                  
-                  {selectedProduct.conditionType && (
+                  {selectedListing.conditionType && (
                     <div>
-                      <h3 className="font-medium text-gray-700">Condition</h3>
-                      <p className="capitalize">{selectedProduct.conditionType.replace('_', ' ')}</p>
+                      <span className="text-gray-500">Condition:</span>
+                      <div className="font-medium capitalize">{selectedListing.conditionType.replace('_', ' ')}</div>
                     </div>
                   )}
-                  
-                  {selectedProduct.description && (
-                    <div>
-                      <h3 className="font-medium text-gray-700">Description</h3>
-                      <p className="text-gray-600">{selectedProduct.description}</p>
-                    </div>
-                  )}
-                  
-                  {selectedProduct.tags && selectedProduct.tags.length > 0 && (
-                    <div>
-                      <h3 className="font-medium text-gray-700">Tags</h3>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {selectedProduct.tags.map((tag, index) => (
-                          <span
-                            key={index}
-                            className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-sm"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  <div>
+                    <span className="text-gray-500">ID:</span>
+                    <div className="font-medium">{selectedListing.id}</div>
+                  </div>
                 </div>
+
+                {isAdmin && (
+                  <div className="pt-4 border-t space-y-2">
+                    <Link
+                      href={`/admin/listings/${selectedListing.id}/transactions`}
+                      className="block text-blue-600 hover:text-blue-800 text-sm"
+                    >
+                      View Transactions →
+                    </Link>
+                    <Link
+                      href={`/admin/listings/${selectedListing.id}/reviews`}
+                      className="block text-blue-600 hover:text-blue-800 text-sm"
+                    >
+                      View Reviews →
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Product Edit Modal */}
-      {editingProduct && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">
-                  {editingProduct.id ? "Edit Product" : "Add Product"}
-                </h2>
+      {/* Edit Modal */}
+      {editingListing && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">
+              {editingListing.id ? 'Edit Listing' : 'Create New Listing'}
+            </h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              saveListing(editingListing);
+            }} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editingListing.name || ''}
+                  onChange={(e) => setEditingListing({ ...editingListing, name: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-md"
+                  placeholder="Enter listing name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Price</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={editingListing.price || 0}
+                  onChange={(e) => setEditingListing({ ...editingListing, price: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border rounded-md"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Description</label>
+                <textarea
+                  value={editingListing.description || ''}
+                  onChange={(e) => setEditingListing({ ...editingListing, description: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-md"
+                  rows={3}
+                  placeholder="Enter listing description"
+                />
+              </div>
+              <div>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={editingListing.listed || false}
+                    onChange={(e) => setEditingListing({ ...editingListing, listed: e.target.checked })}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Listed (Visible to customers)</span>
+                </label>
+              </div>
+              <div className="flex gap-4">
                 <button
-                  onClick={() => setEditingProduct(null)}
-                  className="text-gray-500 hover:text-gray-700"
+                  type="button"
+                  onClick={() => setEditingListing(null)}
+                  className="flex-1 px-4 py-2 border rounded-md hover:bg-gray-50"
                 >
-                  ✕
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-[var(--brand-color)] text-white rounded-md hover:opacity-90"
+                >
+                  {editingListing.id ? 'Update' : 'Create'}
                 </button>
               </div>
-              
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                const productData = {
-                  name: formData.get("name") as string,
-                  description: formData.get("description") as string,
-                  price: Number(formData.get("price")),
-                  imageUrl: formData.get("imageUrl") as string,
-                  brand: formData.get("brand") as string,
-                  size: formData.get("size") as string,
-                  conditionType: formData.get("conditionType") as string,
-                  tags: (formData.get("tags") as string)?.split(",").map(t => t.trim()).filter(Boolean) || [],
-                  listed: formData.get("listed") === "on"
-                };
-                saveProduct({ ...editingProduct, ...productData });
-              }} className="space-y-4">
-                <div>
-                  <label htmlFor="product-name" className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                  <input
-                    id="product-name"
-                    name="name"
-                    type="text"
-                    required
-                    defaultValue={editingProduct.name || ""}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  />
-                </div>
-                
-                <div>
-                  <label htmlFor="product-description" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                  <textarea
-                    id="product-description"
-                    name="description"
-                    rows={3}
-                    defaultValue={editingProduct.description || ""}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="product-price" className="block text-sm font-medium text-gray-700 mb-1">Price *</label>
-                    <input
-                      id="product-price"
-                      name="price"
-                      type="number"
-                      step="0.01"
-                      required
-                      defaultValue={editingProduct.price || ""}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="product-brand" className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
-                    <input
-                      id="product-brand"
-                      name="brand"
-                      type="text"
-                      defaultValue={editingProduct.brand || ""}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2"
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="product-size" className="block text-sm font-medium text-gray-700 mb-1">Size</label>
-                    <input
-                      id="product-size"
-                      name="size"
-                      type="text"
-                      defaultValue={editingProduct.size || ""}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="product-condition" className="block text-sm font-medium text-gray-700 mb-1">Condition</label>
-                    <select
-                      id="product-condition"
-                      name="conditionType"
-                      defaultValue={editingProduct.conditionType || "good"}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2"
-                    >
-                      <option value="new">New</option>
-                      <option value="like_new">Like New</option>
-                      <option value="good">Good</option>
-                      <option value="fair">Fair</option>
-                      <option value="poor">Poor</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div>
-                  <label htmlFor="product-image" className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
-                  <input
-                    id="product-image"
-                    name="imageUrl"
-                    type="url"
-                    defaultValue={editingProduct.imageUrl || ""}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  />
-                </div>
-                
-                <div>
-                  <label htmlFor="product-tags" className="block text-sm font-medium text-gray-700 mb-1">Tags (comma separated)</label>
-                  <input
-                    id="product-tags"
-                    name="tags"
-                    type="text"
-                    defaultValue={editingProduct.tags?.join(", ") || ""}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                    placeholder="vintage, summer, casual"
-                  />
-                </div>
-                
-                <div className="flex items-center">
-                  <input
-                    id="product-listed"
-                    name="listed"
-                    type="checkbox"
-                    defaultChecked={editingProduct.listed !== false}
-                    className="rounded border-gray-300"
-                  />
-                  <label htmlFor="product-listed" className="ml-2 text-sm text-gray-700">Listed for sale</label>
-                </div>
-                
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="submit"
-                    className="flex-1 bg-[var(--brand-color)] text-white py-2 rounded-md hover:opacity-90"
-                  >
-                    {editingProduct.id ? "Update Product" : "Create Product"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditingProduct(null)}
-                    className="flex-1 bg-gray-500 text-white py-2 rounded-md hover:bg-gray-600"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
+            </form>
           </div>
         </div>
       )}
     </div>
   );
 }
-
-
-

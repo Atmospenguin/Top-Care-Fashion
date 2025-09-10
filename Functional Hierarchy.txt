@@ -31,14 +31,14 @@ Top Care Fashion
 │   │   │   └── Upgrade to Premium Membership
 │   │   ├── View Marketplace
 │   │   │   ├── Search and Filter
-│   │   │   ├── Browse Products
-│   │   │   ├── View Product Details
-│   │   │   │   ├── Favorite Product
-│   │   │   │   ├── Unfavorite Product
-│   │   │   │   ├── Report Product
-│   │   │   │   ├── Add Product to Cart
-│   │   │   │   ├── Buy Product Now
-│   │   │   │   │   └── Leave Product Review
+│   │   │   ├── Browse Listings
+│   │   │   ├── View Listing Details
+│   │   │   │   ├── Favorite Listing
+│   │   │   │   ├── Unfavorite Listing
+│   │   │   │   ├── Report Listing
+│   │   │   │   ├── Add Listing to Cart
+│   │   │   │   ├── Buy Listing Now
+│   │   │   │   │   └── Leave Listing Review
 │   │   │   │   ├── Mix & Match
 │   │   │   │   │   └── Favorite/Add to Cart
 │   │   │   │   └── View User Page
@@ -46,15 +46,15 @@ Top Care Fashion
 │   │   │   │       ├── View User Ratings
 │   │   │   │       ├── View User Reviews
 │   │   │   │       └── Report User
-│   │   │   ├── View Favorite Products
+│   │   │   ├── View Favorite Listings
 │   │   │   └── View Cart
-│   │   ├── List Products
-│   │   │   ├── Upload Product Image
+│   │   ├── List Listings
+│   │   │   ├── Upload Listing Image
 │   │   │   │   └── AI Tagging
-│   │   │   └── Enter Product Info
+│   │   │   └── Enter Listing Info
 │   │   │       └── Listed
 │   │   │           └── Promote Listing
-│   │   ├── View Listed Products
+│   │   ├── View Listed Listings
 │   │   │   └── Manage Listing
 │   │   └── User Feedback
 │
@@ -65,7 +65,7 @@ Top Care Fashion
 │   │   │   └── Cancel Premium Membership
 │   │   └── Purchase Premium Membership Add-ons
 │   ├── Reduce Commission
-│   ├── Unlimited Product Listing
+│   ├── Unlimited Listing Listing
 │   └── Unlimited Mix & Match
 │
 └── Admin (Web App)
@@ -73,15 +73,15 @@ Top Care Fashion
     │   ├── View User Account Details
     │   ├── Suspend User Account
     │   └── Unsuspend User Account
-    ├── View Product Categories
-    │   ├── Create Product Category
-    │   ├── Update Product Category
-    │   └── Delete Product Category
-    ├── View Listed Products
-    │   ├── View Listed Product Details
-    │   ├── Unlist Listed Product
-    │   ├── Delete Listed Product
-    │   └── View Product Reviews
+    ├── View Listing Categories
+    │   ├── Create Listing Category
+    │   ├── Update Listing Category
+    │   └── Delete Listing Category
+    ├── View Listed Listings
+    │   ├── View Listed Listing Details
+    │   ├── Unlist Listed Listing
+    │   ├── Delete Listed Listing
+    │   └── View Listing Reviews
     ├── View Report(s)
     ├── View User Feedbacks
     │   └── Manage User Feedbacks
