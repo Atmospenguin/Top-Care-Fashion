@@ -102,20 +102,7 @@ root/
 
 ---
 
-## 5. Database (Simplified Schema)
-
-Users
-- id (PK), email, password_hash, role, profile (age_group, gender, preferences)
-
-Listings
-- id (PK), user_id (FK), title, description, category, price, created_at
-
-Transactions
-- id (PK), buyer_id (FK), seller_id (FK), listing_id (FK), amount, status, timestamp
-
-Feedback
-- id (PK), user_id (FK), rating, comment, created_at
-
+## 5. Database (not settled yet)
 ## Database Setup
 
 1. Ensure MySQL is running.
