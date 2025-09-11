@@ -9,9 +9,9 @@ export async function GET(_req: NextRequest, context: { params: { id: string } |
   const conn = await getConnection();
   const [rows]: any = await conn.execute(
     `SELECT l.id, l.name, l.description, l.category_id AS categoryId, l.seller_id AS sellerId, 
-            l.listed, l.price, l.image_url AS imageUrl, l.image_urls AS imageUrls, 
+            l.listed, l.sold, l.price, l.image_url AS imageUrl, l.image_urls AS imageUrls, 
             l.brand, l.size, l.condition_type AS conditionType, l.tags, 
-            l.created_at AS createdAt, u.username AS sellerName
+            l.created_at AS createdAt, l.sold_at AS soldAt, u.username AS sellerName
      FROM listings l
      LEFT JOIN users u ON l.seller_id = u.id 
      WHERE l.id = ?`,
@@ -25,6 +25,7 @@ export async function GET(_req: NextRequest, context: { params: { id: string } |
     ...listing,
     price: typeof listing.price === "string" ? Number(listing.price) : listing.price,
     listed: typeof listing.listed === "number" ? listing.listed === 1 : !!listing.listed,
+    sold: typeof listing.sold === "number" ? listing.sold === 1 : !!listing.sold,
     imageUrls: listing.imageUrls ? JSON.parse(listing.imageUrls) : null,
     tags: listing.tags ? JSON.parse(listing.tags) : null,
   });

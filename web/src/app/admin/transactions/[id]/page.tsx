@@ -30,10 +30,14 @@ export default function TransactionDetailPage() {
         }
 
         // Load related reviews
-        const reviewsRes = await fetch(`/api/admin/reviews?transactionId=${transactionId}`, { cache: "no-store" });
-        if (reviewsRes.ok) {
-          const reviewsData = await reviewsRes.json();
-          setReviews(reviewsData.reviews || []);
+        try {
+          const reviewsRes = await fetch(`/api/admin/transactions/${transactionId}/reviews`, { cache: "no-store" });
+          if (reviewsRes.ok) {
+            const reviewsData = await reviewsRes.json();
+            setReviews(reviewsData.reviews || []);
+          }
+        } catch (error) {
+          console.log("Could not load reviews:", error);
         }
       } catch (error) {
         console.error('Error loading transaction details:', error);
@@ -139,7 +143,7 @@ export default function TransactionDetailPage() {
           </div>
 
           <div className="bg-white border rounded-lg p-6">
-            <h3 className="text-lg font-semibold mb-4">Parties Involved</h3>
+            <h3 className="text-lg font-semibold mb-4">Parties & Reviews</h3>
             
             <div className="space-y-4">
               <div>
@@ -165,6 +169,46 @@ export default function TransactionDetailPage() {
                   </Link>
                 </div>
               </div>
+
+              <hr className="my-4" />
+
+              <div>
+                <span className="text-sm text-gray-500">Reviews Submitted:</span>
+                <div className="text-lg font-bold text-blue-600">{reviews.length} / 2</div>
+              </div>
+              
+              {reviews.length > 0 && (
+                <div>
+                  <span className="text-sm text-gray-500">Average Rating:</span>
+                  <div className="flex items-center space-x-2">
+                    <div className="text-lg font-bold text-yellow-600">
+                      {(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)}★
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <span className="text-sm text-gray-500">Buyer Review:</span>
+                <div className="font-medium">
+                  {reviews.find(r => r.reviewerType === 'buyer') ? (
+                    <span className="text-green-600">✓ Completed</span>
+                  ) : (
+                    <span className="text-gray-400">Pending</span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <span className="text-sm text-gray-500">Seller Review:</span>
+                <div className="font-medium">
+                  {reviews.find(r => r.reviewerType === 'seller') ? (
+                    <span className="text-green-600">✓ Completed</span>
+                  ) : (
+                    <span className="text-gray-400">Pending</span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -176,48 +220,82 @@ export default function TransactionDetailPage() {
         </div>
       )}
 
-      {/* Related Reviews */}
-      {reviews.length > 0 && (
-        <div className="bg-white border rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4">Related Reviews</h3>
+      {/* Transaction Reviews */}
+      <div id="reviews" className="bg-white border rounded-lg p-6">
+        <h3 className="text-lg font-semibold mb-4">
+          Transaction Reviews
+          {reviews.length > 0 && (
+            <span className="ml-2 text-sm text-gray-500">
+              ({reviews.length} of 2 possible reviews)
+            </span>
+          )}
+        </h3>
+
+        {reviews.length > 0 ? (
           <div className="space-y-4">
             {reviews.map((review) => (
-              <div key={review.id} className="border-l-4 border-blue-500 pl-4">
-                <div className="flex items-center justify-between">
+              <div key={review.id} className="border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <Link
+                      href={`/admin/users/${review.reviewerId}`}
+                      className="font-medium text-blue-600 hover:text-blue-800"
+                    >
+                      {review.reviewerName}
+                    </Link>
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      review.reviewerType === 'buyer' 
+                        ? 'bg-blue-100 text-blue-800' 
+                        : 'bg-green-100 text-green-800'
+                    }`}>
+                      {review.reviewerType === 'buyer' ? 'Buyer Review' : 'Seller Review'}
+                    </span>
+                  </div>
                   <div className="flex items-center space-x-2">
-                    {review.authorUserId ? (
-                      <Link
-                        href={`/admin/users/${review.authorUserId}`}
-                        className="font-medium text-blue-600 hover:text-blue-800"
-                      >
-                        {review.author}
-                      </Link>
-                    ) : (
-                      <span className="font-medium">{review.author}</span>
-                    )}
                     <div className="flex">
                       {[...Array(5)].map((_, i) => (
                         <span
                           key={i}
-                          className={`text-sm ${
-                            i < review.rating ? 'text-yellow-400' : 'text-gray-300'
-                          }`}
+                          className={`text-sm ${i < review.rating ? 'text-yellow-400' : 'text-gray-300'}`}
                         >
                           ★
                         </span>
                       ))}
                     </div>
+                    <span className="text-sm text-gray-500">
+                      {review.rating}/5
+                    </span>
                   </div>
-                  <span className="text-sm text-gray-500">
-                    {new Date(review.createdAt).toLocaleDateString()}
-                  </span>
                 </div>
-                <p className="text-gray-700 mt-2">{review.comment}</p>
+                
+                <p className="text-gray-700 mb-3">{review.comment}</p>
+                
+                <div className="flex items-center justify-between text-sm text-gray-500">
+                  <div>
+                    Review for: 
+                    <Link
+                      href={`/admin/users/${review.revieweeId}`}
+                      className="ml-1 text-blue-600 hover:text-blue-800"
+                    >
+                      {review.revieweeName}
+                    </Link>
+                  </div>
+                  <div>{new Date(review.createdAt).toLocaleDateString()}</div>
+                </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            No reviews have been submitted for this transaction yet.
+            {transaction?.status === 'completed' && (
+              <div className="mt-2">
+                <span className="text-sm">Reviews can be submitted after the transaction is completed.</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

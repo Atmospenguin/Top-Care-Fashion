@@ -174,22 +174,22 @@ async function initializeDatabase() {
     // Insert sample listings
     try {
       await connection.execute(`
-        INSERT IGNORE INTO listings (name, description, category_id, seller_id, listed, price, image_url, brand, size, condition_type, tags, created_at) VALUES 
-        ('Vintage Denim Jacket', 'Classic 80s denim jacket in excellent condition. Perfect for layering and adding a retro touch to any outfit.', 4, 3, 1, 45.00, 'https://example.com/images/denim-jacket.jpg', 'Levi\\'s', 'M', 'good', '["vintage", "denim", "jacket", "80s"]', DATE_SUB(NOW(), INTERVAL 5 DAY)),
-        ('Designer Silk Blouse', 'Elegant silk blouse from luxury brand. Worn only twice, perfect for professional settings.', 1, 2, 1, 120.00, 'https://example.com/images/silk-blouse.jpg', 'Theory', 'S', 'like_new', '["designer", "silk", "professional", "luxury"]', DATE_SUB(NOW(), INTERVAL 3 DAY)),
-        ('Nike Air Force 1 Sneakers', 'Classic white sneakers in great condition. Size 9, perfect for casual everyday wear.', 5, 4, 1, 65.00, 'https://example.com/images/air-force-1.jpg', 'Nike', '9', 'good', '["sneakers", "nike", "casual", "white"]', DATE_SUB(NOW(), INTERVAL 7 DAY)),
-        ('Floral Summer Dress', 'Beautiful floral print dress, perfect for summer occasions. Light and airy fabric.', 3, 2, 1, 35.00, 'https://example.com/images/floral-dress.jpg', 'Zara', 'M', 'like_new', '["floral", "summer", "dress", "light"]', DATE_SUB(NOW(), INTERVAL 2 DAY)),
-        ('Leather Crossbody Bag', 'Genuine leather crossbody bag in black. Compact but spacious, perfect for daily use.', 6, 6, 1, 80.00, 'https://example.com/images/leather-bag.jpg', 'Coach', 'One Size', 'good', '["leather", "bag", "crossbody", "black"]', DATE_SUB(NOW(), INTERVAL 10 DAY)),
-        ('High-Waisted Jeans', 'Trendy high-waisted jeans in dark wash. Flattering fit and comfortable stretch.', 2, 4, 1, 40.00, 'https://example.com/images/high-waisted-jeans.jpg', 'American Eagle', '28', 'like_new', '["jeans", "high-waisted", "dark-wash", "stretch"]', DATE_SUB(NOW(), INTERVAL 1 DAY)),
-        ('Yoga Leggings Set', 'Matching sports bra and leggings set. Moisture-wicking fabric, perfect for workouts.', 7, 8, 1, 55.00, 'https://example.com/images/yoga-set.jpg', 'Lululemon', 'S', 'good', '["yoga", "leggings", "sportswear", "set"]', DATE_SUB(NOW(), INTERVAL 8 DAY)),
-        ('Cashmere Sweater', 'Luxury cashmere sweater in cream color. Super soft and warm, perfect for cooler weather.', 1, 10, 1, 150.00, 'https://example.com/images/cashmere-sweater.jpg', 'Brunello Cucinelli', 'M', 'like_new', '["cashmere", "luxury", "sweater", "cream"]', DATE_SUB(NOW(), INTERVAL 12 DAY)),
-        ('Platform Heels', 'Statement platform heels in metallic gold. Perfect for special occasions and parties.', 5, 2, 1, 70.00, 'https://example.com/images/platform-heels.jpg', 'Steve Madden', '7', 'good', '["heels", "platform", "gold", "party"]', DATE_SUB(NOW(), INTERVAL 6 DAY)),
-        ('Oversized Blazer', 'Trendy oversized blazer in navy blue. Great for both professional and casual styling.', 4, 6, 1, 85.00, 'https://example.com/images/oversized-blazer.jpg', 'H&M', 'L', 'like_new', '["blazer", "oversized", "navy", "versatile"]', DATE_SUB(NOW(), INTERVAL 4 DAY)),
-        ('Retro Band T-Shirt', 'Authentic vintage band t-shirt from the 90s. Soft cotton, great for music lovers.', 1, 3, 1, 25.00, 'https://example.com/images/band-tshirt.jpg', 'Vintage', 'L', 'good', '["vintage", "band", "tshirt", "90s"]', DATE_SUB(NOW(), INTERVAL 9 DAY)),
-        ('Designer Sunglasses', 'Classic aviator sunglasses with UV protection. Comes with original case.', 6, 10, 1, 200.00, 'https://example.com/images/aviator-sunglasses.jpg', 'Ray-Ban', 'One Size', 'like_new', '["sunglasses", "aviator", "designer", "uv-protection"]', DATE_SUB(NOW(), INTERVAL 11 DAY)),
-        ('Midi Pencil Skirt', 'Professional midi pencil skirt in charcoal gray. Perfect for office wear.', 2, 4, 1, 30.00, 'https://example.com/images/pencil-skirt.jpg', 'Banana Republic', '6', 'good', '["skirt", "midi", "professional", "gray"]', DATE_SUB(NOW(), INTERVAL 13 DAY)),
-        ('Winter Puffer Coat', 'Warm puffer coat for winter weather. Water-resistant and very cozy.', 4, 8, 1, 90.00, 'https://example.com/images/puffer-coat.jpg', 'The North Face', 'M', 'good', '["coat", "puffer", "winter", "warm"]', DATE_SUB(NOW(), INTERVAL 15 DAY)),
-        ('Gold Statement Necklace', 'Bold gold statement necklace. Perfect for elevating simple outfits.', 6, 2, 1, 40.00, 'https://example.com/images/gold-necklace.jpg', 'BaubleBar', 'One Size', 'like_new', '["necklace", "gold", "statement", "jewelry"]', DATE_SUB(NOW(), INTERVAL 14 DAY))
+        INSERT IGNORE INTO listings (name, description, category_id, seller_id, listed, sold, price, image_url, brand, size, condition_type, tags, created_at, sold_at) VALUES 
+        ('Vintage Denim Jacket', 'Classic 80s denim jacket in excellent condition. Perfect for layering and adding a retro touch to any outfit.', 4, 3, 1, 1, 45.00, 'https://example.com/images/denim-jacket.jpg', 'Levi\\'s', 'M', 'good', '["vintage", "denim", "jacket", "80s"]', DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY)),
+        ('Designer Silk Blouse', 'Elegant silk blouse from luxury brand. Worn only twice, perfect for professional settings.', 1, 2, 1, 0, 120.00, 'https://example.com/images/silk-blouse.jpg', 'Theory', 'S', 'like_new', '["designer", "silk", "professional", "luxury"]', DATE_SUB(NOW(), INTERVAL 3 DAY), NULL),
+        ('Nike Air Force 1 Sneakers', 'Classic white sneakers in great condition. Size 9, perfect for casual everyday wear.', 5, 4, 1, 0, 65.00, 'https://example.com/images/air-force-1.jpg', 'Nike', '9', 'good', '["sneakers", "nike", "casual", "white"]', DATE_SUB(NOW(), INTERVAL 7 DAY), NULL),
+        ('Floral Summer Dress', 'Beautiful floral print dress, perfect for summer occasions. Light and airy fabric.', 3, 2, 1, 1, 35.00, 'https://example.com/images/floral-dress.jpg', 'Zara', 'M', 'like_new', '["floral", "summer", "dress", "light"]', DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 5 DAY)),
+        ('Leather Crossbody Bag', 'Genuine leather crossbody bag in black. Compact but spacious, perfect for daily use.', 6, 6, 1, 1, 80.00, 'https://example.com/images/leather-bag.jpg', 'Coach', 'One Size', 'good', '["leather", "bag", "crossbody", "black"]', DATE_SUB(NOW(), INTERVAL 10 DAY), DATE_SUB(NOW(), INTERVAL 7 DAY)),
+        ('High-Waisted Jeans', 'Trendy high-waisted jeans in dark wash. Flattering fit and comfortable stretch.', 2, 4, 1, 0, 40.00, 'https://example.com/images/high-waisted-jeans.jpg', 'American Eagle', '28', 'like_new', '["jeans", "high-waisted", "dark-wash", "stretch"]', DATE_SUB(NOW(), INTERVAL 1 DAY), NULL),
+        ('Yoga Leggings Set', 'Matching sports bra and leggings set. Moisture-wicking fabric, perfect for workouts.', 7, 8, 1, 0, 55.00, 'https://example.com/images/yoga-set.jpg', 'Lululemon', 'S', 'good', '["yoga", "leggings", "sportswear", "set"]', DATE_SUB(NOW(), INTERVAL 8 DAY), NULL),
+        ('Cashmere Sweater', 'Luxury cashmere sweater in cream color. Super soft and warm, perfect for cooler weather.', 1, 10, 1, 1, 150.00, 'https://example.com/images/cashmere-sweater.jpg', 'Brunello Cucinelli', 'M', 'like_new', '["cashmere", "luxury", "sweater", "cream"]', DATE_SUB(NOW(), INTERVAL 12 DAY), DATE_SUB(NOW(), INTERVAL 10 DAY)),
+        ('Platform Heels', 'Statement platform heels in metallic gold. Perfect for special occasions and parties.', 5, 2, 1, 1, 70.00, 'https://example.com/images/platform-heels.jpg', 'Steve Madden', '7', 'good', '["heels", "platform", "gold", "party"]', DATE_SUB(NOW(), INTERVAL 6 DAY), DATE_SUB(NOW(), INTERVAL 6 DAY)),
+        ('Oversized Blazer', 'Trendy oversized blazer in navy blue. Great for both professional and casual styling.', 4, 6, 1, 0, 85.00, 'https://example.com/images/oversized-blazer.jpg', 'H&M', 'L', 'like_new', '["blazer", "oversized", "navy", "versatile"]', DATE_SUB(NOW(), INTERVAL 4 DAY), NULL),
+        ('Retro Band T-Shirt', 'Authentic vintage band t-shirt from the 90s. Soft cotton, great for music lovers.', 1, 3, 1, 0, 25.00, 'https://example.com/images/band-tshirt.jpg', 'Vintage', 'L', 'good', '["vintage", "band", "tshirt", "90s"]', DATE_SUB(NOW(), INTERVAL 9 DAY), NULL),
+        ('Designer Sunglasses', 'Classic aviator sunglasses with UV protection. Comes with original case.', 6, 10, 1, 0, 200.00, 'https://example.com/images/aviator-sunglasses.jpg', 'Ray-Ban', 'One Size', 'like_new', '["sunglasses", "aviator", "designer", "uv-protection"]', DATE_SUB(NOW(), INTERVAL 11 DAY), NULL),
+        ('Midi Pencil Skirt', 'Professional midi pencil skirt in charcoal gray. Perfect for office wear.', 2, 4, 1, 0, 30.00, 'https://example.com/images/pencil-skirt.jpg', 'Banana Republic', '6', 'good', '["skirt", "midi", "professional", "gray"]', DATE_SUB(NOW(), INTERVAL 13 DAY), NULL),
+        ('Winter Puffer Coat', 'Warm puffer coat for winter weather. Water-resistant and very cozy.', 4, 8, 1, 0, 90.00, 'https://example.com/images/puffer-coat.jpg', 'The North Face', 'M', 'good', '["coat", "puffer", "winter", "warm"]', DATE_SUB(NOW(), INTERVAL 15 DAY), NULL),
+        ('Gold Statement Necklace', 'Bold gold statement necklace. Perfect for elevating simple outfits.', 6, 2, 1, 0, 40.00, 'https://example.com/images/gold-necklace.jpg', 'BaubleBar', 'One Size', 'like_new', '["necklace", "gold", "statement", "jewelry"]', DATE_SUB(NOW(), INTERVAL 14 DAY), NULL)
       `);
       console.log('Sample listings inserted successfully');
     } catch (error) {
@@ -216,20 +216,42 @@ async function initializeDatabase() {
       console.log('Transactions error:', error.message);
     }
 
-    // Insert sample reviews
+    // Insert sample reviews (new transaction-based system)
     try {
       await connection.execute(`
-        INSERT IGNORE INTO reviews (listing_id, author, author_user_id, rating, comment, transaction_id, created_at) VALUES 
-        (1, 'casual_buyer', 5, 5, 'Perfect jacket! Exactly as described and shipped quickly.', 1, DATE_SUB(NOW(), INTERVAL 1 DAY)),
-        (4, 'casual_buyer', 5, 5, 'Love this dress! The fabric is so soft and the fit is perfect.', 4, DATE_SUB(NOW(), INTERVAL 4 DAY)),
-        (5, 'trend_setter', 7, 4, 'Great bag, leather quality is good. Slightly smaller than expected but still happy.', 5, DATE_SUB(NOW(), INTERVAL 6 DAY)),
-        (7, 'casual_buyer', 5, 5, 'Amazing yoga set! The fabric is so comfortable and breathable.', 7, DATE_SUB(NOW(), INTERVAL 3 DAY)),
-        (8, 'trend_setter', 7, 5, 'This cashmere sweater is absolutely divine! Worth every penny.', 8, DATE_SUB(NOW(), INTERVAL 9 DAY)),
-        (9, 'budget_shopper', 9, 4, 'Cute heels! A bit tight but I can make them work. Fast shipping.', 9, DATE_SUB(NOW(), INTERVAL 5 DAY)),
-        (2, 'trend_setter', 7, 5, 'Beautiful blouse! Professional quality and the silk feels luxurious.', 2, DATE_SUB(NOW(), INTERVAL 12 HOUR)),
-        (3, 'budget_shopper', 9, 5, 'Classic sneakers in great condition. Very comfortable!', 3, DATE_SUB(NOW(), INTERVAL 2 HOUR))
+        INSERT IGNORE INTO reviews (transaction_id, reviewer_id, reviewee_id, rating, comment, reviewer_type, created_at) VALUES 
+        -- Transaction 1: casual_buyer (5) bought from vintage_hunter (3) - buyer reviews seller
+        (1, 5, 3, 5, 'Perfect jacket! Exactly as described and shipped quickly. Great communication from seller.', 'buyer', DATE_SUB(NOW(), INTERVAL 1 DAY)),
+        -- Transaction 1: vintage_hunter (3) reviews casual_buyer (5) - seller reviews buyer
+        (1, 3, 5, 5, 'Excellent buyer! Quick payment and great communication. Highly recommended.', 'seller', DATE_SUB(NOW(), INTERVAL 1 DAY)),
+        
+        -- Transaction 4: casual_buyer (5) bought from fashionista_emma (2) - buyer reviews seller
+        (4, 5, 2, 5, 'Love this dress! The fabric is so soft and the fit is perfect. Emma is a fantastic seller.', 'buyer', DATE_SUB(NOW(), INTERVAL 4 DAY)),
+        -- Transaction 4: fashionista_emma (2) reviews casual_buyer (5) - seller reviews buyer
+        (4, 2, 5, 5, 'Amazing buyer! Very understanding and pleasant to work with. Thank you!', 'seller', DATE_SUB(NOW(), INTERVAL 4 DAY)),
+        
+        -- Transaction 5: trend_setter (7) bought from premium_seller (6) - buyer reviews seller
+        (5, 7, 6, 4, 'Great bag, leather quality is good. Slightly smaller than expected but still happy with purchase.', 'buyer', DATE_SUB(NOW(), INTERVAL 6 DAY)),
+        -- Transaction 5: premium_seller (6) reviews trend_setter (7) - seller reviews buyer
+        (5, 6, 7, 5, 'Perfect transaction! Fast payment and great buyer communication.', 'seller', DATE_SUB(NOW(), INTERVAL 6 DAY)),
+        
+        -- Transaction 7: casual_buyer (5) bought from eco_warrior (8) - buyer reviews seller
+        (7, 5, 8, 5, 'Amazing yoga set! The fabric is so comfortable and breathable. Perfect for my workouts.', 'buyer', DATE_SUB(NOW(), INTERVAL 3 DAY)),
+        
+        -- Transaction 8: trend_setter (7) bought from luxury_lover (10) - buyer reviews seller
+        (8, 7, 10, 5, 'This cashmere sweater is absolutely divine! Worth every penny. Luxury quality as promised.', 'buyer', DATE_SUB(NOW(), INTERVAL 9 DAY)),
+        -- Transaction 8: luxury_lover (10) reviews trend_setter (7) - seller reviews buyer
+        (8, 10, 7, 5, 'Wonderful buyer! Appreciated the quality and paid promptly. Would sell to again.', 'seller', DATE_SUB(NOW(), INTERVAL 9 DAY)),
+        
+        -- Transaction 9: budget_shopper (9) bought from fashionista_emma (2) - buyer reviews seller
+        (9, 9, 2, 4, 'Cute heels! A bit tight but I can make them work. Fast shipping and well packaged.', 'buyer', DATE_SUB(NOW(), INTERVAL 5 DAY)),
+        -- Transaction 9: fashionista_emma (2) reviews budget_shopper (9) - seller reviews buyer
+        (9, 2, 9, 4, 'Good buyer, but had some sizing concerns. Communication could have been better.', 'seller', DATE_SUB(NOW(), INTERVAL 5 DAY)),
+        
+        -- Transaction 2: trend_setter (7) bought from fashionista_emma (2) - only buyer review so far
+        (2, 7, 2, 5, 'Beautiful blouse! Professional quality and the silk feels luxurious. Perfect for work.', 'buyer', DATE_SUB(NOW(), INTERVAL 12 HOUR))
       `);
-      console.log('Sample reviews inserted successfully');
+      console.log('Sample transaction-based reviews inserted successfully');
     } catch (error) {
       console.log('Reviews error:', error.message);
     }
@@ -319,6 +341,103 @@ async function initializeDatabase() {
       console.log('Landing content inserted successfully');
     } catch (error) {
       console.log('Landing content error:', error.message);
+    }
+
+    // Update user rating statistics based on reviews
+    try {
+      console.log('Calculating user rating statistics...');
+      await connection.execute(`
+        UPDATE users u SET 
+          total_reviews = (
+            SELECT COUNT(*) 
+            FROM reviews r 
+            WHERE r.reviewee_id = u.id
+          ),
+          average_rating = (
+            SELECT AVG(r.rating) 
+            FROM reviews r 
+            WHERE r.reviewee_id = u.id
+            HAVING COUNT(*) > 0
+          )
+      `);
+      console.log('User rating statistics updated successfully');
+    } catch (error) {
+      console.log('User rating statistics error:', error.message);
+    }
+
+    // Create triggers for automatic rating updates
+    try {
+      console.log('Creating database triggers for automatic rating updates...');
+      
+      // Drop existing triggers if they exist
+      await connection.query('DROP TRIGGER IF EXISTS update_user_rating_after_review_insert');
+      await connection.query('DROP TRIGGER IF EXISTS update_user_rating_after_review_update');
+      await connection.query('DROP TRIGGER IF EXISTS update_user_rating_after_review_delete');
+
+      await connection.query(`
+        CREATE TRIGGER update_user_rating_after_review_insert
+        AFTER INSERT ON reviews
+        FOR EACH ROW
+        BEGIN
+          UPDATE users 
+          SET total_reviews = (
+            SELECT COUNT(*) FROM reviews WHERE reviewee_id = NEW.reviewee_id
+          ),
+          average_rating = (
+            SELECT AVG(rating) FROM reviews WHERE reviewee_id = NEW.reviewee_id
+          )
+          WHERE id = NEW.reviewee_id;
+        END
+      `);
+
+      await connection.query(`
+        CREATE TRIGGER update_user_rating_after_review_update
+        AFTER UPDATE ON reviews
+        FOR EACH ROW
+        BEGIN
+          -- Update old reviewee if changed
+          IF OLD.reviewee_id != NEW.reviewee_id THEN
+            UPDATE users 
+            SET total_reviews = (
+              SELECT COUNT(*) FROM reviews WHERE reviewee_id = OLD.reviewee_id
+            ),
+            average_rating = (
+              SELECT AVG(rating) FROM reviews WHERE reviewee_id = OLD.reviewee_id
+            )
+            WHERE id = OLD.reviewee_id;
+          END IF;
+          
+          -- Update new reviewee
+          UPDATE users 
+          SET total_reviews = (
+            SELECT COUNT(*) FROM reviews WHERE reviewee_id = NEW.reviewee_id
+          ),
+          average_rating = (
+            SELECT AVG(rating) FROM reviews WHERE reviewee_id = NEW.reviewee_id
+          )
+          WHERE id = NEW.reviewee_id;
+        END
+      `);
+
+      await connection.query(`
+        CREATE TRIGGER update_user_rating_after_review_delete
+        AFTER DELETE ON reviews
+        FOR EACH ROW
+        BEGIN
+          UPDATE users 
+          SET total_reviews = (
+            SELECT COUNT(*) FROM reviews WHERE reviewee_id = OLD.reviewee_id
+          ),
+          average_rating = (
+            SELECT AVG(rating) FROM reviews WHERE reviewee_id = OLD.reviewee_id
+          )
+          WHERE id = OLD.reviewee_id;
+        END
+      `);
+
+      console.log('Database triggers created successfully');
+    } catch (error) {
+      console.log('Triggers error:', error.message);
     }
     
     await connection.end();

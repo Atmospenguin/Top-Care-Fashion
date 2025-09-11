@@ -73,6 +73,16 @@ export async function PATCH(req: NextRequest, context: { params: { id: string } 
       "UPDATE transactions SET status = ? WHERE id = ?",
       [status, params.id]
     );
+
+    // If completed, mark related listing as sold and unlisted
+    if (status === 'completed') {
+      await conn.execute(
+        `UPDATE listings 
+         SET sold = 1, listed = 0, sold_at = COALESCE(sold_at, NOW())
+         WHERE id = (SELECT listing_id FROM transactions WHERE id = ?)`,
+        [params.id]
+      );
+    }
     
     await conn.end();
     return NextResponse.json({ success: true });

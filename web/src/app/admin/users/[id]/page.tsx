@@ -11,6 +11,11 @@ export default function UserDetailPage() {
   const [user, setUser] = useState<UserAccount | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [userRating, setUserRating] = useState<{ averageRating: number | null; totalReviews: number }>({ 
+    averageRating: null, 
+    totalReviews: 0 
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,6 +55,33 @@ export default function UserDetailPage() {
           }
         } catch (error) {
           console.log("Could not load listings:", error);
+        }
+
+        // Load user's reviews
+        try {
+          const reviewsRes = await fetch(`/api/admin/users/${userId}/reviews`, { cache: "no-store" });
+          if (reviewsRes.ok) {
+            const reviewsData = await reviewsRes.json();
+            setReviews(reviewsData.reviews || []);
+            // Coerce ratings to the correct types and guard against invalid values
+            const rawAvg = reviewsData?.averageRating;
+            const avg =
+              typeof rawAvg === 'number'
+                ? rawAvg
+                : typeof rawAvg === 'string'
+                ? parseFloat(rawAvg)
+                : null;
+
+            const safeAvg = Number.isFinite(avg as number) ? (avg as number) : null;
+            const safeTotal = Number(reviewsData?.totalReviews) || 0;
+
+            setUserRating({
+              averageRating: safeAvg,
+              totalReviews: safeTotal,
+            });
+          }
+        } catch (error) {
+          console.log("Could not load reviews:", error);
         }
       } catch (error) {
         console.error('Error loading user details:', error);
@@ -212,9 +244,106 @@ export default function UserDetailPage() {
               <span className="text-sm text-gray-500">Total Transactions:</span>
               <div className="text-lg font-bold text-gray-600">{transactions.length}</div>
             </div>
+
+            <div>
+              <span className="text-sm text-gray-500">User Rating:</span>
+              <div className="flex items-center space-x-2">
+                {userRating.averageRating !== null ? (
+                  <>
+                    <div className="text-lg font-bold text-yellow-600">
+                      {userRating.averageRating.toFixed(1)}★
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      ({userRating.totalReviews} reviews)
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-lg font-bold text-gray-400">No reviews yet</div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* User Reviews */}
+      {reviews.length > 0 && (
+        <div className="bg-white border rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-4">
+            Reviews Received ({userRating.totalReviews})
+            {userRating.averageRating && (
+              <span className="ml-2 text-yellow-600">
+                {userRating.averageRating.toFixed(1)}★ average
+              </span>
+            )}
+          </h3>
+          <div className="space-y-4">
+            {reviews.slice(0, 5).map((review) => (
+              <div key={review.id} className="border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center space-x-2">
+                    <Link
+                      href={`/admin/users/${review.reviewerId}`}
+                      className="font-medium text-blue-600 hover:text-blue-800"
+                    >
+                      {review.reviewerName}
+                    </Link>
+                    <span className="text-sm text-gray-500">
+                      ({review.reviewerType})
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="flex">
+                      {[...Array(5)].map((_, i) => (
+                        <span
+                          key={i}
+                          className={`text-sm ${i < review.rating ? 'text-yellow-400' : 'text-gray-300'}`}
+                        >
+                          ★
+                        </span>
+                      ))}
+                    </div>
+                    <span className="text-sm text-gray-500">
+                      {review.rating}/5
+                    </span>
+                  </div>
+                </div>
+                <p className="text-gray-700 mb-2">{review.comment}</p>
+                <div className="flex items-center justify-between text-sm text-gray-500">
+                  <div>
+                    Transaction: 
+                    <Link
+                      href={`/admin/transactions/${review.transactionId}`}
+                      className="ml-1 text-blue-600 hover:text-blue-800"
+                    >
+                      {review.transactionId}
+                    </Link>
+                    {review.listingName && (
+                      <>
+                        {" for "}
+                        <Link
+                          href={`/admin/listings/${review.listingId}`}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          {review.listingName}
+                        </Link>
+                      </>
+                    )}
+                  </div>
+                  <div>{new Date(review.createdAt).toLocaleDateString()}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {reviews.length > 5 && (
+            <div className="mt-4 text-center">
+              <span className="text-gray-500">
+                Showing 5 of {reviews.length} reviews
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Recent Transactions */}
       {transactions.length > 0 && (
@@ -230,6 +359,7 @@ export default function UserDetailPage() {
                   <th className="pb-2">Amount</th>
                   <th className="pb-2">Status</th>
                   <th className="pb-2">Date</th>
+                  <th className="pb-2">Reviews</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -271,6 +401,16 @@ export default function UserDetailPage() {
                     <td className="py-2">
                       {new Date(transaction.createdAt).toLocaleDateString()}
                     </td>
+                    <td className="py-2">
+                      {transaction.status === 'completed' && (
+                        <Link
+                          href={`/admin/transactions/${transaction.id}#reviews`}
+                          className="text-blue-600 hover:text-blue-800 text-xs"
+                        >
+                          View Reviews
+                        </Link>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -288,13 +428,20 @@ export default function UserDetailPage() {
               <div key={listing.id} className="border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-medium truncate">{listing.name}</h4>
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    listing.listed 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {listing.listed ? 'Listed' : 'Unlisted'}
-                  </span>
+                  <div className="flex space-x-1">
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      listing.listed 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {listing.listed ? 'Listed' : 'Unlisted'}
+                    </span>
+                    {listing.sold && (
+                      <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                        Sold
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <p className="text-sm text-gray-600 mb-2 line-clamp-2">
                   {listing.description}
