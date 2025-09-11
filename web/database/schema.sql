@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
   status ENUM('active','suspended') NOT NULL DEFAULT 'active',
   is_premium TINYINT(1) NOT NULL DEFAULT 0,
   premium_until TIMESTAMP NULL,
+  average_rating DECIMAL(3,2) NULL DEFAULT NULL COMMENT 'Average rating as a user (1.00-5.00)',
+  total_reviews INT NOT NULL DEFAULT 0 COMMENT 'Total number of reviews received',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -33,6 +35,7 @@ CREATE TABLE IF NOT EXISTS listings (
   category_id INT NULL,
   seller_id INT NULL,
   listed TINYINT(1) NOT NULL DEFAULT 1,
+  sold TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'True when listing has been sold',
   price DECIMAL(10,2) NOT NULL DEFAULT 0,
   image_url VARCHAR(500) NULL,
   image_urls TEXT NULL COMMENT 'JSON array of image URLs',
@@ -41,6 +44,7 @@ CREATE TABLE IF NOT EXISTS listings (
   condition_type ENUM('new','like_new','good','fair','poor') DEFAULT 'good',
   tags TEXT NULL COMMENT 'JSON array of tags',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  sold_at TIMESTAMP NULL COMMENT 'When the listing was sold',
   CONSTRAINT fk_listings_category FOREIGN KEY (category_id) REFERENCES listing_categories(id) ON DELETE SET NULL,
   CONSTRAINT fk_listings_seller FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE SET NULL
 );
@@ -60,18 +64,21 @@ CREATE TABLE IF NOT EXISTS transactions (
   CONSTRAINT fk_tx_listing FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE RESTRICT
 );
 
+-- Reviews are now tied to transactions, not listings
+-- Each transaction can have up to 2 reviews: one from buyer, one from seller
 CREATE TABLE IF NOT EXISTS reviews (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  listing_id INT NOT NULL,
-  author VARCHAR(100) NOT NULL,
-  author_user_id INT NULL,
-  rating TINYINT NOT NULL,
+  transaction_id INT NOT NULL,
+  reviewer_id INT NOT NULL,
+  reviewee_id INT NOT NULL,
+  rating TINYINT NOT NULL CHECK (rating >= 1 AND rating <= 5),
   comment TEXT NOT NULL,
-  transaction_id INT NULL,
+  reviewer_type ENUM('buyer','seller') NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_reviews_listing FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE CASCADE,
-  CONSTRAINT fk_reviews_author FOREIGN KEY (author_user_id) REFERENCES users(id) ON DELETE SET NULL,
-  CONSTRAINT fk_reviews_tx FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE SET NULL
+  CONSTRAINT fk_reviews_transaction FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_reviews_reviewer FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_reviews_reviewee FOREIGN KEY (reviewee_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_transaction_reviewer (transaction_id, reviewer_id)
 );
 
 -- Unified feedback system (includes both user feedback and testimonials)

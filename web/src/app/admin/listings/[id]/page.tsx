@@ -1,16 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import type { Listing } from "@/types/admin";
 import Link from "next/link";
 
 export default function ListingDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const listingId = params.id as string;
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    description: "",
+    price: 0,
+    brand: "",
+    size: "",
+    conditionType: "good" as Listing["conditionType"],
+    imageUrl: "",
+    listed: true,
+    tags: [] as string[] | null,
+  });
 
   useEffect(() => {
     const loadListingDetails = async () => {
@@ -20,6 +33,17 @@ export default function ListingDetailPage() {
         if (res.ok) {
           const listingData = await res.json();
           setListing(listingData);
+          setForm({
+            name: listingData.name || "",
+            description: listingData.description || "",
+            price: Number(listingData.price) || 0,
+            brand: listingData.brand || "",
+            size: listingData.size || "",
+            conditionType: listingData.conditionType || 'good',
+            imageUrl: listingData.imageUrl || "",
+            listed: !!listingData.listed,
+            tags: Array.isArray(listingData.tags) ? listingData.tags : (listingData.tags ? [String(listingData.tags)] : []),
+          });
         } else if (res.status === 404) {
           setError("Listing not found");
         } else {
@@ -110,56 +134,143 @@ export default function ListingDetailPage() {
           <div className="space-y-4">
             <div>
               <span className="text-sm text-gray-500">Name:</span>
-              <div className="font-medium text-lg">{listing.name}</div>
+              {editing ? (
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border rounded-md"
+                  placeholder="Listing name"
+                />
+              ) : (
+                <div className="font-medium text-lg">{listing.name}</div>
+              )}
             </div>
             
             <div>
               <span className="text-sm text-gray-500">Price:</span>
-              <div className="text-2xl font-bold text-green-600">
-                ${listing.price?.toFixed(2)}
-              </div>
+              {editing ? (
+                <input
+                  type="number"
+                  step="0.01"
+                  value={form.price}
+                  onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value) || 0 })}
+                  className="mt-1 w-full px-3 py-2 border rounded-md"
+                  placeholder="0.00"
+                />
+              ) : (
+                <div className="text-2xl font-bold text-green-600">
+                  ${listing.price?.toFixed(2)}
+                </div>
+              )}
             </div>
             
             <div>
               <span className="text-sm text-gray-500">Status:</span>
-              <div className="flex items-center">
-                <span className={`px-2 py-1 text-xs rounded-full ${
-                  listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {listing.listed ? 'Listed' : 'Unlisted'}
-                </span>
+              {editing ? (
+                <label className="flex items-center gap-2 mt-1">
+                  <input
+                    type="checkbox"
+                    checked={form.listed}
+                    onChange={(e) => setForm({ ...form, listed: e.target.checked })}
+                  />
+                  <span className="text-sm">Listed</span>
+                </label>
+              ) : (
+                <div className="flex items-center">
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {listing.listed ? 'Listed' : 'Unlisted'}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <span className="text-sm text-gray-500">Description:</span>
+              {editing ? (
+                <textarea
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border rounded-md"
+                  rows={3}
+                  placeholder="Enter description"
+                />
+              ) : (
+                listing.description && (
+                  <div className="mt-1 p-3 bg-gray-50 rounded-md">
+                    <p className="text-gray-900">{listing.description}</p>
+                  </div>
+                )
+              )}
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <span className="text-sm text-gray-500">Brand:</span>
+                {editing ? (
+                  <input
+                    type="text"
+                    value={form.brand}
+                    onChange={(e) => setForm({ ...form, brand: e.target.value })}
+                    className="mt-1 w-full px-3 py-2 border rounded-md"
+                    placeholder="Brand"
+                  />
+                ) : (
+                  listing.brand && <div className="font-medium">{listing.brand}</div>
+                )}
+              </div>
+              
+              <div>
+                <span className="text-sm text-gray-500">Size:</span>
+                {editing ? (
+                  <input
+                    type="text"
+                    value={form.size}
+                    onChange={(e) => setForm({ ...form, size: e.target.value })}
+                    className="mt-1 w-full px-3 py-2 border rounded-md"
+                    placeholder="Size"
+                  />
+                ) : (
+                  listing.size && <div className="font-medium">{listing.size}</div>
+                )}
+              </div>
+              
+              <div>
+                <span className="text-sm text-gray-500">Condition:</span>
+                {editing ? (
+                  <select
+                    value={form.conditionType || 'good'}
+                    onChange={(e) => setForm({ ...form, conditionType: e.target.value as any })}
+                    className="mt-1 w-full px-3 py-2 border rounded-md capitalize"
+                  >
+                    <option value="new">New</option>
+                    <option value="like_new">Like New</option>
+                    <option value="good">Good</option>
+                    <option value="fair">Fair</option>
+                    <option value="poor">Poor</option>
+                  </select>
+                ) : (
+                  listing.conditionType && (
+                    <div className="font-medium capitalize">{listing.conditionType.replace('_', ' ')}</div>
+                  )
+                )}
               </div>
             </div>
 
-            {listing.description && (
-              <div>
-                <span className="text-sm text-gray-500">Description:</span>
-                <div className="mt-1 p-3 bg-gray-50 rounded-md">
-                  <p className="text-gray-900">{listing.description}</p>
-                </div>
-              </div>
-            )}
-            
-            <div className="grid grid-cols-2 gap-4">
-              {listing.brand && (
-                <div>
-                  <span className="text-sm text-gray-500">Brand:</span>
-                  <div className="font-medium">{listing.brand}</div>
-                </div>
-              )}
-              
-              {listing.size && (
-                <div>
-                  <span className="text-sm text-gray-500">Size:</span>
-                  <div className="font-medium">{listing.size}</div>
-                </div>
-              )}
-              
-              {listing.conditionType && (
-                <div>
-                  <span className="text-sm text-gray-500">Condition:</span>
-                  <div className="font-medium capitalize">{listing.conditionType.replace('_', ' ')}</div>
-                </div>
+            <div>
+              <span className="text-sm text-gray-500">Image URL:</span>
+              {editing ? (
+                <input
+                  type="text"
+                  value={form.imageUrl}
+                  onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border rounded-md"
+                  placeholder="https://..."
+                />
+              ) : (
+                listing.imageUrl && <div className="font-medium break-all">{listing.imageUrl}</div>
               )}
             </div>
 
@@ -186,22 +297,149 @@ export default function ListingDetailPage() {
               </div>
             </div>
             
-            {listing.tags && listing.tags.length > 0 && (
-              <div>
-                <span className="text-sm text-gray-500">Tags:</span>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {listing.tags.map((tag, index) => (
-                    <span
-                      key={index}
-                      className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div>
+              <span className="text-sm text-gray-500">Tags:</span>
+              {editing ? (
+                <input
+                  type="text"
+                  value={(form.tags || []).join(', ')}
+                  onChange={(e) => setForm({ ...form, tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                  className="mt-1 w-full px-3 py-2 border rounded-md"
+                  placeholder="tag1, tag2, tag3"
+                />
+              ) : (
+                listing.tags && listing.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {listing.tags.map((tag, index) => (
+                      <span
+                        key={index}
+                        className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
           </div>
+        </div>
+      </div>
+
+      {/* Listing Management */}
+      <div className="bg-white border rounded-lg p-6">
+        <h3 className="text-lg font-semibold mb-4">Listing Management</h3>
+        <div className="flex flex-wrap gap-3">
+          {!editing ? (
+            <button
+              onClick={() => setEditing(true)}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Edit
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={async () => {
+                  try {
+                    const payload: any = {
+                      name: form.name,
+                      description: form.description,
+                      price: form.price,
+                      brand: form.brand,
+                      size: form.size,
+                      conditionType: form.conditionType,
+                      imageUrl: form.imageUrl,
+                      listed: form.listed,
+                      tags: form.tags || [],
+                    };
+                    const res = await fetch(`/api/admin/listings/${listing.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(payload),
+                    });
+                    if (res.ok) {
+                      const updated = await res.json();
+                      setListing(updated);
+                      setEditing(false);
+                      setForm({
+                        name: updated.name || "",
+                        description: updated.description || "",
+                        price: Number(updated.price) || 0,
+                        brand: updated.brand || "",
+                        size: updated.size || "",
+                        conditionType: updated.conditionType || 'good',
+                        imageUrl: updated.imageUrl || "",
+                        listed: !!updated.listed,
+                        tags: Array.isArray(updated.tags) ? updated.tags : [],
+                      });
+                    }
+                  } catch (err) {
+                    console.error('Save failed', err);
+                  }
+                }}
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700"
+              >
+                Save Changes
+              </button>
+              <button
+                onClick={() => {
+                  setEditing(false);
+                  // Reset form back to current listing values
+                  setForm({
+                    name: listing.name || "",
+                    description: listing.description || "",
+                    price: Number(listing.price) || 0,
+                    brand: listing.brand || "",
+                    size: listing.size || "",
+                    conditionType: listing.conditionType || 'good',
+                    imageUrl: listing.imageUrl || "",
+                    listed: !!listing.listed,
+                    tags: Array.isArray(listing.tags) ? listing.tags : [],
+                  });
+                }}
+                className="px-4 py-2 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+            </>
+          )}
+          <button
+            onClick={async () => {
+              try {
+                const res = await fetch(`/api/admin/listings/${listing.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ listed: !listing.listed })
+                });
+                if (res.ok) {
+                  const updated = await res.json();
+                  setListing(updated);
+                }
+              } catch (err) {
+                console.error('Toggle list failed', err);
+              }
+            }}
+            className={`px-4 py-2 text-sm rounded-md ${listing.listed ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : 'bg-green-600 text-white hover:bg-green-700'}`}
+          >
+            {listing.listed ? 'Unlist' : 'List'}
+          </button>
+          <button
+            onClick={async () => {
+              if (!confirm('Are you sure you want to delete this listing?')) return;
+              try {
+                const res = await fetch(`/api/admin/listings/${listing.id}`, { method: 'DELETE' });
+                if (res.ok) {
+                  router.push('/admin/listings');
+                }
+              } catch (err) {
+                console.error('Delete failed', err);
+              }
+            }}
+            className="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
+          >
+            Delete
+          </button>
         </div>
       </div>
 

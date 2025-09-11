@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import type { UserAccount } from "@/types/admin";
 
 interface ExtendedUser extends UserAccount {
@@ -355,12 +356,12 @@ export default function UsersPage() {
                 </div>
 
                 <div className="flex items-center justify-between pt-4 border-t">
-                  <button
-                    onClick={() => setSelectedUser(user)}
+                  <Link
+                    href={`/admin/users/${user.id}`}
                     className="text-sm text-blue-600 hover:underline"
                   >
                     View Details
-                  </button>
+                  </Link>
                   <div className="flex items-center space-x-3">
                     <button
                       onClick={() => startEdit(user.id)}

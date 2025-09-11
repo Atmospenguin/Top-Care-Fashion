@@ -8,7 +8,7 @@ export async function GET(_req: NextRequest, context: { params: { id: string } |
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const conn = await getConnection();
   const [rows]: any = await conn.execute(
-    "SELECT id, username, email, status, role, is_premium, premium_until, created_at AS createdAt FROM users WHERE id = ?",
+    "SELECT id, username, email, status, role, is_premium, premium_until, average_rating, total_reviews, created_at AS createdAt FROM users WHERE id = ?",
     [params.id]
   );
   await conn.end();
@@ -33,7 +33,7 @@ export async function PATCH(req: NextRequest, context: { params: { id: string } 
       const conn = await getConnection();
       await conn.execute("UPDATE users SET status = ? WHERE id = ?", [status, params.id]);
       const [rows]: any = await conn.execute(
-        "SELECT id, username, email, status, role, is_premium, premium_until, created_at AS createdAt FROM users WHERE id = ?",
+        "SELECT id, username, email, status, role, is_premium, premium_until, average_rating, total_reviews, created_at AS createdAt FROM users WHERE id = ?",
         [params.id]
       );
       await conn.end();
@@ -75,7 +75,7 @@ export async function PATCH(req: NextRequest, context: { params: { id: string } 
     await conn.execute(`UPDATE users SET ${updateFields.join(", ")} WHERE id = ?`, updateValues);
 
     const [rows]: any = await conn.execute(
-      "SELECT id, username, email, status, role, is_premium, premium_until, created_at AS createdAt FROM users WHERE id = ?",
+      "SELECT id, username, email, status, role, is_premium, premium_until, average_rating, total_reviews, created_at AS createdAt FROM users WHERE id = ?",
       [params.id]
     );
     await conn.end();

@@ -5,9 +5,7 @@ import { useAuth } from "@/components/AuthContext";
 import type { Listing, Transaction, Review, UserAccount } from "@/types/admin";
 import Link from "next/link";
 
-interface EditingListing extends Listing {
-  editing?: boolean;
-}
+type EditingListing = Listing;
 
 type ViewMode = "grid" | "table";
 type FilterType = "all" | "listed" | "unlisted";
@@ -41,7 +39,7 @@ export default function ListingManagementPage() {
       }
 
       const json = await res.json();
-      setItems((json.listings || []).map((l: Listing) => ({ ...l, editing: false })));
+      setItems((json.listings || []) as EditingListing[]);
     } catch (error) {
       console.error('Error loading listings:', error);
       setError(error instanceof Error ? error.message : "Failed to load listings");
@@ -54,63 +52,13 @@ export default function ListingManagementPage() {
     loadListings();
   }, [isAdmin]);
 
+  // Editing moved to Listing Details page; no inline edit via query string.
+
   const filteredItems = items.filter(item => {
     if (filter !== "all" && item.listed !== (filter === "listed")) return false;
     if (searchTerm && !item.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
-
-  const startEdit = (id: string) => {
-    setItems(items.map(item => ({ 
-      ...item, 
-      editing: item.id === id ? true : false 
-    })));
-  };
-
-  const cancelEdit = (id: string) => {
-    setItems(items.map(item => ({ 
-      ...item, 
-      editing: item.id === id ? false : item.editing 
-    })));
-    loadListings(); // Reload to reset changes
-  };
-
-  const saveEdit = async (listing: EditingListing) => {
-    try {
-      setSaving(listing.id);
-      const updateData = {
-        name: listing.name,
-        description: listing.description,
-        price: listing.price,
-        brand: listing.brand,
-        size: listing.size,
-        conditionType: listing.conditionType,
-        imageUrl: listing.imageUrl,
-        listed: listing.listed,
-        tags: listing.tags
-      };
-
-      const res = await fetch(`/api/admin/listings/${listing.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updateData)
-      });
-
-      if (res.ok) {
-        setItems(items.map(item => ({ 
-          ...item, 
-          editing: item.id === listing.id ? false : item.editing 
-        })));
-        loadListings();
-      } else {
-        console.error('Failed to save listing');
-      }
-    } catch (error) {
-      console.error('Error saving listing:', error);
-    } finally {
-      setSaving(null);
-    }
-  };
 
   const deleteListing = async (id: string) => {
     if (!confirm('Are you sure you want to delete this listing?')) return;
@@ -261,7 +209,6 @@ export default function ListingManagementPage() {
               key={listing.id}
               listing={listing}
               isAdmin={isAdmin}
-              onEdit={startEdit}
               onDelete={deleteListing}
               onToggleListing={toggleListing}
             />
@@ -271,11 +218,7 @@ export default function ListingManagementPage() {
         <ListingTable
           listings={filteredItems}
           isAdmin={isAdmin}
-          onEdit={startEdit}
-          onCancel={cancelEdit}
-          onSave={saveEdit}
           onDelete={deleteListing}
-          onUpdateField={updateField}
           saving={saving}
         />
       )}
@@ -305,13 +248,11 @@ export default function ListingManagementPage() {
 function ListingCard({ 
   listing, 
   isAdmin, 
-  onEdit, 
   onDelete, 
   onToggleListing, 
 }: {
   listing: EditingListing;
   isAdmin: boolean;
-  onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onToggleListing: (id: string, listed: boolean) => void;
 }) {
@@ -379,12 +320,6 @@ function ListingCard({
           {isAdmin && (
             <>
               <button
-                onClick={() => onEdit(listing.id)}
-                className="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-800 rounded"
-              >
-                Edit
-              </button>
-              <button
                 onClick={() => onToggleListing(listing.id, listing.listed)}
                 className={`px-3 py-1 text-xs rounded ${
                   listing.listed 
@@ -405,20 +340,12 @@ function ListingCard({
 function ListingTable({ 
   listings, 
   isAdmin, 
-  onEdit, 
-  onCancel, 
-  onSave, 
   onDelete, 
-  onUpdateField, 
   saving 
 }: {
   listings: EditingListing[];
   isAdmin: boolean;
-  onEdit: (id: string) => void;
-  onCancel: (id: string) => void;
-  onSave: (listing: EditingListing) => void;
   onDelete: (id: string) => void;
-  onUpdateField: (id: string, field: keyof Listing, value: any) => void;
   saving: string | null;
 }) {
   return (
@@ -441,12 +368,7 @@ function ListingTable({
                 key={listing.id}
                 listing={listing}
                 isAdmin={isAdmin}
-                onEdit={onEdit}
-                onCancel={onCancel}
-                onSave={onSave}
                 onDelete={onDelete}
-                onUpdateField={onUpdateField}
-                saving={saving}
               />
             ))}
           </tbody>
@@ -459,101 +381,12 @@ function ListingTable({
 function ListingTableRow({ 
   listing, 
   isAdmin, 
-  onEdit, 
-  onCancel, 
-  onSave, 
   onDelete, 
-  onUpdateField, 
-  saving 
 }: {
   listing: EditingListing;
   isAdmin: boolean;
-  onEdit: (id: string) => void;
-  onCancel: (id: string) => void;
-  onSave: (listing: EditingListing) => void;
   onDelete: (id: string) => void;
-  onUpdateField: (id: string, field: keyof Listing, value: any) => void;
-  saving: string | null;
 }) {
-  if (listing.editing) {
-    return (
-      <tr className="bg-blue-50">
-        <td className="px-4 py-3">
-          <input
-            type="text"
-            value={listing.name}
-            onChange={(e) => onUpdateField(listing.id, 'name', e.target.value)}
-            className="w-full px-2 py-1 text-sm border rounded"
-            placeholder="Listing name"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <input
-            type="number"
-            step="0.01"
-            value={listing.price}
-            onChange={(e) => onUpdateField(listing.id, 'price', parseFloat(e.target.value) || 0)}
-            className="w-full px-2 py-1 text-sm border rounded"
-            placeholder="0.00"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <label className="flex items-center">
-            <input
-              type="checkbox"
-              checked={listing.listed}
-              onChange={(e) => onUpdateField(listing.id, 'listed', e.target.checked)}
-              className="mr-2"
-            />
-            <span className="text-sm">Listed</span>
-          </label>
-        </td>
-        <td className="px-4 py-3">
-          <input
-            type="text"
-            value={listing.brand || ''}
-            onChange={(e) => onUpdateField(listing.id, 'brand', e.target.value)}
-            className="w-full px-2 py-1 text-sm border rounded"
-            placeholder="Brand"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <select
-            value={listing.conditionType || 'good'}
-            onChange={(e) => onUpdateField(listing.id, 'conditionType', e.target.value)}
-            className="w-full px-2 py-1 text-sm border rounded"
-            title="Select condition"
-          >
-            <option value="new">New</option>
-            <option value="like_new">Like New</option>
-            <option value="good">Good</option>
-            <option value="fair">Fair</option>
-            <option value="poor">Poor</option>
-          </select>
-        </td>
-        {isAdmin && (
-          <td className="px-4 py-3">
-            <div className="flex gap-2">
-              <button
-                onClick={() => onSave(listing)}
-                disabled={saving === listing.id}
-                className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-              >
-                {saving === listing.id ? 'Saving...' : 'Save'}
-              </button>
-              <button
-                onClick={() => onCancel(listing.id)}
-                className="px-2 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
-              >
-                Cancel
-              </button>
-            </div>
-          </td>
-        )}
-      </tr>
-    );
-  }
-
   return (
     <tr>
       <td className="px-4 py-3">
@@ -584,12 +417,6 @@ function ListingTableRow({
       {isAdmin && (
         <td className="px-4 py-3">
           <div className="flex gap-2">
-            <button
-              onClick={() => onEdit(listing.id)}
-              className="text-blue-600 hover:text-blue-800 text-sm"
-            >
-              Edit
-            </button>
             <button
               onClick={() => onDelete(listing.id)}
               className="text-red-600 hover:text-red-800 text-sm"
@@ -687,4 +514,3 @@ function CreateListingModal({ onClose, onCreate }: {
     </div>
   );
 }
-
