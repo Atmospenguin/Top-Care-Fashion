@@ -38,6 +38,9 @@ export type Listing = {
   tags?: string[];
   createdAt: string;
   soldAt?: string; // When the listing was sold
+  // Transaction info (if exists)
+  txStatus?: "pending" | "paid" | "shipped" | "completed" | "cancelled";
+  txId?: string;
 };
 
 export type Transaction = {

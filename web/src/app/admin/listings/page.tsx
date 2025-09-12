@@ -10,6 +10,23 @@ type EditingListing = Listing;
 type ViewMode = "grid" | "table";
 type FilterType = "all" | "listed" | "unlisted";
 
+function getTxColor(status?: string) {
+  switch (status) {
+    case 'completed':
+      return 'bg-green-100 text-green-800';
+    case 'pending':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'paid':
+      return 'bg-blue-100 text-blue-800';
+    case 'shipped':
+      return 'bg-purple-100 text-purple-800';
+    case 'cancelled':
+      return 'bg-red-100 text-red-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+}
+
 export default function ListingManagementPage() {
   const { user } = useAuth();
   const [items, setItems] = useState<EditingListing[]>([]);
@@ -273,8 +290,10 @@ function ListingCard({
         <div className="flex items-start justify-between mb-2">
           <h3 className="font-medium text-sm truncate flex-1">{listing.name}</h3>
           <div className="flex items-center gap-2">
-            {listing.sold && (
-              <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Sold</span>
+            {listing.txStatus && (
+              <span className={`px-2 py-1 text-xs rounded-full ${getTxColor(listing.txStatus)}`}>
+                {listing.txStatus}
+              </span>
             )}
             <span className={`px-2 py-1 text-xs rounded-full ${
               listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
@@ -414,8 +433,10 @@ function ListingTableRow({
       <td className="px-4 py-3 text-sm">${listing.price?.toFixed(2)}</td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
-          {listing.sold && (
-            <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Sold</span>
+          {listing.txStatus && (
+            <span className={`px-2 py-1 text-xs rounded-full ${getTxColor(listing.txStatus)}`}>
+              {listing.txStatus}
+            </span>
           )}
           <span className={`px-2 py-1 text-xs rounded-full ${
             listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
