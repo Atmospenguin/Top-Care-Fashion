@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_tx_buyer FOREIGN KEY (buyer_id) REFERENCES users(id) ON DELETE RESTRICT,
   CONSTRAINT fk_tx_seller FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_tx_listing FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE RESTRICT
+  CONSTRAINT fk_tx_listing FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE RESTRICT,
+  UNIQUE KEY unique_listing_transaction (listing_id)
 );
 
 -- Reviews are now tied to transactions, not listings
@@ -78,7 +79,8 @@ CREATE TABLE IF NOT EXISTS reviews (
   CONSTRAINT fk_reviews_transaction FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
   CONSTRAINT fk_reviews_reviewer FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_reviews_reviewee FOREIGN KEY (reviewee_id) REFERENCES users(id) ON DELETE CASCADE,
-  UNIQUE KEY unique_transaction_reviewer (transaction_id, reviewer_id)
+  UNIQUE KEY unique_transaction_reviewer (transaction_id, reviewer_id),
+  UNIQUE KEY unique_transaction_reviewer_type (transaction_id, reviewer_type)
 );
 
 -- Unified feedback system (includes both user feedback and testimonials)
