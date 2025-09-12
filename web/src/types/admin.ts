@@ -92,7 +92,7 @@ export type Feedback = {
   userEmail?: string;
   userName?: string; // Display name
   message: string;
-  rating?: number; // 1-5 rating (required for testimonials)
+  rating?: number; // 1-5 rating
   tags?: string[]; // Tags for categorization
   featured: boolean; // Featured on homepage
   createdAt: string;

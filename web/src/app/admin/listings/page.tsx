@@ -151,12 +151,6 @@ export default function ListingManagementPage() {
         <div className="flex items-center gap-3">
           {isAdmin && (
             <>
-              <button
-                onClick={() => setShowCreateForm(true)}
-                className="bg-[var(--brand-color)] text-white px-4 py-2 rounded-md hover:opacity-90"
-              >
-                Create Listing
-              </button>
               <div className="flex border rounded-md">
                 <button
                   onClick={() => setViewMode("grid")}
@@ -232,13 +226,7 @@ export default function ListingManagementPage() {
         </div>
       )}
 
-      {/* Create Form Modal */}
-      {showCreateForm && (
-        <CreateListingModal
-          onClose={() => setShowCreateForm(false)}
-          onCreate={createListing}
-        />
-      )}
+      {/* Creation disabled in management UI */}
 
     </div>
   );
@@ -311,11 +299,9 @@ function ListingCard({
         <div className="flex gap-2 mt-4">
           <Link
             href={`/admin/listings/${listing.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
             className="flex-1 px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded text-center"
           >
-            View Details
+            Details
           </Link>
           {isAdmin && (
             <>
@@ -327,7 +313,13 @@ function ListingCard({
                     : 'bg-green-100 hover:bg-green-200 text-green-800'
                 }`}
               >
-                {listing.listed ? 'Hide' : 'Show'}
+                {listing.listed ? 'Unlist' : 'List'}
+              </button>
+              <button
+                onClick={() => onDelete(listing.id)}
+                className="px-3 py-1 text-xs rounded bg-red-100 hover:bg-red-200 text-red-800"
+              >
+                Delete
               </button>
             </>
           )}
@@ -416,19 +408,19 @@ function ListingTableRow({
       <td className="px-4 py-3 text-sm capitalize">{listing.conditionType?.replace('_', ' ') || 'Good'}</td>
       {isAdmin && (
         <td className="px-4 py-3">
-          <div className="flex gap-2">
-            <button
-              onClick={() => onDelete(listing.id)}
-              className="text-red-600 hover:text-red-800 text-sm"
-            >
-              Delete
-            </button>
+          <div className="flex gap-3">
             <Link
               href={`/admin/listings/${listing.id}`}
               className="text-gray-600 hover:text-gray-800 text-sm"
             >
               Details
             </Link>
+            <button
+              onClick={() => onDelete(listing.id)}
+              className="text-red-600 hover:text-red-800 text-sm"
+            >
+              Delete
+            </button>
           </div>
         </td>
       )}

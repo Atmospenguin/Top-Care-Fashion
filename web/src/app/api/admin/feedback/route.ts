@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // If featured (testimonial), ensure we have display name
+    // If featured, ensure we have display name
     if (featured && !userName) {
       return NextResponse.json(
         { error: "userName is required for featured feedback" },

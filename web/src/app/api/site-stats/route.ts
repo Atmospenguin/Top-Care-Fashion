@@ -16,7 +16,7 @@ export async function GET() {
     if (!stats || (stats as any[]).length === 0) {
       return NextResponse.json({
         stats: {
-          downloads: 12000,
+          users: 12000,
           listings: 38000,
           sold: 9400,
           rating: 4.8
@@ -27,7 +27,7 @@ export async function GET() {
     const siteStats = (stats as any[])[0];
     return NextResponse.json({
       stats: {
-        downloads: siteStats.total_users,
+        users: siteStats.total_users,
         listings: siteStats.total_listings,
         sold: siteStats.total_sold,
         rating: siteStats.avg_rating
