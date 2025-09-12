@@ -63,10 +63,20 @@ export default function ListingManagementPage() {
   const deleteListing = async (id: string) => {
     if (!confirm('Are you sure you want to delete this listing?')) return;
     try {
-      await fetch(`/api/admin/listings/${id}`, { method: "DELETE" });
-      loadListings();
+      const res = await fetch(`/api/admin/listings/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({ ok: true }));
+        if (data.softDeleted) {
+          alert('Listing has related transactions. It was unlisted instead.');
+        }
+        await loadListings();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Failed to delete listing');
+      }
     } catch (error) {
       console.error('Error deleting listing:', error);
+      alert('Error deleting listing');
     }
   };
 
@@ -262,11 +272,16 @@ function ListingCard({
       <div className="p-4">
         <div className="flex items-start justify-between mb-2">
           <h3 className="font-medium text-sm truncate flex-1">{listing.name}</h3>
-          <span className={`px-2 py-1 text-xs rounded-full ml-2 ${
-            listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-          }`}>
-            {listing.listed ? 'Listed' : 'Unlisted'}
-          </span>
+          <div className="flex items-center gap-2">
+            {listing.sold && (
+              <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Sold</span>
+            )}
+            <span className={`px-2 py-1 text-xs rounded-full ${
+              listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+            }`}>
+              {listing.listed ? 'Listed' : 'Unlisted'}
+            </span>
+          </div>
         </div>
         
         <p className="text-2xl font-bold text-[var(--brand-color)] mb-2">
@@ -398,11 +413,16 @@ function ListingTableRow({
       </td>
       <td className="px-4 py-3 text-sm">${listing.price?.toFixed(2)}</td>
       <td className="px-4 py-3">
-        <span className={`px-2 py-1 text-xs rounded-full ${
-          listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-        }`}>
-          {listing.listed ? 'Listed' : 'Unlisted'}
-        </span>
+        <div className="flex items-center gap-2">
+          {listing.sold && (
+            <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Sold</span>
+          )}
+          <span className={`px-2 py-1 text-xs rounded-full ${
+            listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+          }`}>
+            {listing.listed ? 'Listed' : 'Unlisted'}
+          </span>
+        </div>
       </td>
       <td className="px-4 py-3 text-sm">{listing.brand || '-'}</td>
       <td className="px-4 py-3 text-sm capitalize">{listing.conditionType?.replace('_', ' ') || 'Good'}</td>
