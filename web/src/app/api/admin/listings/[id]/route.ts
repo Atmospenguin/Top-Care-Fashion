@@ -11,9 +11,11 @@ export async function GET(_req: NextRequest, context: { params: { id: string } |
     `SELECT l.id, l.name, l.description, l.category_id AS categoryId, l.seller_id AS sellerId, 
             l.listed, l.sold, l.price, l.image_url AS imageUrl, l.image_urls AS imageUrls, 
             l.brand, l.size, l.condition_type AS conditionType, l.tags, 
-            l.created_at AS createdAt, l.sold_at AS soldAt, u.username AS sellerName
+            l.created_at AS createdAt, l.sold_at AS soldAt, u.username AS sellerName,
+            t.id AS txId, t.status AS txStatus
      FROM listings l
      LEFT JOIN users u ON l.seller_id = u.id 
+     LEFT JOIN transactions t ON t.listing_id = l.id
      WHERE l.id = ?`,
     [params.id]
   );
@@ -28,6 +30,8 @@ export async function GET(_req: NextRequest, context: { params: { id: string } |
     sold: typeof listing.sold === "number" ? listing.sold === 1 : !!listing.sold,
     imageUrls: listing.imageUrls ? JSON.parse(listing.imageUrls) : null,
     tags: listing.tags ? JSON.parse(listing.tags) : null,
+    txStatus: listing.txStatus || null,
+    txId: listing.txId || null,
   });
 }
 
