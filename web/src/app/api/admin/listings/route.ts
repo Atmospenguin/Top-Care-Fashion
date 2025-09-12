@@ -7,12 +7,14 @@ export async function GET() {
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const conn = await getConnection();
   const [rows]: any = await conn.execute(
-    `SELECT l.id, l.name, l.description, l.category_id AS categoryId, l.seller_id AS sellerId, 
-            l.listed, l.price, l.image_url AS imageUrl, l.image_urls AS imageUrls, 
-            l.brand, l.size, l.condition_type AS conditionType, l.tags, 
-            l.created_at AS createdAt, u.username AS sellerName
+    `SELECT l.id, l.name, l.description, l.category_id AS categoryId, l.seller_id AS sellerId,
+            l.listed, l.sold, l.price, l.image_url AS imageUrl, l.image_urls AS imageUrls,
+            l.brand, l.size, l.condition_type AS conditionType, l.tags,
+            l.created_at AS createdAt, u.username AS sellerName,
+            t.id AS txId, t.status AS txStatus
      FROM listings l
      LEFT JOIN users u ON l.seller_id = u.id
+     LEFT JOIN transactions t ON t.listing_id = l.id
      ORDER BY l.id`
   );
   await conn.end();
@@ -20,11 +22,14 @@ export async function GET() {
     ...r,
     // mysql2 returns DECIMAL as string by default; ensure number for UI formatting
     price: typeof r.price === "string" ? Number(r.price) : r.price,
-    // normalize listed to boolean if it comes as 0/1
+    // normalize booleans if they come as 0/1
     listed: typeof r.listed === "number" ? r.listed === 1 : !!r.listed,
+    sold: typeof r.sold === "number" ? r.sold === 1 : !!r.sold,
     // parse JSON fields
     imageUrls: r.imageUrls ? JSON.parse(r.imageUrls) : null,
     tags: r.tags ? JSON.parse(r.tags) : null,
+    txStatus: r.txStatus || null,
+    txId: r.txId || null,
   }));
   return NextResponse.json({ listings });
 }
