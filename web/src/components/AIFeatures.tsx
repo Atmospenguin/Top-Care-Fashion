@@ -27,17 +27,24 @@ function PhoneCarousel({ images, className = "", altPrefix = "Feature" }: { imag
 }
 
 export default function AIFeatures() {
-  const mix = [
+  const [mixSet, setMixSet] = useState<'girl' | 'boy'>(() => 'girl');
+  const mixGirl = [
     "/TOPApp/mixnmatch1/Mix & Match.png",
     "/TOPApp/mixnmatch1/Mix & Match-1.png",
     "/TOPApp/mixnmatch1/Mix & Match-2.png",
     "/TOPApp/mixnmatch1/Mix & Match-3.png",
   ];
+  const mixBoy = [
+    "/TOPApp/mixnmatch2/Mix & Match.png",
+    "/TOPApp/mixnmatch2/Mix & Match-1.png",
+    "/TOPApp/mixnmatch2/Mix & Match-2.png",
+    "/TOPApp/mixnmatch2/Mix & Match-3.png",
+  ];
   const listing = ["/TOPApp/AI-Listing.png"];
   const search = ["/TOPApp/Search Result.png"];
 
   const cards: Array<{ title: string; desc: string; images: string[] }> = [
-    { title: "Mix & Match", desc: "AI outfit recommendations from your listed items.", images: mix },
+    { title: "Mix & Match", desc: "AI outfit recommendations from your listed items.", images: mixSet === 'girl' ? mixGirl : mixBoy },
     { title: "AI Listing", desc: "Auto-generate titles, tags and descriptions from photos.", images: listing },
     { title: "Search", desc: "Natural language and image-based search to find pieces fast.", images: search },
   ];
@@ -45,14 +52,35 @@ export default function AIFeatures() {
   return (
     <section>
       <h2 className="text-3xl font-semibold tracking-tight">AI Features</h2>
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
         {cards.map((c) => (
-          <div key={c.title} className="rounded-2xl border border-black/10 p-6 bg-white">
+          <div key={c.title} className="rounded-2xl border border-black/10 p-6 bg-white flex flex-col relative">
             <div className="min-h-[72px]">
               <h3 className="font-medium">{c.title}</h3>
               <p className="text-sm text-black/70 mt-1">{c.desc}</p>
+              {/* toggles moved to overlay above phone status bar */}
             </div>
-            <PhoneCarousel images={c.images} className="mt-4" altPrefix={c.title} />
+            <div className="relative mt-4 mt-auto">
+              {c.title === 'Mix & Match' && (
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 inline-flex rounded-md overflow-hidden border border-black/10 shadow-sm">
+                  <button
+                    className={`px-2.5 py-1 text-xs ${mixSet === 'girl' ? 'bg-[var(--brand-color)] text-white' : 'bg-white text-black hover:bg-black/5'}`}
+                    onClick={() => setMixSet('girl')}
+                    type="button"
+                  >
+                    Girl
+                  </button>
+                  <button
+                    className={`px-2.5 py-1 text-xs ${mixSet === 'boy' ? 'bg-[var(--brand-color)] text-white' : 'bg-white text-black hover:bg-black/5'}`}
+                    onClick={() => setMixSet('boy')}
+                    type="button"
+                  >
+                    Boy
+                  </button>
+                </div>
+              )}
+              <PhoneCarousel images={c.images} className="pt-2" altPrefix={c.title} />
+            </div>
           </div>
         ))}
       </div>

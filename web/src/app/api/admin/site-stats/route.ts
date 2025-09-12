@@ -8,7 +8,7 @@ export async function PUT(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { downloads, listings, sold, rating } = body;
+    const { users, listings, sold, rating } = body;
 
     const connection = await getConnection();
     
@@ -16,7 +16,7 @@ export async function PUT(req: NextRequest) {
       `UPDATE site_stats SET 
        total_users = ?, total_listings = ?, total_sold = ?, avg_rating = ?, updated_at = NOW() 
        WHERE id = 1`,
-      [downloads, listings, sold, rating]
+      [users, listings, sold, rating]
     );
     
     await connection.end();

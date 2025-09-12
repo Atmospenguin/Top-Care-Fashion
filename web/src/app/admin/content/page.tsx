@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { requireAdmin } from "@/lib/auth";
 
 interface SiteStats {
-  downloads: number;
+  users: number;
   listings: number;
   sold: number;
   rating: number;
@@ -44,9 +44,10 @@ interface PricingPlan {
 }
 
 export default function ContentManagementPage() {
-  const [stats, setStats] = useState<SiteStats>({ downloads: 0, listings: 0, sold: 0, rating: 0 });
+  const [stats, setStats] = useState<SiteStats>({ users: 0, listings: 0, sold: 0, rating: 0 });
   const [content, setContent] = useState<LandingContent>({ heroTitle: '', heroSubtitle: '' });
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
   const [newTestimonial, setNewTestimonial] = useState<Testimonial>({
     user: '', text: '', rating: 5, tags: [], featured: true
@@ -61,11 +62,12 @@ export default function ContentManagementPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [statsRes, contentRes, testimonialsRes, pricingRes] = await Promise.all([
+      const [statsRes, contentRes, testimonialsRes, pricingRes, tagsRes] = await Promise.all([
         fetch('/api/site-stats'),
         fetch('/api/landing-content'),
-        fetch('/api/testimonials'), // This now uses the unified feedback system
-        fetch('/api/pricing-plans')
+        fetch('/api/feedback'), // Unified feedback endpoint
+        fetch('/api/pricing-plans'),
+        fetch('/api/feedback/tags')
       ]);
 
       if (statsRes.ok) {
@@ -86,6 +88,10 @@ export default function ContentManagementPage() {
       if (pricingRes.ok) {
         const pricingData = await pricingRes.json();
         setPricingPlans(pricingData.plans);
+      }
+      if (tagsRes.ok) {
+        const tagsData = await tagsRes.json();
+        setAvailableTags(tagsData.tags || []);
       }
     } catch (error) {
       console.error('Error fetching content management data:', error);
@@ -141,7 +147,7 @@ export default function ContentManagementPage() {
   const addTestimonial = async () => {
     try {
       setSaving(true);
-      const response = await fetch('/api/admin/testimonials', {
+      const response = await fetch('/api/admin/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newTestimonial)
@@ -150,13 +156,13 @@ export default function ContentManagementPage() {
       if (response.ok) {
         setNewTestimonial({ user: '', text: '', rating: 5, tags: [], featured: true });
         fetchData(); // Refresh testimonials
-        alert('Testimonial added successfully!');
+        alert('Feedback added successfully!');
       } else {
-        alert('Failed to add testimonial');
+        alert('Failed to add feedback');
       }
     } catch (error) {
-      console.error('Error adding testimonial:', error);
-      alert('Error adding testimonial');
+      console.error('Error adding feedback:', error);
+      alert('Error adding feedback');
     } finally {
       setSaving(false);
     }
@@ -214,14 +220,14 @@ export default function ContentManagementPage() {
           <h2 className="text-xl font-semibold mb-4">Site Statistics</h2>
           <div className="space-y-4">
             <div>
-              <label htmlFor="downloads" className="block text-sm font-medium text-gray-700 mb-1">
-                Total Downloads
+              <label htmlFor="users" className="block text-sm font-medium text-gray-700 mb-1">
+                Total Users
               </label>
               <input
-                id="downloads"
+                id="users"
                 type="number"
-                value={stats.downloads}
-                onChange={(e) => setStats({...stats, downloads: parseInt(e.target.value) || 0})}
+                value={stats.users}
+                onChange={(e) => setStats({...stats, users: parseInt(e.target.value) || 0})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -312,9 +318,9 @@ export default function ContentManagementPage() {
           </div>
         </div>
 
-        {/* Add New Testimonial */}
+        {/* Add New Featured Feedback */}
         <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <h2 className="text-xl font-semibold mb-4">Add New Testimonial</h2>
+          <h2 className="text-xl font-semibold mb-4">Add New Featured Feedback</h2>
           <div className="space-y-4">
             <div>
               <label htmlFor="userName" className="block text-sm font-medium text-gray-700 mb-1">
@@ -330,7 +336,7 @@ export default function ContentManagementPage() {
             </div>
             <div>
               <label htmlFor="testimonialText" className="block text-sm font-medium text-gray-700 mb-1">
-                Testimonial Text
+                Feedback Text
               </label>
               <textarea
                 id="testimonialText"
@@ -355,20 +361,30 @@ export default function ContentManagementPage() {
               />
             </div>
             <div>
-              <label htmlFor="testimonialTags" className="block text-sm font-medium text-gray-700 mb-1">
-                Tags (comma separated)
-              </label>
-              <input
-                id="testimonialTags"
-                type="text"
-                placeholder="mixmatch, ailisting, premium"
-                value={newTestimonial.tags.join(', ')}
-                onChange={(e) => setNewTestimonial({
-                  ...newTestimonial, 
-                  tags: e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag)
+              <div className="block text-sm font-medium text-gray-700 mb-1">Tags</div>
+              <div className="flex flex-wrap gap-2">
+                {availableTags.map((tag) => {
+                  const checked = newTestimonial.tags.includes(tag);
+                  return (
+                    <label key={tag} className={`text-xs px-2 py-1 rounded-full cursor-pointer border ${checked ? 'bg-[var(--brand-color)] text-white border-[var(--brand-color)]' : 'bg-white text-black border-black/10'}`}>
+                      <input
+                        type="checkbox"
+                        className="hidden"
+                        checked={checked}
+                        onChange={(e) => {
+                          setNewTestimonial({
+                            ...newTestimonial,
+                            tags: e.target.checked
+                              ? [...newTestimonial.tags, tag]
+                              : newTestimonial.tags.filter((t) => t !== tag)
+                          });
+                        }}
+                      />
+                      <span>#{tag}</span>
+                    </label>
+                  );
                 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              </div>
             </div>
             <div className="flex items-center">
               <input
@@ -385,14 +401,14 @@ export default function ContentManagementPage() {
               disabled={saving || !newTestimonial.user || !newTestimonial.text}
               className="w-full bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50"
             >
-              {saving ? 'Adding...' : 'Add Testimonial'}
+              {saving ? 'Adding...' : 'Add Feedback'}
             </button>
           </div>
         </div>
 
-        {/* Current Testimonials */}
+        {/* Current Featured Feedback */}
         <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <h2 className="text-xl font-semibold mb-4">Current Testimonials</h2>
+          <h2 className="text-xl font-semibold mb-4">Current Featured Feedback</h2>
           <div className="space-y-4 max-h-96 overflow-y-auto">
             {testimonials.map((testimonial, index) => (
               <div key={index} className="border border-gray-200 rounded-lg p-4">
