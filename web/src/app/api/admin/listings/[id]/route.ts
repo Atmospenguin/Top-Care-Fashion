@@ -100,8 +100,25 @@ export async function DELETE(_req: NextRequest, context: { params: { id: string 
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const conn = await getConnection();
-  const [res]: any = await conn.execute("DELETE FROM listings WHERE id = ?", [params.id]);
-  await conn.end();
-  if (!res.affectedRows) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ ok: true });
+  try {
+    const [res]: any = await conn.execute("DELETE FROM listings WHERE id = ?", [params.id]);
+    await conn.end();
+    if (!res.affectedRows) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ ok: true });
+  } catch (error: any) {
+    // If FK constraint prevents deletion (e.g., referenced by transactions), perform soft delete (unlist)
+    const isFk = error?.errno === 1451 || String(error?.message || '').includes('foreign key constraint fails');
+    if (isFk) {
+      try {
+        await conn.execute("UPDATE listings SET listed = 0 WHERE id = ?", [params.id]);
+        await conn.end();
+        return NextResponse.json({ ok: true, softDeleted: true });
+      } catch (e) {
+        await conn.end();
+        return NextResponse.json({ error: 'Failed to unlist listing' }, { status: 500 });
+      }
+    }
+    await conn.end();
+    return NextResponse.json({ error: 'Failed to delete listing' }, { status: 500 });
+  }
 }
