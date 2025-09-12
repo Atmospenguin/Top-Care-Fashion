@@ -70,6 +70,11 @@ async function initializeDatabase() {
     try { await connection.execute(`ALTER TABLE pricing_plans ADD COLUMN free_promotion_credits INT NULL AFTER mixmatch_limit`); } catch (error) {}
     try { await connection.execute(`ALTER TABLE pricing_plans ADD COLUMN seller_badge VARCHAR(100) NULL AFTER free_promotion_credits`); } catch (error) {}
 
+    // Enforce one transaction per listing (idempotent create unique key)
+    try { await connection.execute(`ALTER TABLE transactions ADD UNIQUE KEY unique_listing_transaction (listing_id)`); } catch (error) {}
+    // Enforce at most one buyer/seller review per transaction
+    try { await connection.execute(`ALTER TABLE reviews ADD UNIQUE KEY unique_transaction_reviewer_type (transaction_id, reviewer_type)`); } catch (error) {}
+
     // Step 6: Insert sample content data
     console.log('Inserting additional content...');
     
@@ -381,14 +386,17 @@ async function initializeDatabase() {
       console.log('User rating statistics error:', error.message);
     }
 
-    // Create triggers for automatic rating updates
+    // Create triggers for automatic listing state updates and rating updates
     try {
-      console.log('Creating database triggers for automatic rating updates...');
+      console.log('Creating database triggers for automatic listing/rating updates...');
       
       // Drop existing triggers if they exist
       await connection.query('DROP TRIGGER IF EXISTS update_user_rating_after_review_insert');
       await connection.query('DROP TRIGGER IF EXISTS update_user_rating_after_review_update');
       await connection.query('DROP TRIGGER IF EXISTS update_user_rating_after_review_delete');
+      await connection.query('DROP TRIGGER IF EXISTS unlist_listing_after_transaction_insert');
+      await connection.query('DROP TRIGGER IF EXISTS mark_listing_sold_after_transaction_update');
+      await connection.query('DROP TRIGGER IF EXISTS validate_review_participants_before_insert');
 
       await connection.query(`
         CREATE TRIGGER update_user_rating_after_review_insert
@@ -448,6 +456,48 @@ async function initializeDatabase() {
             SELECT AVG(rating) FROM reviews WHERE reviewee_id = OLD.reviewee_id
           )
           WHERE id = OLD.reviewee_id;
+        END
+      `);
+
+      // Unlist listing automatically once a transaction is created for it
+      await connection.query(`
+        CREATE TRIGGER unlist_listing_after_transaction_insert
+        AFTER INSERT ON transactions
+        FOR EACH ROW
+        BEGIN
+          UPDATE listings SET listed = 0 WHERE id = NEW.listing_id;
+        END
+      `);
+
+      // Mark listing sold when a transaction is completed
+      await connection.query(`
+        CREATE TRIGGER mark_listing_sold_after_transaction_update
+        AFTER UPDATE ON transactions
+        FOR EACH ROW
+        BEGIN
+          IF NEW.status = 'completed' AND OLD.status <> 'completed' THEN
+            UPDATE listings SET sold = 1, sold_at = NOW() WHERE id = NEW.listing_id;
+          END IF;
+        END
+      `);
+
+      // Ensure only buyer or seller can review, and reviewee is the opposite party
+      await connection.query(`
+        CREATE TRIGGER validate_review_participants_before_insert
+        BEFORE INSERT ON reviews
+        FOR EACH ROW
+        BEGIN
+          DECLARE b INT; DECLARE s INT;
+          SELECT buyer_id, seller_id INTO b, s FROM transactions WHERE id = NEW.transaction_id;
+          IF b IS NULL OR s IS NULL THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid transaction for review';
+          END IF;
+          IF NOT (NEW.reviewer_id = b OR NEW.reviewer_id = s) THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Reviewer must be buyer or seller of the transaction';
+          END IF;
+          IF NOT (NEW.reviewee_id = b OR NEW.reviewee_id = s) OR NEW.reviewee_id = NEW.reviewer_id THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Reviewee must be the counterparty';
+          END IF;
         END
       `);
 
