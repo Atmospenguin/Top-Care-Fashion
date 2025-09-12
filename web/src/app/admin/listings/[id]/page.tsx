@@ -356,10 +356,18 @@ export default function ListingDetailPage() {
               try {
                 const res = await fetch(`/api/admin/listings/${listing.id}`, { method: 'DELETE' });
                 if (res.ok) {
+                  const data = await res.json().catch(() => ({ ok: true }));
+                  if (data.softDeleted) {
+                    alert('Listing has related transactions. It was unlisted instead.');
+                  }
                   router.push('/admin/listings');
+                } else {
+                  const err = await res.json().catch(() => ({}));
+                  alert(err.error || 'Failed to delete listing');
                 }
               } catch (err) {
                 console.error('Delete failed', err);
+                alert('Error deleting listing');
               }
             }}
             className="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
