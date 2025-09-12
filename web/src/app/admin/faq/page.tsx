@@ -272,9 +272,12 @@ export default function FAQPage() {
                     <span className="text-sm font-medium text-gray-700">Asked by:</span>
                     {faq.userId ? (
                       <div className="flex items-center space-x-2">
-                        <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                        <a
+                          href={`/admin/users/${faq.userId}`}
+                          className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200"
+                        >
                           User: {faq.associatedUserName || faq.userId}
-                        </span>
+                        </a>
                         {faq.userEmail && (
                           <span className="text-sm text-gray-600">{faq.userEmail}</span>
                         )}
