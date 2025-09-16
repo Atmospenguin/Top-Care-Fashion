@@ -10,7 +10,8 @@ interface Testimonial {
   user: string;
   text: string;
   rating: number;
-  tags: Array<"mixmatch" | "ailisting" | "premium">;
+  // Extend allowed tags to match filter options and usage
+  tags: Array<"mixmatch" | "ailisting" | "premium" | "buyer" | "seller">;
   ts: number;
 }
 
@@ -107,7 +108,9 @@ export default function Home() {
   const now = Date.now();
 
   const visible = testimonials.filter((t) =>
-    filter === "all" ? now - t.ts <= threeWeeks : t.tags.includes(filter as any)
+    filter === "all"
+      ? now - t.ts <= threeWeeks
+      : t.tags.includes(filter as Testimonial["tags"][number])
   );
   return (
     <div className="flex flex-col gap-24">
@@ -155,7 +158,7 @@ export default function Home() {
         </div>
         <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
           {visible.map((t) => {
-            const tags = t.tags || [];
+            const tags = (t.tags ?? []) as Testimonial["tags"];
             const from = tags.includes('buyer') ? 'from buyer' : (tags.includes('seller') ? 'from seller' : undefined);
             return (
              <div key={t.id} className="rounded-xl border border-black/10 p-6 shadow-sm bg-white">

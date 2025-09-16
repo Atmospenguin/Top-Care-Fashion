@@ -22,8 +22,7 @@ Top Care Fashion
 │   │   ├── Login / Logout
 │   │   │   └── Reset Password
 │   │   ├── View Profile Page
-│   │   │   ├── Manage Profile
-│   │   │   └── Update Preference
+│   │   │   └── Manage Profile
 │   │   └── Download Mobile App
 │
 │   ├── (Mobile App)
