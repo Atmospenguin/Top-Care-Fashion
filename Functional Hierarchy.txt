@@ -31,22 +31,23 @@ Top Care Fashion
 │   │   ├── View Marketplace
 │   │   │   ├── Search and Filter
 │   │   │   ├── Browse Listings
-│   │   │   ├── View Listing Details
-│   │   │   │   ├── Favorite Listing
-│   │   │   │   ├── Unfavorite Listing
-│   │   │   │   ├── Report Listing
-│   │   │   │   ├── Add Listing to Cart
-│   │   │   │   ├── Buy Listing Now
-│   │   │   │   │   └── Leave Listing Review
-│   │   │   │   ├── Mix & Match
-│   │   │   │   │   └── Favorite/Add to Cart
-│   │   │   │   └── View User Page
-│   │   │   │       ├── View User Details
-│   │   │   │       ├── View User Ratings
-│   │   │   │       ├── View User Reviews
-│   │   │   │       └── Report User
 │   │   │   ├── View Favorite Listings
-│   │   │   └── View Cart
+│   │   │   ├── View Cart
+│   │   │   └── View Listing Details
+│   │   │       ├── Favorite Listing
+│   │   │       ├── Unfavorite Listing
+│   │   │       ├── Report Listing
+│   │   │       ├── Add Listing to Cart
+│   │   │       ├── Buy Listing Now
+│   │   │       │   └── Leave Listing Review
+│   │   │       ├── Mix & Match
+│   │   │       │   └── Favorite/Add to Cart
+│   │   │       └── View User Page
+│   │   │           ├── View User Details
+│   │   │           ├── View User Ratings
+│   │   │           ├── View User Reviews
+│   │   │           └── Report User
+│   │   │   
 │   │   ├── List Listings
 │   │   │   ├── Upload Listing Image
 │   │   │   │   └── AI Tagging
