@@ -23,13 +23,20 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       [sid]
     );
     if (!rows.length) return null;
-    const user = rows[0] as SessionUser;
-    if (user.dob instanceof Date) {
-      user.dob = user.dob.toISOString().slice(0, 10);
-    }
-    if (user.gender === undefined) {
-      user.gender = null;
-    }
+    const row: any = rows[0];
+    const dobVal = row.dob;
+    const user: SessionUser = {
+      id: row.id,
+      username: row.username,
+      email: row.email,
+      role: row.role,
+      status: row.status,
+      isPremium: row.isPremium,
+      dob: dobVal
+        ? (dobVal instanceof Date ? dobVal.toISOString().slice(0, 10) : String(dobVal))
+        : null,
+      gender: row.gender ?? null,
+    };
     return user;
   } finally {
     await conn.end();
