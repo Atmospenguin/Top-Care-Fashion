@@ -18,6 +18,10 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      'dist/**/*',
+      'coverage/**/*',
+      '.vercel/**/*',
+      '.turbo/**/*',
     ],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",

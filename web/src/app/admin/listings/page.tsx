@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthContext";
-import type { Listing, Transaction, Review, UserAccount } from "@/types/admin";
+import type { Listing } from "@/types/admin";
 import Link from "next/link";
 
 type EditingListing = Listing;
@@ -32,11 +32,9 @@ export default function ListingManagementPage() {
   const [items, setItems] = useState<EditingListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [filter, setFilter] = useState<FilterType>("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const isAdmin = user?.actor === "Admin";
 
@@ -110,30 +108,7 @@ export default function ListingManagementPage() {
     }
   };
 
-  const updateField = (id: string, field: keyof Listing, value: any) => {
-    setItems(items.map(item => 
-      item.id === id ? { ...item, [field]: value } : item
-    ));
-  };
 
-  const createListing = async (listingData: Partial<Listing>) => {
-    try {
-      const res = await fetch("/api/admin/listings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(listingData)
-      });
-      
-      if (res.ok) {
-        setShowCreateForm(false);
-        loadListings();
-      } else {
-        console.error('Failed to create listing');
-      }
-    } catch (error) {
-      console.error('Error creating listing:', error);
-    }
-  };
 
   if (loading) {
     return (
@@ -240,7 +215,6 @@ export default function ListingManagementPage() {
           listings={filteredItems}
           isAdmin={isAdmin}
           onDelete={deleteListing}
-          saving={saving}
         />
       )}
 
@@ -366,13 +340,11 @@ function ListingCard({
 function ListingTable({ 
   listings, 
   isAdmin, 
-  onDelete, 
-  saving 
+  onDelete 
 }: {
   listings: EditingListing[];
   isAdmin: boolean;
   onDelete: (id: string) => void;
-  saving: string | null;
 }) {
   return (
     <div className="bg-white border rounded-lg overflow-hidden">
@@ -469,81 +441,3 @@ function ListingTableRow({
   );
 }
 
-function CreateListingModal({ onClose, onCreate }: {
-  onClose: () => void;
-  onCreate: (data: Partial<Listing>) => void;
-}) {
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    price: 0,
-    brand: '',
-    size: '',
-    conditionType: 'good' as const,
-    imageUrl: '',
-    listed: true,
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onCreate(formData);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h3 className="text-lg font-semibold mb-4">Create New Listing</h3>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Name</label>
-            <input
-              type="text"
-              required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border rounded-md"
-              placeholder="Enter listing name"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Price</label>
-            <input
-              type="number"
-              step="0.01"
-              required
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
-              className="w-full px-3 py-2 border rounded-md"
-              placeholder="0.00"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Description</label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3 py-2 border rounded-md"
-              rows={3}
-              placeholder="Enter listing description"
-            />
-          </div>
-          <div className="flex gap-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border rounded-md hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-[var(--brand-color)] text-white rounded-md hover:opacity-90"
-            >
-              Create
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
