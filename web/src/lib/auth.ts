@@ -8,6 +8,8 @@ export type SessionUser = {
   role: "User" | "Admin";
   status: "active" | "suspended";
   isPremium?: number;
+  dob?: string | null;
+  gender?: "Male" | "Female" | null;
 };
 
 export async function getSessionUser(): Promise<SessionUser | null> {
@@ -17,11 +19,18 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const conn = await getConnection();
   try {
     const [rows]: any = await conn.execute(
-      "SELECT id, username, email, role, status, is_premium AS isPremium FROM users WHERE id = ?",
+      "SELECT id, username, email, role, status, is_premium AS isPremium, dob, gender FROM users WHERE id = ?",
       [sid]
     );
     if (!rows.length) return null;
-    return rows[0] as SessionUser;
+    const user = rows[0] as SessionUser;
+    if (user.dob instanceof Date) {
+      user.dob = user.dob.toISOString().slice(0, 10);
+    }
+    if (user.gender === undefined) {
+      user.gender = null;
+    }
+    return user;
   } finally {
     await conn.end();
   }
