@@ -7,8 +7,9 @@ export async function GET() {
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const conn = await getConnection();
   const [rows] = await conn.execute(
-    "SELECT id, username, email, status, role, is_premium, premium_until, created_at AS createdAt FROM users ORDER BY created_at DESC"
+    "SELECT id, username, email, status, role, is_premium, premium_until, dob, gender, created_at AS createdAt FROM users ORDER BY created_at DESC"
   );
   await conn.end();
   return NextResponse.json({ users: rows });
 }
+

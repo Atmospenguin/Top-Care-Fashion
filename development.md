@@ -94,7 +94,7 @@ root/
   - BACKEND: `DATABASE_URL`, `JWT_SECRET`, `FIREBASE_ADMIN_CREDENTIALS`
   - AI: `MODEL_PATH`, `SERVICE_PORT`
 - Profiles
-  - Development: verbose logs, mock data allowed
+  - Development: verbose logs, sample data allowed
   - Staging: production-like, seeded data, feature flags enabled
   - Production: strict auth, rate limiting, observability on
 
@@ -275,7 +275,7 @@ AI Services
 - Prototypes: React.js (web) and React Native (mobile)
 - Figma is for design only, not for submission
 - Include flow: Landing → Registration → Marketplace
-- Mocked API allowed early; upgrade to live endpoints before release
+- Early prototypes may use temporary endpoints; upgrade to live APIs before release
 
 ---
 

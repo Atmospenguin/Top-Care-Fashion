@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(64) NOT NULL UNIQUE,
   email VARCHAR(191) NOT NULL UNIQUE,
   password_hash VARCHAR(191) NULL,
+  dob DATE NULL,
+  gender ENUM('Male','Female') NULL,
   role ENUM('User','Admin') NOT NULL DEFAULT 'User',
   status ENUM('active','suspended') NOT NULL DEFAULT 'active',
   is_premium TINYINT(1) NOT NULL DEFAULT 0,
@@ -161,3 +163,4 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 
 -- End of combined schema
+

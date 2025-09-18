@@ -55,6 +55,10 @@ async function initializeDatabase() {
     }
     
     // Step 5: Apply lightweight migrations (drop unused columns if present)
+    // Ensure user profile fields exist
+    try { await connection.execute("ALTER TABLE users ADD COLUMN dob DATE NULL AFTER password_hash"); } catch (error) {}
+    try { await connection.execute("ALTER TABLE users ADD COLUMN gender ENUM('Male','Female') NULL AFTER dob"); } catch (error) {}
+
     try {
       await connection.execute(`ALTER TABLE feedback DROP COLUMN feedback_type`);
     } catch (error) {

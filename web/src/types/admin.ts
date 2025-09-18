@@ -8,6 +8,8 @@ export type UserAccount = {
   role: "User" | "Admin";
   is_premium: boolean;
   premium_until?: string;
+  dob?: string | null;
+  gender?: "Male" | "Female" | null;
   average_rating?: number; // Average rating as a user (1.00-5.00)
   total_reviews: number; // Total number of reviews received
   createdAt: string; // ISO
