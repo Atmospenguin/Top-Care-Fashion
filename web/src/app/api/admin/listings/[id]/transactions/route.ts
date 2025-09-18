@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getConnection } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 
-export async function GET(_req: Request, context: { params: { id: string } | Promise<{ id: string }> }) {
+export async function GET(_req: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params;
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });

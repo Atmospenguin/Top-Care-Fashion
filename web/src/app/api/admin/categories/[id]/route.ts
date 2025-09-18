@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/auth";
 
 export async function PATCH(
   req: NextRequest,
-  context: { params: { id: string } | Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   const params = await context.params;
   const admin = await requireAdmin();
@@ -24,7 +24,7 @@ export async function PATCH(
   return NextResponse.json(rows[0]);
 }
 
-export async function DELETE(_req: NextRequest, context: { params: { id: string } | Promise<{ id: string }> }) {
+export async function DELETE(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const params = await context.params;
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
