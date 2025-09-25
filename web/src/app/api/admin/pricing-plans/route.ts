@@ -1,52 +1,83 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
-import mysql from 'mysql2/promise';
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth";
+import { getConnection } from "@/lib/db";
 
-const dbConfig = {
-  host: 'localhost',
-  user: 'root',
-  password: '',
-  database: 'top_care_fashion'
+type IncomingPlan = {
+  type: string;
+  name: string;
+  description?: string | null;
+  pricing: {
+    monthly?: number | null;
+    quarterly?: number | null;
+    annual?: number | null;
+  };
+  listingLimit?: number | null;
+  promotionPrice?: number | null;
+  promotionDiscount?: number | null;
+  commissionRate?: number | null;
+  mixMatchLimit?: number | null;
+  freePromotionCredits?: number | null;
+  sellerBadge?: string | null;
+  features?: unknown[];
+  isPopular?: boolean;
 };
 
+function normalizeNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
 export async function PUT(request: NextRequest) {
+  const admin = await requireAdmin();
+  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   try {
-    // Check admin authentication
-    const authResult = await requireAdmin();
-    if (authResult instanceof NextResponse) {
-      return authResult;
+    const body = await request.json();
+    const plans: IncomingPlan[] = Array.isArray(body?.plans) ? body.plans : [];
+
+    if (!plans.length) {
+      return NextResponse.json({ error: "No plans provided" }, { status: 400 });
     }
 
-    const body = await request.json();
-    const connection = await mysql.createConnection(dbConfig);
+    const connection = await getConnection();
 
     try {
-      // Update pricing plans
-      for (const plan of body.plans) {
+      for (const plan of plans) {
         await connection.execute(
-          `UPDATE pricing_plans SET 
-           name = ?, description = ?, 
-           monthly_price = ?, quarterly_price = ?, annual_price = ?,
-           listing_limit = ?, promotion_price = ?, promotion_discount = ?,
-           commission_rate = ?, mixmatch_limit = ?, free_promotion_credits = ?,
-           seller_badge = ?, features = ?, is_popular = ?
-           WHERE type = ?`,
+          `UPDATE pricing_plans SET
+             name = ?,
+             description = ?,
+             price_monthly = ?,
+             price_quarterly = ?,
+             price_annual = ?,
+             listing_limit = ?,
+             promotion_price = ?,
+             promotion_discount = ?,
+             commission_rate = ?,
+             mixmatch_limit = ?,
+             free_promotion_credits = ?,
+             seller_badge = ?,
+             features = ?,
+             is_popular = ?,
+             updated_at = NOW()
+           WHERE plan_type = ?`,
           [
             plan.name,
-            plan.description,
-            plan.pricing.monthly,
-            plan.pricing.quarterly,
-            plan.pricing.annual,
-            plan.listingLimit,
-            plan.promotionPrice,
-            plan.promotionDiscount,
-            plan.commissionRate,
-            plan.mixMatchLimit,
-            plan.freePromotionCredits,
-            plan.sellerBadge,
-            JSON.stringify(plan.features),
-            plan.isPopular,
-            plan.type
+            plan.description ?? null,
+            normalizeNumber(plan.pricing?.monthly),
+            normalizeNumber(plan.pricing?.quarterly),
+            normalizeNumber(plan.pricing?.annual),
+            normalizeNumber(plan.listingLimit),
+            normalizeNumber(plan.promotionPrice),
+            normalizeNumber(plan.promotionDiscount),
+            normalizeNumber(plan.commissionRate),
+            normalizeNumber(plan.mixMatchLimit),
+            normalizeNumber(plan.freePromotionCredits),
+            plan.sellerBadge ?? null,
+            plan.features ? JSON.stringify(plan.features) : null,
+            Boolean(plan.isPopular),
+            plan.type,
           ]
         );
       }
@@ -56,9 +87,9 @@ export async function PUT(request: NextRequest) {
       await connection.end();
     }
   } catch (error) {
-    console.error('Error updating pricing plans:', error);
+    console.error("Error updating pricing plans:", error);
     return NextResponse.json(
-      { error: 'Failed to update pricing plans' },
+      { error: "Failed to update pricing plans" },
       { status: 500 }
     );
   }

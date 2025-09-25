@@ -1,34 +1,38 @@
 import { NextResponse } from "next/server";
-import { getConnection } from "@/lib/db";
+import { getConnection, parseJson, toNumber } from "@/lib/db";
+
+type TagList = string[];
+
+type ImageList = string[];
+
+function mapCondition(value: unknown): string | null {
+  const normalized = String(value ?? "").toLowerCase();
+  return normalized || null;
+}
 
 export async function GET() {
   try {
-    console.log("Connecting to DB...");
     const connection = await getConnection();
-    console.log("Connected!");
 
-    // Query products table for public marketplace
-    const [rows] = await connection.execute(
-      `SELECT id, name AS title, description, category_id AS categoryId, 
-              price, image_url AS imageUrl, image_urls AS imageUrls,
-              brand, size, condition_type AS conditionType, tags,
-              created_at AS createdAt
-       FROM products 
-       WHERE listed = 1 
+    const [rows]: any = await connection.execute(
+      `SELECT id, name AS title, description, category_id AS "categoryId",
+              price, image_url AS "imageUrl", image_urls AS "imageUrls",
+              brand, size, condition_type AS "conditionType", tags,
+              created_at AS "createdAt"
+       FROM listings
+       WHERE listed = TRUE
        ORDER BY created_at DESC`
     );
 
     await connection.end();
 
-    // Convert and normalize data
-    const items = (rows as any[]).map(row => ({
+    const items = (rows as any[]).map((row) => ({
       ...row,
-      price: Number(row.price),
-      imageUrls: row.imageUrls ? JSON.parse(row.imageUrls) : null,
-      tags: row.tags ? JSON.parse(row.tags) : null,
+      price: toNumber(row.price) ?? 0,
+      imageUrls: parseJson<ImageList>(row.imageUrls),
+      tags: parseJson<TagList>(row.tags),
+      conditionType: mapCondition(row.conditionType),
     }));
-
-    console.log("Items returned:", items);
 
     return NextResponse.json({ items });
   } catch (err: any) {
