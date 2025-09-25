@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getConnection } from "@/lib/db";
+import { getConnection, toBoolean } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 
 function normalizeDobInput(dob: unknown): { value: string | null; present: boolean } {
@@ -14,7 +14,7 @@ function normalizeDobInput(dob: unknown): { value: string | null; present: boole
   return { value: trimmed, present: true };
 }
 
-function normalizeGenderInput(gender: unknown): { value: "Male" | "Female" | null; present: boolean } {
+function normalizeGenderInput(gender: unknown): { value: "MALE" | "FEMALE" | null; present: boolean } {
   if (gender === undefined) return { value: null, present: false };
   if (gender === null) return { value: null, present: true };
   if (typeof gender !== "string") return { value: null, present: false };
@@ -23,7 +23,22 @@ function normalizeGenderInput(gender: unknown): { value: "Male" | "Female" | nul
   if (trimmed !== "Male" && trimmed !== "Female") {
     throw new Error("invalid gender");
   }
-  return { value: trimmed as "Male" | "Female", present: true };
+  return { value: trimmed === "Male" ? "MALE" : "FEMALE", present: true };
+}
+
+function mapRole(value: unknown): "User" | "Admin" {
+  return String(value ?? "").toUpperCase() === "ADMIN" ? "Admin" : "User";
+}
+
+function mapStatus(value: unknown): "active" | "suspended" {
+  return String(value ?? "").toUpperCase() === "SUSPENDED" ? "suspended" : "active";
+}
+
+function mapGenderOut(value: unknown): "Male" | "Female" | null {
+  const normalized = String(value ?? "").toUpperCase();
+  if (normalized === "MALE") return "Male";
+  if (normalized === "FEMALE") return "Female";
+  return null;
 }
 
 export async function PATCH(req: NextRequest) {
@@ -36,7 +51,7 @@ export async function PATCH(req: NextRequest) {
   const { username, email } = payload as Record<string, unknown>;
 
   const updates: string[] = [];
-  const values: Array<string | null> = [];
+  const values: Array<string | null | number> = [];
 
   if (username !== undefined) {
     if (typeof username !== "string" || !username.trim()) {
@@ -55,7 +70,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   let dobUpdate: { value: string | null; present: boolean };
-  let genderUpdate: { value: "Male" | "Female" | null; present: boolean };
+  let genderUpdate: { value: "MALE" | "FEMALE" | null; present: boolean };
   try {
     dobUpdate = normalizeDobInput((payload as any).dob);
     genderUpdate = normalizeGenderInput((payload as any).gender);
@@ -78,7 +93,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "No fields provided" }, { status: 400 });
   }
 
-  values.push(String(sessionUser.id));
+  values.push(Number(sessionUser.id));
 
   const conn = await getConnection();
   try {
@@ -90,17 +105,18 @@ export async function PATCH(req: NextRequest) {
     if (!rows.length) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
-    const user = rows[0];
-    if (user?.dob instanceof Date) {
-      user.dob = user.dob.toISOString().slice(0, 10);
-    }
-    if (user && user.gender === undefined) {
-      user.gender = null;
-    }
-    if (user) {
-      user.isPremium = !!user.isPremium;
-      user.premiumUntil = user.premiumUntil ?? null;
-    }
+    const row = rows[0];
+    const user = {
+      id: Number(row.id),
+      username: row.username,
+      email: row.email,
+      role: mapRole(row.role),
+      status: mapStatus(row.status),
+      isPremium: toBoolean(row.isPremium),
+      premiumUntil: row.premiumUntil ?? null,
+      dob: row.dob ? (row.dob instanceof Date ? row.dob.toISOString().slice(0, 10) : String(row.dob)) : null,
+      gender: mapGenderOut(row.gender),
+    };
     return NextResponse.json({ user });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || "update failed" }, { status: 400 });

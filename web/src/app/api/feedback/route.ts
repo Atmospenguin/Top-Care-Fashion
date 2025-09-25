@@ -1,24 +1,23 @@
 import { NextResponse } from "next/server";
-import { getConnection } from "@/lib/db";
+import { getConnection, parseJson, toNumber } from "@/lib/db";
 
-// Public feedback endpoint: returns featured feedback items with rating
 export async function GET() {
   try {
     const connection = await getConnection();
-    const [rows] = await connection.execute(
+    const [rows]: any = await connection.execute(
       `SELECT id, user_name, message, rating, tags, created_at
        FROM feedback
-       WHERE featured = 1 AND rating IS NOT NULL
+       WHERE featured = TRUE AND rating IS NOT NULL
        ORDER BY created_at DESC`
     );
     await connection.end();
 
     const testimonials = (rows as any[]).map((t) => ({
-      id: t.id,
+      id: Number(t.id),
       user: t.user_name,
       text: t.message,
-      rating: t.rating,
-      tags: t.tags ? JSON.parse(t.tags) : [],
+      rating: toNumber(t.rating) ?? 0,
+      tags: parseJson<string[]>(t.tags) ?? [],
       ts: new Date(t.created_at).getTime(),
     }));
 
@@ -31,4 +30,3 @@ export async function GET() {
     );
   }
 }
-
