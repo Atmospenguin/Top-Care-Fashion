@@ -162,5 +162,102 @@ CREATE TABLE IF NOT EXISTS reports (
   resolved_at TIMESTAMP NULL
 );
 
+-- Triggers: keep in sync with init-db.js to maintain automatic updates for listings and user ratings
+-- Update user rating aggregates when reviews change
+DELIMITER $$
+
+CREATE TRIGGER update_user_rating_after_review_insert
+AFTER INSERT ON reviews
+FOR EACH ROW
+BEGIN
+  UPDATE users
+  SET total_reviews = (
+    SELECT COUNT(*) FROM reviews WHERE reviewee_id = NEW.reviewee_id
+  ),
+  average_rating = (
+    SELECT AVG(rating) FROM reviews WHERE reviewee_id = NEW.reviewee_id
+  )
+  WHERE id = NEW.reviewee_id;
+END$$
+
+CREATE TRIGGER update_user_rating_after_review_update
+AFTER UPDATE ON reviews
+FOR EACH ROW
+BEGIN
+  -- Update old reviewee if changed
+  IF OLD.reviewee_id != NEW.reviewee_id THEN
+    UPDATE users
+    SET total_reviews = (
+      SELECT COUNT(*) FROM reviews WHERE reviewee_id = OLD.reviewee_id
+    ),
+    average_rating = (
+      SELECT AVG(rating) FROM reviews WHERE reviewee_id = OLD.reviewee_id
+    )
+    WHERE id = OLD.reviewee_id;
+  END IF;
+  
+  -- Update new reviewee
+  UPDATE users
+  SET total_reviews = (
+    SELECT COUNT(*) FROM reviews WHERE reviewee_id = NEW.reviewee_id
+  ),
+  average_rating = (
+    SELECT AVG(rating) FROM reviews WHERE reviewee_id = NEW.reviewee_id
+  )
+  WHERE id = NEW.reviewee_id;
+END$$
+
+CREATE TRIGGER update_user_rating_after_review_delete
+AFTER DELETE ON reviews
+FOR EACH ROW
+BEGIN
+  UPDATE users
+  SET total_reviews = (
+    SELECT COUNT(*) FROM reviews WHERE reviewee_id = OLD.reviewee_id
+  ),
+  average_rating = (
+    SELECT AVG(rating) FROM reviews WHERE reviewee_id = OLD.reviewee_id
+  )
+  WHERE id = OLD.reviewee_id;
+END$$
+
+-- Unlist listing automatically once a transaction is created for it
+CREATE TRIGGER unlist_listing_after_transaction_insert
+AFTER INSERT ON transactions
+FOR EACH ROW
+BEGIN
+  UPDATE listings SET listed = 0 WHERE id = NEW.listing_id;
+END$$
+
+-- Mark listing sold when a transaction is completed
+CREATE TRIGGER mark_listing_sold_after_transaction_update
+AFTER UPDATE ON transactions
+FOR EACH ROW
+BEGIN
+  IF NEW.status = 'completed' AND OLD.status <> 'completed' THEN
+    UPDATE listings SET sold = 1, sold_at = NOW() WHERE id = NEW.listing_id;
+  END IF;
+END$$
+
+-- Ensure only buyer or seller can review, and reviewee is the opposite party
+CREATE TRIGGER validate_review_participants_before_insert
+BEFORE INSERT ON reviews
+FOR EACH ROW
+BEGIN
+  DECLARE b INT; DECLARE s INT;
+  SELECT buyer_id, seller_id INTO b, s FROM transactions WHERE id = NEW.transaction_id;
+  IF b IS NULL OR s IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid transaction for review';
+  END IF;
+  IF NOT (NEW.reviewer_id = b OR NEW.reviewer_id = s) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Reviewer must be buyer or seller of the transaction';
+  END IF;
+  IF NOT (NEW.reviewee_id = b OR NEW.reviewee_id = s) OR NEW.reviewee_id = NEW.reviewer_id THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Reviewee must be the counterparty';
+  END IF;
+END$$
+
+DELIMITER ;
+
 -- End of combined schema
 
