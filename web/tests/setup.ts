@@ -13,4 +13,9 @@ if (existsSync(envFile)) {
   loadEnv({ path: envFile, override: true });
 }
 
-process.env.NODE_ENV = process.env.NODE_ENV || "test";
+// `process.env` properties are readonly in some TypeScript configurations / runtimes.
+// Use a safe assignment via type assertion so builds that compile `process.env` as
+// readonly won't fail.
+if (!process.env.NODE_ENV) {
+  (process.env as Record<string, string | undefined>).NODE_ENV = "test";
+}
