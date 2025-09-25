@@ -2,7 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View, FlatList } from 'react-native';
 
-type Screen = 'landing' | 'register' | 'marketplace';
+type Screen = 'landing' | 'login' | 'register' | 'marketplace';
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('landing');
@@ -11,6 +11,12 @@ export default function App() {
   const [status, setStatus] = useState<string | null>(null);
   const [items, setItems] = useState<Array<{id: string; title: string; category: string; price: number}>>([]);
 
+  async function mockLogin() {
+    setStatus('Logging in...');
+    await new Promise((r) => setTimeout(r, 500));
+    setStatus('Success!');
+    setScreen('marketplace');
+  }
   async function mockRegister() {
     setStatus('Submitting...');
     await new Promise((r) => setTimeout(r, 500));
@@ -60,7 +66,7 @@ export default function App() {
           <Text style={styles.title}>Top Care Fashion</Text>
           <Text style={styles.subtitle}>Discover, Mix & Match Fashion</Text>
           <View style={{ height: 16 }} />
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => setScreen('register')}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => setScreen('login')}>
             <Text style={styles.primaryBtnText}>Get Started</Text>
           </TouchableOpacity>
           <View style={{ height: 8 }} />
@@ -69,6 +75,62 @@ export default function App() {
           </TouchableOpacity>
         </View>
       )}
+      
+      {screen === 'login' && (
+  <View style={styles.loginWrap}>
+    {/* 顶部返回圆角按钮（可选） */}
+    <TouchableOpacity style={styles.backBtn} onPress={() => setScreen('landing')}>
+      <Text style={styles.backIcon}>‹</Text>
+    </TouchableOpacity>
+
+    {/* 标题 */}
+    <Text style={styles.loginTitle}>Welcome!</Text>
+    <Text style={styles.brandWord}>TOP</Text>
+
+    {/* Email */}
+    <TextInput
+      style={styles.field}
+      placeholder="Enter your email"
+      placeholderTextColor="#9AA0A6"
+      keyboardType="email-address"
+      autoCapitalize="none"
+      value={email}
+      onChangeText={setEmail}
+    />
+
+    {/* Password（演示右侧“眼睛”占位） */}
+    <View style={styles.fieldWithIcon}>
+      <TextInput
+        style={styles.fieldInput}
+        placeholder="Enter your password"
+        placeholderTextColor="#9AA0A6"
+        secureTextEntry
+        value={password}
+        onChangeText={setPassword}
+      />
+      <Text style={styles.eyeIcon}>👁️</Text>
+    </View>
+
+    {/* Forgot Password */}
+    <TouchableOpacity onPress={() => { /* TODO */ }}>
+      <Text style={styles.forgot}>Forgot Password?</Text>
+    </TouchableOpacity>
+
+    {/* Login 按钮 */}
+    <TouchableOpacity style={styles.loginBtn} onPress={mockLogin}>
+      <Text style={styles.loginBtnText}>Login</Text>
+    </TouchableOpacity>
+
+    {status && <Text style={styles.status}>{status}</Text>}
+
+    {/* 底部注册引导 */}
+    <Text style={styles.registerText}>
+      Don’t have an account? <Text style={styles.registerLink} onPress={() => setScreen('register')}>Register Now</Text>
+    </Text>
+  </View>
+)}
+
+      
 
       {screen === 'register' && (
         <View style={styles.formWrap}>
@@ -116,7 +178,12 @@ export default function App() {
   );
 }
 
+// 放在样式表外面（文件底部 styles 之前也可以）
+const BRAND_RED = '#F54B3D';
+const INPUT_BG  = '#F6F7F9';
+
 const styles = StyleSheet.create({
+  // 你原来的通用样式
   container: { flex: 1, backgroundColor: '#fff' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   formWrap: { flex: 1, padding: 24, gap: 8, justifyContent: 'center' },
@@ -133,4 +200,103 @@ const styles = StyleSheet.create({
   cardTitle: { fontWeight: '600' },
   cardMeta: { color: '#666', marginTop: 2 },
   cardPrice: { marginTop: 6, fontWeight: '600' },
+
+  // Login 专用样式（新加）
+  loginWrap: {
+    flex: 1,
+    backgroundColor: '#fff',
+    paddingHorizontal: 24,
+    paddingTop: 12,
+  },
+  backBtn: {
+    width: 48, height: 48, borderRadius: 12,
+    borderWidth: 1, borderColor: '#E5E7EB',
+    alignItems: 'center', justifyContent: 'center',
+    alignSelf: 'flex-start',
+    marginTop: 8, marginBottom: 12,
+  },
+  backIcon: { fontSize: 28, color: '#111' },
+
+  loginTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#111827',
+    marginTop: 8,
+  },
+  brandWord: {
+    fontSize: 72,
+    lineHeight: 80,
+    fontWeight: '900',
+    color: BRAND_RED,
+    marginTop: 12,
+    marginBottom: 24,
+  },
+
+  field: {
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: INPUT_BG,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#EEF0F3',
+  },
+  fieldWithIcon: {
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: INPUT_BG,
+    borderWidth: 1, borderColor: '#EEF0F3',
+    paddingLeft: 20,
+    paddingRight: 52,
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  fieldInput: { fontSize: 16 },
+  eyeIcon: {
+    position: 'absolute',
+    right: 18, top: 18,
+    fontSize: 22,
+    color: '#6B7280',
+  },
+
+  forgot: {
+    alignSelf: 'flex-end',
+    color: '#6B7280',
+    fontWeight: '600',
+    marginTop: 10,
+    marginBottom: 24,
+    fontSize: 16,
+  },
+
+  loginBtn: {
+    height: 64,
+    backgroundColor: BRAND_RED,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    shadowColor: '#F54B3D',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  loginBtnText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '800',
+  },
+
+  registerText: {
+    textAlign: 'center',
+    marginTop: 24,
+    fontSize: 16,
+    color: '#1F2937',
+  },
+  registerLink: {
+    color: '#00BFA6',
+    fontWeight: '800',
+  },
 });
+
+
