@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View, FlatList } from 'react-native';
+import { SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View, FlatList, Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 type Screen = 'landing' | 'register' | 'marketplace';
 
@@ -19,8 +20,13 @@ export default function App() {
 
   async function loadListings() {
     try {
-      // Connect to the web app API to get real data from database
-      const response = await fetch('http://localhost:3001/api/listings');
+      // Resolve API URL in this order:
+      // 1. app.json / expo extra (recommended for device testing)
+      // 2. Android emulator helper (10.0.2.2)
+      // 3. localhost (for local web+mobile on same machine)
+      const extraApi = (Constants?.expoConfig?.extra as any)?.API_URL || (Constants?.manifest?.extra as any)?.API_URL;
+      const baseUrl = extraApi || (Platform.OS === 'android' ? 'http://10.0.2.2:3001' : 'http://localhost:3001');
+      const response = await fetch(`${baseUrl}/api/listings`);
       if (response.ok) {
         const data = await response.json();
         setItems(data.items || []);
