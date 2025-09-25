@@ -1,4 +1,4 @@
-# TOP App – Development Doc
+﻿# TOP App – Development Doc
 
 > Theme: Primary brand color is #F54B3D. Use for CTAs, highlights, and primary buttons.
 
@@ -42,12 +42,10 @@ This guide outlines setup, architecture, conventions, workflows, and operational
 - State Management: Redux Toolkit / Context API
 
 ### Backend
-- Server: Node.js (Express.js / NestJS)
-- API: REST (JSON-based)
-- Auth & Storage: Firebase Auth, Firebase Storage
-- Database:
-  - MySQL (transactions, user data, listings)
-  - Firestore (real-time features, chat/messages)
+- Server: Next.js Route Handlers / Server Actions (deployed on Vercel)
+- API: REST-style endpoints served from the web app (`/api/*`)
+- Auth & Storage: Supabase Auth, Supabase Storage buckets
+- Database: Supabase Postgres (accessed via Prisma Client)
 
 ### AI Module
 - Language: Python
@@ -68,7 +66,7 @@ root/
 ├── backend/            # Node.js API server
 ├── ai-services/        # Python FastAPI services (object detection, outfit recommender)
 ├── docs/               # Documentation (PRD, SRS, TDM, etc.)
-└── scripts/            # Deployment and automation scripts
+└── scripts/            # (legacy) deployment automation
 ```
 
 ---
@@ -90,8 +88,8 @@ root/
 
 - Files: `.env` per package; never commit secrets
 - Required vars (indicative)
-  - WEB: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_FIREBASE_CONFIG`
-  - BACKEND: `DATABASE_URL`, `JWT_SECRET`, `FIREBASE_ADMIN_CREDENTIALS`
+  - WEB: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL`, `DIRECT_URL`
+  - Server-side jobs/scripts: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`, `SUPABASE_JWT_SECRET`
   - AI: `MODEL_PATH`, `SERVICE_PORT`
 - Profiles
   - Development: verbose logs, sample data allowed
@@ -104,16 +102,19 @@ root/
 
 ## 5. Database Setup & Recent Updates
 
-### Quick Database Initialization
+### Quick Database Access (Supabase)
 ```bash
 cd web
-node init-db.js
+cp .env.example .env.local  # fill DATABASE_URL / DIRECT_URL from Supabase
+npm install
+npx prisma generate
 ```
 
-This script automatically:
-1. Creates the `top_care_fashion` database
-2. Sets up all tables with unified schema
-3. Populates with comprehensive sample data
+The shared Supabase instance is already seeded using `database/schema.sql` and `database/seed.sql`.
+- `DATABASE_URL` should point to the pooled connection (port 6543, `pgbouncer=true`). If pooling is unavailable on your plan, reuse the direct connection string for both `DATABASE_URL` and `DIRECT_URL` (current Vercel setup).
+- `DIRECT_URL` is required for migrations and should target the direct Postgres port (5432).
+
+> Legacy MySQL bootstrap scripts (e.g. `init-db.js`) are deprecated and kept for archival purposes only. Use Prisma + Supabase for all new work.
 
 ### Recent Major Update: Testimonials Integration (v2.1.0)
 
@@ -127,6 +128,7 @@ This script automatically:
 - **Admin Interface**: Complete rewrite for managing both content types
 
 **Database Schema**:
+> Legacy MySQL example preserved for history. Refer to `web/prisma/schema.prisma` for the active Supabase definition.
 ```sql
 CREATE TABLE feedback (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -171,12 +173,28 @@ The database now contains comprehensive sample data:
 
 ### Environment Configuration
 ```bash
-# .env.local (web directory)
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=yourpassword
-DB_NAME=top_care_fashion
+# .env.local (web)
+DATABASE_URL="postgresql://USERNAME:PASSWORD@aws-1-...pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true"
+DIRECT_URL="postgresql://USERNAME:PASSWORD@db.YOUR-ID.supabase.co:5432/postgres?sslmode=require"
+PRISMA_DISABLE_PREPARED_STATEMENTS=1
 ```
+
+> Prisma reads these variables automatically; keep DIRECT_URL for migrations.
+
+### Supabase Auth & Storage
+
+- **Auth**: Configure email and social providers from the Supabase dashboard. Set the Site URL to your Vercel deployment domain to ensure redirect flows work in production. Use the anon key on the client and keep the service role key server-side only.
+- **Storage**: Provision buckets (e.g., `product-images`) and grant read access via RLS policies that reference Supabase Auth user IDs. Uploads from the web app should flow through Supabase Storage APIs.
+- **Edge Functions (optional)**: For background jobs, consider Supabase edge functions triggered via database events instead of Firebase Cloud Functions.
+
+---
+
+### Automated Testing (Web)
+
+- Run unit tests with `npm run test` inside `web/`.
+- Tests are powered by Vitest and focus on Prisma bridging helpers.
+- Set `RUN_API_TESTS=1` to execute the Supabase-backed API integration suite (writes are auto-cleaned).
+- Coverage reports are emitted to `web/coverage/`.
 
 ---
 
@@ -220,7 +238,7 @@ Tools
 - Version Control: GitHub
 - Design: Figma
 - Project Management: Notion + Telegram
-- CI/CD: GitHub Actions, Firebase Hosting, Expo for Mobile
+- CI/CD: GitHub Actions, Vercel (web), Expo for Mobile
 
 Process
 1. Plan: Define sprint tasks in Notion
@@ -228,7 +246,7 @@ Process
 3. Test: Unit tests + minimal e2e where risky
 4. Integrate: Frontend ↔ Backend ↔ AI services
 5. Review: Pull request + code review before merge
-6. Deploy: Web to Firebase Hosting, mobile via Expo
+6. Deploy: Web to Vercel (auto-linked to Supabase), mobile via Expo
 
 Branching
 - `main`: production-ready
@@ -261,7 +279,7 @@ AI Services
 ## 10. Security Guidelines
 
 - All data must be dynamic, no hardcoded secrets
-- Firebase Auth for login/registration; JWT for API
+- Supabase Auth for login/registration; issue JWT via Supabase for server-to-server calls
 - Validate inputs at client and server
 - Roles: Guest, Registered, Premium, Admin
 - Rate limit sensitive endpoints; log auth events
@@ -293,12 +311,12 @@ AI Services
 
 ## 13. Deployment
 
-- Web: GitHub Actions → Firebase Hosting
+- Web: GitHub Actions → Vercel (Next.js app connected to Supabase)
 - Mobile: Expo build & submit workflows
 - Backend: GitHub Actions → chosen host (e.g., Render/VM)
 - AI: Docker image pushed; service restarted with zero-downtime
 
-> RELEASE: Tag with `vX.Y.Z`. Maintain changelog. Roll back via previous artifact.
+> RELEASE: Tag with `vX.Y.Z`. Maintain changelog. Roll back via previous Vercel deployment snapshot.
 
 ---
 
