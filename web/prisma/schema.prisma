@@ -1,0 +1,281 @@
+// Top Care Fashion — Prisma schema (Postgres / Supabase)
+
+generator client {
+  provider = "prisma-client-js"
+  // 可以删除 output，使用默认生成目录
+  // output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")  // 运行时：池化串 (:6543 &pgbouncer=true)
+  directUrl = env("DIRECT_URL")    // 迁移：直连串 (:5432)
+}
+
+/* =========== ENUMS (每个值一行) =========== */
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ConditionType {
+  NEW
+  LIKE_NEW
+  GOOD
+  FAIR
+  POOR
+}
+
+enum TxStatus {
+  PENDING
+  PAID
+  SHIPPED
+  COMPLETED
+  CANCELLED
+}
+
+enum ReviewerType {
+  BUYER
+  SELLER
+}
+
+enum PlanType {
+  FREE
+  PREMIUM
+}
+
+enum ReportTargetType {
+  LISTING
+  USER
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+/* =========== MODELS =========== */
+
+// 用户
+model users {
+  id             Int        @id @default(autoincrement())
+  username       String     @unique @db.VarChar(64)
+  email          String     @unique @db.VarChar(191)
+  password_hash  String?    @db.VarChar(191)
+  dob            DateTime?  @db.Date
+  gender         Gender?
+  role           UserRole   @default(USER)
+  status         UserStatus @default(ACTIVE)
+  is_premium     Boolean    @default(false)
+  premium_until  DateTime?  @db.Timestamptz(6)
+  average_rating Decimal?   @db.Decimal(3, 2)
+  total_reviews  Int        @default(0)
+  created_at     DateTime   @default(now()) @db.Timestamptz(6)
+
+  // relations
+  listings_as_seller listings[]     @relation("UserListings")
+  reviews_written    reviews[]      @relation("Reviewer")
+  reviews_received   reviews[]      @relation("Reviewee")
+  transactions_buy   transactions[] @relation("Buyer")
+  transactions_sell  transactions[] @relation("Seller")
+  feedbacks          feedback[]
+  faqs               faq[]
+
+  @@map("users")
+}
+
+// 类目
+model listing_categories {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(255)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  listings listings[]
+
+  @@map("listing_categories")
+}
+
+// 商品/上架
+model listings {
+  id             Int           @id @default(autoincrement())
+  name           String        @db.VarChar(120)
+  description    String?
+  category_id    Int?
+  seller_id      Int?
+  listed         Boolean       @default(true)
+  sold           Boolean       @default(false)
+  price          Decimal       @db.Decimal(10, 2)
+  image_url      String?
+  image_urls     Json?         @db.Json
+  brand          String?       @db.VarChar(100)
+  size           String?       @db.VarChar(50)
+  condition_type ConditionType @default(GOOD)
+  tags           Json?         @db.Json
+  created_at     DateTime      @default(now()) @db.Timestamptz(6)
+  sold_at        DateTime?     @db.Timestamptz(6)
+
+  // relations
+  category listing_categories? @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  seller   users?              @relation("UserListings", fields: [seller_id], references: [id], onDelete: SetNull)
+  transactions transactions[]
+
+  @@map("listings")
+  @@index([category_id])
+  @@index([seller_id])
+}
+
+// 交易
+model transactions {
+  id          Int      @id @default(autoincrement())
+  buyer_id    Int
+  seller_id   Int
+  listing_id  Int
+  quantity    Int      @default(1)
+  price_each  Decimal  @db.Decimal(10, 2)
+  status      TxStatus @default(PENDING)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  // relations
+  buyer   users    @relation("Buyer",  fields: [buyer_id],  references: [id], onDelete: Restrict)
+  seller  users    @relation("Seller", fields: [seller_id], references: [id], onDelete: Restrict)
+  listing listings @relation(fields: [listing_id], references: [id], onDelete: Restrict)
+  reviews reviews[]
+
+  @@map("transactions")
+  @@unique([listing_id], name: "unique_listing_transaction")
+  @@index([buyer_id])
+  @@index([seller_id])
+  @@index([listing_id])
+}
+
+// 评价
+model reviews {
+  id             Int          @id @default(autoincrement())
+  transaction_id Int
+  reviewer_id    Int
+  reviewee_id    Int
+  rating         Int          // 1..5（应用层校验）
+  comment        String
+  reviewer_type  ReviewerType
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+
+  // relations
+  transaction transactions @relation(fields: [transaction_id], references: [id], onDelete: Cascade)
+  reviewer    users        @relation("Reviewer", fields: [reviewer_id], references: [id], onDelete: Cascade)
+  reviewee    users        @relation("Reviewee", fields: [reviewee_id], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+  @@unique([transaction_id, reviewer_id], name: "unique_transaction_reviewer")
+  @@unique([transaction_id, reviewer_type], name: "unique_transaction_reviewer_type")
+  @@index([reviewer_id])
+  @@index([reviewee_id])
+}
+
+// 反馈
+model feedback {
+  id         Int      @id @default(autoincrement())
+  user_id    Int?
+  user_email String?  @db.VarChar(191)
+  user_name  String?  @db.VarChar(100)
+  message    String
+  rating     Int?
+  tags       Json?    @db.Json
+  featured   Boolean  @default(false)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  // relations
+  user users? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@map("feedback")
+  @@index([user_id])
+}
+
+// FAQ
+model faq {
+  id          Int      @id @default(autoincrement())
+  user_id     Int?
+  user_email  String?  @db.VarChar(191)
+  question    String
+  answer      String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  answered_at DateTime? @db.Timestamptz(6)
+
+  // relations
+  user users? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@map("faq")
+  @@index([user_id])
+}
+
+// 落地页文案
+model landing_content {
+  id            Int      @id @default(1) @db.SmallInt
+  hero_title    String   @db.VarChar(200)
+  hero_subtitle String   @db.VarChar(300)
+  updated_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("landing_content")
+}
+
+// 站点统计
+model site_stats {
+  id             Int      @id @default(1) @db.SmallInt
+  total_users    Int      @default(0)
+  total_listings Int      @default(0)
+  total_sold     Int      @default(0)
+  avg_rating     Decimal  @default(4.8) @db.Decimal(2, 1)
+  updated_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("site_stats")
+}
+
+// 价格计划
+model pricing_plans {
+  id                      Int      @id @default(autoincrement())
+  plan_type               PlanType
+  name                    String   @db.VarChar(50)
+  description             String?  @db.VarChar(100)
+  price_monthly           Decimal  @default(0) @db.Decimal(6, 2)
+  price_quarterly         Decimal? @db.Decimal(6, 2)
+  price_annual            Decimal? @db.Decimal(6, 2)
+  listing_limit           Int?
+  promotion_price         Decimal  @db.Decimal(6, 2)
+  promotion_discount      Decimal? @db.Decimal(5, 2)
+  commission_rate         Decimal  @db.Decimal(5, 2)
+  mixmatch_limit          Int?
+  free_promotion_credits  Int?
+  seller_badge            String?  @db.VarChar(100)
+  features                Json?    @db.Json
+  is_popular              Boolean  @default(false)
+  active                  Boolean  @default(true)
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("pricing_plans")
+}
+
+// 举报
+model reports {
+  id          Int              @id @default(autoincrement())
+  target_type ReportTargetType
+  target_id   String           @db.VarChar(64)
+  reporter    String           @db.VarChar(191)
+  reason      String
+  status      ReportStatus     @default(OPEN)
+  notes       String?
+  created_at  DateTime         @default(now()) @db.Timestamptz(6)
+  resolved_at DateTime?        @db.Timestamptz(6)
+
+  @@map("reports")
+}
