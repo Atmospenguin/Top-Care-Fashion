@@ -21,7 +21,7 @@ function mapGender(value: unknown): "Male" | "Female" | null {
 
 export async function GET() {
   // Try Supabase session first
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
   const { data: { user: sUser } } = await supabase.auth.getUser();
   const cookieStore = await cookies();
   const sid = cookieStore.get("tc_session")?.value;

@@ -11,7 +11,7 @@ export async function GET() {
     const total = Array.isArray(rows) && rows.length ? toNumber(rows[0].count) ?? 0 : 0;
 
     // Supabase check: also try a lightweight auth ping
-    const supabase = createSupabaseServer();
+    const supabase = await createSupabaseServer();
     const { data: authData } = await supabase.auth.getUser();
 
     return NextResponse.json({
