@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
         [
           username,
           email,
-          normalizedDob,
+          normalizedDob ? new Date(normalizedDob) : null,
           mapGenderIn(normalizedGender),
           supaUser.id,
         ]
