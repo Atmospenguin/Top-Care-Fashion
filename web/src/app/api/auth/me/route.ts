@@ -43,7 +43,7 @@ function toUserResponse(user: {
 }
 
 export async function GET() {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
   const {
     data: { user: sUser },
   } = await supabase.auth.getUser();
