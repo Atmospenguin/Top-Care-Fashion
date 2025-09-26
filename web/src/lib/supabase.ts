@@ -22,8 +22,8 @@ function assertClientEnv(name: "NEXT_PUBLIC_SUPABASE_URL" | "NEXT_PUBLIC_SUPABAS
   return value;
 }
 
-export function createSupabaseServer() {
-  const cookieStore = cookies();
+export async function createSupabaseServer() {
+  const cookieStore = await cookies();
   const supabaseUrl =
     resolveServerEnv("NEXT_PUBLIC_SUPABASE_URL", [
       "DATABASE_SUPABASE_URL",

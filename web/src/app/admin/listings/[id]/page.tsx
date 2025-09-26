@@ -118,7 +118,7 @@ export default function ListingDetailPage() {
           href="/admin/listings"
           className="text-blue-600 hover:text-blue-800"
         >
-          ‚Ü?Back to Listings
+          ‚Üê Back to Listings
         </Link>
       </div>
 
@@ -397,7 +397,7 @@ export default function ListingDetailPage() {
             rel="noopener noreferrer"
             className="block text-blue-600 hover:text-blue-800"
           >
-            View Transactions ‚Ü?
+            View Transactions ‚Üí
           </Link>
           <Link
             href={`/admin/listings/${listing.id}/reviews`}
@@ -405,7 +405,7 @@ export default function ListingDetailPage() {
             rel="noopener noreferrer"
             className="block text-blue-600 hover:text-blue-800"
           >
-            View Reviews ‚Ü?
+            View Reviews ‚Üí
           </Link>
         </div>
       </div>
