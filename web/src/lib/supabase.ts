@@ -43,17 +43,14 @@ export function createSupabaseServer() {
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      async get(name: string) {
-        const store = await cookieStore;
-        return store.get(name)?.value;
+      get(name: string) {
+        return cookieStore.get(name)?.value;
       },
-      async set(name: string, value: string, options?: CookieOptions) {
-        const store = await cookieStore;
-        store.set(name, value, options);
+      set(name: string, value: string, options?: CookieOptions) {
+        cookieStore.set(name, value, options);
       },
-      async remove(name: string, options?: CookieOptions) {
-        const store = await cookieStore;
-        store.set(name, "", { ...options, maxAge: 0 });
+      remove(name: string, options?: CookieOptions) {
+        cookieStore.set(name, "", { ...options, maxAge: 0 });
       },
     },
   });

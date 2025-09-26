@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect } from "react";
-import { requireAdmin } from "@/lib/auth";
 
 interface SiteStats {
   users: number;
@@ -415,7 +414,7 @@ export default function ContentManagementPage() {
                 <div className="flex justify-between items-start mb-2">
                   <strong className="text-sm font-medium">{testimonial.user}</strong>
                   <div className="text-yellow-500">
-                    {"★".repeat(testimonial.rating)}
+                    {"*".repeat(testimonial.rating)}
                   </div>
                 </div>
                 <p className="text-sm text-gray-600 mb-2">"{testimonial.text}"</p>

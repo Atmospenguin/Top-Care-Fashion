@@ -123,7 +123,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
-  const resetPassword: AuthContextType["resetPassword"] = async (_email) => {
+  const resetPassword: AuthContextType["resetPassword"] = async (email) => {
+    void email;
     await new Promise((r) => setTimeout(r, 250));
     // placeholder implementation
   };
@@ -166,7 +167,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const setActor = (_actor: Actor) => {};
+  const setActor = (actor: Actor) => {
+    setUser((prev) => (prev ? { ...prev, actor } : prev));
+  };
 
   const value = useMemo<AuthContextType>(
     () => ({ user, isAuthenticated: !!user, signUp, signIn, signOut, resetPassword, updateProfile, setActor }),

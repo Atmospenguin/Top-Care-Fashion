@@ -12,7 +12,7 @@ export default function ListingDetailPage() {
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [editing] = useState(false);
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -118,7 +118,7 @@ export default function ListingDetailPage() {
           href="/admin/listings"
           className="text-blue-600 hover:text-blue-800"
         >
-          ‚Üê Back to Listings
+          ‚Ü?Back to Listings
         </Link>
       </div>
 
@@ -397,7 +397,7 @@ export default function ListingDetailPage() {
             rel="noopener noreferrer"
             className="block text-blue-600 hover:text-blue-800"
           >
-            View Transactions ‚Üí
+            View Transactions ‚Ü?
           </Link>
           <Link
             href={`/admin/listings/${listing.id}/reviews`}
@@ -405,7 +405,7 @@ export default function ListingDetailPage() {
             rel="noopener noreferrer"
             className="block text-blue-600 hover:text-blue-800"
           >
-            View Reviews ‚Üí
+            View Reviews ‚Ü?
           </Link>
         </div>
       </div>

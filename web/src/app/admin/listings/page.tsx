@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthContext";
 import type { Listing } from "@/types/admin";
 import Link from "next/link";
@@ -38,7 +38,7 @@ export default function ListingManagementPage() {
 
   const isAdmin = user?.actor === "Admin";
 
-  const loadListings = async () => {
+  const loadListings = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -61,12 +61,11 @@ export default function ListingManagementPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAdmin]);
 
   useEffect(() => {
     loadListings();
-  }, [isAdmin]);
-
+  }, [loadListings]);
   // Editing moved to Listing Details page; no inline edit via query string.
 
   const filteredItems = items.filter(item => {

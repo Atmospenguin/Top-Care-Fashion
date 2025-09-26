@@ -166,7 +166,7 @@ export async function DELETE(_req: NextRequest, context: { params: Promise<{ id:
         await conn.execute("UPDATE listings SET listed = FALSE WHERE id = ?", [Number(params.id)]);
         await conn.end();
         return NextResponse.json({ ok: true, softDeleted: true });
-      } catch (e) {
+      } catch {
         await conn.end();
         return NextResponse.json({ error: "Failed to unlist listing" }, { status: 500 });
       }
