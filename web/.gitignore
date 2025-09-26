@@ -41,3 +41,6 @@ next-env.d.ts
 firebase-debug.log
 
 /src/generated/prisma
+
+.env
+.env.local
