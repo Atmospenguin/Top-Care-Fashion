@@ -47,16 +47,19 @@ export async function POST(req: NextRequest) {
   const conn = await getConnection();
   const supabase = createSupabaseServer();
   try {
+    const dobValue = normalizedDob ? new Date(normalizedDob) : null;
+    const genderDbValue = mapGenderIn(normalizedGender);
+
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: {
-          username,
-          dob: normalizedDob,
-          gender: normalizedGender,
-        },
-      },
+     options: {
+       data: {
+         username,
+         dob: normalizedDob,
+         gender: normalizedGender,
+       },
+     },
     });
     if (signUpError) {
       return NextResponse.json({ error: signUpError.message }, { status: 400 });
@@ -70,18 +73,18 @@ export async function POST(req: NextRequest) {
     // Upsert local user row (for admin dashboards, etc.)
     try {
       await conn.execute(
-        "INSERT INTO users (username, email, role, status, dob, gender, supabase_user_id, is_premium) VALUES (?, ?, 'USER', 'ACTIVE', ?, ?, ?, false)",
-        [
-          username,
-          email,
-          normalizedDob ? new Date(normalizedDob) : null,
-          mapGenderIn(normalizedGender),
-          supaUser.id,
-        ]
+        `INSERT INTO users (username, email, role, status, dob, gender, supabase_user_id, is_premium)
+         VALUES (?, ?, 'USER', 'ACTIVE', CAST(? AS date), ${genderDbValue === null ? 'NULL' : 'CAST(? AS "Gender")'}, CAST(? AS uuid), false)`,
+        genderDbValue === null
+          ? [username, email, dobValue, supaUser.id]
+          : [username, email, dobValue, genderDbValue, supaUser.id]
       );
     } catch (insertError: any) {
       if (insertError?.message?.includes("users_email_key") || insertError?.message?.includes("duplicate key")) {
         return NextResponse.json({ error: "Email already registered" }, { status: 409 });
+      }
+      if (insertError?.message?.includes("users_supabase_user_id_key")) {
+        return NextResponse.json({ error: "Account already linked" }, { status: 409 });
       }
       throw insertError;
     }
