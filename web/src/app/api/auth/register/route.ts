@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     normalizedGender = trimmedGender as "Male" | "Female";
   }
 
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   try {
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
