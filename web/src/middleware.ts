@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { createSupabaseServer } from "@/lib/supabase";
 
 export async function middleware(req: NextRequest) {
   // Pass-through by default; we only ensure Supabase can set cookies on SSR.
@@ -9,7 +8,7 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/|.*\\.\n(wasm|css|js|png|jpg|jpeg|gif|svg|ico)|api/db-status).*)",
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|api/db-status).*)",
   ],
 };
 
