@@ -49,7 +49,10 @@ export default function LoginScreen({ navigation }: Props) {
       </TouchableOpacity>
 
       {/* 登录按钮 */}
-      <TouchableOpacity style={styles.loginBtn}>
+      <TouchableOpacity
+        style={styles.loginBtn}
+        onPress={() => navigation.replace("Main")}
+      >
         <Text style={styles.loginText}>Login</Text>
       </TouchableOpacity>
 
@@ -130,7 +133,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 8,
-    // 🚫 移除了 shadow 和 elevation
+   
   },
   loginText: { color: "#fff", fontSize: 18, fontWeight: "700" },
 

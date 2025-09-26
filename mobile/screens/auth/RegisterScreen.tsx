@@ -57,7 +57,10 @@ export default function RegisterScreen({ navigation }: Props) {
       />
 
       {/* 注册按钮 */}
-      <TouchableOpacity style={styles.registerBtn}>
+      <TouchableOpacity
+        style={styles.registerBtn}
+        onPress={() => navigation.replace("Main")}
+      >
         <Text style={styles.registerText}>Register</Text>
       </TouchableOpacity>
     </View>

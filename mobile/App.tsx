@@ -10,6 +10,15 @@ import LandingScreen from "./screens/auth/LandingScreen";
 import LoginScreen from "./screens/auth/LoginScreen";
 import RegisterScreen from './screens/auth/RegisterScreen';
 import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+
+
+//import HomeScreen from "./screens/main/HomeStack/HomeScreen";
+//import DiscoverScreen from "./screens/main/DiscoverStack/DiscoverScreen";
+//import SellScreen from "./screens/main/SellStack/SellScreen";
+//import InboxScreen from "./screens/main/InboxStack/InboxScreen";
+import MyTopScreen from "./screens/main/MyTopStack/MyTopScreen";
+
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -17,9 +26,19 @@ export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
+  Main: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator();
+
+function MainTabs() {
+  return (
+    <Tab.Navigator screenOptions={{ headerShown: false }}>
+      <Tab.Screen name="MyTop" component={MyTopScreen} />
+    </Tab.Navigator>
+  );
+}
 
 export default function App() {
   return (
@@ -30,6 +49,7 @@ export default function App() {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>
   );
