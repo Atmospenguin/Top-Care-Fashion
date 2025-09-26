@@ -42,6 +42,12 @@ firebase-debug.log
 
 /src/generated/prisma
 
+# sensitive info keyword matching
 .env
 .env.local
-vercel_supabase_credentials
+**/vercel_supabase_credentials*
+
+# temporary files
+*/*.temp/
+*/.temp/
+.temp/

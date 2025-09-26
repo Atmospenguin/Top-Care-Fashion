@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   const { email, password } = await req.json();
   if (!email || !password) return NextResponse.json({ error: "missing fields" }, { status: 400 });
   const conn = await getConnection();
-  const supabase = await createSupabaseServer();
+  const supabase = createSupabaseServer();
   try {
     // Try Supabase sign-in first
     const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });

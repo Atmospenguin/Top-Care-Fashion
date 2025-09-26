@@ -22,8 +22,8 @@ function assertClientEnv(name: "NEXT_PUBLIC_SUPABASE_URL" | "NEXT_PUBLIC_SUPABAS
   return value;
 }
 
-export async function createSupabaseServer() {
-  const cookieStore = await cookies();
+export function createSupabaseServer() {
+  const cookieStore = cookies();
   const supabaseUrl =
     resolveServerEnv("NEXT_PUBLIC_SUPABASE_URL", [
       "DATABASE_SUPABASE_URL",
@@ -43,13 +43,15 @@ export async function createSupabaseServer() {
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
+      async get(name: string) {
+        const store = await cookieStore;
+        return store.get(name)?.value;
       },
-      set(name: string, value: string, options?: CookieOptions) {
-        cookieStore.set(name, value, options);
+      async set(name: string, value: string, options?: CookieOptions) {
+        const store = await cookieStore;
+        store.set(name, value, options);
       },
-      remove(name: string, options?: CookieOptions) {
+      async remove(name: string, options?: CookieOptions) {
         cookieStore.set(name, "", { ...options, maxAge: 0 });
       },
     },
