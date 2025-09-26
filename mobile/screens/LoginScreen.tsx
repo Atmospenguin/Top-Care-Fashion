@@ -1,38 +1,52 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../App";
 
-export default function LoginScreen() {
+type Props = NativeStackScreenProps<RootStackParamList, "Login">;
+
+export default function LoginScreen({ navigation }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   return (
     <View style={styles.container}>
-      {/* 返回箭头 */}
-      <Text style={styles.backArrow}>←</Text>
+      {/* 返回按钮 */}
+      <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <Text style={styles.backIcon}>←</Text>
+      </TouchableOpacity>
 
       {/* 欢迎文字 */}
       <Text style={styles.welcome}>Welcome!</Text>
-
-      {/* Logo 文字版 */}
       <Text style={styles.logo}>TOP</Text>
 
       {/* 输入框 */}
       <TextInput
         style={styles.input}
         placeholder="Enter your email"
+        placeholderTextColor="#9AA0A6"
+        keyboardType="email-address"
+        autoCapitalize="none"
         value={email}
         onChangeText={setEmail}
       />
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+
+      <View style={styles.passwordWrap}>
+        <TextInput
+          style={styles.passwordInput}
+          placeholder="Enter your password"
+          placeholderTextColor="#9AA0A6"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+        
+      </View>
 
       {/* 忘记密码 */}
-      <Text style={styles.forgotPassword}>Forgot Password?</Text>
+      <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
+      <Text style={styles.forgot}>Forgot Password?</Text>
+      </TouchableOpacity>
 
       {/* 登录按钮 */}
       <TouchableOpacity style={styles.loginBtn}>
@@ -41,39 +55,86 @@ export default function LoginScreen() {
 
       {/* 注册引导 */}
       <Text style={styles.registerText}>
-        Don’t have an account? <Text style={styles.registerLink}>Register Now</Text>
+        Don’t have an account?{" "}
+        <Text style={styles.registerLink} onPress={() => navigation.navigate("Register")}>
+          Register Now
+        </Text>
       </Text>
     </View>
   );
 }
 
+const BRAND_RED = "#F54B3D";
+const INPUT_BG = "#F6F7F9";
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", padding: 20 },
-  backArrow: { fontSize: 22, marginTop: 20 },
-  welcome: { fontSize: 24, fontWeight: "bold", marginTop: 20, textAlign: "center" },
-  logo: {
-    fontSize: 40,
-    fontWeight: "bold",
-    color: "#F54B3D", // 用你的品牌红色
-    textAlign: "center",
-    marginVertical: 20,
+  container: { 
+    flex: 1, 
+    backgroundColor: "#fff", 
+    padding: 24, 
+    justifyContent: "center" // 让内容垂直居中
   },
-  input: {
-    height: 50,
+
+  backBtn: {
+    position: "absolute",   // 固定在左上角，不会挤压布局
+    top: 50, 
+    left: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    marginVertical: 10,
+    borderColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  forgotPassword: { textAlign: "right", color: "gray", marginVertical: 5 },
+  backIcon: { fontSize: 20, color: "#111" },
+
+  welcome: { fontSize: 28, fontWeight: "800", color: "#111827", marginBottom: 8 },
+  logo: { fontSize: 72, fontWeight: "900", color: BRAND_RED, marginBottom: 32 },
+
+  input: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: INPUT_BG,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#EEF0F3",
+  },
+
+  passwordWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: INPUT_BG,
+    borderWidth: 1,
+    borderColor: "#EEF0F3",
+    marginBottom: 8,
+    paddingHorizontal: 20,
+  },
+  passwordInput: { flex: 1, fontSize: 16 },
+
+  forgot: {
+    alignSelf: "flex-end",
+    color: "#6B7280",
+    fontWeight: "600",
+    marginVertical: 12,
+    fontSize: 14,
+  },
+
   loginBtn: {
-    backgroundColor: "#F54B3D",
-    paddingVertical: 15,
-    borderRadius: 10,
-    marginTop: 20,
+    height: 56,
+    backgroundColor: BRAND_RED,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    // 🚫 移除了 shadow 和 elevation
   },
-  loginText: { color: "#fff", textAlign: "center", fontWeight: "bold", fontSize: 16 },
-  registerText: { textAlign: "center", marginTop: 30, fontSize: 14 },
-  registerLink: { color: "#00BFA6", fontWeight: "bold" },
+  loginText: { color: "#fff", fontSize: 18, fontWeight: "700" },
+
+  registerText: { textAlign: "center", marginTop: 24, fontSize: 15, color: "#1F2937" },
+  registerLink: { color: "#00BFA6", fontWeight: "700" },
 });
+

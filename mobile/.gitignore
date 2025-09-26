@@ -35,3 +35,53 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# VSCode
+.vscode/
+
+# Expo/React Native local files
+.expo-shared/
+.expo/
+expo-debug.*
+
+# Android/Gradle
+android/.gradle/
+android/**/build/
+**/android/**/build/
+android/local.properties
+
+# iOS
+ios/Pods/
+ios/build/
+**/ios/**/build/
+
+# Gradle wrapper
+gradle-wrapper.jar
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/README.md
+
+# Xcode
+*.xcworkspace
+*.xcuserstate
+*.xcuserdata
+
+# Bundler
+*.bundle
+
+# Logs
+*.log
+
+# Local env
+.env
+.env.local
+.env.*.local
+
+# JetBrains
+.idea/
+
+# expo metro cache
+.expo/cache
+
