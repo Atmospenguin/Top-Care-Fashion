@@ -5,11 +5,11 @@ import { NavigationContainer } from "@react-navigation/native";
 enableScreens();
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 // Make sure SplashScreen.tsx exists in ./screens, or update the path if needed
-import SplashScreen from "./screens/SplashScreen";
-import LandingScreen from "./screens/LandingScreen";
-import LoginScreen from "./screens/LoginScreen";
-import RegisterScreen from './screens/RegisterScreen';
-import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
+import SplashScreen from "./screens/auth/SplashScreen";
+import LandingScreen from "./screens/auth/LandingScreen";
+import LoginScreen from "./screens/auth/LoginScreen";
+import RegisterScreen from './screens/auth/RegisterScreen';
+import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
