@@ -73,6 +73,7 @@ model users {
   username       String     @unique @db.VarChar(64)
   email          String     @unique @db.VarChar(191)
   password_hash  String?    @db.VarChar(191)
+  supabase_user_id String?   @unique @db.Uuid
   dob            DateTime?  @db.Date
   gender         Gender?
   role           UserRole   @default(USER)

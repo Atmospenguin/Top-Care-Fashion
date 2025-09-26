@@ -44,3 +44,4 @@ firebase-debug.log
 
 .env
 .env.local
+vercel_supabase_credentials
