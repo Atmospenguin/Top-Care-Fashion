@@ -27,21 +27,6 @@ function normalizeGenderInput(gender: unknown): { value: "MALE" | "FEMALE" | nul
   return { value: trimmed === "Male" ? "MALE" : "FEMALE", present: true };
 }
 
-function mapRole(value: unknown): "User" | "Admin" {
-  return String(value ?? "").toUpperCase() === "ADMIN" ? "Admin" : "User";
-}
-
-function mapStatus(value: unknown): "active" | "suspended" {
-  return String(value ?? "").toUpperCase() === "SUSPENDED" ? "suspended" : "active";
-}
-
-function mapGenderOut(value: unknown): "Male" | "Female" | null {
-  const normalized = String(value ?? "").toUpperCase();
-  if (normalized === "MALE") return "Male";
-  if (normalized === "FEMALE") return "Female";
-  return null;
-}
-
 function mapRole(value: UserRole | null | undefined): "User" | "Admin" {
   return value === UserRole.ADMIN ? "Admin" : "User";
 }

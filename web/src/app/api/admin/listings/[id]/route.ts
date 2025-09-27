@@ -212,7 +212,7 @@ export async function DELETE(_req: NextRequest, context: { params: Promise<{ id:
       try {
         await prisma.listings.update({ where: { id }, data: { listed: false } });
         return NextResponse.json({ ok: true, softDeleted: true });
-      } catch (e) {
+      } catch {
         return NextResponse.json({ error: "Failed to unlist listing" }, { status: 500 });
       }
     }

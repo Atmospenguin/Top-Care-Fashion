@@ -27,6 +27,12 @@ These conventions apply to the whole repo unless a more specific AGENTS.md exist
 6) Git Hygiene
 - Group related changes in a single commit with a clear message.
 - Avoid committing generated artifacts.
+- Commit locally and do NOT push to any remote unless you have explicit permission.
+  - Example local workflow:
+    - git add -A
+    - git commit -m "Describe the change clearly"
+    - (do not run `git push`)
+  - If a push is required, get explicit approval and confirm the target remote/branch before pushing.
 
 Thanks! Keep it tidy and pragmatic.
 
