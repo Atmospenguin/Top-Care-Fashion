@@ -1,37 +1,65 @@
 import { NextResponse } from "next/server";
-import { getConnection, parseJson, toNumber } from "@/lib/db";
+import { prisma } from "@/lib/db";
+import { ConditionType } from "@prisma/client";
+import { toNumber } from "@/lib/db";
 
-type TagList = string[];
-
-type ImageList = string[];
-
-function mapCondition(value: unknown): string | null {
-  const normalized = String(value ?? "").toLowerCase();
-  return normalized || null;
+function mapConditionOut(value: ConditionType | null | undefined):
+  | "new"
+  | "like_new"
+  | "good"
+  | "fair"
+  | "poor"
+  | null {
+  switch (value) {
+    case ConditionType.NEW:
+      return "new";
+    case ConditionType.LIKE_NEW:
+      return "like_new";
+    case ConditionType.GOOD:
+      return "good";
+    case ConditionType.FAIR:
+      return "fair";
+    case ConditionType.POOR:
+      return "poor";
+    default:
+      return null;
+  }
 }
 
 export async function GET() {
   try {
-    const connection = await getConnection();
+    const rows = await prisma.listings.findMany({
+      where: { listed: true },
+      orderBy: { created_at: "desc" },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        category_id: true,
+        price: true,
+        image_url: true,
+        image_urls: true,
+        brand: true,
+        size: true,
+        condition_type: true,
+        tags: true,
+        created_at: true,
+      },
+    });
 
-    const [rows]: any = await connection.execute(
-      `SELECT id, name AS title, description, category_id AS "categoryId",
-              price, image_url AS "imageUrl", image_urls AS "imageUrls",
-              brand, size, condition_type AS "conditionType", tags,
-              created_at AS "createdAt"
-       FROM listings
-       WHERE listed = TRUE
-       ORDER BY created_at DESC`
-    );
-
-    await connection.end();
-
-    const items = (rows as any[]).map((row) => ({
-      ...row,
+    const items = rows.map((row) => ({
+      id: row.id,
+      title: row.name,
+      description: row.description,
+      categoryId: row.category_id ?? null,
       price: toNumber(row.price) ?? 0,
-      imageUrls: parseJson<ImageList>(row.imageUrls),
-      tags: parseJson<TagList>(row.tags),
-      conditionType: mapCondition(row.conditionType),
+      imageUrl: row.image_url ?? null,
+      imageUrls: (row.image_urls as unknown) ?? null,
+      brand: row.brand ?? null,
+      size: row.size ?? null,
+      conditionType: mapConditionOut(row.condition_type),
+      tags: (row.tags as unknown) ?? null,
+      createdAt: row.created_at.toISOString(),
     }));
 
     return NextResponse.json({ items });

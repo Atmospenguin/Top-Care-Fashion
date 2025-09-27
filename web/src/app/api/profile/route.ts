@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getConnection, toBoolean } from "@/lib/db";
+import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { Gender, UserRole, UserStatus } from "@prisma/client";
 
 function normalizeDobInput(dob: unknown): { value: string | null; present: boolean } {
   if (dob === undefined) return { value: null, present: false };
@@ -41,6 +42,20 @@ function mapGenderOut(value: unknown): "Male" | "Female" | null {
   return null;
 }
 
+function mapRole(value: UserRole | null | undefined): "User" | "Admin" {
+  return value === UserRole.ADMIN ? "Admin" : "User";
+}
+
+function mapStatus(value: UserStatus | null | undefined): "active" | "suspended" {
+  return value === UserStatus.SUSPENDED ? "suspended" : "active";
+}
+
+function mapGenderOut(value: Gender | null | undefined): "Male" | "Female" | null {
+  if (value === Gender.MALE) return "Male";
+  if (value === Gender.FEMALE) return "Female";
+  return null;
+}
+
 export async function PATCH(req: NextRequest) {
   const sessionUser = await getSessionUser();
   if (!sessionUser) {
@@ -50,23 +65,20 @@ export async function PATCH(req: NextRequest) {
   const payload = await req.json().catch(() => ({}));
   const { username, email } = payload as Record<string, unknown>;
 
-  const updates: string[] = [];
-  const values: Array<string | null | number> = [];
+  const data: Record<string, unknown> = {};
 
   if (username !== undefined) {
     if (typeof username !== "string" || !username.trim()) {
       return NextResponse.json({ error: "invalid username" }, { status: 400 });
     }
-    updates.push("username = ?");
-    values.push(username.trim());
+    data.username = username.trim();
   }
 
   if (email !== undefined) {
     if (typeof email !== "string" || !email.trim()) {
       return NextResponse.json({ error: "invalid email" }, { status: 400 });
     }
-    updates.push("email = ?");
-    values.push(email.trim());
+    data.email = email.trim();
   }
 
   let dobUpdate: { value: string | null; present: boolean };
@@ -80,47 +92,49 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (dobUpdate.present) {
-    updates.push("dob = ?");
-    values.push(dobUpdate.value);
+    data.dob = dobUpdate.value ? new Date(dobUpdate.value) : null;
   }
 
   if (genderUpdate.present) {
-    updates.push("gender = ?");
-    values.push(genderUpdate.value);
+    data.gender = genderUpdate.value as Gender | null;
   }
 
-  if (updates.length === 0) {
+  if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "No fields provided" }, { status: 400 });
   }
-
-  values.push(Number(sessionUser.id));
-
-  const conn = await getConnection();
   try {
-    await conn.execute(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, values);
-    const [rows]: any = await conn.execute(
-      "SELECT id, username, email, role, status, is_premium AS isPremium, premium_until AS premiumUntil, dob, gender FROM users WHERE id = ?",
-      [sessionUser.id]
-    );
-    if (!rows.length) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-    const row = rows[0];
-    const user = {
-      id: Number(row.id),
-      username: row.username,
-      email: row.email,
-      role: mapRole(row.role),
-      status: mapStatus(row.status),
-      isPremium: toBoolean(row.isPremium),
-      premiumUntil: row.premiumUntil ?? null,
-      dob: row.dob ? (row.dob instanceof Date ? row.dob.toISOString().slice(0, 10) : String(row.dob)) : null,
-      gender: mapGenderOut(row.gender),
-    };
-    return NextResponse.json({ user });
+    await prisma.users.update({ where: { id: Number(sessionUser.id) }, data });
+
+    const user = await prisma.users.findUnique({
+      where: { id: Number(sessionUser.id) },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        status: true,
+        is_premium: true,
+        premium_until: true,
+        dob: true,
+        gender: true,
+      },
+    });
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    return NextResponse.json({
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: mapRole(user.role),
+        status: mapStatus(user.status),
+        isPremium: Boolean(user.is_premium),
+        premiumUntil: user.premium_until ?? null,
+        dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
+        gender: mapGenderOut(user.gender),
+      },
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || "update failed" }, { status: 400 });
-  } finally {
-    await conn.end();
   }
 }

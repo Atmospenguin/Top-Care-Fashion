@@ -1,19 +1,19 @@
-# Codex CLI Agent Guidelines (Simplified)
+# Codex CLI Agent Guidelines
 
 These conventions apply to the whole repo unless a more specific AGENTS.md exists in a subfolder.
 
 1) Editing & IO
-- Prefer MCP or VS Code file APIs for reading/writing files.
-- If those are unavailable in the current harness, use the built‑in patch mechanism (apply_patch) to modify files atomically. Avoid shell commands for file IO.
-- Keep changes minimal and focused; don’t refactor unrelated code.
+- Prefer to use your built-in patch/IO mechanisms (e.g., apply_patch or atomic read/write APIs) for file operations.
+- If your internal patch/IO is unavailable, fall back to MCP or VS Code file APIs.
+- Avoid using shell commands for file IO.
 
 2) Planning & Responsiveness
-- For multi‑step work, keep a short plan and update progress as you go.
+- For multi-step work, keep a short plan and update progress as you go.
 - Share concise preambles before running tools; keep the tone clear and friendly.
 
 3) Code Style
-- Follow existing patterns. Avoid one‑letter names and inline license headers.
-- Prefer Prisma ORM for database access; avoid ad‑hoc SQL unless strictly necessary.
+- Follow existing patterns. Avoid one-letter names and inline license headers.
+- Prefer Prisma ORM for database access; avoid ad-hoc SQL unless strictly necessary.
 - Write simple, defensive code; validate inputs at API boundaries.
 
 4) Safety
