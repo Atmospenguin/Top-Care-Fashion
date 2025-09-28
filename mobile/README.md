@@ -66,8 +66,20 @@ mobile/
 
 ## 🎨 Design and Assets
 
-- The `assets/` directory stores the raw files, but components should import resolved assets from `constants/assetUrls.ts` to keep references consistent.
-- `app.json` references files like `./assets/icon.png` and `./assets/splash-icon.png`. Ensure these files exist or update paths to avoid build errors.
+- The `assets/` directory stores the raw source art (SVG/PNG). **Always expose assets via `constants/assetUrls.ts`** so runtime code has a single source of truth.
+- Static SVG support is enabled by the combination of:
+    - `metro.config.js` – removes `.svg` from `assetExts` and routes it through `react-native-svg-transformer`
+    - `svg.d.ts` – TypeScript declaration so `import Logo from './logo.svg'` is typed as `React.FC<SvgProps>`
+    - `react-native-svg` / `react-native-svg-transformer` – already listed in `package.json`
+- Usage example:
+    ```tsx
+    import { LOGO_FULL_COLOR } from "../constants/assetUrls";
+
+    export function BrandMark() {
+        return <LOGO_FULL_COLOR width={160} height={48} />;
+    }
+    ```
+- Expo project icons/splash **must be PNG files** referenced from `app.json` (e.g., `./assets/icon.png`, `./assets/splash-icon.png`). Replace the placeholder assets with the latest brand artwork before shipping builds.
 - Web design mockups/screenshots are stored in `web/public/TOPApp/` and its subdirectories, serving as UI references for the mobile app.
 
 ### Brand Color
