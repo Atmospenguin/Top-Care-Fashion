@@ -79,7 +79,24 @@ mobile/
         return <LOGO_FULL_COLOR width={160} height={48} />;
     }
     ```
-- Expo project icons/splash **must be PNG files** referenced from `app.json` (e.g., `./assets/icon.png`, `./assets/splash-icon.png`). Replace the placeholder assets with the latest brand artwork before shipping builds.
+ - SVG usage and notes:
+     - The project supports importing `.svg` files directly as React components for use inside the app and for web. Use the centralized `constants/assetUrls.ts` exports (e.g., `LOGO_FULL_COLOR`) so screens import assets from one place.
+     - Example: import `LOGO_FULL_COLOR` (a React component) and render it with `<LOGO_FULL_COLOR width={160} height={48} />`.
+     - Important: for native app stores (Android/iOS) the OS and many build tools expect app icons and splash images to be bitmaps (PNG). Keep your production `app.json` icon and splash references pointing to PNG files (e.g., `./assets/icon.png`, `./assets/splash-icon.png`). You can still keep SVG sources in `assets/` for design and in-app rendering; convert to PNG during release/build step if needed.
+ - Icon library (Ionicons) and recommended usage:
+     - The app standardizes on Ionicons via `@expo/vector-icons`. There is a small wrapper at `mobile/components/Icon.tsx` that provides consistent defaults.
+     - Quick usage examples:
+         ```tsx
+         // preferred: use the wrapper
+         import Icon from '../components/Icon';
+
+         // in JSX
+         <Icon name="chevron-back" size={24} color="#111" />
+
+         // or import directly from @expo/vector-icons when you need custom behavior
+         import { Ionicons } from '@expo/vector-icons';
+         <Ionicons name="person-circle" size={28} color="#F54B3D" />
+         ```
 - Web design mockups/screenshots are stored in `web/public/TOPApp/` and its subdirectories, serving as UI references for the mobile app.
 
 ### Brand Color
