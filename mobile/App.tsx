@@ -36,7 +36,7 @@ const Tab = createBottomTabNavigator();
 function MainTabs() {
   return (
     <Tab.Navigator screenOptions={{ headerShown: false }}>
-      <Tab.Screen name="MyTop" component={MyTopScreen} />
+      <Tab.Screen name="My TOP" component={MyTopScreen} />
     </Tab.Navigator>
   );
 }

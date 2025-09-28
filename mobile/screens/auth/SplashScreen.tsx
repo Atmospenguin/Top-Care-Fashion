@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { LOGO_WHITE } from "../../constants/assetUrls";
 
 type RootStackParamList = {
   Splash: undefined;
@@ -21,7 +22,7 @@ export default function SplashScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>TOP</Text>
+  <LOGO_WHITE width={160} height={120} preserveAspectRatio="xMidYMid meet" />
     </View>
   );
 }
@@ -33,9 +34,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  logo: {
-    fontSize: 64,
-    fontWeight: "900",
-    color: "#fff",
-  },
+  // LOGO_WHITE is an SVG component; sizing handled via props.
 });

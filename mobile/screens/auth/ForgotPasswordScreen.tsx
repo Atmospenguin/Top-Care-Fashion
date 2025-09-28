@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../App";
+import { LOGO_FULL_COLOR } from "../../constants/assetUrls";
+import Icon from "../../components/Icon";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ForgotPassword">;
 
@@ -12,7 +14,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
     <View style={styles.container}>
       {/* 返回按钮 */}
       <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-        <Text style={styles.backIcon}>←</Text>
+        <Icon name="chevron-back" size={20} color="#111" />
       </TouchableOpacity>
 
       {/* 标题 */}
@@ -20,6 +22,10 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
       <Text style={styles.subtitle}>
         Don’t worry! It occurs. Please enter the email address linked with your account.
       </Text>
+
+      <View style={styles.logoWrapper}>
+        <LOGO_FULL_COLOR width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
+      </View>
 
       {/* 输入框 */}
       <TextInput
@@ -59,10 +65,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  backIcon: { fontSize: 20, color: "#111" },
 
   title: { fontSize: 28, fontWeight: "800", color: "#111827", marginBottom: 12, textAlign: "center" },
   subtitle: { fontSize: 15, color: "#6B7280", marginBottom: 24, lineHeight: 22, textAlign: "center" },
+  logoWrapper: {
+    alignSelf: "center",
+    width: 120,
+    height: 80,
+    marginBottom: 24,
+  },
 
   input: {
     height: 56,

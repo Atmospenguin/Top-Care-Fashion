@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../App";
+import { LOGO_FULL_COLOR } from "../../constants/assetUrls";
+import Icon from "../../components/Icon";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Register">;
 
@@ -15,12 +17,14 @@ export default function RegisterScreen({ navigation }: Props) {
     <View style={styles.container}>
       {/* 返回按钮 */}
       <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-        <Text style={styles.backIcon}>←</Text>
+        <Icon name="chevron-back" size={20} color="#111" />
       </TouchableOpacity>
 
       {/* 标题 */}
-      <Text style={styles.welcome}>Welcome!</Text>
-      <Text style={styles.logo}>TOP</Text>
+          <Text style={styles.welcome}>Welcome!</Text>
+          <View style={styles.logoWrapper}>
+            <LOGO_FULL_COLOR width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
+          </View>
 
       {/* 输入框 */}
       <TextInput
@@ -90,10 +94,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  backIcon: { fontSize: 20, color: "#111" },
 
   welcome: { fontSize: 28, fontWeight: "800", color: "#111827", marginBottom: 8 },
-  logo: { fontSize: 72, fontWeight: "900", color: BRAND_RED, marginBottom: 32 },
+  logoWrapper: {
+    width: 140,
+    height: 100,
+    marginBottom: 32,
+  },
 
   input: {
     height: 56,
