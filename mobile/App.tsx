@@ -14,11 +14,16 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
 
 
+
 //import HomeScreen from "./screens/main/HomeStack/HomeScreen";
 //import DiscoverScreen from "./screens/main/DiscoverStack/DiscoverScreen";
 //import SellScreen from "./screens/main/SellStack/SellScreen";
 //import InboxScreen from "./screens/main/InboxStack/InboxScreen";
 import MyTopScreen from "./screens/main/MyTopStack/MyTopScreen";
+import InboxScreen from './screens/main/InboxStack/InboxScreen';
+import SellScreen from './screens/main/SellStack/SellScreen';
+import DiscoverScreen from './screens/main/DiscoverStack/DiscoverScreen';
+import HomeScreen from './screens/main/HomeStack/HomeScreen';
 
 
 export type RootStackParamList = {
@@ -33,14 +38,66 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
 
+
+
+// 引入图标
+import HomeIcon from "./assets/icon_home.svg";
+import DiscoverIcon from "./assets/icon_discover.svg";
+import SellIcon from "./assets/icon_sell.svg";
+import InboxIcon from "./assets/icon_inbox.svg";
+import MyTopIcon from "./assets/icon_my_top.svg";
+
+
 function MainTabs() {
   return (
-    <Tab.Navigator screenOptions={{ headerShown: false }}>
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarShowLabel: true,
+        tabBarLabelStyle: { fontSize: 12 },
+        tabBarIcon: ({ focused }) => {
+          let iconSource;
+
+          switch (route.name) {
+            case "Home":
+              iconSource = homeIcon;
+              break;
+            case "Discover":
+              iconSource = discoverIcon;
+              break;
+            case "Sell":
+              iconSource = sellIcon;
+              break;
+            case "Inbox":
+              iconSource = inboxIcon;
+              break;
+            case "MyTop":
+              iconSource = myTopIcon;
+              break;
+          }
+
+          return (
+            <Image
+              source={iconSource}
+              style={{
+                width: 22,
+                height: 22,
+                tintColor: focused ? "#000" : "#999", // 选中黑色，未选中灰色
+              }}
+              resizeMode="contain"
+            />
+          );
+        },
+      })}
+    >
+      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Discover" component={DiscoverScreen} />
+      <Tab.Screen name="Sell" component={SellScreen} />
+      <Tab.Screen name="Inbox" component={InboxScreen} />
       <Tab.Screen name="MyTop" component={MyTopScreen} />
     </Tab.Navigator>
   );
 }
-
 export default function App() {
   return (
     <NavigationContainer>
