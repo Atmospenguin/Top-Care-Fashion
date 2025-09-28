@@ -7,6 +7,8 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Icon from "../../../components/Icon";
 
 export default function DiscoverScreen() {
   const categories = ["Men", "Women", "Kids", "Everything else"];
@@ -24,6 +26,7 @@ export default function DiscoverScreen() {
   ];
 
   return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
     <ScrollView
       style={styles.container}
       contentContainerStyle={{ paddingBottom: 60 }}
@@ -40,7 +43,7 @@ export default function DiscoverScreen() {
       {categories.map((c) => (
         <TouchableOpacity key={c} style={styles.categoryRow}>
           <Text style={styles.categoryText}>{c}</Text>
-          <Text style={styles.arrow}>{">"}</Text>
+          <Icon name="chevron-forward" size={18} color="#888" />
         </TouchableOpacity>
       ))}
 
@@ -60,6 +63,7 @@ export default function DiscoverScreen() {
         ))}
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -90,7 +94,6 @@ const styles = StyleSheet.create({
     borderColor: "#eee",
   },
   categoryText: { fontSize: 15, color: "#111" },
-  arrow: { fontSize: 18, color: "#888" },
 
   brandHeader: {
     marginTop: 20,

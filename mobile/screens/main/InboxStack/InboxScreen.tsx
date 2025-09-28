@@ -1,12 +1,12 @@
 import React from "react";
 import {
-  SafeAreaView,
   View,
   Text,
   TouchableOpacity,
   FlatList,
   StyleSheet,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import Icon from "../../../components/Icon";
 
@@ -23,7 +23,7 @@ const mockMessages = [
 
 export default function InboxScreen() {
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Inbox</Text>

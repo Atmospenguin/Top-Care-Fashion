@@ -1,6 +1,7 @@
 import 'react-native-gesture-handler';
 import { enableScreens } from 'react-native-screens';
 import { NavigationContainer } from "@react-navigation/native";
+import { Text } from "react-native";
 
 enableScreens();
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -24,6 +25,7 @@ import InboxScreen from './screens/main/InboxStack/InboxScreen';
 import SellScreen from './screens/main/SellStack/SellScreen';
 import DiscoverScreen from './screens/main/DiscoverStack/DiscoverScreen';
 import HomeScreen from './screens/main/HomeStack/HomeScreen';
+import Icon from "./components/Icon";
 
 
 export type RootStackParamList = {
@@ -40,34 +42,70 @@ const Tab = createBottomTabNavigator();
 
 
 
-// 引入图标
-import HomeIcon from "./assets/icon_home.svg";
-import DiscoverIcon from "./assets/icon_discover.svg";
-import SellIcon from "./assets/icon_sell.svg";
-import InboxIcon from "./assets/icon_inbox.svg";
-import MyTopIcon from "./assets/icon_my_top.svg";
-
-
 function MainTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarShowLabel: true,
-        tabBarLabelStyle: { fontSize: 12 },
-        tabBarIcon: ({ focused }) => {
+        tabBarActiveTintColor: "#000",
+        tabBarInactiveTintColor: "#999",
+        tabBarLabel: ({ focused, color }) => (
+          <Text
+            style={{
+              fontSize: 12,
+              color,
+              fontWeight: focused ? "700" : "500",
+              letterSpacing: -0.25,
+            }}
+          >
+            {route.name}
+          </Text>
+        ),
+        tabBarIcon: ({ focused, color }) => {
           switch (route.name) {
             case "Home":
-              return <HomeIcon width={22} height={22} fill={focused ? "#000" : "#999"} />;
+              return (
+                <Icon
+                  name={focused ? "home" : "home-outline"}
+                  size={22}
+                  color={color}
+                />
+              );
             case "Discover":
-              return <DiscoverIcon width={22} height={22} fill={focused ? "#000" : "#999"} />;
+              return (
+                <Icon
+                  name={focused ? "compass" : "compass-outline"}
+                  size={22}
+                  color={color}
+                />
+              );
             case "Sell":
-              return <SellIcon width={22} height={22} fill={focused ? "#000" : "#999"} />;
+              return (
+                <Icon
+                  name={focused ? "add-circle" : "add-circle-outline"}
+                  size={22}
+                  color={color}
+                />
+              );
             case "Inbox":
-              return <InboxIcon width={22} height={22} fill={focused ? "#000" : "#999"} />;
+              return (
+                <Icon
+                  name={focused ? "chatbubbles" : "chatbubbles-outline"}
+                  size={22}
+                  color={color}
+                />
+              );
             case "MyTop":
-              return <MyTopIcon width={22} height={22} fill={focused ? "#000" : "#999"} />;
+              return (
+                <Icon
+                  name={focused ? "person" : "person-outline"}
+                  size={22}
+                  color={color}
+                />
+              );
           }
+          return null;
         },
       })}
     >
@@ -75,7 +113,7 @@ function MainTabs() {
       <Tab.Screen name="Discover" component={DiscoverScreen} />
       <Tab.Screen name="Sell" component={SellScreen} />
       <Tab.Screen name="Inbox" component={InboxScreen} />
-      <Tab.Screen name="MyTop" component={MyTopScreen} />
+      <Tab.Screen name="My TOP" component={MyTopScreen} />
     </Tab.Navigator>
   );
 }

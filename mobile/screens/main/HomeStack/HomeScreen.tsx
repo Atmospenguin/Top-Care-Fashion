@@ -8,6 +8,8 @@ import {
   Image,
   ScrollView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Icon from "../../../components/Icon";
 
 export default function HomeScreen() {
   const suggestedItems = [
@@ -16,6 +18,7 @@ export default function HomeScreen() {
   ];
 
   return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
       {/* 🔍 搜索栏 */}
       <View style={styles.searchRow}>
@@ -24,11 +27,11 @@ export default function HomeScreen() {
           placeholder="Search for anything"
           placeholderTextColor="#666"
         />
-        <TouchableOpacity>
-          <Text style={styles.icon}>♡</Text>
+        <TouchableOpacity style={{ marginLeft: 12 }} accessibilityRole="button">
+          <Icon name="heart-outline" size={22} color="#111" />
         </TouchableOpacity>
-        <TouchableOpacity>
-          <Text style={styles.icon}>🛍</Text>
+        <TouchableOpacity style={{ marginLeft: 12 }} accessibilityRole="button">
+          <Icon name="bag-outline" size={22} color="#111" />
         </TouchableOpacity>
       </View>
 
@@ -55,6 +58,7 @@ export default function HomeScreen() {
         ))}
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -75,7 +79,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 15,
   },
-  icon: { fontSize: 20, marginLeft: 12 },
 
   // Banner
   banner: {

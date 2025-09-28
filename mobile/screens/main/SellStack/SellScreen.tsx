@@ -8,11 +8,14 @@ import {
   ScrollView,
   Image,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Icon from "../../../components/Icon";
 
 export default function SellScreen() {
   const [description, setDescription] = useState("");
 
   return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
     <ScrollView
       style={styles.container}
       contentContainerStyle={{ paddingBottom: 120 }}
@@ -25,7 +28,7 @@ export default function SellScreen() {
       <View style={styles.photoRow}>
         {[...Array(5)].map((_, i) => (
           <TouchableOpacity key={i} style={styles.photoBox}>
-            <Text style={{ fontSize: 24, color: "#999" }}>＋</Text>
+            <Icon name="add" size={24} color="#999" />
           </TouchableOpacity>
         ))}
       </View>
@@ -79,6 +82,7 @@ export default function SellScreen() {
         </TouchableOpacity>
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
