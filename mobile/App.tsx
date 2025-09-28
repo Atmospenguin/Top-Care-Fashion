@@ -26,6 +26,7 @@ import SellScreen from './screens/main/SellStack/SellScreen';
 import DiscoverScreen from './screens/main/DiscoverStack/DiscoverScreen';
 import HomeScreen from './screens/main/HomeStack/HomeScreen';
 import Icon from "./components/Icon";
+import MyTopStackNavigator from './screens/main/MyTopStack';
 
 
 export type RootStackParamList = {
@@ -113,7 +114,7 @@ function MainTabs() {
       <Tab.Screen name="Discover" component={DiscoverScreen} />
       <Tab.Screen name="Sell" component={SellScreen} />
       <Tab.Screen name="Inbox" component={InboxScreen} />
-      <Tab.Screen name="My TOP" component={MyTopScreen} />
+      <Tab.Screen name="My TOP" component={MyTopStackNavigator} />
     </Tab.Navigator>
   );
 }

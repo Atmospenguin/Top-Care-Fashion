@@ -11,8 +11,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 import Icon from "../../../components/Icon";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { MyTopStackParamList } from "./index";
 
 export default function MyTopScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
   const [activeTab, setActiveTab] =
     useState<"Shop" | "Sold" | "Purchases" | "Likes">("Shop");
 
@@ -70,7 +74,7 @@ export default function MyTopScreen() {
         {/* Bio + 编辑按钮 */}
         <View style={styles.bioRow}>
           <Text style={styles.bio}>{mockUser.bio}</Text>
-          <TouchableOpacity style={styles.editBtn} onPress={() => {}}>
+          <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate("EditProfile")} >
             <Text style={styles.editBtnText}>Edit Profile</Text>
           </TouchableOpacity>
         </View>
