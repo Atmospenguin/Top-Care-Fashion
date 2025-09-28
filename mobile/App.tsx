@@ -20,7 +20,6 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 //import DiscoverScreen from "./screens/main/DiscoverStack/DiscoverScreen";
 //import SellScreen from "./screens/main/SellStack/SellScreen";
 //import InboxScreen from "./screens/main/InboxStack/InboxScreen";
-import MyTopScreen from "./screens/main/MyTopStack/MyTopScreen";
 import InboxScreen from './screens/main/InboxStack/InboxScreen';
 import SellScreen from './screens/main/SellStack/SellScreen';
 import DiscoverScreen from './screens/main/DiscoverStack/DiscoverScreen';

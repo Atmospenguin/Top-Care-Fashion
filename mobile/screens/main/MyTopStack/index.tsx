@@ -1,4 +1,3 @@
-// screens/main/MyTopStack/index.tsx
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MyTopScreen from "./MyTopScreen";
@@ -19,3 +18,4 @@ export default function MyTopStackNavigator() {
     </Stack.Navigator>
   );
 }
+
