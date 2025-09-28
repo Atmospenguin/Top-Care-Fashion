@@ -50,44 +50,24 @@ import MyTopIcon from "./assets/icon_my_top.svg";
 
 function MainTabs() {
   return (
-<<<<<<< HEAD
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarShowLabel: true,
         tabBarLabelStyle: { fontSize: 12 },
         tabBarIcon: ({ focused }) => {
-          let iconSource;
-
           switch (route.name) {
             case "Home":
-              iconSource = homeIcon;
-              break;
+              return <HomeIcon width={22} height={22} fill={focused ? "#000" : "#999"} />;
             case "Discover":
-              iconSource = discoverIcon;
-              break;
+              return <DiscoverIcon width={22} height={22} fill={focused ? "#000" : "#999"} />;
             case "Sell":
-              iconSource = sellIcon;
-              break;
+              return <SellIcon width={22} height={22} fill={focused ? "#000" : "#999"} />;
             case "Inbox":
-              iconSource = inboxIcon;
-              break;
+              return <InboxIcon width={22} height={22} fill={focused ? "#000" : "#999"} />;
             case "MyTop":
-              iconSource = myTopIcon;
-              break;
+              return <MyTopIcon width={22} height={22} fill={focused ? "#000" : "#999"} />;
           }
-
-          return (
-            <Image
-              source={iconSource}
-              style={{
-                width: 22,
-                height: 22,
-                tintColor: focused ? "#000" : "#999", // 选中黑色，未选中灰色
-              }}
-              resizeMode="contain"
-            />
-          );
         },
       })}
     >
@@ -96,13 +76,10 @@ function MainTabs() {
       <Tab.Screen name="Sell" component={SellScreen} />
       <Tab.Screen name="Inbox" component={InboxScreen} />
       <Tab.Screen name="MyTop" component={MyTopScreen} />
-=======
-    <Tab.Navigator screenOptions={{ headerShown: false }}>
-      <Tab.Screen name="My TOP" component={MyTopScreen} />
->>>>>>> 2bb81607bf1aed80eafdc9da76e335db4a36ce47
     </Tab.Navigator>
   );
 }
+
 export default function App() {
   return (
     <NavigationContainer>
