@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthContext";
-import type { Listing, Transaction, Review, UserAccount } from "@/types/admin";
+import type { Listing } from "@/types/admin";
 import Link from "next/link";
 
 type EditingListing = Listing;
@@ -10,20 +10,35 @@ type EditingListing = Listing;
 type ViewMode = "grid" | "table";
 type FilterType = "all" | "listed" | "unlisted";
 
+function getTxColor(status?: string) {
+  switch (status) {
+    case 'completed':
+      return 'bg-green-100 text-green-800';
+    case 'pending':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'paid':
+      return 'bg-blue-100 text-blue-800';
+    case 'shipped':
+      return 'bg-purple-100 text-purple-800';
+    case 'cancelled':
+      return 'bg-red-100 text-red-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+}
+
 export default function ListingManagementPage() {
   const { user } = useAuth();
   const [items, setItems] = useState<EditingListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [filter, setFilter] = useState<FilterType>("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const isAdmin = user?.actor === "Admin";
 
-  const loadListings = async () => {
+  const loadListings = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -46,12 +61,11 @@ export default function ListingManagementPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAdmin]);
 
   useEffect(() => {
     loadListings();
-  }, [isAdmin]);
-
+  }, [loadListings]);
   // Editing moved to Listing Details page; no inline edit via query string.
 
   const filteredItems = items.filter(item => {
@@ -63,10 +77,20 @@ export default function ListingManagementPage() {
   const deleteListing = async (id: string) => {
     if (!confirm('Are you sure you want to delete this listing?')) return;
     try {
-      await fetch(`/api/admin/listings/${id}`, { method: "DELETE" });
-      loadListings();
+      const res = await fetch(`/api/admin/listings/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({ ok: true }));
+        if (data.softDeleted) {
+          alert('Listing has related transactions. It was unlisted instead.');
+        }
+        await loadListings();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Failed to delete listing');
+      }
     } catch (error) {
       console.error('Error deleting listing:', error);
+      alert('Error deleting listing');
     }
   };
 
@@ -83,30 +107,7 @@ export default function ListingManagementPage() {
     }
   };
 
-  const updateField = (id: string, field: keyof Listing, value: any) => {
-    setItems(items.map(item => 
-      item.id === id ? { ...item, [field]: value } : item
-    ));
-  };
 
-  const createListing = async (listingData: Partial<Listing>) => {
-    try {
-      const res = await fetch("/api/admin/listings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(listingData)
-      });
-      
-      if (res.ok) {
-        setShowCreateForm(false);
-        loadListings();
-      } else {
-        console.error('Failed to create listing');
-      }
-    } catch (error) {
-      console.error('Error creating listing:', error);
-    }
-  };
 
   if (loading) {
     return (
@@ -151,12 +152,6 @@ export default function ListingManagementPage() {
         <div className="flex items-center gap-3">
           {isAdmin && (
             <>
-              <button
-                onClick={() => setShowCreateForm(true)}
-                className="bg-[var(--brand-color)] text-white px-4 py-2 rounded-md hover:opacity-90"
-              >
-                Create Listing
-              </button>
               <div className="flex border rounded-md">
                 <button
                   onClick={() => setViewMode("grid")}
@@ -219,7 +214,6 @@ export default function ListingManagementPage() {
           listings={filteredItems}
           isAdmin={isAdmin}
           onDelete={deleteListing}
-          saving={saving}
         />
       )}
 
@@ -232,13 +226,7 @@ export default function ListingManagementPage() {
         </div>
       )}
 
-      {/* Create Form Modal */}
-      {showCreateForm && (
-        <CreateListingModal
-          onClose={() => setShowCreateForm(false)}
-          onCreate={createListing}
-        />
-      )}
+      {/* Creation disabled in management UI */}
 
     </div>
   );
@@ -274,11 +262,18 @@ function ListingCard({
       <div className="p-4">
         <div className="flex items-start justify-between mb-2">
           <h3 className="font-medium text-sm truncate flex-1">{listing.name}</h3>
-          <span className={`px-2 py-1 text-xs rounded-full ml-2 ${
-            listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-          }`}>
-            {listing.listed ? 'Listed' : 'Unlisted'}
-          </span>
+          <div className="flex items-center gap-2">
+            {listing.txStatus && (
+              <span className={`px-2 py-1 text-xs rounded-full ${getTxColor(listing.txStatus)}`}>
+                {listing.txStatus}
+              </span>
+            )}
+            <span className={`px-2 py-1 text-xs rounded-full ${
+              listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+            }`}>
+              {listing.listed ? 'Listed' : 'Unlisted'}
+            </span>
+          </div>
         </div>
         
         <p className="text-2xl font-bold text-[var(--brand-color)] mb-2">
@@ -311,11 +306,9 @@ function ListingCard({
         <div className="flex gap-2 mt-4">
           <Link
             href={`/admin/listings/${listing.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
             className="flex-1 px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded text-center"
           >
-            View Details
+            Details
           </Link>
           {isAdmin && (
             <>
@@ -327,7 +320,13 @@ function ListingCard({
                     : 'bg-green-100 hover:bg-green-200 text-green-800'
                 }`}
               >
-                {listing.listed ? 'Hide' : 'Show'}
+                {listing.listed ? 'Unlist' : 'List'}
+              </button>
+              <button
+                onClick={() => onDelete(listing.id)}
+                className="px-3 py-1 text-xs rounded bg-red-100 hover:bg-red-200 text-red-800"
+              >
+                Delete
               </button>
             </>
           )}
@@ -340,13 +339,11 @@ function ListingCard({
 function ListingTable({ 
   listings, 
   isAdmin, 
-  onDelete, 
-  saving 
+  onDelete 
 }: {
   listings: EditingListing[];
   isAdmin: boolean;
   onDelete: (id: string) => void;
-  saving: string | null;
 }) {
   return (
     <div className="bg-white border rounded-lg overflow-hidden">
@@ -406,29 +403,36 @@ function ListingTableRow({
       </td>
       <td className="px-4 py-3 text-sm">${listing.price?.toFixed(2)}</td>
       <td className="px-4 py-3">
-        <span className={`px-2 py-1 text-xs rounded-full ${
-          listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-        }`}>
-          {listing.listed ? 'Listed' : 'Unlisted'}
-        </span>
+        <div className="flex items-center gap-2">
+          {listing.txStatus && (
+            <span className={`px-2 py-1 text-xs rounded-full ${getTxColor(listing.txStatus)}`}>
+              {listing.txStatus}
+            </span>
+          )}
+          <span className={`px-2 py-1 text-xs rounded-full ${
+            listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+          }`}>
+            {listing.listed ? 'Listed' : 'Unlisted'}
+          </span>
+        </div>
       </td>
       <td className="px-4 py-3 text-sm">{listing.brand || '-'}</td>
       <td className="px-4 py-3 text-sm capitalize">{listing.conditionType?.replace('_', ' ') || 'Good'}</td>
       {isAdmin && (
         <td className="px-4 py-3">
-          <div className="flex gap-2">
-            <button
-              onClick={() => onDelete(listing.id)}
-              className="text-red-600 hover:text-red-800 text-sm"
-            >
-              Delete
-            </button>
+          <div className="flex gap-3">
             <Link
               href={`/admin/listings/${listing.id}`}
               className="text-gray-600 hover:text-gray-800 text-sm"
             >
               Details
             </Link>
+            <button
+              onClick={() => onDelete(listing.id)}
+              className="text-red-600 hover:text-red-800 text-sm"
+            >
+              Delete
+            </button>
           </div>
         </td>
       )}
@@ -436,81 +440,3 @@ function ListingTableRow({
   );
 }
 
-function CreateListingModal({ onClose, onCreate }: {
-  onClose: () => void;
-  onCreate: (data: Partial<Listing>) => void;
-}) {
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    price: 0,
-    brand: '',
-    size: '',
-    conditionType: 'good' as const,
-    imageUrl: '',
-    listed: true,
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onCreate(formData);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h3 className="text-lg font-semibold mb-4">Create New Listing</h3>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Name</label>
-            <input
-              type="text"
-              required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border rounded-md"
-              placeholder="Enter listing name"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Price</label>
-            <input
-              type="number"
-              step="0.01"
-              required
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
-              className="w-full px-3 py-2 border rounded-md"
-              placeholder="0.00"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Description</label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3 py-2 border rounded-md"
-              rows={3}
-              placeholder="Enter listing description"
-            />
-          </div>
-          <div className="flex gap-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border rounded-md hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-[var(--brand-color)] text-white rounded-md hover:opacity-90"
-            >
-              Create
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}

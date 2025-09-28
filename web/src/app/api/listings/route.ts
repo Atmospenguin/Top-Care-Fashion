@@ -1,34 +1,66 @@
 import { NextResponse } from "next/server";
-import { getConnection } from "@/lib/db";
+import { prisma } from "@/lib/db";
+import { ConditionType } from "@prisma/client";
+import { toNumber } from "@/lib/db";
+
+function mapConditionOut(value: ConditionType | null | undefined):
+  | "new"
+  | "like_new"
+  | "good"
+  | "fair"
+  | "poor"
+  | null {
+  switch (value) {
+    case ConditionType.NEW:
+      return "new";
+    case ConditionType.LIKE_NEW:
+      return "like_new";
+    case ConditionType.GOOD:
+      return "good";
+    case ConditionType.FAIR:
+      return "fair";
+    case ConditionType.POOR:
+      return "poor";
+    default:
+      return null;
+  }
+}
 
 export async function GET() {
   try {
-    console.log("Connecting to DB...");
-    const connection = await getConnection();
-    console.log("Connected!");
+    const rows = await prisma.listings.findMany({
+      where: { listed: true },
+      orderBy: { created_at: "desc" },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        category_id: true,
+        price: true,
+        image_url: true,
+        image_urls: true,
+        brand: true,
+        size: true,
+        condition_type: true,
+        tags: true,
+        created_at: true,
+      },
+    });
 
-    // Query products table for public marketplace
-    const [rows] = await connection.execute(
-      `SELECT id, name AS title, description, category_id AS categoryId, 
-              price, image_url AS imageUrl, image_urls AS imageUrls,
-              brand, size, condition_type AS conditionType, tags,
-              created_at AS createdAt
-       FROM products 
-       WHERE listed = 1 
-       ORDER BY created_at DESC`
-    );
-
-    await connection.end();
-
-    // Convert and normalize data
-    const items = (rows as any[]).map(row => ({
-      ...row,
-      price: Number(row.price),
-      imageUrls: row.imageUrls ? JSON.parse(row.imageUrls) : null,
-      tags: row.tags ? JSON.parse(row.tags) : null,
+    const items = rows.map((row) => ({
+      id: row.id,
+      title: row.name,
+      description: row.description,
+      categoryId: row.category_id ?? null,
+      price: toNumber(row.price) ?? 0,
+      imageUrl: row.image_url ?? null,
+      imageUrls: (row.image_urls as unknown) ?? null,
+      brand: row.brand ?? null,
+      size: row.size ?? null,
+      conditionType: mapConditionOut(row.condition_type),
+      tags: (row.tags as unknown) ?? null,
+      createdAt: row.created_at.toISOString(),
     }));
-
-    console.log("Items returned:", items);
 
     return NextResponse.json({ items });
   } catch (err: any) {

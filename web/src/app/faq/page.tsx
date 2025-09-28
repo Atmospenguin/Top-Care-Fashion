@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthContext";
 
 type QA = { q: string; a?: string; user?: string; ts: number };
-const KEY = "topcare_faq";
 
 export default function FAQPage() {
   const { isAuthenticated, user } = useAuth();

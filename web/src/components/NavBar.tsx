@@ -2,30 +2,13 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 
 export default function NavBar() {
   const { user, isAuthenticated, signOut } = useAuth();
-  const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    // hydrate session from server
-    (async () => {
-      setLoading(true);
-      try {
-        const r = await fetch("/api/auth/me", { cache: "no-store" });
-        const j = await r.json();
-        if (j.user && !user) {
-          // Simple hydration without exposing setter: sign-in again isn't ideal; for simplicity we ignore if user already set
-        }
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
 
   return (
     <nav className="w-full bg-[var(--brand-color)] text-white relative z-50">
@@ -35,6 +18,10 @@ export default function NavBar() {
         </Link>
 
         <div className="flex items-center gap-5 text-sm">
+          <Link href="/#features" className="hover:opacity-90">Features</Link>
+          <Link href="/#community" className="hover:opacity-90">Community</Link>
+          <Link href="/#pricing" className="hover:opacity-90">Pricing</Link>
+          <Link href="/#download" className="hover:opacity-90">Download</Link>
           <Link href="/faq" className="hover:opacity-90">FAQ</Link>
           {!isAuthenticated ? (
             <div className="flex items-center gap-3">

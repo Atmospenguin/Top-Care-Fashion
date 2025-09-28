@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import {
-  SafeAreaView,
   View,
   Text,
   Image,
@@ -8,6 +7,7 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 import Icon from "../../../components/Icon";
@@ -33,7 +33,7 @@ export default function MyTopScreen() {
   ];
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content}>
         {/* 顶部：用户名 + 设置 */}
         <View style={styles.header}>

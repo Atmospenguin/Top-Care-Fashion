@@ -8,6 +8,8 @@ export type UserAccount = {
   role: "User" | "Admin";
   is_premium: boolean;
   premium_until?: string;
+  dob?: string | null;
+  gender?: "Male" | "Female" | null;
   average_rating?: number; // Average rating as a user (1.00-5.00)
   total_reviews: number; // Total number of reviews received
   createdAt: string; // ISO
@@ -38,6 +40,9 @@ export type Listing = {
   tags?: string[];
   createdAt: string;
   soldAt?: string; // When the listing was sold
+  // Transaction info (if exists)
+  txStatus?: "pending" | "paid" | "shipped" | "completed" | "cancelled";
+  txId?: string;
 };
 
 export type Transaction = {
@@ -92,7 +97,7 @@ export type Feedback = {
   userEmail?: string;
   userName?: string; // Display name
   message: string;
-  rating?: number; // 1-5 rating (required for testimonials)
+  rating?: number; // 1-5 rating
   tags?: string[]; // Tags for categorization
   featured: boolean; // Featured on homepage
   createdAt: string;

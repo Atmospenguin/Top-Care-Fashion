@@ -10,12 +10,13 @@ interface Testimonial {
   user: string;
   text: string;
   rating: number;
-  tags: Array<"mixmatch" | "ailisting" | "premium">;
+  // Extend allowed tags to match filter options and usage
+  tags: Array<"mixmatch" | "ailisting" | "premium" | "buyer" | "seller">;
   ts: number;
 }
 
 interface SiteStats {
-  downloads: number;
+  users: number;
   listings: number;
   sold: number;
   rating: number;
@@ -42,7 +43,7 @@ interface LandingContent {
 export default function Home() {
   const { isAuthenticated } = useAuth();
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
-  const [stats, setStats] = useState<SiteStats>({ downloads: 12000, listings: 38000, sold: 9400, rating: 4.8 });
+  const [stats, setStats] = useState<SiteStats>({ users: 12000, listings: 38000, sold: 9400, rating: 4.8 });
   const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
   const [landingContent, setLandingContent] = useState<LandingContent>({
     heroTitle: 'Discover outfits powered by AI',
@@ -55,6 +56,8 @@ export default function Home() {
     { key: "mixmatch", label: "Mix & Match" },
     { key: "ailisting", label: "AI Listing" },
     { key: "premium", label: "Premium Member" },
+    { key: "buyer", label: "From Buyer" },
+    { key: "seller", label: "From Seller" },
   ] as const;
 
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
@@ -66,7 +69,7 @@ export default function Home() {
         
         // Fetch all data in parallel
         const [testimonialsRes, statsRes, plansRes, contentRes] = await Promise.all([
-          fetch('/api/testimonials'),
+          fetch('/api/feedback'),
           fetch('/api/site-stats'),
           fetch('/api/pricing-plans'),
           fetch('/api/landing-content')
@@ -105,12 +108,14 @@ export default function Home() {
   const now = Date.now();
 
   const visible = testimonials.filter((t) =>
-    filter === "all" ? now - t.ts <= threeWeeks : t.tags.includes(filter as any)
+    filter === "all"
+      ? now - t.ts <= threeWeeks
+      : t.tags.includes(filter as Testimonial["tags"][number])
   );
   return (
     <div className="flex flex-col gap-24">
       {/* Hero with carousel */}
-      <section className="grid grid-cols-1 md:grid-cols-2 items-center gap-12">
+      <section id="hero" className="grid grid-cols-1 md:grid-cols-2 items-center gap-12">
         <div>
           <h1 className="text-5xl font-semibold leading-tight tracking-tight">
             {landingContent.heroTitle}
@@ -133,10 +138,12 @@ export default function Home() {
       </section>
 
       {/* AI Features with screenshots + carousels */}
-      <AIFeatures />
+      <div id="features">
+        <AIFeatures />
+      </div>
 
       {/* Social proof + Stats merged */}
-      <section>
+      <section id="community">
         <h2 className="text-3xl font-semibold tracking-tight">Loved by Trendsetters</h2>
         <div className="mt-4 flex flex-wrap gap-2">
           {FILTERS.map((f) => (
@@ -150,23 +157,26 @@ export default function Home() {
           ))}
         </div>
         <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
-          {visible.map((t) => (
-            <div key={t.id} className="rounded-xl border border-black/10 p-6 shadow-sm bg-white">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-black/10" />
-                <span className="text-sm font-medium">{t.user}</span>
+          {visible.map((t) => {
+            const tags = (t.tags ?? []) as Testimonial["tags"];
+            const from = tags.includes('buyer') ? 'from buyer' : (tags.includes('seller') ? 'from seller' : undefined);
+            return (
+             <div key={t.id} className="rounded-xl border border-black/10 p-6 shadow-sm bg-white">
+               <div className="flex items-center gap-2">
+                 <div className="h-8 w-8 rounded-full bg-black/10" />
+                 <span className="text-sm font-medium">{t.user}</span>
+               </div>
+              <p className="mt-3 text-sm text-black/70">“{t.text}” {from && (<span className="text-black/50">— {from}</span>)}</p>
+                <div className="mt-3 text-[var(--brand-color)]">{"★★★★★".slice(0, t.rating)}</div>
               </div>
-              <p className="mt-3 text-sm text-black/70">“{t.text}”</p>
-              <div className="mt-3 text-[var(--brand-color)]">{"★★★★★".slice(0, t.rating)}</div>
-            </div>
-          ))}
+          );})}
         </div>
 
         {/* Inline Stats */}
         <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="rounded-xl border border-black/10 p-6 text-center bg-white">
-            <div className="text-3xl font-semibold">{stats.downloads >= 1000 ? `${Math.floor(stats.downloads/1000)}k+` : stats.downloads}</div>
-            <div className="text-xs text-black/60">Downloads</div>
+            <div className="text-3xl font-semibold">{stats.users >= 1000 ? `${Math.floor(stats.users/1000)}k+` : stats.users}</div>
+            <div className="text-xs text-black/60">Users</div>
           </div>
           <div className="rounded-xl border border-black/10 p-6 text-center bg-white">
             <div className="text-3xl font-semibold">{stats.listings >= 1000 ? `${Math.floor(stats.listings/1000)}k+` : stats.listings}</div>
@@ -185,7 +195,7 @@ export default function Home() {
 
 
       {/* Pricing */}
-      <section>
+      <section id="pricing">
         <h2 className="text-3xl font-semibold tracking-tight">Plans & Pricing</h2>
         {loading ? (
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -262,7 +272,7 @@ export default function Home() {
       </section>
 
       {/* CTA */}
-      <section className="text-center">
+      <section id="download" className="text-center">
         <h2 className="text-2xl font-semibold">Ready to try?</h2>
         <p className="mt-2 text-black/70">Create your account and list your first item in minutes.</p>
         <div className="mt-6">

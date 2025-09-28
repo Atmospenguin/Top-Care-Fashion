@@ -12,7 +12,7 @@ export default function ListingDetailPage() {
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [editing] = useState(false);
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -100,9 +100,19 @@ export default function ListingDetailPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Listing Details</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Listing ID: {listingId}
-          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-sm text-gray-600">Listing ID: {listingId}</p>
+            {listing.txStatus && (
+              <span className={`px-2 py-0.5 text-xs rounded-full ${getTxColor(listing.txStatus)}`}>
+                {listing.txStatus}
+              </span>
+            )}
+            <span className={`px-2 py-0.5 text-xs rounded-full ${
+              listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+            }`}>
+              {listing.listed ? 'Listed' : 'Unlisted'}
+            </span>
+          </div>
         </div>
         <Link
           href="/admin/listings"
@@ -330,80 +340,6 @@ export default function ListingDetailPage() {
       <div className="bg-white border rounded-lg p-6">
         <h3 className="text-lg font-semibold mb-4">Listing Management</h3>
         <div className="flex flex-wrap gap-3">
-          {!editing ? (
-            <button
-              onClick={() => setEditing(true)}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              Edit
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={async () => {
-                  try {
-                    const payload: any = {
-                      name: form.name,
-                      description: form.description,
-                      price: form.price,
-                      brand: form.brand,
-                      size: form.size,
-                      conditionType: form.conditionType,
-                      imageUrl: form.imageUrl,
-                      listed: form.listed,
-                      tags: form.tags || [],
-                    };
-                    const res = await fetch(`/api/admin/listings/${listing.id}`, {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(payload),
-                    });
-                    if (res.ok) {
-                      const updated = await res.json();
-                      setListing(updated);
-                      setEditing(false);
-                      setForm({
-                        name: updated.name || "",
-                        description: updated.description || "",
-                        price: Number(updated.price) || 0,
-                        brand: updated.brand || "",
-                        size: updated.size || "",
-                        conditionType: updated.conditionType || 'good',
-                        imageUrl: updated.imageUrl || "",
-                        listed: !!updated.listed,
-                        tags: Array.isArray(updated.tags) ? updated.tags : [],
-                      });
-                    }
-                  } catch (err) {
-                    console.error('Save failed', err);
-                  }
-                }}
-                className="px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700"
-              >
-                Save Changes
-              </button>
-              <button
-                onClick={() => {
-                  setEditing(false);
-                  // Reset form back to current listing values
-                  setForm({
-                    name: listing.name || "",
-                    description: listing.description || "",
-                    price: Number(listing.price) || 0,
-                    brand: listing.brand || "",
-                    size: listing.size || "",
-                    conditionType: listing.conditionType || 'good',
-                    imageUrl: listing.imageUrl || "",
-                    listed: !!listing.listed,
-                    tags: Array.isArray(listing.tags) ? listing.tags : [],
-                  });
-                }}
-                className="px-4 py-2 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700"
-              >
-                Cancel
-              </button>
-            </>
-          )}
           <button
             onClick={async () => {
               try {
@@ -430,10 +366,18 @@ export default function ListingDetailPage() {
               try {
                 const res = await fetch(`/api/admin/listings/${listing.id}`, { method: 'DELETE' });
                 if (res.ok) {
+                  const data = await res.json().catch(() => ({ ok: true }));
+                  if (data.softDeleted) {
+                    alert('Listing has related transactions. It was unlisted instead.');
+                  }
                   router.push('/admin/listings');
+                } else {
+                  const err = await res.json().catch(() => ({}));
+                  alert(err.error || 'Failed to delete listing');
                 }
               } catch (err) {
                 console.error('Delete failed', err);
+                alert('Error deleting listing');
               }
             }}
             className="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
@@ -467,4 +411,21 @@ export default function ListingDetailPage() {
       </div>
     </div>
   );
+}
+
+function getTxColor(status?: string) {
+  switch (status) {
+    case 'completed':
+      return 'bg-green-100 text-green-800';
+    case 'pending':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'paid':
+      return 'bg-blue-100 text-blue-800';
+    case 'shipped':
+      return 'bg-purple-100 text-purple-800';
+    case 'cancelled':
+      return 'bg-red-100 text-red-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
 }
