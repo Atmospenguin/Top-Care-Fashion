@@ -3,14 +3,12 @@ import {
   SafeAreaView,
   View,
   Text,
-  Image,
   TouchableOpacity,
   FlatList,
   StyleSheet,
 } from "react-native";
 
-const filterIcon = require("../../../assets/icon-filter.png");
-const bellIcon = require("../../../assets/icon-settings.png"); // 临时用 settings 图标代替通知
+import Icon from "../../../components/Icon";
 
 // 模拟一条消息
 const mockMessages = [
@@ -30,11 +28,11 @@ export default function InboxScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Inbox</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity>
-            <Image source={filterIcon} style={styles.icon} />
+          <TouchableOpacity accessibilityRole="button">
+            <Icon name="filter-outline" size={24} color="#111" />
           </TouchableOpacity>
-          <TouchableOpacity>
-            <Image source={bellIcon} style={styles.icon} />
+          <TouchableOpacity accessibilityRole="button">
+            <Icon name="notifications-outline" size={24} color="#111" />
           </TouchableOpacity>
         </View>
       </View>
@@ -74,7 +72,6 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 22, fontWeight: "700" },
   headerActions: { flexDirection: "row", columnGap: 16 },
-  icon: { width: 22, height: 22 },
 
   // Messages
   messageRow: {
