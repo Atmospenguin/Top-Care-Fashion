@@ -9,10 +9,8 @@ import {
   ScrollView,
 } from "react-native";
 
-
-const settingsIcon = require("../../../assets/icon-settings.png");
-const filterIcon   = require("../../../assets/icon-filter.png");
-const defaultAvatar = require("../../../assets/default-avatar.png");
+import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
+import Icon from "../../../components/Icon";
 
 export default function MyTopScreen() {
   const [activeTab, setActiveTab] =
@@ -24,7 +22,7 @@ export default function MyTopScreen() {
   following: 0,
   reviews: 0,
   bio: "My name is Pink, and I'm really glad to meet you",
-  avatar: defaultAvatar, // ✅
+  avatar: DEFAULT_AVATAR,
   activeListings: [],
 };
   const tabs: Array<"Shop" | "Sold" | "Purchases" | "Likes"> = [
@@ -41,7 +39,7 @@ export default function MyTopScreen() {
         <View style={styles.header}>
           <Text style={styles.username}>{mockUser.username}</Text>
           <TouchableOpacity onPress={() => { /* TODO: go to settings */ }}>
-            <Image source={settingsIcon} style={styles.headerIcon} />
+            <Icon name="settings-sharp" size={24} color="#111" />
           </TouchableOpacity>
         </View>
 
@@ -81,7 +79,7 @@ export default function MyTopScreen() {
         <View style={styles.activeRow}>
           <Text style={styles.activeTitle}>Active (0 listings)</Text>
           <TouchableOpacity onPress={() => { /* TODO: open filters */ }}>
-            <Image source={filterIcon} style={styles.headerIcon} />
+            <Icon name="filter" size={24} color="#111" />
           </TouchableOpacity>
         </View>
 
@@ -118,7 +116,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   username: { fontSize: 18, fontWeight: "700" },
-  headerIcon: { width: 24, height: 24, resizeMode: "contain" },
   // Tabs
   tabs: {
     marginTop: 8,
@@ -155,7 +152,7 @@ const styles = StyleSheet.create({
   bioRow: {
     marginTop: 4,
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start", // 改为顶对齐，使按钮与 bio 首行对齐
     justifyContent: "space-between",
     columnGap: 12,
   },
@@ -166,6 +163,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#333",
+    alignSelf: "flex-start", // 确保按钮自身也靠上对齐
   },
   editBtnText: { fontWeight: "600" },
 

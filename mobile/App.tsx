@@ -50,6 +50,7 @@ import MyTopIcon from "./assets/icon_my_top.svg";
 
 function MainTabs() {
   return (
+<<<<<<< HEAD
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
@@ -95,6 +96,10 @@ function MainTabs() {
       <Tab.Screen name="Sell" component={SellScreen} />
       <Tab.Screen name="Inbox" component={InboxScreen} />
       <Tab.Screen name="MyTop" component={MyTopScreen} />
+=======
+    <Tab.Navigator screenOptions={{ headerShown: false }}>
+      <Tab.Screen name="My TOP" component={MyTopScreen} />
+>>>>>>> 2bb81607bf1aed80eafdc9da76e335db4a36ce47
     </Tab.Navigator>
   );
 }

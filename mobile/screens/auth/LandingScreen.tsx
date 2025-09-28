@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { LOGO_FULL_COLOR } from "../../constants/assetUrls";
 
 type RootStackParamList = {
   Splash: undefined;
@@ -14,7 +15,9 @@ export default function LandingScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       {/* Logo */}
-      <Text style={styles.logo}>TOP</Text>
+      <View style={styles.logoWrapper}>
+        <LOGO_FULL_COLOR width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
+      </View>
 
       {/* 标语 */}
       <Text style={styles.tagline}>
@@ -43,10 +46,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 24,
   },
-  logo: {
-    fontSize: 72,
-    fontWeight: "900",
-    color: "#F54B3D", // 品牌红
+  logoWrapper: {
+    width: 160,
+    height: 120,
     marginBottom: 24,
   },
   tagline: {
