@@ -29,3 +29,8 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Smooth scroll for in-page anchor navigation */
+html {
+  scroll-behavior: smooth;
+}

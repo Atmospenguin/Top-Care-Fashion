@@ -257,7 +257,22 @@ export default function ReportsPage() {
                       </span>
                     </div>
                     <p className="text-gray-600 mb-2">
-                      <strong>Target ID:</strong> {report.targetId}
+                      <strong>Target:</strong>
+                      {report.targetType === 'listing' ? (
+                        <Link
+                          href={`/admin/listings/${report.targetId}`}
+                          className="text-blue-600 hover:text-blue-800 ml-1"
+                        >
+                          Listing #{report.targetId}
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/admin/users/${report.targetId}`}
+                          className="text-blue-600 hover:text-blue-800 ml-1"
+                        >
+                          User #{report.targetId}
+                        </Link>
+                      )}
                     </p>
                     <p className="text-gray-900 mb-2">
                       <strong>Reason:</strong> {report.reason}

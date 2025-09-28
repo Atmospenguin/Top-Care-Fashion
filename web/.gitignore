@@ -30,12 +30,24 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
-
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.firebase/
+firebase-debug.log
+
+/src/generated/prisma
+
+# sensitive info keyword matching
+.env
+.env.local
+**/vercel_supabase_credentials*
+
+# temporary files
+*/*.temp/
+*/.temp/
+.temp/

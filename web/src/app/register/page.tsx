@@ -2,6 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/components/AuthContext";
+import type { Gender } from "@/components/AuthContext";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -10,14 +11,14 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [dob, setDob] = useState("");
-  const [gender, setGender] = useState("Prefer not to say");
+  const [gender, setGender] = useState<Gender | "">("");
   const [status, setStatus] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setStatus("Submitting...");
     try {
-      await signUp({ username, email, password, dob, gender: gender as any });
+      await signUp({ username, email, password, dob, gender: gender || undefined });
       setStatus("Success! Redirecting...");
       router.push("/");
     } catch (err: unknown) {
@@ -75,12 +76,11 @@ export default function RegisterPage() {
           <select
             className="mt-1 w-full border border-black/10 rounded-md px-3 py-2 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-color)]/30 focus:border-[var(--brand-color)]"
             value={gender}
-            onChange={(e) => setGender(e.target.value)}
+            onChange={(e) => setGender(e.target.value as Gender | "")}
           >
-            <option>Male</option>
-            <option>Female</option>
-            <option>Other</option>
-            <option>Prefer not to say</option>
+            <option value="">Select gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
           </select>
         </label>
         <button
@@ -94,6 +94,3 @@ export default function RegisterPage() {
     </section>
   );
 }
-
-
-

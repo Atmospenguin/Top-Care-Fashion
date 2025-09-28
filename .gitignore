@@ -14,3 +14,4 @@ yarn-error.log*
 
 # Ignore OS files
 .DS_Store
+docs/vercel_supabase_credentials

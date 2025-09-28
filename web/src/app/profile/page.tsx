@@ -22,8 +22,13 @@ export default function ProfilePage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setStatus("Saving...");
-    await updateProfile({ username, email, dob, gender: gender || undefined });
-    setStatus("已保存");
+    try {
+      await updateProfile({ username, email, dob, gender: gender || undefined });
+      setStatus("已保存");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Save failed";
+      setStatus(message);
+    }
   }
 
   if (!isAuthenticated) return <p>Please sign in first.</p>;
@@ -42,12 +47,10 @@ export default function ProfilePage() {
           <input type="date" className="mt-1 w-full border border-black/10 rounded-md px-3 py-2" value={dob} onChange={(e)=>setDob(e.target.value)} />
         </label>
         <label className="text-sm">Gender
-          <select className="mt-1 w-full border border-black/10 rounded-md px-3 py-2" value={gender || ""} onChange={(e)=>setGender(e.target.value as Gender)}>
+          <select className="mt-1 w-full border border-black/10 rounded-md px-3 py-2" value={gender || ""} onChange={(e)=>setGender(e.target.value ? (e.target.value as Gender) : "")}>
             <option value="">Not set</option>
-            <option>Male</option>
-            <option>Female</option>
-            <option>Other</option>
-            <option>Prefer not to say</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
           </select>
         </label>
         <button type="submit" className="inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-4 py-2 text-sm hover:opacity-90">Save</button>

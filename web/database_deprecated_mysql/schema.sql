@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(64) NOT NULL UNIQUE,
   email VARCHAR(191) NOT NULL UNIQUE,
   password_hash VARCHAR(191) NULL,
+  dob DATE NULL,
+  gender ENUM('Male','Female') NULL,
   role ENUM('User','Admin') NOT NULL DEFAULT 'User',
   status ENUM('active','suspended') NOT NULL DEFAULT 'active',
   is_premium TINYINT(1) NOT NULL DEFAULT 0,
@@ -61,7 +63,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_tx_buyer FOREIGN KEY (buyer_id) REFERENCES users(id) ON DELETE RESTRICT,
   CONSTRAINT fk_tx_seller FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_tx_listing FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE RESTRICT
+  CONSTRAINT fk_tx_listing FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE RESTRICT,
+  UNIQUE KEY unique_listing_transaction (listing_id)
 );
 
 -- Reviews are now tied to transactions, not listings
@@ -78,7 +81,8 @@ CREATE TABLE IF NOT EXISTS reviews (
   CONSTRAINT fk_reviews_transaction FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
   CONSTRAINT fk_reviews_reviewer FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_reviews_reviewee FOREIGN KEY (reviewee_id) REFERENCES users(id) ON DELETE CASCADE,
-  UNIQUE KEY unique_transaction_reviewer (transaction_id, reviewer_id)
+  UNIQUE KEY unique_transaction_reviewer (transaction_id, reviewer_id),
+  UNIQUE KEY unique_transaction_reviewer_type (transaction_id, reviewer_type)
 );
 
 -- Unified feedback system (includes both user feedback and testimonials)
@@ -136,6 +140,9 @@ CREATE TABLE IF NOT EXISTS pricing_plans (
   promotion_price DECIMAL(6,2) NOT NULL,
   promotion_discount DECIMAL(5,2) NULL COMMENT 'Discount percentage for premium users',
   commission_rate DECIMAL(5,2) NOT NULL,
+  mixmatch_limit INT NULL,
+  free_promotion_credits INT NULL,
+  seller_badge VARCHAR(100) NULL,
   features JSON NULL COMMENT 'Array of plan features',
   is_popular TINYINT(1) NOT NULL DEFAULT 0,
   active TINYINT(1) NOT NULL DEFAULT 1,
@@ -155,4 +162,102 @@ CREATE TABLE IF NOT EXISTS reports (
   resolved_at TIMESTAMP NULL
 );
 
+-- Triggers: keep in sync with init-db.js to maintain automatic updates for listings and user ratings
+-- Update user rating aggregates when reviews change
+DELIMITER $$
+
+CREATE TRIGGER update_user_rating_after_review_insert
+AFTER INSERT ON reviews
+FOR EACH ROW
+BEGIN
+  UPDATE users
+  SET total_reviews = (
+    SELECT COUNT(*) FROM reviews WHERE reviewee_id = NEW.reviewee_id
+  ),
+  average_rating = (
+    SELECT AVG(rating) FROM reviews WHERE reviewee_id = NEW.reviewee_id
+  )
+  WHERE id = NEW.reviewee_id;
+END$$
+
+CREATE TRIGGER update_user_rating_after_review_update
+AFTER UPDATE ON reviews
+FOR EACH ROW
+BEGIN
+  -- Update old reviewee if changed
+  IF OLD.reviewee_id != NEW.reviewee_id THEN
+    UPDATE users
+    SET total_reviews = (
+      SELECT COUNT(*) FROM reviews WHERE reviewee_id = OLD.reviewee_id
+    ),
+    average_rating = (
+      SELECT AVG(rating) FROM reviews WHERE reviewee_id = OLD.reviewee_id
+    )
+    WHERE id = OLD.reviewee_id;
+  END IF;
+  
+  -- Update new reviewee
+  UPDATE users
+  SET total_reviews = (
+    SELECT COUNT(*) FROM reviews WHERE reviewee_id = NEW.reviewee_id
+  ),
+  average_rating = (
+    SELECT AVG(rating) FROM reviews WHERE reviewee_id = NEW.reviewee_id
+  )
+  WHERE id = NEW.reviewee_id;
+END$$
+
+CREATE TRIGGER update_user_rating_after_review_delete
+AFTER DELETE ON reviews
+FOR EACH ROW
+BEGIN
+  UPDATE users
+  SET total_reviews = (
+    SELECT COUNT(*) FROM reviews WHERE reviewee_id = OLD.reviewee_id
+  ),
+  average_rating = (
+    SELECT AVG(rating) FROM reviews WHERE reviewee_id = OLD.reviewee_id
+  )
+  WHERE id = OLD.reviewee_id;
+END$$
+
+-- Unlist listing automatically once a transaction is created for it
+CREATE TRIGGER unlist_listing_after_transaction_insert
+AFTER INSERT ON transactions
+FOR EACH ROW
+BEGIN
+  UPDATE listings SET listed = 0 WHERE id = NEW.listing_id;
+END$$
+
+-- Mark listing sold when a transaction is completed
+CREATE TRIGGER mark_listing_sold_after_transaction_update
+AFTER UPDATE ON transactions
+FOR EACH ROW
+BEGIN
+  IF NEW.status = 'completed' AND OLD.status <> 'completed' THEN
+    UPDATE listings SET sold = 1, sold_at = NOW() WHERE id = NEW.listing_id;
+  END IF;
+END$$
+
+-- Ensure only buyer or seller can review, and reviewee is the opposite party
+CREATE TRIGGER validate_review_participants_before_insert
+BEFORE INSERT ON reviews
+FOR EACH ROW
+BEGIN
+  DECLARE b INT; DECLARE s INT;
+  SELECT buyer_id, seller_id INTO b, s FROM transactions WHERE id = NEW.transaction_id;
+  IF b IS NULL OR s IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid transaction for review';
+  END IF;
+  IF NOT (NEW.reviewer_id = b OR NEW.reviewer_id = s) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Reviewer must be buyer or seller of the transaction';
+  END IF;
+  IF NOT (NEW.reviewee_id = b OR NEW.reviewee_id = s) OR NEW.reviewee_id = NEW.reviewer_id THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Reviewee must be the counterparty';
+  END IF;
+END$$
+
+DELIMITER ;
+
 -- End of combined schema
+
