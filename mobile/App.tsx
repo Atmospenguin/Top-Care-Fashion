@@ -96,7 +96,7 @@ function MainTabs() {
                   color={color}
                 />
               );
-            case "MyTop":
+            case "My TOP":
               return (
                 <Icon
                   name={focused ? "person" : "person-outline"}
