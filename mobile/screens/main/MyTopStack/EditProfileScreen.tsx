@@ -11,8 +11,9 @@ import {
   type ImageSourcePropType,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Header from "../../../components/Header";
 
-// ✅ 1) 引入默认头像（你们 constants 里导出的那个）
+// ✅ 1) 引入默认头像）
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 
 // ✅ 2) 引入封装好的图标组件（Ionicons）
@@ -22,21 +23,19 @@ export default function EditProfileScreen() {
   const [avatar, setAvatar] = useState<ImageSourcePropType>(DEFAULT_AVATAR);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Edit Profile</Text>
+    <View style={{ flex: 1, backgroundColor: "#fff" }}>
+      {/* ✅ Header 已经有 SafeArea */}
+      <Header title="Edit Profile" showBack />
 
+      <ScrollView contentContainerStyle={styles.container}>
         {/* 头像 */}
         <View style={styles.avatarWrapper}>
           <Image source={avatar} style={styles.avatar} />
           <TouchableOpacity
             style={styles.cameraBtn}
-            onPress={() => {
-              console.log("Change avatar clicked");
-            }}
+            onPress={() => console.log("Change avatar clicked")}
           >
-            {/* ✅ 3) 这里用 Icon（注意没有奇怪的隐藏字符） */}
-            <Icon name="camera-outline" size={22} color="#fff" />
+            <Icon name="camera-outline" size={22} color="#FF4D4F" />
           </TouchableOpacity>
         </View>
 
@@ -66,9 +65,10 @@ export default function EditProfileScreen() {
           <Text style={styles.saveText}>Save</Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
+
 
 const AVATAR_SIZE = 120;
 
@@ -81,11 +81,10 @@ const styles = StyleSheet.create({
   cameraBtn: {
     position: "absolute",
     bottom: 0,
-    right: (AVATAR_SIZE - 36) / 2, // 让按钮靠右下
-    backgroundColor: "#FF4D4F",
+    right: (AVATAR_SIZE - 10) / 2, // 让按钮靠右下
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
   },
