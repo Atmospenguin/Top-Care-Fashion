@@ -11,9 +11,10 @@ import {
 import { Picker } from "@react-native-picker/picker";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { MyTopStackParamList } from "./index"; // 确保路径正确
+import type { MyTopStackParamList } from "./index";
 
-const purchasesItems = [
+// mock 数据，带 status
+const purchases = [
   {
     id: "1",
     uri: "https://cdn.shopify.com/s/files/1/0281/2071/1254/products/191219hm74370_1800x1800.jpg?v=1607871412",
@@ -22,40 +23,40 @@ const purchasesItems = [
   {
     id: "2",
     uri: "https://tse4.mm.bing.net/th/id/OIP.TC_mOkLd6sQzsLiE_uSloQHaJ3?w=600&h=799&rs=1&pid=ImgDetMain&o=7&rm=3",
-    status: "Completed",
+    status: "Delivered",
   },
   {
     id: "3",
-    uri: "https://assets.atmos-tokyo.com/items/L/pnef21ke11-ppl-1.jpg",
+    uri: "https://assets.atmos-tokyo.com/items/L/pnef21ke11-ppl-1.jpg", // ✅ Nerdy Hoodie
     status: "Cancelled",
   },
 ];
 
-export default function PurchasesTab() {
-  const [filter, setFilter] = useState("All");
-  const [modalVisible, setModalVisible] = useState(false);
+function formatData(data: any[], numColumns: number) {
+  const numberOfFullRows = Math.floor(data.length / numColumns);
+  let numberOfElementsLastRow = data.length - numberOfFullRows * numColumns;
+  const newData = [...data];
+  while (
+    numberOfElementsLastRow !== numColumns &&
+    numberOfElementsLastRow !== 0
+  ) {
+    newData.push({ id: `blank-${numberOfElementsLastRow}`, empty: true });
+    numberOfElementsLastRow++;
+  }
+  return newData;
+}
 
+export default function PurchasesTab() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
 
-  // 根据 filter 筛选
-  const filtered = purchasesItems.filter((p) =>
+  const [filter, setFilter] = useState("All");
+  const [modalVisible, setModalVisible] = useState(false);
+
+  // 筛选
+  const filtered = purchases.filter((p) =>
     filter === "All" ? true : p.status === filter
   );
-
-  // 保证三列对齐
-  function formatData(data: any[], numColumns: number) {
-    const numberOfFullRows = Math.floor(data.length / numColumns);
-    let numberOfElementsLastRow = data.length - numberOfFullRows * numColumns;
-    while (
-      numberOfElementsLastRow !== numColumns &&
-      numberOfElementsLastRow !== 0
-    ) {
-      data.push({ id: `blank-${numberOfElementsLastRow}`, empty: true });
-      numberOfElementsLastRow++;
-    }
-    return data;
-  }
 
   return (
     <View style={{ flex: 1 }}>
@@ -69,7 +70,7 @@ export default function PurchasesTab() {
         </TouchableOpacity>
       </View>
 
-      {/* Modal 下拉框 */}
+      {/* Modal 下拉选择 */}
       <Modal
         visible={modalVisible}
         transparent
@@ -87,7 +88,7 @@ export default function PurchasesTab() {
             >
               <Picker.Item label="All" value="All" />
               <Picker.Item label="In Progress" value="InProgress" />
-              <Picker.Item label="Completed" value="Completed" />
+              <Picker.Item label="Delivered" value="Delivered" />
               <Picker.Item label="Cancelled" value="Cancelled" />
             </Picker>
           </View>
@@ -96,7 +97,7 @@ export default function PurchasesTab() {
 
       {/* 商品网格 */}
       <FlatList
-        data={formatData([...filtered], 3)}
+        data={formatData(filtered, 3)}
         keyExtractor={(item) => item.id}
         numColumns={3}
         renderItem={({ item }) =>
@@ -107,7 +108,10 @@ export default function PurchasesTab() {
               style={styles.item}
               onPress={() => {
                 if (!item.id) return;
-                navigation.navigate("OrderDetail", { id: item.id, source: "purchase" });
+                navigation.navigate("OrderDetail", {
+                  id: item.id,
+                  source: "purchase",
+                });
               }}
             >
               <Image source={{ uri: item.uri }} style={styles.image} />

@@ -13,5 +13,14 @@ config.resolver = {
   sourceExts: [...sourceExts, 'svg'],
 };
 
+config.resolver.blacklistRE = /.*\/PickerWindows\.js/;
+
 module.exports = config;
+
+
+
+
+
+
+
 
