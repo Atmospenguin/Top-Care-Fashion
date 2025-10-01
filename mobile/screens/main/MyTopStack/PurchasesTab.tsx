@@ -107,7 +107,7 @@ export default function PurchasesTab() {
               style={styles.item}
               onPress={() => {
                 if (!item.id) return;
-                navigation.navigate("OrderDetail", { id: item.id });
+                navigation.navigate("OrderDetail", { id: item.id, source: "purchase" });
               }}
             >
               <Image source={{ uri: item.uri }} style={styles.image} />

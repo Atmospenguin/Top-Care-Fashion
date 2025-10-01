@@ -101,7 +101,10 @@ export default function SoldTab() {
           ) : (
             <TouchableOpacity
               style={styles.item}
-              onPress={() => navigation.navigate("OrderDetail", { id: item.id })}
+              onPress={() => {
+                if (!item.id) return;
+                navigation.navigate("OrderDetail", { id: item.id, source: "sold" });
+              }}
             >
               <Image source={{ uri: item.uri }} style={styles.image} />
               <View style={styles.overlay}>
