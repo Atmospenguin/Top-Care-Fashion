@@ -6,9 +6,9 @@ import {
   FlatList,
   StyleSheet,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-
+// Keep SafeAreaView inside Header; avoid double SafeArea padding here
 import Icon from "../../../components/Icon";
+import Header from "../../../components/Header";
 
 // 模拟一条消息
 const mockMessages = [
@@ -23,22 +23,25 @@ const mockMessages = [
 
 export default function InboxScreen() {
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Inbox</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity accessibilityRole="button">
-            <Icon name="filter-outline" size={24} color="#111" />
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button">
-            <Icon name="notifications-outline" size={24} color="#111" />
-          </TouchableOpacity>
-        </View>
-      </View>
+    <View style={{ flex: 1, backgroundColor: "#fff" }}>
+      {/* ✅ 统一用 Header 组件 */}
+      <Header
+        title="Inbox"
+        rightAction={
+          <View style={{ flexDirection: "row", columnGap: 16 }}>
+            <TouchableOpacity accessibilityRole="button">
+              <Icon name="filter-outline" size={24} color="#111" />
+            </TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button">
+              <Icon name="notifications-outline" size={24} color="#111" />
+            </TouchableOpacity>
+          </View>
+        }
+      />
 
       {/* Message List */}
       <FlatList
+        contentContainerStyle={{ padding: 16 }}
         data={mockMessages}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
@@ -56,30 +59,17 @@ export default function InboxScreen() {
           </View>
         )}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", padding: 16 },
-
-  // Header
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  title: { fontSize: 22, fontWeight: "700" },
-  headerActions: { flexDirection: "row", columnGap: 16 },
-
   // Messages
   messageRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: "#eee",
+    // removed borderBottom to avoid gray separator line between messages
   },
   avatar: {
     width: 48,

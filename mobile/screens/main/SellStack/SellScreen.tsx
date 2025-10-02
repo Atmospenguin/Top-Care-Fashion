@@ -108,7 +108,8 @@ export default function SellScreen({ navigation }: { navigation: SellScreenNavig
         title="Sell an item"
         rightAction={
           <TouchableOpacity onPress={() => navigation.navigate("Drafts")} style={{ paddingRight: 4 }}>
-            <Icon name="file-tray-outline" size={22} color="#111" /> {/* ✅ ion-icon */}
+            <Icon name="file-tray-outline" size={22} color="#111" />
+            {/* ion-icon */}
           </TouchableOpacity>
         }
       />
@@ -156,7 +157,7 @@ export default function SellScreen({ navigation }: { navigation: SellScreenNavig
             {/* 左边 Use，小按钮；右边 shuffle */}
             <View style={styles.aiActionRow}>
               <TouchableOpacity style={styles.useSmallBtn} onPress={() => setDescription(aiDesc)}>
-                <Text style={{ color: "#ffffffff", fontWeight: "600" }}>Use description</Text>
+                <Text style={{ color: "#fff", fontWeight: "600" }}>Use description</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={generateDescription}>
                 <Icon name="shuffle" size={20} color="#5B21B6" />

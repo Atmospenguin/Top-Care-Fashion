@@ -44,10 +44,11 @@ export default function MyTopScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
-      {/* 顶部 Header */}
+      {/* 自定义居中 Header（左占位，居中标题，右侧设置按钮） */}
       <View style={styles.header}>
+        <View style={{ width: 24 }} />
         <Text style={styles.username}>{mockUser.username}</Text>
-        <TouchableOpacity onPress={() => navigation.navigate("Settings")}>
+        <TouchableOpacity onPress={() => navigation.navigate("Settings")}> 
           <Icon name="settings-sharp" size={24} color="#111" />
         </TouchableOpacity>
       </View>
@@ -57,9 +58,7 @@ export default function MyTopScreen() {
         {tabs.map((tab) => (
           <View key={tab} style={{ alignItems: "center" }}>
             <TouchableOpacity onPress={() => setActiveTab(tab)}>
-              <Text
-                style={[styles.tab, activeTab === tab && styles.activeTab]}
-              >
+              <Text style={[styles.tab, activeTab === tab && styles.activeTab]}>
                 {tab}
               </Text>
             </TouchableOpacity>
@@ -133,11 +132,18 @@ const styles = StyleSheet.create({
   header: {
     marginTop: 4,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
+    height: 48,
   },
-  username: { fontSize: 18, fontWeight: "700" },
+  username: {
+    fontSize: 18,
+    fontWeight: "700",
+    flex: 1,
+    textAlign: "center",
+    marginRight: 24,
+  },
 
   // Tabs
   tabs: {
