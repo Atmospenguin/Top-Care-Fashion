@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 import { enableScreens } from 'react-native-screens';
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { Text } from "react-native";
 
 enableScreens();
@@ -43,6 +43,14 @@ const Tab = createBottomTabNavigator();
 
 
 function MainTabs() {
+  // screens (by nested route name) that should hide the bottom tab bar
+  const HIDDEN_TAB_SCREENS = [
+    // MyTop stack screens
+    "PremiumPlans",
+    "PromotionPlans",
+    "MyPremium",
+  ];
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -113,7 +121,23 @@ function MainTabs() {
       <Tab.Screen name="Discover" component={DiscoverScreen} />
       <Tab.Screen name="Sell" component={SellScreen} />
       <Tab.Screen name="Inbox" component={InboxScreen} />
-      <Tab.Screen name="My TOP" component={MyTopStackNavigator} />
+      <Tab.Screen
+        name="My TOP"
+        component={MyTopStackNavigator}
+        options={({ route }) => {
+          // when a nested screen from MyTopStack is active and its name is in
+          // HIDDEN_TAB_SCREENS, hide the tab bar
+          const routeName = getFocusedRouteNameFromRoute(route);
+
+          const shouldHide = routeName
+            ? HIDDEN_TAB_SCREENS.includes(routeName)
+            : false;
+
+          return {
+            tabBarStyle: shouldHide ? { display: "none" } : undefined,
+          };
+        }}
+      />
     </Tab.Navigator>
   );
 }
