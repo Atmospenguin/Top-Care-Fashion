@@ -1,9 +1,17 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+
 import Header from "../../../components/Header"; // ✅ 你刚刚重构的 Header
 import Icon from "../../../components/Icon";
+import type { IconProps } from "../../../components/Icon"; // Add this import if IconProps is exported
+import type { MyTopStackParamList } from "./index";
 
 export default function SettingScreen() {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header title="Settings" showBack />
@@ -12,7 +20,7 @@ export default function SettingScreen() {
         {/* Account Section */}
         <Text style={styles.sectionTitle}>Account</Text>
         <View style={styles.sectionBox}>
-          <SettingItem icon="person-outline" label="Edit profile" />
+          <SettingItem icon="person-outline" label="Edit profile" onPress={() => navigation.navigate("EditProfile")} />
           <SettingItem icon="shield-outline" label="Security" />
           <SettingItem icon="notifications-outline" label="Notifications" />
           <SettingItem icon="lock-closed-outline" label="Privacy" />
@@ -21,7 +29,11 @@ export default function SettingScreen() {
         {/* Support Section */}
         <Text style={styles.sectionTitle}>Support & About</Text>
         <View style={styles.sectionBox}>
-          <SettingItem icon="card-outline" label="My Premium" />
+          <SettingItem
+            icon="card-outline"
+            label="My Premium"
+            onPress={() => navigation.navigate("MyPremium")}
+          />
           <SettingItem icon="help-circle-outline" label="Help & Support" />
           <SettingItem icon="information-circle-outline" label="Terms and Policies" />
         </View>
@@ -37,18 +49,17 @@ export default function SettingScreen() {
   );
 }
 
-// ✅ 单个 Setting Item
-import type { IconProps } from "../../../components/Icon"; // Add this import if IconProps is exported
-
 const SettingItem = ({
   icon,
   label,
+  onPress,
 }: {
   icon: IconProps["name"];
   label: string;
+  onPress?: () => void;
 }) => {
   return (
-    <TouchableOpacity style={styles.item}>
+    <TouchableOpacity style={styles.item} onPress={onPress}>
       <Icon name={icon} size={22} color="#444" style={{ marginRight: 12 }} />
       <Text style={styles.itemText}>{label}</Text>
     </TouchableOpacity>
