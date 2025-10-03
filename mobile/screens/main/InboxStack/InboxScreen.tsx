@@ -5,10 +5,14 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
+  Image,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 // Keep SafeAreaView inside Header; avoid double SafeArea padding here
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
+import ASSETS from "../../../constants/assetUrls";
 
 // 模拟一条消息
 const mockMessages = [
@@ -17,11 +21,13 @@ const mockMessages = [
     sender: "TOP Support",
     message: "Hey @ccc446981,",
     time: "1 month ago",
-    avatarText: "TOP",
+    avatar: ASSETS.avatars.top, // ✅ 改为 PNG
   },
 ];
 
 export default function InboxScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       {/* ✅ 统一用 Header 组件 */}
@@ -45,18 +51,20 @@ export default function InboxScreen() {
         data={mockMessages}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <View style={styles.messageRow}>
+          <TouchableOpacity
+            style={styles.messageRow}
+            onPress={() => navigation.navigate("Chat", { sender: item.sender })}
+          >
             {/* Avatar */}
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{item.avatarText}</Text>
-            </View>
+            <Image source={item.avatar} style={styles.avatar} />
+
             {/* Texts */}
             <View style={styles.messageText}>
               <Text style={styles.sender}>{item.sender}</Text>
               <Text style={styles.message}>{item.message}</Text>
               <Text style={styles.time}>{item.time}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
       />
     </View>
@@ -64,23 +72,17 @@ export default function InboxScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Messages
   messageRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
-    // removed borderBottom to avoid gray separator line between messages
   },
   avatar: {
     width: 48,
     height: 48,
-    borderRadius: 24,
-    backgroundColor: "#F54B3D",
-    justifyContent: "center",
-    alignItems: "center",
+    borderRadius: 24, // ✅ 圆形头像
     marginRight: 12,
   },
-  avatarText: { color: "#fff", fontWeight: "700" },
   messageText: { flex: 1 },
   sender: { fontWeight: "700", fontSize: 16, marginBottom: 2 },
   message: { fontSize: 14, color: "#333" },
