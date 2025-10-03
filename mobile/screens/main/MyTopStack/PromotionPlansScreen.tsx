@@ -13,7 +13,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import Icon from "../../../components/Icon";
 import PlanOptionCard from "../../../components/PlanOptionCard";
-import type { MyTopStackParamList } from "./index";
+import type { PremiumStackParamList } from "../PremiumStack";
 import { PREMIUM_BG } from "../../../constants/assetUrls";
 import { LOGO_FULL_COLOR } from "../../../constants/assetUrls";
 const BACKGROUND_IMAGE = PREMIUM_BG;
@@ -21,7 +21,7 @@ const BACKGROUND_IMAGE = PREMIUM_BG;
 
 export default function PromotionPlansScreen() {
   const navigation =
-    useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
+    useNavigation<NativeStackNavigationProp<PremiumStackParamList>>();
   const [selectedPlan, setSelectedPlan] = useState<"free" | "premium">("free");
 
   return (

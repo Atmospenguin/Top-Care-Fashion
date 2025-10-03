@@ -26,6 +26,7 @@ import DiscoverScreen from './screens/main/DiscoverStack/DiscoverScreen';
 import HomeScreen from './screens/main/HomeStack/HomeScreen';
 import Icon from "./components/Icon";
 import MyTopStackNavigator from './screens/main/MyTopStack';
+import PremiumStackNavigator from './screens/main/PremiumStack';
 import SellStackNavigator from './screens/main/SellStack/SellStackNavigator';
 
 
@@ -36,6 +37,7 @@ export type RootStackParamList = {
   Register: undefined;
   ForgotPassword: undefined;
   Main: undefined;
+  Premium: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -46,10 +48,7 @@ const Tab = createBottomTabNavigator();
 function MainTabs() {
   // screens (by nested route name) that should hide the bottom tab bar
   const HIDDEN_TAB_SCREENS = [
-    // MyTop stack screens
-    "PremiumPlans",
-    "PromotionPlans",
-    "MyPremium",
+    // No longer needed; kept for backwards-compat if nested under tabs
   ];
 
   return (
@@ -126,17 +125,7 @@ function MainTabs() {
         name="My TOP"
         component={MyTopStackNavigator}
         options={({ route }) => {
-          // when a nested screen from MyTopStack is active and its name is in
-          // HIDDEN_TAB_SCREENS, hide the tab bar
-          const routeName = getFocusedRouteNameFromRoute(route);
-
-          const shouldHide = routeName
-            ? HIDDEN_TAB_SCREENS.includes(routeName)
-            : false;
-
-          return {
-            tabBarStyle: shouldHide ? { display: "none" } : undefined,
-          };
+          return {};
         }}
       />
     </Tab.Navigator>
@@ -153,6 +142,8 @@ export default function App() {
         <Stack.Screen name="Register" component={RegisterScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
+        {/* Premium stack lives on root; entering it hides the bottom tab by design */}
+        <Stack.Screen name="Premium" component={PremiumStackNavigator} />
       </Stack.Navigator>
     </NavigationContainer>
   );
