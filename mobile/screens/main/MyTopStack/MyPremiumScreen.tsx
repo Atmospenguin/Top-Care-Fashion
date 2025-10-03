@@ -13,7 +13,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { IconProps } from "../../../components/Icon";
-import type { MyTopStackParamList } from "./index";
+import type { PremiumStackParamList } from "../PremiumStack";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 import { PREMIUM_BG } from "../../../constants/assetUrls";
 
@@ -57,7 +57,7 @@ const BENEFITS: BenefitItem[] = [
 
 export default function MyPremiumScreen() {
   const navigation =
-    useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
+    useNavigation<NativeStackNavigationProp<PremiumStackParamList>>();
 
   const handlePromotionUpsell = () => {
     navigation.navigate("PromotionPlans");

@@ -7,10 +7,15 @@ import Header from "../../../components/Header"; // ✅ 你刚刚重构的 Heade
 import Icon from "../../../components/Icon";
 import type { IconProps } from "../../../components/Icon"; // Add this import if IconProps is exported
 import type { MyTopStackParamList } from "./index";
+import { useNavigation as useRootNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp as RootStackNav } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../../../App";
 
 export default function SettingScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
+  const rootNavigation =
+    useRootNavigation<RootStackNav<RootStackParamList>>();
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -32,7 +37,7 @@ export default function SettingScreen() {
           <SettingItem
             icon="card-outline"
             label="My Premium"
-            onPress={() => navigation.navigate("MyPremium")}
+            onPress={() => rootNavigation.navigate("Premium")}
           />
           <SettingItem icon="help-circle-outline" label="Help & Support" />
           <SettingItem icon="information-circle-outline" label="Terms and Policies" />
