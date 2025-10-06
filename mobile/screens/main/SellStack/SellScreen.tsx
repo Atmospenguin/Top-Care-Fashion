@@ -18,7 +18,7 @@ import Header from "../../../components/Header";
 /** --- Options --- */
 const CATEGORY_OPTIONS = ["Tops", "Bottoms", "Shoes", "Bags", "Accessories", "Outerwear", "Dresses", "Others"];
 const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "Others"];
-const CONDITION_OPTIONS = ["New with tags", "Like new", "Good", "Fair", "Poor"];
+const CONDITION_OPTIONS = ["Brand New", "Like new", "Good", "Fair", "Poor"];
 const SHIPPING_OPTIONS = ["Free shipping", "Buyer pays – based on distance", "Buyer pays – fixed fee", "Meet-up"];
 
 /** --- Bottom Sheet Picker --- */
