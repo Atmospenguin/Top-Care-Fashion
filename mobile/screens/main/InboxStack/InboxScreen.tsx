@@ -26,7 +26,7 @@ export default function InboxScreen() {
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       {/* ✅ 统一用 Header 组件 */}
       <Header
-        title="Inbox"
+          title="Inbox"
         rightAction={
           <View style={{ flexDirection: "row", columnGap: 16 }}>
             <TouchableOpacity accessibilityRole="button">
