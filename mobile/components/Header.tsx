@@ -63,8 +63,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "700",
+    position: "absolute",
+    left: 0,
+    right: 0,
     textAlign: "center",
-    flex: 1,
   },
   right: {
     minWidth: 26,

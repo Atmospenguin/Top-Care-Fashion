@@ -142,7 +142,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     flex: 1,
     textAlign: "center",
-    marginRight: 24,
   },
 
   // Tabs
