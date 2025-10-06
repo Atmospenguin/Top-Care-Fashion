@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
@@ -25,8 +25,8 @@ export default function SettingScreen() {
         {/* Account Section */}
         <Text style={styles.sectionTitle}>Account</Text>
         <View style={styles.sectionBox}>
-          <SettingItem icon="person-outline" label="Edit profile" onPress={() => navigation.navigate("EditProfile")} />
-          <SettingItem icon="shield-outline" label="Security" />
+          <SettingItem icon="person-outline" label="Edit profile" onPress={() => { console.log('Edit profile pressed'); navigation.navigate("EditProfile"); }} />
+          <SettingItem icon="shield-outline" label="Security" onPress={() => { console.log('Security pressed - about to navigate'); navigation.navigate("Security"); setTimeout(() => console.log('After navigate call - current route should change if registered'), 50); }} />
           <SettingItem icon="notifications-outline" label="Notifications" />
           <SettingItem icon="lock-closed-outline" label="Privacy" />
         </View>
@@ -47,7 +47,15 @@ export default function SettingScreen() {
         <Text style={styles.sectionTitle}>Actions</Text>
         <View style={styles.sectionBox}>
           <SettingItem icon="flag-outline" label="Report" />
-          <SettingItem icon="log-out-outline" label="Log out" />
+          <SettingItem
+            icon="log-out-outline"
+            label="Log out"
+            onPress={() => {
+              console.log("Logout pressed - navigating to Login");
+              // navigate to root Login screen
+              rootNavigation.navigate("Login");
+            }}
+          />
         </View>
       </ScrollView>
     </View>
