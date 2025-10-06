@@ -8,121 +8,20 @@ import {
   TouchableOpacity,
 } from "react-native";
 import Header from "../../../components/Header";
-import { useRoute } from "@react-navigation/native";
+import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { MyTopStackParamList } from "./index";
-import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-
-
-// mock 数据（分开买家/卖家）
-const purchaseOrders: any[] = [
-  {
-    id: "1",
-    product: {
-      title: "Green Dress",
-      price: 20,
-      size: "S",
-      image:
-        "https://cdn.shopify.com/s/files/1/0281/2071/1254/products/191219hm74370_1800x1800.jpg?v=1607871412",
-    },
-    seller: { name: "sellerA", avatar: "https://i.pravatar.cc/100?img=11" },
-    status: "InProgress",
-    address: {
-      name: "Cindy Chen",
-      phone: "+65 9123 4567",
-      detail: "Singapore, Parc Riviera",
-    },
-    payment: {
-      method: "PayPal",
-      amount: 20,
-      date: "2025-09-20 18:32",
-      transactionId: "TXN0001",
-    },
-    feedbackGiven: false,
-  },
-  {
-    id: "2",
-    product: {
-      title: "American Eagle Super Stretch Skinny Jeans",
-      price: 10,
-      size: "6",
-      image:
-        "https://tse4.mm.bing.net/th/id/OIP.TC_mOkLd6sQzsLiE_uSloQHaJ3?w=600&h=799&rs=1&pid=ImgDetMain&o=7&rm=3",
-    },
-    seller: { name: "seller111", avatar: "https://i.pravatar.cc/100?img=12" },
-    status: "Delivered",
-    address: {
-      name: "Cindy Chen",
-      phone: "+65 9123 4567",
-      detail: "101 W Coast Vale, Block101 17-05, Parc Riviera, Singapore",
-    },
-    payment: {
-      method: "PayPal",
-      amount: 14.5,
-      date: "2025-09-20 18:32",
-      transactionId: "TXN123456789",
-    },
-    feedbackGiven: false,
-  },
-  {
-    id: "3", // ✅ Nerdy Hoodie 回来了
-    product: {
-      title: "Purple Nerdy Hoodie",
-      price: 15,
-      size: "M",
-      image: "https://assets.atmos-tokyo.com/items/L/pnef21ke11-ppl-1.jpg",
-    },
-    seller: { name: "seller222", avatar: "https://i.pravatar.cc/100?img=13" },
-    status: "Cancelled", // 可以改成 Cancelled，测试取消状态
-    address: {
-      name: "Cindy Chen",
-      phone: "+65 9123 4567",
-      detail: "Singapore, Clementi Ave",
-    },
-    payment: {
-      method: "PayPal",
-      amount: 15,
-      date: "2025-09-22 15:10",
-      transactionId: "TXN999888777",
-    },
-    feedbackGiven: false,
-  },
-];
-
-const soldOrders: any[] = [
-  {
-    id: "1",
-    product: {
-      title: "Red Jacket",
-      price: 30,
-      size: "M",
-      image:
-        "https://th.bing.com/th/id/R.d54043fa984e94c86b926d96ed3eb6a1?rik=l0s2kAsoEoM6Og&pid=ImgRaw&r=0",
-    },
-    buyer: { name: "buyer001", avatar: "https://i.pravatar.cc/100?img=31" },
-    status: "ToShip", // ✅ 状态用 ToShip
-    feedbackGiven: false,
-  },
-  {
-    id: "2",
-    product: {
-      title: "Casual Hoodie",
-      price: 25,
-      size: "L",
-      image:
-        "https://i5.walmartimages.com/asr/7aed82da-69af-46b8-854e-5c22d45a4df3.e7011d0ebdea1d9fabb68417c789ae16.jpeg",
-    },
-    buyer: { name: "buyer002", avatar: "https://i.pravatar.cc/100?img=32" },
-    status: "Completed",
-    feedbackGiven: false,
-  },
-  
-];
+import {
+  PURCHASE_ORDERS,
+  SOLD_ORDERS,
+  type PurchaseOrder,
+  type SoldOrder,
+} from "../../../mocks/shop";
 
 export default function OrderDetailScreen() {
   const route = useRoute<RouteProp<MyTopStackParamList, "OrderDetail">>();
-  // route.params may be undefined if navigation didn't pass params — guard it
+  // route.params may be undefined if navigation didn't pass params; guard it
   const navigation = useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
   const params = (route.params as { id?: string; source?: "purchase" | "sold" } | undefined) ?? undefined;
   const id = params?.id;
@@ -138,8 +37,8 @@ export default function OrderDetailScreen() {
 
   const order =
     source === "purchase"
-      ? purchaseOrders.find((o: any) => o.id === id)
-      : soldOrders.find((o: any) => o.id === id);
+      ? (PURCHASE_ORDERS.find((o) => o.id === id) as PurchaseOrder | undefined)
+      : (SOLD_ORDERS.find((o) => o.id === id) as SoldOrder | undefined);
 
   if (!order) {
     return (
@@ -149,135 +48,148 @@ export default function OrderDetailScreen() {
     );
   }
 
+  const isPurchase = source === "purchase";
+  const status = order.status as
+    | PurchaseOrder["status"]
+    | SoldOrder["status"];
+  const isCancelled = status === "Cancelled";
+  const purchaseOrder = isPurchase ? (order as PurchaseOrder) : undefined;
+  const soldOrder = !isPurchase ? (order as SoldOrder) : undefined;
+  const shippedDone = isPurchase
+    ? status === "Delivered"
+    : status === "InTransit" || status === "Completed";
+  const shippedPending = isPurchase
+    ? status === "InProgress"
+    : status === "ToShip";
+  const deliveredDone = isPurchase
+    ? status === "Delivered"
+    : status === "Completed";
+  const deliveredPending = !deliveredDone && !isCancelled && !isPurchase && status === "InTransit";
+  const shippedLabel = shippedPending
+    ? "Pending"
+    : shippedDone
+    ? "Shipped"
+    : "Shipped";
+  const deliveredLabel = deliveredDone
+    ? "Delivered"
+    : deliveredPending
+    ? "In Transit"
+    : "";
+  const productImage = order.product?.images?.[0] ?? "";
+  const productPrice = order.product ? `$${order.product.price.toFixed(2)}` : "";
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       {/* Header */}
       <Header title={`Order #${order.id}`} showBack />
 
       <ScrollView contentContainerStyle={styles.container}>
-        {/* 商品信息 */}
+        {/* Product info */}
         <View style={styles.card}>
-          <Image
-            source={{ uri: order.product?.image ?? "" }}
-            style={styles.productImg}
-          />
+          <Image source={{ uri: productImage }} style={styles.productImg} />
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.productTitle} numberOfLines={2}>
               {order.product?.title ?? ""}
             </Text>
-            <Text style={styles.productPrice}>
-              ${order.product?.price ?? ""}
-            </Text>
+            <Text style={styles.productPrice}>{productPrice}</Text>
             <Text style={styles.productMeta}>
               Size: {order.product?.size ?? ""}
             </Text>
 
-            {/* 显示买家/卖家 */}
-            {source === "purchase" && order.seller ? (
+            {/* Show seller/buyer */}
+            {isPurchase && purchaseOrder?.seller ? (
               <View style={styles.userRow}>
                 <Image
-                  source={{ uri: order.seller.avatar }}
+                  source={{ uri: purchaseOrder.seller.avatar }}
                   style={styles.userAvatar}
                 />
-                <Text style={styles.userName}>{order.seller.name}</Text>
+                <Text style={styles.userName}>{purchaseOrder.seller.name}</Text>
               </View>
-            ) : source === "sold" && order.buyer ? (
+            ) : !isPurchase && soldOrder?.buyer ? (
               <View style={styles.userRow}>
                 <Image
-                  source={{ uri: order.buyer.avatar }}
+                  source={{ uri: soldOrder.buyer.avatar }}
                   style={styles.userAvatar}
                 />
-                <Text style={styles.userName}>{order.buyer.name}</Text>
+                <Text style={styles.userName}>{soldOrder.buyer.name}</Text>
               </View>
             ) : null}
           </View>
         </View>
 
-        {/* 状态显示 */}
+        {/* Status timeline */}
         <View style={styles.section}>
-  <Text style={styles.sectionTitle}>Order Status</Text>
+          <Text style={styles.sectionTitle}>Order Status</Text>
 
-  {order.status === "Cancelled" ? (
-    <Text style={styles.stepCancelled}>✗ Cancelled</Text>
-  ) : (
-    <View style={styles.progressRow}>
-      {/* Paid 永远打勾 */}
-      <Text style={[styles.step, styles.stepDone]}>✓ Paid</Text>
-
-      {/* Shipped 阶段 */}
-      <Text
-        style={[
-          styles.step,
-          order.status === "Shipped" ||
-          order.status === "Delivered" ||
-          order.status === "Completed"
-            ? styles.stepDone
-            : order.status === "InProgress" || order.status === "ToShip"
-            ? styles.stepPending
-            : styles.step,
-        ]}
-      >
-        {order.status === "InProgress" || order.status === "ToShip"
-          ? "… Pending"
-          : "✓ Shipped"}
-      </Text>
-
-      {/* Delivered 阶段 */}
-      <Text
-        style={[
-          styles.step,
-          order.status === "Delivered" || order.status === "Completed"
-            ? styles.stepDone
-            : order.status === "Shipped"
-            ? styles.stepPending
-            : styles.step,
-        ]}
-      >
-        {order.status === "Delivered" || order.status === "Completed"
-          ? "✓ Delivered"
-          : order.status === "Shipped"
-          ? "… In Transit"
-          : ""}
-      </Text>
-    </View>
-  )}
-</View>
+          {isCancelled ? (
+            <Text style={styles.stepCancelled}>Cancelled</Text>
+          ) : (
+            <View style={styles.progressRow}>
+              <Text style={[styles.step, styles.stepDone]}>Paid</Text>
+              <Text
+                style={[
+                  styles.step,
+                  shippedDone
+                    ? styles.stepDone
+                    : shippedPending
+                    ? styles.stepPending
+                    : styles.step,
+                ]}
+              >
+                {shippedLabel}
+              </Text>
+              <Text
+                style={[
+                  styles.step,
+                  deliveredDone
+                    ? styles.stepDone
+                    : deliveredPending
+                    ? styles.stepPending
+                    : styles.step,
+                ]}
+              >
+                {deliveredLabel}
+              </Text>
+            </View>
+          )}
+        </View>
 
 
-        {/* 收货地址 / Buyer Info */}
-        {source === "purchase" && order.address ? (
+        {/* Shipping / buyer info */}
+        {isPurchase && purchaseOrder?.address ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Shipping Address</Text>
-            <Text style={styles.text}>{order.address.name}</Text>
-            <Text style={styles.text}>{order.address.phone}</Text>
-            <Text style={styles.text}>{order.address.detail}</Text>
+            <Text style={styles.text}>{purchaseOrder.address.name}</Text>
+            <Text style={styles.text}>{purchaseOrder.address.phone}</Text>
+            <Text style={styles.text}>{purchaseOrder.address.detail}</Text>
           </View>
-        ) : source === "sold" && order.buyer ? (
+        ) : !isPurchase && soldOrder?.buyer ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Buyer Info</Text>
-            <Text style={styles.text}>{order.buyer.name}</Text>
+            <Text style={styles.text}>{soldOrder.buyer.name}</Text>
           </View>
         ) : null}
 
-        {/* 支付信息 */}
-        {source === "purchase" && order.payment ? (
+        {/* Payment details */}
+        {isPurchase && purchaseOrder?.payment ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Payment</Text>
             <Text style={styles.text}>
-              Paid ${order.payment.amount} with {order.payment.method}
+              Paid ${purchaseOrder.payment.amount} with {purchaseOrder.payment.method}
             </Text>
-            <Text style={styles.text}>Date: {order.payment.date}</Text>
+            <Text style={styles.text}>Date: {purchaseOrder.payment.date}</Text>
             <Text style={styles.text}>
-              Transaction ID: {order.payment.transactionId}
+              Transaction ID: {purchaseOrder.payment.transactionId}
             </Text>
           </View>
         ) : null}
       </ScrollView>
 
-      {/* 底部操作按钮 */}
-  {source === "purchase" &&
-  !order.feedbackGiven &&
-  order.status === "Delivered" && (
+      {/* Footer actions */}
+  {isPurchase &&
+  purchaseOrder &&
+  !purchaseOrder.feedbackGiven &&
+  purchaseOrder.status === "Delivered" && (
     <View style={styles.footer}>
       <TouchableOpacity
         style={styles.feedbackBtn}
@@ -289,7 +201,7 @@ export default function OrderDetailScreen() {
 )}
 
 
-      {source === "sold" && order.status === "ToShip" && (
+      {!isPurchase && soldOrder?.status === "ToShip" && (
         <View style={styles.footer}>
           <TouchableOpacity
             style={[styles.feedbackBtn, { backgroundColor: "black" }]}

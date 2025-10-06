@@ -44,9 +44,11 @@ mobile/
     ├── auth/               # Authentication flow: Splash, Landing, Login, Register, Forgot Password
     └── main/
         ├── DiscoverStack/
-        ├── HomeStack/
+        ├── HomeStack/      # Home tab (only HomeMain). Full-screen flows live outside the tab
+        ├── BuyStack/       # Buyer pipeline (ListingDetail, Bag, Checkout, Purchase, Review)
+        ├── PremiumStack/   # Premium upsell flow (root-level stack)
         ├── InboxStack/
-        ├── MyTopStack/     # User profile page (current tab navigation screen)
+        ├── MyTopStack/     # Profile + orders
         └── SellStack/
 ```
 
@@ -54,10 +56,11 @@ mobile/
 
 ## 🧭 Navigation and Page Structure
 
-- `App.tsx` defines a headerless Stack Navigator: `Splash → Landing → Login/Register/ForgotPassword → Main`
-- `MainTabs` currently registers only the `My TOP` tab; additional modules like Discover, Home, Sell, and Inbox can be added later
-- `LoginScreen`, `RegisterScreen`, etc., use React Navigation's `navigation` prop to navigate between authentication flows
-- `MyTopScreen` displays a user profile structure with mock data, leaving room for real data integration (`TODO` comments)
+- Root stack (`App.tsx`) defines: `Splash → Landing → Login/Register/ForgotPassword → Main (tabs)`, plus two root-level stacks: `Premium` and `Buy`.
+- Tabs include `Home`, `Discover`, `Sell`, `Inbox`, `My TOP`.
+- Home tab renders `HomeStack` with a single `HomeMain` screen. When a user enters the buyer pipeline (e.g., from a product card or the bag icon), the app navigates to the root-level `Buy` stack. This avoids tab-bar re-mount flicker during full-screen flows.
+- Premium upsell is also a root-level stack (`PremiumStack`) using the same pattern.
+- Login/Register screens use React Navigation normally through props/hooks.
 
 ## 🧩 State and Data
 
@@ -139,3 +142,12 @@ Before building, update app icons, splash screen assets, and check `app.json` fo
 - Add basic unit tests or UI tests (e.g., using Jest + React Native Testing Library)
 
 For more information or suggestions for improving this documentation, feel free to create an issue in the repository or update this file directly.
+## 📱 Full-screen flows: flicker-free tabs
+
+- To prevent a brief grey flash of the tab bar container when entering full-screen flows, long-running modals/pipelines live in root-level stacks rather than inside a tab stack.
+- Buyer pipeline lives in `BuyStack` (root). Premium flows live in `PremiumStack` (root). The Home tab simply links into these stacks using `navigation.getParent()?.getParent()?.navigate('Buy', { ... })`.
+- Rule of thumb: if a flow hides the tab bar for more than one screen, lift it to a root stack.
+
+## 🧷 SafeArea usage rule
+
+- `mobile/components/Header.tsx` already wraps itself with `SafeAreaView` for top insets. Do not wrap screen roots in another `SafeAreaView` unless you have a specific reason. Prefer a top-level `View` to avoid double padding and unwanted top gaps.

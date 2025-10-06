@@ -12,59 +12,55 @@ import { Picker } from "@react-native-picker/picker";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { MyTopStackParamList } from "./index";
+import { SOLD_GRID_ITEMS } from "../../../mocks/shop";
 
-const soldItems = [
-  {
-    id: "1",
-    uri: "https://th.bing.com/th/id/R.d54043fa984e94c86b926d96ed3eb6a1?rik=l0s2kAsoEoM6Og&pid=ImgRaw&r=0",
-    status: "To Ship",
-  },
-  {
-    id: "2",
-    uri: "https://i5.walmartimages.com/asr/7aed82da-69af-46b8-854e-5c22d45a4df3.e7011d0ebdea1d9fabb68417c789ae16.jpeg",
-    status: "Completed",
-  },
-];
-
-// 保证三列对齐
+// Ensure three-column grid alignment
 function formatData(data: any[], numColumns: number) {
-  const numberOfFullRows = Math.floor(data.length / numColumns);
-  let numberOfElementsLastRow = data.length - numberOfFullRows * numColumns;
+  const newData = [...data];
+  const numberOfFullRows = Math.floor(newData.length / numColumns);
+  let numberOfElementsLastRow = newData.length - numberOfFullRows * numColumns;
   while (
     numberOfElementsLastRow !== numColumns &&
     numberOfElementsLastRow !== 0
   ) {
-    data.push({ id: `blank-${numberOfElementsLastRow}`, empty: true });
+    newData.push({ id: `blank-${numberOfElementsLastRow}`, empty: true });
     numberOfElementsLastRow++;
   }
-  return data;
+  return newData;
 }
 
 export default function SoldTab() {
   const [filter, setFilter] = useState("All");
   const [modalVisible, setModalVisible] = useState(false);
+  const filterLabels: Record<string, string> = {
+    All: "All",
+    ToShip: "To Ship",
+    InTransit: "In Transit",
+    Cancelled: "Cancelled",
+    Completed: "Completed",
+  };
 
   const navigation =
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
 
-  // 根据 filter 筛选
-  const filtered = soldItems.filter((item) =>
+  // Filter data based on status
+  const filtered = SOLD_GRID_ITEMS.filter((item) =>
     filter === "All" ? true : item.status === filter
   );
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Filter 按钮 */}
+      {/* Filter button */}
       <View style={styles.filterRow}>
         <TouchableOpacity
           style={styles.filterBtn}
           onPress={() => setModalVisible(true)}
         >
-          <Text style={{ fontSize: 16 }}>{filter} ▼</Text>
+          <Text style={{ fontSize: 16 }}>{filterLabels[filter] ?? filter} v</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Modal 下拉框 */}
+      {/* Filter modal */}
       <Modal
         visible={modalVisible}
         transparent
@@ -81,8 +77,8 @@ export default function SoldTab() {
               }}
             >
               <Picker.Item label="All" value="All" />
-              <Picker.Item label="To Ship" value="To Ship" />
-              <Picker.Item label="In Transit" value="In Transit" />
+              <Picker.Item label="To Ship" value="ToShip" />
+              <Picker.Item label="In Transit" value="InTransit" />
               <Picker.Item label="Cancelled" value="Cancelled" />
               <Picker.Item label="Completed" value="Completed" />
             </Picker>
@@ -90,9 +86,9 @@ export default function SoldTab() {
         </View>
       </Modal>
 
-      {/* 商品网格 */}
+      {/* Item grid */}
       <FlatList
-        data={formatData([...filtered], 3)}
+        data={formatData(filtered, 3)}
         keyExtractor={(item) => item.id}
         numColumns={3}
         renderItem={({ item }) =>
@@ -106,7 +102,7 @@ export default function SoldTab() {
                 navigation.navigate("OrderDetail", { id: item.id, source: "sold" });
               }}
             >
-              <Image source={{ uri: item.uri }} style={styles.image} />
+              <Image source={{ uri: item.image }} style={styles.image} />
               <View style={styles.overlay}>
                 <Text style={styles.overlayText}>SOLD</Text>
               </View>

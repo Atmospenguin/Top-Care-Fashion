@@ -1,4 +1,4 @@
-# Codex CLI Agent Guidelines
+﻿# Codex CLI Agent Guidelines
 
 These conventions apply to the whole repo unless a more specific AGENTS.md exists in a subfolder.
 
@@ -17,11 +17,11 @@ These conventions apply to the whole repo unless a more specific AGENTS.md exist
 - Write simple, defensive code; validate inputs at API boundaries.
 
 4) Safety
-- Don’t run destructive commands (e.g., rm -rf, resets) unless explicitly requested.
+- Don't run destructive commands (e.g., rm -rf, resets) unless explicitly requested.
 - No network installs unless required and agreed.
 
 5) Validation
-- Run linters/tests if they exist, but do not “fix” unrelated issues.
+- Run linters/tests if they exist, but do not "fix" unrelated issues.
 - Update or add minimal docs when behavior changes.
 
 6) Git Hygiene
@@ -34,5 +34,9 @@ These conventions apply to the whole repo unless a more specific AGENTS.md exist
     - (do not run `git push`)
   - If a push is required, get explicit approval and confirm the target remote/branch before pushing.
 
-Thanks! Keep it tidy and pragmatic.
+7) Navigation Refactors
+- When introducing new navigation stacks (e.g., `BuyStack`), expose them via an `index.ts` that mirrors existing patterns such as `PremiumStack/index.tsx`.
+- Keep legacy stack names stable unless the spec demands renaming; add new stacks alongside the old ones and wire screens through the new index entry.
+- Avoid duplicating safe-area wrappers: if shared headers already include a `SafeAreaView`, do not wrap the screen body in another `SafeAreaView` unless there is a concrete layout need.
 
+Thanks! Keep it tidy and pragmatic.

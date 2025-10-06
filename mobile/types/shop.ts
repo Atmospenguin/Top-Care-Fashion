@@ -1,0 +1,40 @@
+export type ListingItem = {
+  id: string;
+  title: string;
+  price: number;
+  description: string;
+  brand: string;
+  size: string;
+  condition: string;
+  material?: string;
+  colors: string[];
+  images: string[];
+  seller: {
+    name: string;
+    avatar: string;
+    rating: number;
+    sales: number;
+  };
+};
+
+export type BagItem = {
+  item: ListingItem;
+  quantity: number;
+};
+
+export type ShippingAddress = {
+  name: string;
+  phone: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+};
+
+export type PaymentMethod = {
+  label: string;
+  last4: string;
+  brand: string;
+};

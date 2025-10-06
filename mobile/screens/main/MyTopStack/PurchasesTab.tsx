@@ -12,30 +12,12 @@ import { Picker } from "@react-native-picker/picker";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { MyTopStackParamList } from "./index";
-
-// mock 数据，带 status
-const purchases = [
-  {
-    id: "1",
-    uri: "https://cdn.shopify.com/s/files/1/0281/2071/1254/products/191219hm74370_1800x1800.jpg?v=1607871412",
-    status: "InProgress",
-  },
-  {
-    id: "2",
-    uri: "https://tse4.mm.bing.net/th/id/OIP.TC_mOkLd6sQzsLiE_uSloQHaJ3?w=600&h=799&rs=1&pid=ImgDetMain&o=7&rm=3",
-    status: "Delivered",
-  },
-  {
-    id: "3",
-    uri: "https://assets.atmos-tokyo.com/items/L/pnef21ke11-ppl-1.jpg", // ✅ Nerdy Hoodie
-    status: "Cancelled",
-  },
-];
+import { PURCHASE_GRID_ITEMS } from "../../../mocks/shop";
 
 function formatData(data: any[], numColumns: number) {
-  const numberOfFullRows = Math.floor(data.length / numColumns);
-  let numberOfElementsLastRow = data.length - numberOfFullRows * numColumns;
   const newData = [...data];
+  const numberOfFullRows = Math.floor(newData.length / numColumns);
+  let numberOfElementsLastRow = newData.length - numberOfFullRows * numColumns;
   while (
     numberOfElementsLastRow !== numColumns &&
     numberOfElementsLastRow !== 0
@@ -52,25 +34,31 @@ export default function PurchasesTab() {
 
   const [filter, setFilter] = useState("All");
   const [modalVisible, setModalVisible] = useState(false);
+  const filterLabels: Record<string, string> = {
+    All: "All",
+    InProgress: "In Progress",
+    Delivered: "Delivered",
+    Cancelled: "Cancelled",
+  };
 
-  // 筛选
-  const filtered = purchases.filter((p) =>
+  // Filter data
+  const filtered = PURCHASE_GRID_ITEMS.filter((p) =>
     filter === "All" ? true : p.status === filter
   );
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Filter 按钮 */}
+      {/* Filter button */}
       <View style={styles.filterRow}>
         <TouchableOpacity
           style={styles.filterBtn}
           onPress={() => setModalVisible(true)}
         >
-          <Text style={{ fontSize: 16 }}>{filter} ▼</Text>
+          <Text style={{ fontSize: 16 }}>{filterLabels[filter] ?? filter} v</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Modal 下拉选择 */}
+      {/* Filter modal */}
       <Modal
         visible={modalVisible}
         transparent
@@ -95,7 +83,7 @@ export default function PurchasesTab() {
         </View>
       </Modal>
 
-      {/* 商品网格 */}
+      {/* Item grid */}
       <FlatList
         data={formatData(filtered, 3)}
         keyExtractor={(item) => item.id}
@@ -114,7 +102,7 @@ export default function PurchasesTab() {
                 });
               }}
             >
-              <Image source={{ uri: item.uri }} style={styles.image} />
+              <Image source={{ uri: item.image }} style={styles.image} />
             </TouchableOpacity>
           )
         }

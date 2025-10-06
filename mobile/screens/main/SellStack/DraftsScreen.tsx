@@ -11,15 +11,11 @@ type Draft = {
   thumbnail?: string;
 };
 
-import { StackNavigationProp } from "@react-navigation/stack";
-
-type SellStackParamList = {
-  Sell: { draftId: string };
-  // Add other routes if needed
-};
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { SellStackParamList } from "./SellStackNavigator";
 
 type DraftsScreenProps = {
-  navigation: StackNavigationProp<SellStackParamList, "Sell">;
+  navigation: NativeStackNavigationProp<SellStackParamList, "Drafts">;
 };
 
 export default function DraftsScreen({ navigation }: DraftsScreenProps) {
@@ -66,7 +62,7 @@ export default function DraftsScreen({ navigation }: DraftsScreenProps) {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.draftRow}
-              onPress={() => navigation.navigate("Sell", { draftId: item.id })}
+              onPress={() => navigation.navigate("SellMain", { draftId: item.id })}
             >
               {item.thumbnail ? (
                 <Image source={{ uri: item.thumbnail }} style={styles.thumb} />
