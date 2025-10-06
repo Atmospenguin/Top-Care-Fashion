@@ -1,136 +1,175 @@
-import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
-import { SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View, FlatList } from 'react-native';
+import 'react-native-gesture-handler';
+import { enableScreens } from 'react-native-screens';
+import { NavigationContainer, getFocusedRouteNameFromRoute } from "@react-navigation/native";
+import { Text } from "react-native";
 
-type Screen = 'landing' | 'register' | 'marketplace';
+enableScreens();
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+// Make sure SplashScreen.tsx exists in ./screens, or update the path if needed
+import SplashScreen from "./screens/auth/SplashScreen";
+import LandingScreen from "./screens/auth/LandingScreen";
+import LoginScreen from "./screens/auth/LoginScreen";
+import RegisterScreen from './screens/auth/RegisterScreen';
+import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
-export default function App() {
-  const [screen, setScreen] = useState<Screen>('landing');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [status, setStatus] = useState<string | null>(null);
-  const [items, setItems] = useState<Array<{id: string; title: string; category: string; price: number}>>([]);
 
-  async function mockRegister() {
-    setStatus('Submitting...');
-    await new Promise((r) => setTimeout(r, 500));
-    setStatus('Success!');
-  }
 
-  async function loadListings() {
-    try {
-      // Connect to the web app API to get real data from database
-      const response = await fetch('http://localhost:3001/api/listings');
-      if (response.ok) {
-        const data = await response.json();
-        setItems(data.items || []);
-      } else {
-        // Fallback to local data if API is not available
-        const data = {
-          items: [
-            { id: '1', title: 'Classic White Tee', category: 'Tops', price: 19.99 },
-            { id: '2', title: 'Denim Jacket', category: 'Outerwear', price: 59.99 },
-            { id: '3', title: 'Black Slim Jeans', category: 'Bottoms', price: 39.99 },
-            { id: '4', title: 'Floral Summer Dress', category: 'Dresses', price: 45.00 },
-            { id: '5', title: 'Leather Boots', category: 'Shoes', price: 89.99 },
-          ],
-        };
-        setItems(data.items);
-      }
-    } catch (error) {
-      console.error('Error loading listings:', error);
-      // Fallback to local data on error
-      const data = {
-        items: [
-          { id: '1', title: 'Classic White Tee', category: 'Tops', price: 19.99 },
-          { id: '2', title: 'Denim Jacket', category: 'Outerwear', price: 59.99 },
-          { id: '3', title: 'Black Slim Jeans', category: 'Bottoms', price: 39.99 },
-          { id: '4', title: 'Floral Summer Dress', category: 'Dresses', price: 45.00 },
-          { id: '5', title: 'Leather Boots', category: 'Shoes', price: 89.99 },
-        ],
-      };
-      setItems(data.items);
-    }
-  }
+
+//import HomeScreen from "./screens/main/HomeStack/HomeScreen";
+//import DiscoverScreen from "./screens/main/DiscoverStack/DiscoverScreen";
+//import SellScreen from "./screens/main/SellStack/SellScreen";
+//import InboxScreen from "./screens/main/InboxStack/InboxScreen";
+import InboxStackNavigator from './screens/main/InboxStack/InboxStackNavigator';
+import DiscoverScreen from './screens/main/DiscoverStack/DiscoverScreen';
+import HomeStackNavigator from './screens/main/HomeStack';
+import BuyStackNavigator from './screens/main/BuyStack';
+import Icon from "./components/Icon";
+import MyTopStackNavigator from './screens/main/MyTopStack';
+import PremiumStackNavigator from './screens/main/PremiumStack';
+import SellStackNavigator from './screens/main/SellStack/SellStackNavigator';
+
+
+export type RootStackParamList = {
+  Splash: undefined;
+  Landing: undefined;
+  Login: undefined;
+  Register: undefined;
+  ForgotPassword: undefined;
+  Main: undefined;
+  Premium: undefined;
+  Buy: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator();
+
+
+
+function MainTabs() {
+  const HIDDEN_TAB_SCREENS: string[] = [];
 
   return (
-    <SafeAreaView style={styles.container}>
-      {screen === 'landing' && (
-        <View style={styles.centered}>
-          <Text style={styles.title}>Top Care Fashion</Text>
-          <Text style={styles.subtitle}>Discover, Mix & Match Fashion</Text>
-          <View style={{ height: 16 }} />
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => setScreen('register')}>
-            <Text style={styles.primaryBtnText}>Get Started</Text>
-          </TouchableOpacity>
-          <View style={{ height: 8 }} />
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => { setScreen('marketplace'); loadListings(); }}>
-            <Text>Browse Marketplace</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarShowLabel: true,
+        tabBarActiveTintColor: "#000",
+        tabBarInactiveTintColor: "#999",
+        tabBarStyle: { backgroundColor: "#fff" },
+        tabBarLabel: ({ focused, color }) => (
+          <Text
+            style={{
+              fontSize: 12,
+              color,
+              fontWeight: focused ? "700" : "500",
+              letterSpacing: -0.25,
+            }}
+          >
+            {route.name}
+          </Text>
+        ),
+        tabBarIcon: ({ focused, color }) => {
+          switch (route.name) {
+            case "Home":
+              return (
+                <Icon
+                  name={focused ? "home" : "home-outline"}
+                  size={22}
+                  color={color}
+                />
+              );
+            case "Discover":
+              return (
+                <Icon
+                  name={focused ? "compass" : "compass-outline"}
+                  size={22}
+                  color={color}
+                />
+              );
+            case "Sell":
+              return (
+                <Icon
+                  name={focused ? "add-circle" : "add-circle-outline"}
+                  size={22}
+                  color={color}
+                />
+              );
+            case "Inbox":
+              return (
+                <Icon
+                  name={focused ? "chatbubbles" : "chatbubbles-outline"}
+                  size={22}
+                  color={color}
+                />
+              );
+            case "My TOP":
+              return (
+                <Icon
+                  name={focused ? "person" : "person-outline"}
+                  size={22}
+                  color={color}
+                />
+              );
+          }
+          return null;
+        },
+      })}
+    >
+      <Tab.Screen
+        name="Home"
+        component={HomeStackNavigator}
+        options={({ route }) => {
+          const routeName = getFocusedRouteNameFromRoute(route);
+          const shouldHide = routeName
+            ? HIDDEN_TAB_SCREENS.includes(routeName)
+            : false;
 
-      {screen === 'register' && (
-        <View style={styles.formWrap}>
-          <Text style={styles.title}>Create your account</Text>
-          <View style={{ height: 16 }} />
-          <Text>Email</Text>
-          <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-          <Text>Password</Text>
-          <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry />
-          <TouchableOpacity style={styles.primaryBtn} onPress={mockRegister}>
-            <Text style={styles.primaryBtnText}>Register</Text>
-          </TouchableOpacity>
-          {status && <Text style={styles.status}>{status}</Text>}
-          <View style={{ height: 12 }} />
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => { setScreen('marketplace'); loadListings(); }}>
-            <Text>Go to Marketplace</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+          return {
+            tabBarStyle: shouldHide
+              ? { display: "none" }
+              : { backgroundColor: "#fff" },
+          };
+        }}
+      />
+      <Tab.Screen name="Discover" component={DiscoverScreen} />
+      <Tab.Screen name="Sell" component={SellStackNavigator} />
+      <Tab.Screen name="Inbox" component={InboxStackNavigator} />
+      <Tab.Screen
+        name="My TOP"
+        component={MyTopStackNavigator}
+        options={({ route }) => {
+          const routeName = getFocusedRouteNameFromRoute(route);
+          const shouldHide = routeName
+            ? HIDDEN_TAB_SCREENS.includes(routeName)
+            : false;
 
-      {screen === 'marketplace' && (
-        <View style={styles.listWrap}>
-          <Text style={styles.title}>Marketplace</Text>
-          <FlatList
-            data={items}
-            keyExtractor={(it) => it.id}
-            renderItem={({ item }) => (
-              <View style={styles.card}>
-                <View style={styles.thumbnail} />
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardMeta}>{item.category}</Text>
-                <Text style={styles.cardPrice}>${item.price.toFixed(2)}</Text>
-              </View>
-            )}
-            contentContainerStyle={{ paddingVertical: 12 }}
-          />
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => setScreen('landing')}>
-            <Text>Back to Home</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <StatusBar style="auto" />
-    </SafeAreaView>
+          return {
+            tabBarStyle: shouldHide
+              ? { display: "none" }
+              : undefined,
+          };
+        }}
+      />
+    </Tab.Navigator>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  formWrap: { flex: 1, padding: 24, gap: 8, justifyContent: 'center' },
-  listWrap: { flex: 1, padding: 24 },
-  title: { fontSize: 24, fontWeight: '600' },
-  subtitle: { marginTop: 4, color: '#666' },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginBottom: 12 },
-  status: { marginTop: 8, color: '#333' },
-  primaryBtn: { backgroundColor: '#000', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center' },
-  primaryBtnText: { color: '#fff', fontWeight: '600' },
-  secondaryBtn: { borderWidth: 1, borderColor: '#ddd', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center' },
-  card: { borderWidth: 1, borderColor: '#eee', borderRadius: 10, padding: 12, marginBottom: 12 },
-  thumbnail: { height: 120, backgroundColor: '#f3f3f3', borderRadius: 8, marginBottom: 8 },
-  cardTitle: { fontWeight: '600' },
-  cardMeta: { color: '#666', marginTop: 2 },
-  cardPrice: { marginTop: 6, fontWeight: '600' },
-});
+export default function App() {
+  return (
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Splash" component={SplashScreen} />
+        <Stack.Screen name="Landing" component={LandingScreen} />
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="Register" component={RegisterScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen name="Main" component={MainTabs} />
+        {/* Premium stack lives on root; entering it hides the bottom tab by design */}
+        <Stack.Screen name="Premium" component={PremiumStackNavigator} />
+        {/* Buy stack mirrors Premium: lives on root to avoid tab flicker */}
+        <Stack.Screen name="Buy" component={BuyStackNavigator} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
