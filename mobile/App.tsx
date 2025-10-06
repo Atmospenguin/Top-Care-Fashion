@@ -21,9 +21,9 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 //import SellScreen from "./screens/main/SellStack/SellScreen";
 //import InboxScreen from "./screens/main/InboxStack/InboxScreen";
 import InboxStackNavigator from './screens/main/InboxStack/InboxStackNavigator';
-import SellScreen from './screens/main/SellStack/SellScreen';
 import DiscoverScreen from './screens/main/DiscoverStack/DiscoverScreen';
-import HomeScreen from './screens/main/HomeStack/HomeScreen';
+import HomeStackNavigator from './screens/main/HomeStack';
+import BuyStackNavigator from './screens/main/BuyStack';
 import Icon from "./components/Icon";
 import MyTopStackNavigator from './screens/main/MyTopStack';
 import PremiumStackNavigator from './screens/main/PremiumStack';
@@ -38,6 +38,7 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   Main: undefined;
   Premium: undefined;
+  Buy: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -46,10 +47,7 @@ const Tab = createBottomTabNavigator();
 
 
 function MainTabs() {
-  // screens (by nested route name) that should hide the bottom tab bar
-  const HIDDEN_TAB_SCREENS = [
-    // No longer needed; kept for backwards-compat if nested under tabs
-  ];
+  const HIDDEN_TAB_SCREENS: string[] = [];
 
   return (
     <Tab.Navigator
@@ -58,6 +56,7 @@ function MainTabs() {
         tabBarShowLabel: true,
         tabBarActiveTintColor: "#000",
         tabBarInactiveTintColor: "#999",
+        tabBarStyle: { backgroundColor: "#fff" },
         tabBarLabel: ({ focused, color }) => (
           <Text
             style={{
@@ -117,15 +116,39 @@ function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen
+        name="Home"
+        component={HomeStackNavigator}
+        options={({ route }) => {
+          const routeName = getFocusedRouteNameFromRoute(route);
+          const shouldHide = routeName
+            ? HIDDEN_TAB_SCREENS.includes(routeName)
+            : false;
+
+          return {
+            tabBarStyle: shouldHide
+              ? { display: "none" }
+              : { backgroundColor: "#fff" },
+          };
+        }}
+      />
       <Tab.Screen name="Discover" component={DiscoverScreen} />
       <Tab.Screen name="Sell" component={SellStackNavigator} />
-  <Tab.Screen name="Inbox" component={InboxStackNavigator} />
+      <Tab.Screen name="Inbox" component={InboxStackNavigator} />
       <Tab.Screen
         name="My TOP"
         component={MyTopStackNavigator}
         options={({ route }) => {
-          return {};
+          const routeName = getFocusedRouteNameFromRoute(route);
+          const shouldHide = routeName
+            ? HIDDEN_TAB_SCREENS.includes(routeName)
+            : false;
+
+          return {
+            tabBarStyle: shouldHide
+              ? { display: "none" }
+              : undefined,
+          };
         }}
       />
     </Tab.Navigator>
@@ -144,6 +167,8 @@ export default function App() {
         <Stack.Screen name="Main" component={MainTabs} />
         {/* Premium stack lives on root; entering it hides the bottom tab by design */}
         <Stack.Screen name="Premium" component={PremiumStackNavigator} />
+        {/* Buy stack mirrors Premium: lives on root to avoid tab flicker */}
+        <Stack.Screen name="Buy" component={BuyStackNavigator} />
       </Stack.Navigator>
     </NavigationContainer>
   );

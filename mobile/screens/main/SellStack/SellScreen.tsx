@@ -15,6 +15,8 @@ import {
 // note: keep Header's SafeAreaView; remove outer SafeAreaView to avoid double padding
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header"; 
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { SellStackParamList } from "./SellStackNavigator";
 /** --- Options --- */
 const CATEGORY_OPTIONS = ["Tops", "Bottoms", "Shoes", "Bags", "Accessories", "Outerwear", "Dresses", "Others"];
 const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "Others"];
@@ -61,11 +63,16 @@ function OptionPicker({ title, visible, options, value, onClose, onSelect }: Opt
   );
 }
 
-import { StackNavigationProp } from "@react-navigation/stack";
+type SellScreenNavigationProp = NativeStackNavigationProp<
+  SellStackParamList,
+  "SellMain"
+>;
 
-type SellScreenNavigationProp = StackNavigationProp<any>;
-
-export default function SellScreen({ navigation }: { navigation: SellScreenNavigationProp }) {
+export default function SellScreen({
+  navigation,
+}: {
+  navigation: SellScreenNavigationProp;
+}) {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [aiDesc, setAiDesc] = useState<string | null>(null);

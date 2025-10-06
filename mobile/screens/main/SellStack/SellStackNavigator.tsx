@@ -5,8 +5,8 @@ import SellScreen from "./SellScreen";
 import DraftsScreen from "./DraftsScreen";
 
 export type SellStackParamList = {
-  SellMain: undefined;          // 发布页面
-  Drafts: undefined;            // 草稿箱页面
+  SellMain: { draftId?: string } | undefined; // 发布页面
+  Drafts: undefined;                          // 草稿箱页面
 };
 
 const Stack = createNativeStackNavigator<SellStackParamList>();
