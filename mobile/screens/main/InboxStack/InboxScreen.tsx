@@ -14,14 +14,34 @@ import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
 
-// 模拟一条消息
-const mockMessages = [
+// 模拟多条对话（Support + Seller）
+const mockThreads = [
   {
-    id: "1",
+    id: "support-1",
     sender: "TOP Support",
     message: "Hey @ccc446981,",
     time: "1 month ago",
-    avatar: ASSETS.avatars.top, // ✅ 改为 PNG
+    avatar: ASSETS.avatars.top, // 红色 TOP PNG
+    kind: "support",
+  },
+  {
+    id: "order-2",
+    sender: "seller111",
+    message: "Order delivered — leave a review",
+    time: "Sep 20, 2025",
+    avatar: ASSETS.avatars.default, // 默认圆头像
+    kind: "order",
+    order: {
+      id: "ORD123",
+      product: {
+        title: "American Eagle Super Stretch Skinny Jeans",
+        price: 10,
+        image:
+          "https://tse4.mm.bing.net/th/id/OIP.TC_mOkLd6sQzsLiE_uSloQHaJ3?w=600&h=799&rs=1&pid=ImgDetMain",
+      },
+      seller: "seller111",
+      status: "Delivered",
+    },
   },
 ];
 
@@ -48,12 +68,18 @@ export default function InboxScreen() {
       {/* Message List */}
       <FlatList
         contentContainerStyle={{ padding: 16 }}
-        data={mockMessages}
+        data={mockThreads}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.messageRow}
-            onPress={() => navigation.navigate("Chat", { sender: item.sender })}
+            onPress={() =>
+              navigation.navigate("Chat", {
+                sender: item.sender,
+                kind: item.kind,
+                order: item.order ?? null,
+              })
+            }
           >
             {/* Avatar */}
             <Image source={item.avatar} style={styles.avatar} />
