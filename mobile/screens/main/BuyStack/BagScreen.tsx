@@ -48,11 +48,10 @@ export default function BagScreen() {
           <Text style={styles.emptySubtitle}>Add items to see them appear here.</Text>
           <TouchableOpacity
             style={styles.exploreBtn}
-            onPress={() =>
-              navigation
-                .getParent<NativeStackNavigationProp<HomeStackParamList>>()
-                ?.navigate("HomeMain")
-            }
+            onPress={() => {
+              const parent = (navigation as any).getParent?.();
+              parent?.navigate?.("Main", { screen: "Home", params: { screen: "HomeMain" } });
+            }}
           >
             <Text style={styles.exploreText}>Explore listings</Text>
           </TouchableOpacity>
@@ -99,11 +98,10 @@ export default function BagScreen() {
         <View style={styles.bottomBar}>
           <TouchableOpacity
             style={styles.secondaryButton}
-            onPress={() =>
-              navigation
-                .getParent<NativeStackNavigationProp<HomeStackParamList>>()
-                ?.navigate("HomeMain")
-            }
+            onPress={() => {
+              const parent = (navigation as any).getParent?.();
+              parent?.navigate?.("Main", { screen: "Home", params: { screen: "HomeMain" } });
+            }}
           >
             <Text style={styles.secondaryText}>Continue browsing</Text>
           </TouchableOpacity>

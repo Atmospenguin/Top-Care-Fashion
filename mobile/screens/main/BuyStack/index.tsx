@@ -5,9 +5,9 @@ import ListingDetailScreen from "./ListingDetailScreen";
 import BagScreen from "./BagScreen";
 import CheckoutScreen from "./CheckoutScreen";
 import PurchaseScreen from "./PurchaseScreen";
-import ReviewScreen from "./ReviewScreen";
 import type { BagItem, ListingItem } from "../../../types/shop";
-
+import HomeScreen from "../HomeStack/HomeScreen";
+  
 export type BuyStackParamList = {
   ListingDetail: { item: ListingItem };
   Bag: { items: BagItem[] } | undefined;
@@ -18,7 +18,7 @@ export type BuyStackParamList = {
     estimatedDelivery: string;
     items: BagItem[];
   };
-  Review: { orderId: string; sellerName: string; itemTitle: string };
+  HomeMain: undefined;
 };
 
 const Stack = createNativeStackNavigator<BuyStackParamList>();
@@ -26,11 +26,11 @@ const Stack = createNativeStackNavigator<BuyStackParamList>();
 export default function BuyStackNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="HomeMain" component={HomeScreen} />
       <Stack.Screen name="ListingDetail" component={ListingDetailScreen} />
       <Stack.Screen name="Bag" component={BagScreen} />
       <Stack.Screen name="Checkout" component={CheckoutScreen} />
       <Stack.Screen name="Purchase" component={PurchaseScreen} />
-      <Stack.Screen name="Review" component={ReviewScreen} />
     </Stack.Navigator>
   );
 }

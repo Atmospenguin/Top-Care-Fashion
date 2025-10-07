@@ -1,13 +1,5 @@
 import React from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-  ScrollView,
-} from "react-native";
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -15,6 +7,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Icon from "../../../components/Icon";
 import type { HomeStackParamList } from "./index";
 import { DEFAULT_BAG_ITEMS, MOCK_LISTINGS } from "../../../mocks/shop";
+import AdaptiveImage from "../../../components/AdaptiveImage";
 import type { BuyStackParamList } from "../BuyStack";
 
 export default function HomeScreen() {
@@ -32,7 +25,7 @@ export default function HomeScreen() {
             placeholderTextColor="#666"
           />
           <TouchableOpacity style={{ marginLeft: 12 }} accessibilityRole="button">
-            <Icon name="heart-outline" size={22} color="#111" />
+            <Icon name="heart-outline" size={24} color="#111" />
           </TouchableOpacity>
           <TouchableOpacity
             style={{ marginLeft: 12 }}
@@ -48,7 +41,7 @@ export default function HomeScreen() {
                 } as any)
             }
           >
-            <Icon name="bag-outline" size={22} color="#111" />
+            <Icon name="bag-outline" size={24} color="#111" />
           </TouchableOpacity>
         </View>
 
@@ -81,7 +74,7 @@ export default function HomeScreen() {
               }
               accessibilityRole="button"
             >
-              <Image source={{ uri: item.images[0] }} style={styles.itemImg} />
+              <AdaptiveImage uri={item.images[0]} style={styles.itemImg} />
               <Text style={styles.cardTitle}>{item.title}</Text>
               <Text style={styles.price}>${item.price.toFixed(2)}</Text>
             </TouchableOpacity>
@@ -135,7 +128,8 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: "700", marginBottom: 12 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   card: { width: "48%", marginBottom: 16 },
-  itemImg: { width: "100%", height: 120, borderRadius: 8, marginBottom: 6 },
+  // itemImg uses AdaptiveImage which provides width:100% + aspectRatio dynamically
+  itemImg: { borderRadius: 8, marginBottom: 6, overflow: "hidden" },
   cardTitle: { fontSize: 15, fontWeight: "600", marginBottom: 2 },
   price: { fontWeight: "700" },
 });
