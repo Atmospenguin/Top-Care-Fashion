@@ -39,7 +39,17 @@ export default function ListingDetailScreen() {
 
   return (
     <View style={styles.screen}>
-      <Header title="" showBack />
+      <Header
+        title=""
+        showBack
+        rightAction={
+          <TouchableOpacity
+            onPress={() => navigation.navigate("MixMatch", { baseItem: item })}
+          >
+            <Icon name="color-palette-outline" size={22} color="#111" />
+          </TouchableOpacity>
+        }
+      />
       <ScrollView contentContainerStyle={styles.container}>
         <ScrollView
           horizontal
@@ -68,6 +78,15 @@ export default function ListingDetailScreen() {
             >
               <Icon name="heart-outline" size={22} color="#111" />
             </TouchableOpacity>
+            {/* Mix & Match chip aligned with like icon and same height */}
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.mixChipBtn}
+              onPress={() => navigation.navigate("MixMatch", { baseItem: item })}
+            >
+              <Text style={styles.mixChipText}>Mix & Match</Text>
+            </TouchableOpacity>
+
           </View>
           <View style={styles.metaRow}>
             <View style={styles.metaPill}>
@@ -198,6 +217,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  mixChipBtn: {
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#111",
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mixChipText: { fontSize: 13, fontWeight: "700", color: "#111" },
   metaRow: {
     flexDirection: "row",
     columnGap: 12,
