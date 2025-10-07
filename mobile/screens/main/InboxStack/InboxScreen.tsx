@@ -28,8 +28,8 @@ const mockThreads = [
     id: "order-2",
     sender: "seller111",
     message: "Order delivered — leave a review",
-    time: "Sep 20, 2025",
-    avatar: ASSETS.avatars.default, // 默认圆头像
+    time: "Sep 25, 2025",
+    avatar: { uri: "https://i.pravatar.cc/100?img=12" }, // seller111 专用头像
     kind: "order",
     order: {
       id: "ORD123",

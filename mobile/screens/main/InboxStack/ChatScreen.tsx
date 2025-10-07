@@ -54,11 +54,11 @@ export default function ChatScreen() {
         { id: "t2", type: "system", text: "Sep 20, 2025 18:36" },
         { id: "m3", type: "msg", sender: "me", text: "Great! I’ll place the order now." },
 
-        // 物流/系统状态（灰色居中）
-        { id: "sys1", type: "system", text: "Seller has shipped your parcel." },
-        { id: "sys2", type: "system", text: "Parcel is in transit." },
-        { id: "sys3", type: "system", text: "Parcel arrived. Waiting for buyer to confirm receipt." },
-        { id: "sys4", type: "system", text: "Order confirmed received. Transaction completed." },
+  // 物流/系统状态（灰色居中），现在每条带时间显示
+  { id: "sys1", type: "system", text: "Seller has shipped your parcel.", time: "Sep 20, 2025 18:37" },
+  { id: "sys2", type: "system", text: "Parcel is in transit.", time: "Sep 23, 2025 13:40" },
+  { id: "sys3", type: "system", text: "Parcel arrived. Waiting for buyer to confirm receipt.", time: "Sep 24, 2025 08:00" },
+  { id: "sys4", type: "system", text: "Order confirmed received. Transaction completed.", time: "Sep 25, 2025 12:50" },
 
         // 评价 CTA（仅当未评价）
         ...(!o.feedbackGiven
@@ -112,17 +112,22 @@ export default function ChatScreen() {
   );
 
   const renderSystem = (text: string, time?: string) => {
-    const isDateLike = /\d{4}|[A-Za-z]{3}/.test(text);
+  // 判断是不是时间格式（更严格）：匹配像 "Sep 20, 2025" 或 "Jul 13, 2025" 的开头
+  const isDateLike = /^\w{3}\s\d{1,2},\s\d{4}/.test(text);
 
     if (isDateLike) {
+      // 只显示居中时间文字（无灰底）
       return <Text style={styles.timeOnly}>{text}</Text>;
     }
 
+    // 其他系统提示（物流状态等）维持灰框样式
     return (
-      <View style={styles.systemBox}>
+      <>
         {time ? <Text style={styles.time}>{time}</Text> : null}
-        <Text style={styles.systemText}>{text}</Text>
-      </View>
+        <View style={styles.systemBox}>
+          <Text style={styles.systemText}>{text}</Text>
+        </View>
+      </>
     );
   };
 
@@ -133,7 +138,7 @@ export default function ChatScreen() {
       {/* 居中按钮 */}
       <TouchableOpacity
         style={styles.reviewBtnCenter}
-        onPress={() => (navigation as any).navigate("MyTop", { screen: "Feedback", params: { orderId } })}
+        onPress={() => (navigation as any).navigate("Feedback", { orderId })}
       >
         <Text style={styles.reviewBtnText}>Leave Feedback</Text>
       </TouchableOpacity>
@@ -169,7 +174,13 @@ export default function ChatScreen() {
                 {/* 对方头像：TOP Support 用 TOP 头像；否则用默认 */}
                 {item.sender !== "me" && (
                   <Image
-                    source={sender === "TOP Support" ? ASSETS.avatars.top : ASSETS.avatars.default}
+                    source={
+                      sender === "TOP Support"
+                        ? ASSETS.avatars.top
+                        : sender === "seller111"
+                        ? { uri: "https://i.pravatar.cc/100?img=12" }
+                        : ASSETS.avatars.default
+                    }
                     style={[styles.avatar, { marginRight: 6 }]}
                   />
                 )}
@@ -232,6 +243,13 @@ const styles = StyleSheet.create({
   textRight: { color: "#fff", fontSize: 15 },
   time: { fontSize: 11, color: "#888", alignSelf: "center", marginBottom: 4 },
 
+  timeOnly: {
+    fontSize: 11,
+    color: "#888",
+    alignSelf: "center",
+    marginVertical: 6,
+  },
+
   // system rows
   systemBox: {
     alignSelf: "center",
@@ -283,13 +301,6 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
   },
   reviewBtnText: { fontSize: 14, color: "#111", fontWeight: "700" },
-
-  timeOnly: {
-    fontSize: 11,
-    color: "#888",
-    alignSelf: "center",
-    marginVertical: 6,
-  },
 
   // input bar
   inputBar: {

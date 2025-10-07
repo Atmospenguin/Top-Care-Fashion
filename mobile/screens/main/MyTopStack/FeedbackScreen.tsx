@@ -11,24 +11,14 @@ import {
 import Header from "../../../components/Header";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
-import type { MyTopStackParamList } from "./index";
+import type { RootStackParamList } from "../../../App";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect } from "react";
 
 export default function FeedbackScreen() {
-  const route = useRoute<RouteProp<MyTopStackParamList, "Feedback">>();
+  const route = useRoute<RouteProp<RootStackParamList, "Feedback">>();
   const { orderId } = route.params;
   const navigation = useNavigation();
-
-  useEffect(() => {
-    // Hide parent tab bar when entering
-    navigation.getParent?.()?.setOptions?.({ tabBarStyle: { display: "none" } });
-
-    return () => {
-      // Restore when leaving
-      navigation.getParent?.()?.setOptions?.({ tabBarStyle: undefined });
-    };
-  }, [navigation]);
 
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState("");

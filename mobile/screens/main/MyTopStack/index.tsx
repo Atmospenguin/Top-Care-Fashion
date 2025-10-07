@@ -4,7 +4,6 @@ import MyTopScreen from "./MyTopScreen";
 import SettingScreen from "./SettingScreen";
 import EditProfileScreen from "./EditProfileScreen";
 import OrderDetailScreen from "./OrderDetailScreen";
-import FeedbackScreen from "./FeedbackScreen";
 import SecurityScreen from "./SecurityScreen";
 
 export type MyTopStackParamList = {
@@ -13,7 +12,6 @@ export type MyTopStackParamList = {
   Settings: undefined;
   Security: undefined;
   OrderDetail: { id: string; source: "purchase" | "sold" };
-  Feedback: { orderId: string };
 };
 
 const Stack = createNativeStackNavigator<MyTopStackParamList>();
@@ -28,11 +26,6 @@ export default function MyTopStackNavigator() {
         name="OrderDetail"
         component={OrderDetailScreen}
         // cast to any because NativeStackNavigationOptions doesn't include tabBarStyle
-        options={{ tabBarStyle: { display: "none" } } as any}
-      />
-      <Stack.Screen
-        name="Feedback"
-        component={FeedbackScreen}
         options={{ tabBarStyle: { display: "none" } } as any}
       />
       <Stack.Screen name="Security" component={SecurityScreen} />
