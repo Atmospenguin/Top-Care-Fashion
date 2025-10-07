@@ -56,7 +56,7 @@ export default function SoldTab() {
           style={styles.filterBtn}
           onPress={() => setModalVisible(true)}
         >
-          <Text style={{ fontSize: 16 }}>{filterLabels[filter] ?? filter} v</Text>
+          <Text style={{ fontSize: 16, fontWeight: '500' }}>{filterLabels[filter] ?? filter} ▼</Text>
         </TouchableOpacity>
       </View>
 
