@@ -50,7 +50,16 @@ export default function BagScreen() {
             style={styles.exploreBtn}
             onPress={() => {
               const parent = (navigation as any).getParent?.();
-              parent?.navigate?.("Main", { screen: "Home", params: { screen: "HomeMain" } });
+              if (parent?.reset) {
+                parent.reset({
+                  index: 0,
+                  routes: [
+                    { name: "Main", params: { screen: "Home", params: { screen: "HomeMain" } } },
+                  ],
+                });
+              } else {
+                parent?.navigate?.("Main", { screen: "Home", params: { screen: "HomeMain" } });
+              }
             }}
           >
             <Text style={styles.exploreText}>Explore listings</Text>
@@ -100,7 +109,16 @@ export default function BagScreen() {
             style={styles.secondaryButton}
             onPress={() => {
               const parent = (navigation as any).getParent?.();
-              parent?.navigate?.("Main", { screen: "Home", params: { screen: "HomeMain" } });
+              if (parent?.reset) {
+                parent.reset({
+                  index: 0,
+                  routes: [
+                    { name: "Main", params: { screen: "Home", params: { screen: "HomeMain" } } },
+                  ],
+                });
+              } else {
+                parent?.navigate?.("Main", { screen: "Home", params: { screen: "HomeMain" } });
+              }
             }}
           >
             <Text style={styles.secondaryText}>Continue browsing</Text>

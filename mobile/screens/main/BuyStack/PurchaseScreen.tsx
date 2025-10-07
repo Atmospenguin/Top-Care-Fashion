@@ -69,8 +69,16 @@ export default function PurchaseScreen() {
             // 回退到 Home：优先通过父导航器导航到 HomeMain 根路由，
             // 如果没有父导航器则在当前栈中回到根（popToTop）。
             const parent = (navigation as any).getParent?.();
-            if (parent && typeof parent.navigate === "function") {
-              // Parent may be the root stack; navigate to the Main tab's Home nested route
+            if (parent && typeof parent.reset === "function") {
+              // Reset root stack so back gesture won't return to Purchase
+              parent.reset({
+                index: 0,
+                routes: [
+                  { name: "Main", params: { screen: "Home", params: { screen: "HomeMain" } } },
+                ],
+              });
+            } else if (parent && typeof parent.navigate === "function") {
+              // Fallback: navigate without reset
               parent.navigate("Main", { screen: "Home", params: { screen: "HomeMain" } });
             } else if (typeof navigation.popToTop === "function") {
               navigation.popToTop();
