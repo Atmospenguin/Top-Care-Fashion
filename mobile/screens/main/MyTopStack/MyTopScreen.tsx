@@ -139,7 +139,10 @@ export default function MyTopScreen() {
               item.empty ? (
                 <View style={[styles.itemBox, styles.itemInvisible]} />
               ) : (
-                <TouchableOpacity style={styles.itemBox}>
+                <TouchableOpacity
+                  style={styles.itemBox}
+                  onPress={() => navigation.navigate("ActiveListingDetail")}
+                >
                   <Image source={{ uri: item.image }} style={styles.itemImage} />
                 </TouchableOpacity>
               )

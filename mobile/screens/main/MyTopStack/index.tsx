@@ -5,6 +5,8 @@ import SettingScreen from "./SettingScreen";
 import EditProfileScreen from "./EditProfileScreen";
 import OrderDetailScreen from "./OrderDetailScreen";
 import SecurityScreen from "./SecurityScreen";
+import ActiveListingDetailScreen from "./ActiveListingDetailScreen";
+import ManageListingScreen from "./ManageListingScreen";
 
 export type MyTopStackParamList = {
   MyTopMain: undefined;
@@ -12,6 +14,8 @@ export type MyTopStackParamList = {
   Settings: undefined;
   Security: undefined;
   OrderDetail: { id: string; source: "purchase" | "sold" };
+  ActiveListingDetail: undefined;
+  ManageListing: undefined;
 };
 
 const Stack = createNativeStackNavigator<MyTopStackParamList>();
@@ -29,6 +33,8 @@ export default function MyTopStackNavigator() {
         options={{ tabBarStyle: { display: "none" } } as any}
       />
       <Stack.Screen name="Security" component={SecurityScreen} />
+      <Stack.Screen name="ActiveListingDetail" component={ActiveListingDetailScreen} />
+      <Stack.Screen name="ManageListing" component={ManageListingScreen} />
     </Stack.Navigator>
   );
 }
