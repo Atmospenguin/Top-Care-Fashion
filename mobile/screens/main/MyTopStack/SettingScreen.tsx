@@ -27,8 +27,16 @@ export default function SettingScreen() {
         <View style={styles.sectionBox}>
           <SettingItem icon="person-outline" label="Edit profile" onPress={() => { console.log('Edit profile pressed'); navigation.navigate("EditProfile"); }} />
           <SettingItem icon="shield-outline" label="Security" onPress={() => { console.log('Security pressed - about to navigate'); navigation.navigate("Security"); setTimeout(() => console.log('After navigate call - current route should change if registered'), 50); }} />
-          <SettingItem icon="notifications-outline" label="Notifications" />
-          <SettingItem icon="lock-closed-outline" label="Privacy" />
+          <SettingItem
+            icon="notifications-outline"
+            label="Notifications"
+            onPress={() => navigation.navigate("Notifications")}
+          />
+          <SettingItem
+            icon="lock-closed-outline"
+            label="Privacy"
+            onPress={() => navigation.navigate("Privacy")}
+          />
         </View>
 
         {/* Support Section */}
@@ -39,14 +47,26 @@ export default function SettingScreen() {
             label="My Premium"
             onPress={() => rootNavigation.navigate("Premium")}
           />
-          <SettingItem icon="help-circle-outline" label="Help & Support" />
-          <SettingItem icon="information-circle-outline" label="Terms and Policies" />
+          <SettingItem
+            icon="help-circle-outline"
+            label="Help & Support"
+            onPress={() => navigation.navigate("HelpSupport")}
+          />
+          <SettingItem
+            icon="information-circle-outline"
+            label="Terms and Policies"
+            onPress={() => navigation.navigate("TermsPolicies")}
+          />
         </View>
 
         {/* Actions Section */}
         <Text style={styles.sectionTitle}>Actions</Text>
         <View style={styles.sectionBox}>
-          <SettingItem icon="flag-outline" label="Report" />
+          <SettingItem
+            icon="flag-outline"
+            label="Report"
+            onPress={() => navigation.navigate("Report")}
+          />
           <SettingItem
             icon="log-out-outline"
             label="Log out"

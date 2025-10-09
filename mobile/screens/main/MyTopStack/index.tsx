@@ -5,12 +5,22 @@ import SettingScreen from "./SettingScreen";
 import EditProfileScreen from "./EditProfileScreen";
 import OrderDetailScreen from "./OrderDetailScreen";
 import SecurityScreen from "./SecurityScreen";
+import NotificationsScreen from "./NotificationsScreen";
+import PrivacyScreen from "./PrivacyScreen";
+import HelpSupportScreen from "./HelpSupportScreen";
+import TermsPoliciesScreen from "./TermsPoliciesScreen";
+import ReportScreen from "./ReportScreen";
 
 export type MyTopStackParamList = {
   MyTopMain: undefined;
   EditProfile: undefined;
   Settings: undefined;
   Security: undefined;
+  Notifications: undefined;
+  Privacy: undefined;
+  HelpSupport: undefined;
+  TermsPolicies: undefined;
+  Report: undefined;
   OrderDetail: { id: string; source: "purchase" | "sold" };
 };
 
@@ -29,6 +39,11 @@ export default function MyTopStackNavigator() {
         options={{ tabBarStyle: { display: "none" } } as any}
       />
       <Stack.Screen name="Security" component={SecurityScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="Privacy" component={PrivacyScreen} />
+      <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+      <Stack.Screen name="TermsPolicies" component={TermsPoliciesScreen} />
+      <Stack.Screen name="Report" component={ReportScreen} />
     </Stack.Navigator>
   );
 }
