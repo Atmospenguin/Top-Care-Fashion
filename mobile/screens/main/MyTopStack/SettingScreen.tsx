@@ -27,7 +27,10 @@ export default function SettingScreen() {
         <View style={styles.sectionBox}>
           <SettingItem icon="person-outline" label="Edit profile" onPress={() => { console.log('Edit profile pressed'); navigation.navigate("EditProfile"); }} />
           <SettingItem icon="shield-outline" label="Security" onPress={() => { console.log('Security pressed - about to navigate'); navigation.navigate("Security"); setTimeout(() => console.log('After navigate call - current route should change if registered'), 50); }} />
-          <SettingItem icon="notifications-outline" label="Notifications" />
+          <SettingItem
+            icon="notifications-outline"
+            label="Notifications"
+          />
           <SettingItem icon="lock-closed-outline" label="Privacy" />
         </View>
 

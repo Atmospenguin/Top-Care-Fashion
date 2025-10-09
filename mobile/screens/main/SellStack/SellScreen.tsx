@@ -122,7 +122,7 @@ export default function SellScreen({
     setAiDesc(null);
     try {
       await new Promise((r) => setTimeout(r, 1000));
-      setAiDesc("Blue and white Ader Error x Converse trainers #sneakers");
+      setAiDesc("Stylish mini skirt featuring a pleated design and a decorative belt. The skirt has a unique layered design with a floral print on the bottom layer.");
     } catch (err) {
       console.error("AI generation failed:", err);
     }
