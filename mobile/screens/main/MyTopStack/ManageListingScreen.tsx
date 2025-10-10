@@ -7,10 +7,16 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import type { MyTopStackParamList } from "./index";
 
 export default function ManageListingScreen() {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
+
   // 复用同一条 Listing 的关键信息（与详情一致）
   const thumb =
     "https://th.bing.com/th/id/OIP.S07mGFGvwi2ldQARRcy0ngHaJ4?w=138&h=190&c=7&r=0&o=7&cb=12&dpr=2&pid=1.7&rm=3";
@@ -30,16 +36,20 @@ export default function ManageListingScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
         {/* 顶部卡片：缩略图 + 价格 + Preview 文案 */}
-        <View style={styles.topCard}>
+        <TouchableOpacity
+          style={styles.topCard}
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate("ActiveListingDetail")}
+        >
           <Image source={{ uri: thumb }} style={styles.thumb} />
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Text style={styles.topPrice}>${price}</Text>
               <Icon name="create-outline" size={16} color="#6b6b6b" />
             </View>
-            <Text style={styles.previewText}>Preview and edit listing</Text>
+            <Text style={styles.previewText}>Preview listing</Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* Promotion 卡片 */}
         <View style={styles.promoCard}>
@@ -85,7 +95,10 @@ export default function ManageListingScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Manage your listing</Text>
 
-          <TouchableOpacity style={styles.rowItem} onPress={() => {}}>
+          <TouchableOpacity
+            style={styles.rowItem}
+            onPress={() => navigation.navigate("EditListing")}
+          >
             <Text style={styles.rowText}>Edit Listing</Text>
             <Icon name="chevron-forward" size={18} color="#999" />
           </TouchableOpacity>
