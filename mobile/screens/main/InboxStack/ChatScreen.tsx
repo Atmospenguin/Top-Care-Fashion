@@ -21,6 +21,7 @@ type Order = {
   id: string;
   product: { title: string; price: number; size?: string; image: string };
   seller: { name: string; avatar?: string };
+  buyer?: { name: string; avatar?: string };
   status: "Delivered" | "Shipped" | "Processing" | string;
   address?: { name?: string; phone?: string; detail?: string };
   payment?: { method?: string; amount?: number; date?: string; transactionId?: string };
@@ -29,7 +30,15 @@ type Order = {
 
 type ChatItem =
   | { id: string; type: "msg"; sender: "me" | "other"; text: string; time?: string }
-  | { id: string; type: "system"; text: string; time?: string }
+  | {
+      id: string;
+      type: "system";
+      text: string;
+      time?: string;
+      sentByUser?: boolean;
+      avatar?: string;
+      orderId?: string;
+    }
   | { id: string; type: "orderCard"; order: Order }
   | { id: string; type: "reviewCta"; text: string; orderId: string };
 
@@ -41,37 +50,97 @@ export default function ChatScreen() {
   // —— 初始消息：按会话类型分支 —— //
   const itemsInit: ChatItem[] = useMemo(() => {
     if (kind === "order" && order) {
-      const o: Order = order;
-      return [
-        // 时间行（去掉“Chat with …”那句）
-        { id: "t0", type: "system", text: "Sep 20, 2025 18:30" },
-        { id: "card0", type: "orderCard", order: o },
+      const o: Order = {
+        ...order,
+        seller: {
+          name: order?.seller?.name ?? "seller111",
+          avatar: order?.seller?.avatar ?? "https://i.pravatar.cc/100?img=12",
+        },
+        buyer: {
+          name: "buyer002",
+          avatar: "https://i.pravatar.cc/100?img=32",
+        },
+        status: order?.status ?? "Completed",
+      };
 
-        { id: "t1", type: "system", text: "Sep 20, 2025 18:32" },
-        { id: "m1", type: "msg", sender: "me", text: "Hi! Is this jeans still available?" },
-        { id: "m2", type: "msg", sender: "other", text: "Yes! It’s in good condition and ready to ship 😊" },
+      if (sender === "seller111") {
+        return [
+          { id: "t0", type: "system", text: "Sep 20, 2025 18:30" },
+          { id: "card0", type: "orderCard", order: o },
+          { id: "t1", type: "system", text: "Sep 20, 2025 18:32" },
+          { id: "m1", type: "msg", sender: "me", text: "Hi! Is this jeans still available?" },
+          { id: "m2", type: "msg", sender: "other", text: "Yes! It’s in good condition and ready to ship 😊" },
+          { id: "t2", type: "system", text: "Sep 20, 2025 18:36" },
+          { id: "m3", type: "msg", sender: "me", text: "Great! I’ll place the order now." },
+          {
+            id: "sysPay",
+            type: "system",
+            text: "I've paid, waiting for you to ship\nPlease pack the item and ship to the address I provided on TOP.",
+            sentByUser: true,
+          },
+          { id: "sys1", type: "system", text: "Seller has shipped your parcel.", time: "Sep 20, 2025 18:37" },
+          { id: "sys2", type: "system", text: "Parcel is in transit.", time: "Sep 23, 2025 13:40" },
+          {
+            id: "sys3",
+            type: "system",
+            text: "Parcel arrived. Waiting for buyer to confirm receipt.",
+            time: "Sep 24, 2025 08:00",
+          },
+          {
+            id: "sys4",
+            type: "system",
+            text: "Order confirmed received. Transaction completed.",
+            time: "Sep 25, 2025 12:50",
+          },
+          {
+            id: "cta1",
+            type: "reviewCta",
+            text: "How was your experience? Leave a review to help others discover great items.",
+            orderId: o.id,
+          },
+        ];
+      }
 
-        { id: "t2", type: "system", text: "Sep 20, 2025 18:36" },
-        { id: "m3", type: "msg", sender: "me", text: "Great! I’ll place the order now." },
-
-  // 物流/系统状态（灰色居中），现在每条带时间显示
-  { id: "sys1", type: "system", text: "Seller has shipped your parcel.", time: "Sep 20, 2025 18:37" },
-  { id: "sys2", type: "system", text: "Parcel is in transit.", time: "Sep 23, 2025 13:40" },
-  { id: "sys3", type: "system", text: "Parcel arrived. Waiting for buyer to confirm receipt.", time: "Sep 24, 2025 08:00" },
-  { id: "sys4", type: "system", text: "Order confirmed received. Transaction completed.", time: "Sep 25, 2025 12:50" },
-
-        // 评价 CTA（仅当未评价）
-        ...(!o.feedbackGiven
-          ? [
-              {
-                id: "cta1",
-                type: "reviewCta" as const,
-                text: "How was your experience? Leave a review to help others discover great items.",
-                orderId: o.id,
-              },
-            ]
-          : []),
-      ];
+      if (sender === "buyer002") {
+        return [
+          { id: "t0", type: "system", text: "Sep 26, 2025 15:00" },
+          { id: "card0", type: "orderCard", order: o },
+          {
+            id: "cardPay",
+            type: "system",
+            text: "buyer002 has paid for the order.\nPlease prepare the package and ship soon.",
+            sentByUser: false,
+            avatar: o.buyer?.avatar,
+          },
+          { id: "m1", type: "msg", sender: "me", text: "Ok, I’ll ship the hoodie in 3 days." },
+          {
+            id: "sys2",
+            type: "system",
+            text: "You’ve marked the order as shipped.",
+            time: "Sep 28, 2025 10:00",
+          },
+          {
+            id: "sys3",
+            type: "system",
+            text: "Buyer has confirmed receipt. Transaction completed.",
+            time: "Sep 30, 2025 16:00",
+          },
+          {
+            id: "cardReviewBuyer",
+            type: "system",
+            text: "I’ve completed my review\nWaiting for your review.",
+            sentByUser: false,
+            avatar: o.buyer?.avatar,
+          },
+          {
+            id: "cardReviewSeller",
+            type: "system",
+            text: "I’ve completed my review\nMutual reviews are done. You can view them now.",
+            sentByUser: true,
+            orderId: o.id,
+          },
+        ];
+      }
     }
 
     // TOP Support 会话（保留原来两条）
@@ -79,7 +148,7 @@ export default function ChatScreen() {
       { id: "1", type: "msg", sender: "other", text: "Hey @ccc446981, Welcome to TOP! 👋", time: "Jul 13, 2025 18:17" },
       { id: "2", type: "msg", sender: "me", text: "Thanks! Happy to join ~", time: "Jul 13, 2025 18:20" },
     ];
-  }, [kind, order]);
+  }, [kind, order, sender]);
 
   const [items, setItems] = useState<ChatItem[]>(itemsInit);
   const [input, setInput] = useState("");
@@ -105,19 +174,74 @@ export default function ChatScreen() {
           ${o.product.price}
           {o.product.size ? ` · Size ${o.product.size}` : ""}
         </Text>
-        <Text style={styles.orderMeta}>Sold by {o?.seller?.name ?? "Seller"}</Text>
+        <Text style={styles.orderMeta}>
+          {sender === "buyer002"
+            ? `Purchased by ${o?.buyer?.name ?? "Buyer"}`
+            : `Sold by ${o?.seller?.name ?? "Seller"}`}
+        </Text>
         <Text style={styles.orderStatus}>Status: {o.status}</Text>
       </View>
     </View>
   );
 
-  const renderSystem = (text: string, time?: string) => {
-  // 判断是不是时间格式（更严格）：匹配像 "Sep 20, 2025" 或 "Jul 13, 2025" 的开头
-  const isDateLike = /^\w{3}\s\d{1,2},\s\d{4}/.test(text);
+  type SystemItem = Extract<ChatItem, { type: "system" }>;
+
+  const renderSystem = (item: SystemItem) => {
+    const { id, text, time, sentByUser, avatar } = item;
+    // 判断是不是时间格式（更严格）：匹配像 "Sep 20, 2025" 或 "Jul 13, 2025" 的开头
+    const isDateLike = /^\w{3}\s\d{1,2},\s\d{4}/.test(text);
 
     if (isDateLike) {
       // 只显示居中时间文字（无灰底）
       return <Text style={styles.timeOnly}>{text}</Text>;
+    }
+
+    // 如果文本包含换行，渲染为系统卡片（两行：标题 + 副标题）
+    if (text.includes("\n")) {
+      const [title, ...rest] = text.split("\n");
+      const subtitle = rest.join("\n");
+      const isMine = Boolean(sentByUser);
+
+      const bubbleStyle = isMine ? styles.userCardBubble : styles.userCardBubbleBuyer;
+      const avatarSource = isMine
+        ? ASSETS.avatars.default
+        : avatar
+        ? { uri: avatar }
+        : ASSETS.avatars.default;
+
+      return (
+        <>
+          {time ? <Text style={styles.time}>{time}</Text> : null}
+          <View style={[styles.messageRow, isMine ? { justifyContent: "flex-end" } : undefined]}>
+            {!isMine && <Image source={avatarSource} style={[styles.avatar, { marginRight: 6 }]} />}
+
+            <View style={bubbleStyle}>
+              {title ? <Text style={styles.userCardTitle}>{title}</Text> : null}
+              <View style={styles.userCardDivider} />
+              {subtitle ? <Text style={styles.userCardSubtitle}>{subtitle}</Text> : null}
+
+              {id === "cardReviewBuyer" && (
+                <TouchableOpacity style={styles.userCardBtn} disabled>
+                  <Text style={styles.userCardBtnText}>Reviewed</Text>
+                </TouchableOpacity>
+              )}
+
+              {id === "cardReviewSeller" && (
+                <TouchableOpacity
+                  style={styles.userCardBtn}
+                  onPress={() =>
+                    item.orderId && (navigation as any).navigate("Feedback", { orderId: item.orderId })
+                  }
+                >
+                  <Text style={styles.userCardBtnText}>View review</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {isMine && <Image source={ASSETS.avatars.default} style={[styles.avatar, { marginLeft: 6 }]} />}
+          </View>
+        </>
+      );
     }
 
     // 其他系统提示（物流状态等）维持灰框样式
@@ -162,7 +286,8 @@ export default function ChatScreen() {
         contentContainerStyle={{ padding: 12, paddingBottom: 12 }}
         renderItem={({ item }) => {
           if (item.type === "orderCard") return <View style={{ marginBottom: 12 }}>{renderOrderCard(item.order)}</View>;
-          if (item.type === "system") return <View style={{ marginBottom: 12 }}>{renderSystem(item.text, item.time)}</View>;
+          if (item.type === "system")
+            return <View style={{ marginBottom: 12 }}>{renderSystem(item)}</View>;
           if (item.type === "reviewCta")
             return <View style={{ marginBottom: 12 }}>{renderReviewCTA(item.orderId, item.text)}</View>;
 
@@ -222,12 +347,12 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   // avatars & bubbles
   avatar: { width: 32, height: 32, borderRadius: 16 },
-  messageRow: { flexDirection: "row", alignItems: "flex-end" },
+  messageRow: { flexDirection: "row", alignItems: "flex-start" },
   bubbleLeft: {
     backgroundColor: "#eee",
     paddingVertical: 10,
     paddingHorizontal: 14,
-    borderRadius: 20,
+    borderRadius: 12,
     marginHorizontal: 6,
     maxWidth: "72%",
   },
@@ -235,7 +360,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#007AFF",
     paddingVertical: 10,
     paddingHorizontal: 14,
-    borderRadius: 20,
+    borderRadius: 12,
     marginHorizontal: 6,
     maxWidth: "72%",
   },
@@ -254,13 +379,63 @@ const styles = StyleSheet.create({
   systemBox: {
     alignSelf: "center",
     backgroundColor: "#F6F6F6",
-    borderRadius: 10,
+    borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 14,
     marginVertical: 8,
     maxWidth: "92%",
   },
   systemText: { color: "#333", fontSize: 14, textAlign: "center", lineHeight: 20 },
+
+  // unified system cards for buyer/seller
+  userCardBubble: {
+    backgroundColor: "#FFF6D8",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    maxWidth: "72%",
+    minWidth: "60%",
+  },
+  userCardBubbleBuyer: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    maxWidth: "72%",
+    minWidth: "60%",
+  },
+  userCardTitle: {
+    fontWeight: "700",
+    color: "#111",
+    fontSize: 15,
+    marginBottom: 6,
+  },
+  userCardDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#ddd",
+    marginHorizontal: -14,
+    marginBottom: 6,
+  },
+  userCardSubtitle: {
+    color: "#444",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  userCardBtn: {
+    alignSelf: "flex-end",
+    backgroundColor: "#fff",
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#ddd",
+    marginTop: 8,
+  },
+  userCardBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#111",
+  },
 
   // order card
   orderCard: {
@@ -282,7 +457,7 @@ const styles = StyleSheet.create({
   // review CTA
   reviewBox: {
     backgroundColor: "#F6F6F6",
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 14,
     marginHorizontal: 8,
     shadowColor: "#000",

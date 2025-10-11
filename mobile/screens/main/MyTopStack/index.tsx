@@ -10,6 +10,9 @@ import PrivacyScreen from "./PrivacyScreen";
 import HelpSupportScreen from "./HelpSupportScreen";
 import TermsPoliciesScreen from "./TermsPoliciesScreen";
 import ReportScreen from "./ReportScreen";
+import ActiveListingDetailScreen from "./ActiveListingDetailScreen";
+import ManageListingScreen from "./ManageListingScreen";
+import EditListingScreen from "./EditListingScreen";
 
 export type MyTopStackParamList = {
   MyTopMain: undefined;
@@ -22,6 +25,9 @@ export type MyTopStackParamList = {
   TermsPolicies: undefined;
   Report: undefined;
   OrderDetail: { id: string; source: "purchase" | "sold" };
+  ActiveListingDetail: undefined;
+  ManageListing: undefined;
+  EditListing: undefined;
 };
 
 const Stack = createNativeStackNavigator<MyTopStackParamList>();
@@ -44,6 +50,9 @@ export default function MyTopStackNavigator() {
       <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
       <Stack.Screen name="TermsPolicies" component={TermsPoliciesScreen} />
       <Stack.Screen name="Report" component={ReportScreen} />
+      <Stack.Screen name="ActiveListingDetail" component={ActiveListingDetailScreen} />
+      <Stack.Screen name="ManageListing" component={ManageListingScreen} />
+      <Stack.Screen name="EditListing" component={EditListingScreen} />
     </Stack.Navigator>
   );
 }

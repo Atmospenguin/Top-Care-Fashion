@@ -29,6 +29,7 @@ import MyTopStackNavigator from './screens/main/MyTopStack';
 import PremiumStackNavigator from './screens/main/PremiumStack';
 import SellStackNavigator from './screens/main/SellStack/SellStackNavigator';
 import FeedbackScreen from './screens/main/MyTopStack/FeedbackScreen';
+import NotificationScreen from "./screens/main/InboxStack/NotificationScreen";
 
 
 export type RootStackParamList = {
@@ -41,6 +42,7 @@ export type RootStackParamList = {
   Premium: undefined;
   Buy: undefined;
   Feedback: { orderId: string };
+  Notification: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -168,6 +170,7 @@ export default function App() {
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
           <Stack.Screen name="Feedback" component={FeedbackScreen} />
+  <Stack.Screen name="Notification" component={NotificationScreen} />
         {/* Premium stack lives on root; entering it hides the bottom tab by design */}
         <Stack.Screen name="Premium" component={PremiumStackNavigator} />
         {/* Buy stack mirrors Premium: lives on root to avoid tab flicker */}

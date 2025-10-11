@@ -21,6 +21,50 @@ import type { SellStackParamList } from "./SellStackNavigator";
 const CATEGORY_OPTIONS = ["Tops", "Bottoms", "Shoes", "Bags", "Accessories", "Outerwear", "Dresses", "Others"];
 const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "Others"];
 const CONDITION_OPTIONS = ["Brand New", "Like new", "Good", "Fair", "Poor"];
+const SIZE_OPTIONS_CLOTHES = [
+  "XXS / EU 32 / UK 4 / US 0",
+  "XS / EU 34 / UK 6 / US 2",
+  "S / EU 36 / UK 8 / US 4",
+  "M / EU 38 / UK 10 / US 6",
+  "L / EU 40 / UK 12 / US 8",
+  "XL / EU 42 / UK 14 / US 10",
+  "XXL / EU 44 / UK 16 / US 12",
+  "XXXL / EU 46 / UK 18 / US 14",
+  "Free Size",
+  "Other",
+];
+
+const SIZE_OPTIONS_SHOES = [
+  "EU 35 / US 5 / UK 3",
+  "EU 36 / US 6 / UK 4",
+  "EU 37 / US 6.5 / UK 4.5",
+  "EU 38 / US 7 / UK 5",
+  "EU 39 / US 8 / UK 6",
+  "EU 40 / US 9 / UK 7",
+  "EU 41 / US 10 / UK 8",
+  "EU 42 / US 11 / UK 9",
+  "EU 43 / US 12 / UK 10",
+  "Other",
+];
+const MATERIAL_OPTIONS = [
+  "Cotton",
+  "Polyester",
+  "Denim",
+  "Leather",
+  "Faux Leather",
+  "Wool",
+  "Silk",
+  "Linen",
+  "Nylon",
+  "Spandex / Elastane",
+  "Canvas",
+  "Suede",
+  "Velvet",
+  "Acrylic",
+  "Cashmere",
+  "Rayon / Viscose",
+  "Other",
+];
 const SHIPPING_OPTIONS = ["Free shipping", "Buyer pays – based on distance", "Buyer pays – fixed fee", "Meet-up"];
 const DEFAULT_TAGS = [
   "Vintage",
@@ -48,9 +92,26 @@ type OptionPickerProps = {
   value: string;
   onClose: () => void;
   onSelect: (value: string) => void;
+  allowCustomInput?: boolean;
+  customValue?: string;
+  setCustomValue?: (value: string) => void;
+  customInputLabel?: string;
+  customPlaceholder?: string;
 };
 
-function OptionPicker({ title, visible, options, value, onClose, onSelect }: OptionPickerProps) {
+function OptionPicker({
+  title,
+  visible,
+  options,
+  value,
+  onClose,
+  onSelect,
+  allowCustomInput = false,
+  customValue = "",
+  setCustomValue = () => {},
+  customInputLabel = "Enter a value:",
+  customPlaceholder = "Enter details",
+}: OptionPickerProps) {
   return (
     <Modal transparent animationType="slide" visible={visible} onRequestClose={onClose}>
       <Pressable style={styles.sheetMask} onPress={onClose} />
@@ -72,6 +133,26 @@ function OptionPicker({ title, visible, options, value, onClose, onSelect }: Opt
             </TouchableOpacity>
           ))}
         </RNScrollView>
+
+        {allowCustomInput && value === "Other" && (
+          <View style={{ marginTop: 8 }}>
+            <Text style={{ fontWeight: "600", marginBottom: 4 }}>{customInputLabel}</Text>
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: "#ccc",
+                borderRadius: 8,
+                padding: 10,
+                fontSize: 15,
+                backgroundColor: "#fafafa",
+              }}
+              placeholder={customPlaceholder}
+              value={customValue}
+              onChangeText={setCustomValue}
+            />
+          </View>
+        )}
+
         <TouchableOpacity style={styles.sheetCancel} onPress={onClose}>
           <Text style={{ fontWeight: "600" }}>Cancel</Text>
         </TouchableOpacity>
@@ -97,6 +178,10 @@ export default function SellScreen({
   // Info
   const [category, setCategory] = useState("Select");
   const [condition, setCondition] = useState("Select");
+  const [size, setSize] = useState("Select");
+  const [customSize, setCustomSize] = useState("");
+  const [material, setMaterial] = useState("Select");
+  const [customMaterial, setCustomMaterial] = useState("");
   const [brand, setBrand] = useState("Select");
   const [brandCustomMode, setBrandCustomMode] = useState(false);
   const [brandCustom, setBrandCustom] = useState("");
@@ -109,12 +194,15 @@ export default function SellScreen({
   // Pickers
   const [showCat, setShowCat] = useState(false);
   const [showCond, setShowCond] = useState(false);
+  const [showSize, setShowSize] = useState(false);
+  const [showMaterial, setShowMaterial] = useState(false);
   const [showBrand, setShowBrand] = useState(false);
   const [showShip, setShowShip] = useState(false);
 
   // Tags
   const [tags, setTags] = useState<string[]>([]);
   const [showTagPicker, setShowTagPicker] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   // 模拟 AI
   const generateDescription = async () => {
@@ -122,7 +210,7 @@ export default function SellScreen({
     setAiDesc(null);
     try {
       await new Promise((r) => setTimeout(r, 1000));
-      setAiDesc("Blue and white Ader Error x Converse trainers #sneakers");
+      setAiDesc("Stylish mini skirt featuring a pleated design and a decorative belt. The skirt has a unique layered design with a floral print on the bottom layer.");
     } catch (err) {
       console.error("AI generation failed:", err);
     }
@@ -156,7 +244,9 @@ export default function SellScreen({
           )}
           style={{ marginBottom: 8 }}
         />
-        <Text style={styles.photoTips}>Read our photo tips</Text>
+        <TouchableOpacity onPress={() => setShowGuide(true)}>
+          <Text style={styles.photoTips}>Read our photo tips</Text>
+        </TouchableOpacity>
 
         {/* 描述 */}
         <Text style={styles.sectionTitle}>Description</Text>
@@ -230,6 +320,20 @@ export default function SellScreen({
         <Text style={styles.fieldLabel}>Condition</Text>
         <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCond(true)}>
           <Text style={styles.selectValue}>{condition}</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.fieldLabel}>Size</Text>
+        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowSize(true)}>
+          <Text style={styles.selectValue}>
+            {size === "Other" && customSize ? customSize : size}
+          </Text>
+        </TouchableOpacity>
+
+        <Text style={styles.fieldLabel}>Material</Text>
+        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowMaterial(true)}>
+          <Text style={styles.selectValue}>
+            {material === "Other" && customMaterial ? customMaterial : material}
+          </Text>
         </TouchableOpacity>
 
         {/* Price */}
@@ -317,6 +421,42 @@ export default function SellScreen({
       <OptionPicker title="Select category" visible={showCat} options={CATEGORY_OPTIONS} value={category} onClose={() => setShowCat(false)} onSelect={setCategory} />
       <OptionPicker title="Select brand" visible={showBrand} options={BRAND_OPTIONS} value={brand} onClose={() => setShowBrand(false)} onSelect={setBrand} />
       <OptionPicker title="Select condition" visible={showCond} options={CONDITION_OPTIONS} value={condition} onClose={() => setShowCond(false)} onSelect={setCondition} />
+      <OptionPicker
+        title="Select size"
+        visible={showSize}
+        options={category === "Shoes" ? SIZE_OPTIONS_SHOES : SIZE_OPTIONS_CLOTHES}
+        value={size}
+        onClose={() => setShowSize(false)}
+        onSelect={(val) => {
+          setSize(val);
+          if (val !== "Other") {
+            setCustomSize("");
+          }
+        }}
+        allowCustomInput
+        customValue={customSize}
+        setCustomValue={setCustomSize}
+        customInputLabel="Enter your size:"
+        customPlaceholder="e.g. EU 47 / custom size"
+      />
+      <OptionPicker
+        title="Select material"
+        visible={showMaterial}
+        options={MATERIAL_OPTIONS}
+        value={material}
+        onClose={() => setShowMaterial(false)}
+        onSelect={(val) => {
+          setMaterial(val);
+          if (val !== "Other") {
+            setCustomMaterial("");
+          }
+        }}
+        allowCustomInput
+        customValue={customMaterial}
+        setCustomValue={setCustomMaterial}
+        customInputLabel="Enter the material:"
+        customPlaceholder="e.g. 100% organic cotton"
+      />
       <OptionPicker title="Select shipping option" visible={showShip} options={SHIPPING_OPTIONS} value={shippingOption} onClose={() => setShowShip(false)} onSelect={setShippingOption} />
       {/* Tag Picker Modal */}
       <TagPickerModal
@@ -325,6 +465,66 @@ export default function SellScreen({
         tags={tags}
         setTags={setTags}
       />
+      {/* Photo Standards Guide Modal */}
+      <Modal
+        visible={showGuide}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowGuide(false)}
+      >
+        <Pressable style={styles.guideOverlay} onPress={() => setShowGuide(false)} />
+        <View style={styles.guideModal}>
+          <View style={styles.guideHeader}>
+            <TouchableOpacity onPress={() => setShowGuide(false)}>
+              <Icon name="close-outline" size={28} color="#111" />
+            </TouchableOpacity>
+            <Text style={styles.guideTitle}>Photo Standards Guide</Text>
+            <View style={{ width: 28 }} />
+          </View>
+          <ScrollView contentContainerStyle={styles.guideContent}>
+            <Text style={styles.guideText}>
+              If your listing photos don’t meet our standards, we may ask you to resubmit before it goes live. Follow these tips to make your item stand out and get approved faster.
+            </Text>
+
+            <Text style={styles.guideSectionTitle}>1. Use Natural Light 🌤️</Text>
+            <Text style={styles.guideText}>
+              Shoot in daylight near a window — natural light shows true colors. Avoid dark rooms or harsh flash that can distort your item’s appearance.
+            </Text>
+
+            <Text style={styles.guideSectionTitle}>2. Keep It Clean & Simple 🧺</Text>
+            <Text style={styles.guideText}>
+              Use a plain, solid background (white or neutral color). Remove clutter and avoid filters or heavy edits that alter color accuracy.
+            </Text>
+
+            <Text style={styles.guideSectionTitle}>3. Show the Full Item 👕</Text>
+            <Text style={styles.guideText}>
+              Better include at least 4–5 photos covering all key angles:
+              {"\n"}• Full view — entire item laid flat or hung
+              {"\n"}• Brand tag — clear logo shot 
+              {"\n"}• Details — close-up of texture or stitching
+              {"\n"}• Flaws — any wear or damage
+              {"\n"}• Optional — on-body shot to show fit
+            </Text>
+
+            <Text style={styles.guideSectionTitle}>4. Be Honest 💬</Text>
+            <Text style={styles.guideText}>
+              Only upload photos of your actual item. Do not use stock images. Make sure colors and textures are true to life.
+            </Text>
+
+            <Text style={styles.guideSectionTitle}>5. Respect Privacy 🚫</Text>
+            <Text style={styles.guideText}>
+              No faces, personal info, or third-party content in your photos. Keep the focus on the product.
+            </Text>
+
+            <Text style={[styles.guideSectionTitle, { marginTop: 16 }]}>✅ Summary</Text>
+            <Text style={styles.guideText}>
+              Clear light, clean background, honest details. Photos should look natural, simple, and professional.
+            </Text>
+
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -470,6 +670,13 @@ const styles = StyleSheet.create({
   optionRow: { paddingVertical: 12, paddingHorizontal: 12, borderWidth: 1, borderColor: "#eee", borderRadius: 10, marginBottom: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   optionText: { fontSize: 15, color: "#111" },
   sheetCancel: { marginTop: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: "#F6F6F6", alignItems: "center" },
+  guideOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)" },
+  guideModal: { position: "absolute", bottom: 0, left: 0, right: 0, height: "66%", backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, overflow: "hidden" },
+  guideHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#ddd" },
+  guideTitle: { fontSize: 17, fontWeight: "700", color: "#111" },
+  guideContent: { paddingHorizontal: 20, paddingVertical: 16 },
+  guideSectionTitle: { fontWeight: "700", fontSize: 15, marginTop: 14, marginBottom: 6, color: "#111" },
+  guideText: { fontSize: 14, color: "#333", lineHeight: 20 },
   tagContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
