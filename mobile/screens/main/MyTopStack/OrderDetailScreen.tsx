@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import Header from "../../../components/Header";
+import Icon from "../../../components/Icon";
 import { useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { MyTopStackParamList } from "./index";
@@ -259,6 +260,35 @@ export default function OrderDetailScreen() {
           </View>
         ) : null}
 
+        {(order.status === "Delivered" || order.status === "Completed") && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Mutual Reviews</Text>
+            <View style={styles.mutualCard}>
+              <Icon name="chatbubbles-outline" size={22} color="#2d7ef0" />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.mutualTitle}>
+                  See what both parties said about this order.
+                </Text>
+                <TouchableOpacity
+                  style={styles.mutualButton}
+                  onPress={() => {
+                    const parentNav =
+                      (navigation as any).getParent?.()?.getParent?.() ??
+                      (navigation as any).getParent?.() ??
+                      navigation;
+                    if (parentNav && typeof parentNav.navigate === "function") {
+                      parentNav.navigate("MutualReview", { orderId: order.id });
+                    }
+                  }}
+                >
+                  <Text style={styles.mutualButtonText}>View mutual review</Text>
+                  <Icon name="chevron-forward" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* 支付信息 */}
         {source === "purchase" && order.payment ? (
           <View style={styles.section}>
@@ -281,10 +311,10 @@ export default function OrderDetailScreen() {
     <View style={styles.footer}>
       <TouchableOpacity
         style={styles.feedbackBtn}
-        // Feedback is now a root screen; cast navigation to any to navigate to it
-        onPress={() => (navigation as any).navigate("Feedback", { orderId: order.id })}
+        // Review screen lives on root; cast navigation to reach it
+        onPress={() => (navigation as any).navigate("Review", { orderId: order.id })}
       >
-        <Text style={styles.feedbackText}>Leave Feedback</Text>
+        <Text style={styles.feedbackText}>Leave Review</Text>
       </TouchableOpacity>
     </View>
 )}
@@ -332,6 +362,37 @@ const styles = StyleSheet.create({
   stepDone: { color: "green", fontWeight: "600" },
   stepPending: { color: "orange", fontWeight: "600" },
   stepCancelled: { fontSize: 14, color: "red", fontWeight: "700" },
+  mutualCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#f5f7ff",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#d6e1ff",
+  },
+  mutualTitle: {
+    fontSize: 14,
+    color: "#24355c",
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  mutualButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "#2d7ef0",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    columnGap: 6,
+  },
+  mutualButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#fff",
+    letterSpacing: 0.2,
+  },
   footer: {
     position: "absolute",
     bottom: 0,

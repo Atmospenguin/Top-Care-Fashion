@@ -16,7 +16,6 @@ import type { MyTopStackParamList } from "./index";
 import SoldTab from "./SoldTab";
 import PurchasesTab from "./PurchasesTab";
 import LikesTab from "./LikesTab";
-
 // --- 保证 3 列对齐 ---
 function formatData(data: any[], numColumns: number) {
   const newData = [...data];

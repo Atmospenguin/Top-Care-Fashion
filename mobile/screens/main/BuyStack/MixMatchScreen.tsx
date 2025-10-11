@@ -1,10 +1,14 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
   Dimensions,
+  Easing,
   FlatList,
   Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  InteractionManager,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -18,37 +22,70 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
-import type { ListingItem, BagItem } from "../../../types/shop";
+import type {
+  ListingItem,
+  BagItem,
+  ListingCategory,
+} from "../../../types/shop";
 import { MOCK_LISTINGS } from "../../../mocks/shop";
 import type { BuyStackParamList } from "./index";
 
 const { width } = Dimensions.get("window");
-const GAP = 12; // 卡片之间的间距
+const GAP = 12; // gap between cards
 const FRAME_W = Math.floor(width * 0.61);
 const FRAME_H = Math.floor(FRAME_W);
-// 顶部/下装稍微放大尺寸（按你的反馈再小一点）
+// keep tops and bottoms close to a square
 const TB_W = Math.floor(width * 0.61);
 const TB_H = Math.floor(TB_W);
-// 鞋子：矮的长方形
+// shoes are shorter rectangles
 const SH_W = Math.floor(width * 0.61);
 const SH_H = Math.floor(SH_W * 0.56);
+const H_PADDING = 16;
+const ACCESSORY_COLUMNS = 2;
+const ACCESSORY_GAP = 12;
+const ACC_W = Math.floor(
+  (width - H_PADDING * 2 - ACCESSORY_GAP) / ACCESSORY_COLUMNS
+);
+const ACC_H = Math.floor(ACC_W * 1.08);
 
-function findMatches(base: ListingItem) {
+const CATEGORY_KEYWORDS: Record<ListingCategory, RegExp> = {
+  top: /dress|jacket|coat|top|shirt|tee|sweater|hoodie|blouse|cardigan/i,
+  bottom: /skirt|pant|trouser|jean|legging|short/i,
+  shoe: /shoe|sneaker|boot|heel|loafer|flat/i,
+  accessory: /bag|belt|bracelet|earring|necklace|ring|scarf|hat/i,
+};
+
+type MatchResult = {
+  baseCategory: ListingCategory | "other";
+  top: ListingItem[];
+  bottom: ListingItem[];
+  shoe: ListingItem[];
+  accessory: ListingItem[];
+  fallback: ListingItem[];
+};
+
+function categorizeItem(item: ListingItem): ListingCategory | "other" {
+  if (item.category) return item.category;
+  const entry = Object.entries(CATEGORY_KEYWORDS).find(([, regex]) =>
+    regex.test(item.title)
+  );
+  if (entry) return entry[0] as ListingCategory;
+  return "other";
+}
+
+function findMatches(base: ListingItem): MatchResult {
+  const baseCategory = categorizeItem(base);
   const others = MOCK_LISTINGS.filter((item) => item.id !== base.id);
-  const tops = others.filter((item) =>
-    /hoodie|jacket|top|shirt|sweater|blouse/i.test(item.title)
-  );
-  const bottoms = others.filter((item) =>
-    /skirt|pant|trouser|jean|short/i.test(item.title)
-  );
-  const shoes = others.filter((item) =>
-    /shoe|sneaker|boot|heel/i.test(item.title)
-  );
+  const byCategory = (category: ListingCategory) =>
+    others.filter((item) => categorizeItem(item) === category);
   const fallback = others.length ? others : [base];
   return {
-    top: tops.length ? tops : fallback,
-    bottom: bottoms.length ? bottoms : fallback,
-    shoe: shoes.length ? shoes : fallback,
+    baseCategory,
+    top: byCategory("top"),
+    bottom: byCategory("bottom"),
+    shoe: byCategory("shoe"),
+    accessory: byCategory("accessory"),
+    fallback,
   };
 }
 
@@ -57,31 +94,246 @@ export default function MixMatchScreen() {
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
   const route = useRoute<RouteProp<BuyStackParamList, "MixMatch">>();
   const baseItem = route.params.baseItem;
+  const scrollRef = useRef<ScrollView>(null);
 
-  const pools = useMemo(() => findMatches(baseItem), [baseItem.id]);
+  const matches = useMemo(() => findMatches(baseItem), [baseItem]);
+  const { baseCategory, top, bottom, shoe, accessory, fallback } = matches;
 
   const [topIndex, setTopIndex] = useState(0);
   const [bottomIndex, setBottomIndex] = useState(0);
   const [shoeIndex, setShoeIndex] = useState(0);
   const [likedMap, setLikedMap] = useState<Record<string, boolean>>({});
+  const [selectedAccessoryIds, setSelectedAccessoryIds] = useState<string[]>([]);
+  const [tipVisible, setTipVisible] = useState(true);
+  const tipTranslateY = useRef(new Animated.Value(0)).current;
+  const tipOpacity = useRef(new Animated.Value(1)).current;
+  const bounceAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const fadeAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const fadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hardHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const pickedTop = pools.top[topIndex % pools.top.length];
-  const pickedBottom = pools.bottom[bottomIndex % pools.bottom.length];
-  const pickedShoe = pools.shoe[shoeIndex % pools.shoe.length];
+  useEffect(() => {
+    if (!tipVisible) return;
+    tipTranslateY.setValue(0);
+    tipOpacity.setValue(1);
+
+    const startAnimations = () => {
+      const bounce = Animated.sequence([
+        Animated.timing(tipTranslateY, {
+          toValue: -28,
+          duration: 240,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(tipTranslateY, {
+          toValue: 0,
+          duration: 220,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]);
+      bounceAnimRef.current = bounce;
+      bounce.start();
+
+      // Schedule fade-out after short delay
+      fadeTimeoutRef.current = setTimeout(() => {
+        const fade = Animated.timing(tipOpacity, {
+          toValue: 0,
+          duration: 300,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        });
+        fadeAnimRef.current = fade;
+        fade.start(({ finished }) => {
+          if (fadeAnimRef.current === fade) fadeAnimRef.current = null;
+          if (finished) setTipVisible(false);
+        });
+      }, 2200);
+
+      // Hard fallback to ensure dismissal even if animations are interrupted
+      hardHideTimeoutRef.current = setTimeout(() => {
+        setTipVisible(false);
+      }, 4000);
+    };
+
+    // Start after JS interactions settle to avoid being canceled on mount
+    const i = InteractionManager.runAfterInteractions(startAnimations);
+
+    return () => {
+      i.cancel?.();
+      bounceAnimRef.current?.stop();
+      bounceAnimRef.current = null;
+      if (fadeTimeoutRef.current) {
+        clearTimeout(fadeTimeoutRef.current);
+        fadeTimeoutRef.current = null;
+      }
+      if (hardHideTimeoutRef.current) {
+        clearTimeout(hardHideTimeoutRef.current);
+        hardHideTimeoutRef.current = null;
+      }
+      fadeAnimRef.current?.stop();
+      fadeAnimRef.current = null;
+    };
+  }, [tipVisible, tipTranslateY, tipOpacity]);
+
+  useEffect(() => {
+    setTopIndex(0);
+    setBottomIndex(0);
+    setShoeIndex(0);
+    setSelectedAccessoryIds([]);
+    bounceAnimRef.current?.stop();
+    bounceAnimRef.current = null;
+    if (fadeTimeoutRef.current) {
+      clearTimeout(fadeTimeoutRef.current);
+      fadeTimeoutRef.current = null;
+    }
+    fadeAnimRef.current?.stop();
+    fadeAnimRef.current = null;
+    tipTranslateY.setValue(0);
+    tipOpacity.setValue(1);
+    setTipVisible(true);
+  }, [baseItem.id, tipTranslateY, tipOpacity]);
+
+  const ensurePool = (pool: ListingItem[]) => (pool.length ? pool : fallback);
+  const topPool = ensurePool(top);
+  const bottomPool = ensurePool(bottom);
+  const shoePool = ensurePool(shoe);
+
+  const pickFromPool = (pool: ListingItem[], index: number) =>
+    pool.length ? pool[index % pool.length] : undefined;
+
+  const pickedTop =
+    baseCategory === "top" ? baseItem : pickFromPool(topPool, topIndex);
+  const pickedBottom =
+    baseCategory === "bottom"
+      ? baseItem
+      : pickFromPool(bottomPool, bottomIndex);
+  const pickedShoe =
+    baseCategory === "shoe" ? baseItem : pickFromPool(shoePool, shoeIndex);
+
+  const baseOutfitItems = useMemo<ListingItem[]>(() => {
+    const ordered = [pickedTop, pickedBottom, pickedShoe];
+    if (!ordered.some((item) => item?.id === baseItem.id)) {
+      ordered.unshift(baseItem);
+    }
+    const unique = new Map<string, ListingItem>();
+    ordered.forEach((item) => {
+      if (item) unique.set(item.id, item);
+    });
+    return Array.from(unique.values());
+  }, [baseItem, pickedTop, pickedBottom, pickedShoe]);
+
+  const accessoryOptions = useMemo(() => {
+    const selectedSet = new Set(baseOutfitItems.map((item) => item.id));
+    const filtered = accessory.filter((item) => !selectedSet.has(item.id));
+    if (filtered.length) return filtered;
+    const fallbackFiltered = fallback.filter(
+      (item) => !selectedSet.has(item.id)
+    );
+    return fallbackFiltered.length ? fallbackFiltered : accessory;
+  }, [accessory, fallback, baseOutfitItems]);
+
+  useEffect(() => {
+    setSelectedAccessoryIds((prev) => {
+      const next = prev.filter((id) =>
+        accessoryOptions.some((item) => item.id === id)
+      );
+      if (next.length === prev.length && next.every((id, i) => id === prev[i])) {
+        return prev;
+      }
+      return next;
+    });
+  }, [accessoryOptions]);
+
+  const selectedAccessoryItems = useMemo(() => {
+    if (!selectedAccessoryIds.length) return [];
+    return accessoryOptions.filter((item) =>
+      selectedAccessoryIds.includes(item.id)
+    );
+  }, [accessoryOptions, selectedAccessoryIds]);
 
   const selection: BagItem[] = useMemo(() => {
-    const items: ListingItem[] = [baseItem];
-    if (pickedTop) items.unshift(pickedTop);
-    if (pickedBottom) items.push(pickedBottom);
-    if (pickedShoe) items.push(pickedShoe);
-    return items.map((item) => ({ item, quantity: 1 }));
-  }, [baseItem, pickedTop, pickedBottom, pickedShoe]);
+    const unique = new Map<string, ListingItem>();
+    baseOutfitItems.forEach((item) => unique.set(item.id, item));
+    selectedAccessoryItems.forEach((item) => unique.set(item.id, item));
+    return Array.from(unique.values()).map((item) => ({ item, quantity: 1 }));
+  }, [baseOutfitItems, selectedAccessoryItems]);
 
   const toggleLike = (id: string) =>
     setLikedMap((prev) => ({ ...prev, [id]: !prev[id] }));
 
+  const toggleAccessorySelect = (id: string) =>
+    setSelectedAccessoryIds((prev) =>
+      prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]
+    );
+
   const openListing = (item: ListingItem) =>
     navigation.navigate("ListingDetail", { item });
+
+  const dismissTip = () => {
+    bounceAnimRef.current?.stop();
+    bounceAnimRef.current = null;
+    fadeAnimRef.current?.stop();
+    fadeAnimRef.current = null;
+    if (fadeTimeoutRef.current) {
+      clearTimeout(fadeTimeoutRef.current);
+      fadeTimeoutRef.current = null;
+    }
+    if (hardHideTimeoutRef.current) {
+      clearTimeout(hardHideTimeoutRef.current);
+      hardHideTimeoutRef.current = null;
+    }
+    Animated.timing(tipOpacity, {
+      toValue: 0,
+      duration: 180,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start(() => setTipVisible(false));
+  };
+
+  const handleTipPress = () => {
+    scrollRef.current?.scrollTo({ y: 360, animated: true });
+    dismissTip();
+  };
+
+  const slotConfigs = [
+    {
+      key: "top" as const,
+      label: "TOP",
+      isBase: baseCategory === "top",
+      pool: topPool,
+      index: topIndex,
+      setIndex: setTopIndex,
+      picked: pickedTop,
+      frameW: TB_W,
+      frameH: TB_H,
+      imageMode: "contain" as const,
+    },
+    {
+      key: "bottom" as const,
+      label: "BOTTOM",
+      isBase: baseCategory === "bottom",
+      pool: bottomPool,
+      index: bottomIndex,
+      setIndex: setBottomIndex,
+      picked: pickedBottom,
+      frameW: TB_W,
+      frameH: TB_H,
+      imageMode: "contain" as const,
+    },
+    {
+      key: "shoe" as const,
+      label: "SHOES",
+      isBase: baseCategory === "shoe",
+      pool: shoePool,
+      index: shoeIndex,
+      setIndex: setShoeIndex,
+      picked: pickedShoe,
+      frameW: SH_W,
+      frameH: SH_H,
+      imageMode: "cover" as const,
+    },
+  ];
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -90,7 +342,7 @@ export default function MixMatchScreen() {
         showBack
         rightAction={
           <TouchableOpacity
-            // ✅ 仅跳转，不传当前 selection
+            // navigate without passing the current selection
             onPress={() => navigation.navigate("Bag")}
           >
             <Icon name="bag-outline" size={24} color="#111" />
@@ -98,42 +350,112 @@ export default function MixMatchScreen() {
         }
       />
 
-      {/* 居中展示三行，不使用垂直滚动 */}
-      <View style={styles.framesContainer}>
-        <FrameCarousel
-          items={pools.top}
-          index={topIndex}
-          onIndexChange={setTopIndex}
-          likedMap={likedMap}
-          onToggleLike={toggleLike}
-          onOpen={openListing}
-          frameW={TB_W}
-          frameH={TB_H}
-          imageMode="contain"
-        />
-        <FrameCarousel
-          items={pools.bottom}
-          index={bottomIndex}
-          onIndexChange={setBottomIndex}
-          likedMap={likedMap}
-          onToggleLike={toggleLike}
-          onOpen={openListing}
-          frameW={TB_W}
-          frameH={TB_H}
-          imageMode="contain"
-        />
-        <FrameCarousel
-          items={pools.shoe}
-          index={shoeIndex}
-          onIndexChange={setShoeIndex}
-          likedMap={likedMap}
-          onToggleLike={toggleLike}
-          onOpen={openListing}
-          frameW={SH_W}
-          frameH={SH_H}
-          imageMode="cover"
-        />
-      </View>
+      {tipVisible && (
+        <Animated.View
+          style={[
+            styles.swipeTip,
+            {
+              transform: [{ translateY: tipTranslateY }],
+              opacity: tipOpacity,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={handleTipPress}
+            style={styles.swipeTipRow}
+          >
+            <Icon name="chevron-down" size={14} color="#fff" />
+            <Text style={styles.swipeTipText}>Swipe down for more combos</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {slotConfigs.map((slot) => (
+          <View key={slot.key} style={styles.slotSection}>
+            <View style={styles.slotHeader}>
+              <Text style={styles.slotLabel}>{slot.label}</Text>
+              <Text style={styles.slotHint}>
+                {slot.isBase ? "Locked item" : "Swipe to switch"}
+              </Text>
+            </View>
+            {slot.isBase && slot.picked ? (
+              <View style={styles.fixedCardWrapper}>
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={() => openListing(slot.picked!)}
+                >
+                  <FrameCardContent
+                    item={slot.picked}
+                    frameW={slot.frameW}
+                    frameH={slot.frameH}
+                    liked={likedMap[slot.picked.id]}
+                    onToggleLike={toggleLike}
+                    imageMode={slot.imageMode}
+                    badgeLabel="CURRENT"
+                    isActive
+                  />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <FrameCarousel
+                items={slot.pool}
+                index={slot.index}
+                onIndexChange={slot.setIndex}
+                likedMap={likedMap}
+                onToggleLike={toggleLike}
+                onOpen={openListing}
+                frameW={slot.frameW}
+                frameH={slot.frameH}
+                imageMode={slot.imageMode}
+              />
+            )}
+          </View>
+        ))}
+        <View style={styles.slotSection}>
+          <View style={styles.slotHeader}>
+            <Text style={styles.slotLabel}>ACCESSORIES</Text>
+            <Text style={styles.slotHint}>Complete the look</Text>
+          </View>
+          <View style={styles.accessoryGrid}>
+            {accessoryOptions.map((item, index) => {
+              const isSelected = selectedAccessoryIds.includes(item.id);
+              const isLastInRow = (index + 1) % ACCESSORY_COLUMNS === 0;
+              return (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.accessoryCardWrapper,
+                    !isLastInRow ? styles.accessoryCardSpacer : null,
+                  ]}
+                >
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => openListing(item)}
+                  >
+                    <FrameCardContent
+                      item={item}
+                      frameW={ACC_W}
+                      frameH={ACC_H}
+                      liked={likedMap[item.id]}
+                      onToggleLike={toggleLike}
+                      imageMode="cover"
+                      selectable
+                      selected={isSelected}
+                      onSelectPress={() => toggleAccessorySelect(item.id)}
+                    />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      </ScrollView>
 
       <View style={styles.bottomBar}>
         <TouchableOpacity
@@ -147,7 +469,83 @@ export default function MixMatchScreen() {
   );
 }
 
-/** 单行横向 Carousel（左右半透明渐变边缘） */
+function FrameCardContent({
+  item,
+  frameW,
+  frameH,
+  liked,
+  onToggleLike,
+  imageMode,
+  badgeLabel,
+  isActive,
+  selectable,
+  selected,
+  onSelectPress,
+}: {
+  item: ListingItem;
+  frameW: number;
+  frameH: number;
+  liked: boolean | undefined;
+  onToggleLike: (id: string) => void;
+  imageMode: "contain" | "cover";
+  badgeLabel?: string;
+  isActive?: boolean;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelectPress?: () => void;
+}) {
+  return (
+    <View
+      style={[
+        styles.frame,
+        { width: frameW, height: frameH },
+        isActive || selected ? styles.frameActive : null,
+      ]}
+    >
+      <Image
+        source={{ uri: item.images[0] }}
+        style={styles.frameImage}
+        resizeMode={imageMode}
+      />
+      <Text style={styles.priceTag}>${item.price.toFixed(0)}</Text>
+      {selectable ? (
+        <TouchableOpacity
+          style={[
+            styles.selectTag,
+            selected ? styles.selectTagActive : null,
+          ]}
+          onPress={onSelectPress || (() => {})}
+          activeOpacity={0.85}
+        >
+          <Text
+            style={[
+              styles.selectTagText,
+              selected ? styles.selectTagTextActive : null,
+            ]}
+          >
+            {selected ? "Selected" : "Select"}
+          </Text>
+        </TouchableOpacity>
+      ) : badgeLabel ? (
+        <View style={styles.badgePill}>
+          <Text style={styles.badgeText}>{badgeLabel}</Text>
+        </View>
+      ) : null}
+      <TouchableOpacity
+        onPress={() => onToggleLike(item.id)}
+        style={styles.heartBtn}
+      >
+        <Icon
+          name={liked ? "heart" : "heart-outline"}
+          size={22}
+          color={liked ? "#F54B3D" : "#111"}
+        />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+/** Horizontal carousel with gradient edges */
 function FrameCarousel({
   items,
   index,
@@ -171,6 +569,8 @@ function FrameCarousel({
 }) {
   const listRef = useRef<FlatList<ListingItem>>(null);
 
+  const activeIndex = items.length ? Math.min(index, items.length - 1) : 0;
+
   const onMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const x = e.nativeEvent.contentOffset.x;
     const page = Math.round(x / (frameW + GAP));
@@ -186,17 +586,18 @@ function FrameCarousel({
     }
   ).current;
 
-  const canPrev = index > 0;
-  const canNext = index < (items?.length ?? 0) - 1;
+  const canPrev = activeIndex > 0;
+  const canNext = activeIndex < (items?.length ?? 0) - 1;
 
-  // 行内专属边距，确保首尾元素居中
-  const sidePadding = Math.max(0, Math.floor((width - frameW) / 2));
+  // Row-specific padding to keep the first and last cards centered
+  const availableWidth = Math.max(frameW, width - H_PADDING * 2);
+  const sidePadding = Math.max(0, Math.floor((availableWidth - frameW) / 2));
 
   const scrollTo = (i: number) => {
     try {
       listRef.current?.scrollToIndex({ index: i, animated: true });
     } catch {
-      // 直接按单卡宽度+间距计算，使目标卡片居中（与 snap + padding 对齐）
+      // Fallback: scroll by card width so the target card centers
       const offset = i * (frameW + GAP);
       listRef.current?.scrollToOffset({ offset, animated: true });
     }
@@ -204,13 +605,13 @@ function FrameCarousel({
 
   const goPrev = () => {
     if (!canPrev) return;
-    const nextIdx = index - 1;
+    const nextIdx = activeIndex - 1;
     onIndexChange(nextIdx);
     scrollTo(nextIdx);
   };
   const goNext = () => {
     if (!canNext) return;
-    const nextIdx = index + 1;
+    const nextIdx = activeIndex + 1;
     onIndexChange(nextIdx);
     scrollTo(nextIdx);
   };
@@ -226,16 +627,16 @@ function FrameCarousel({
         snapToInterval={frameW + GAP}
         decelerationRate="fast"
         bounces={false}
-        initialScrollIndex={index}
+        initialScrollIndex={activeIndex}
         getItemLayout={(_, i) => ({
           length: frameW + GAP,
-          // 不把 padding 计入 offset，确保 scrollToIndex 精确落到卡片居中位置
+          // Avoid padding in offset so scrollToIndex centers the card
           offset: i * (frameW + GAP),
           index: i,
         })}
         contentContainerStyle={{
           paddingHorizontal: sidePadding,
-          // 上下内边距减半
+          // tighter vertical padding around the carousel
           paddingTop: 8,
           paddingBottom: 8,
         }}
@@ -243,32 +644,23 @@ function FrameCarousel({
         onMomentumScrollEnd={onMomentumEnd}
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}
-        renderItem={({ item }) => (
+        renderItem={({ item, index: itemIndex }) => (
           <TouchableOpacity activeOpacity={0.9} onPress={() => onOpen(item)}>
-            <View style={[styles.frame, { width: frameW, height: frameH }]}>
-              <Image
-                source={{ uri: item.images[0] }}
-                style={styles.frameImage}
-                resizeMode={imageMode}
-              />
-              {/* 价格置顶，不被图片遮挡 */}
-              <Text style={styles.priceTag}>${item.price.toFixed(0)}</Text>
-              <TouchableOpacity
-                onPress={() => onToggleLike(item.id)}
-                style={styles.heartBtn}
-              >
-                <Icon
-                  name={likedMap[item.id] ? "heart" : "heart-outline"}
-                  size={22}
-                  color={likedMap[item.id] ? "#F54B3D" : "#111"}
-                />
-              </TouchableOpacity>
-            </View>
+            <FrameCardContent
+              item={item}
+              frameW={frameW}
+              frameH={frameH}
+              liked={likedMap[item.id]}
+              onToggleLike={onToggleLike}
+              imageMode={imageMode}
+              badgeLabel={itemIndex === activeIndex ? "SELECTED" : undefined}
+              isActive={itemIndex === activeIndex}
+            />
           </TouchableOpacity>
         )}
       />
 
-      {/* 左右渐变遮罩 + 箭头，仅在有可切换项时显示 */}
+      {/* Gradient edges with arrows, only when navigation is possible */}
       {canPrev && (
         <TouchableOpacity
           style={[styles.edgeMask, { left: 0 }]}
@@ -306,15 +698,50 @@ function FrameCarousel({
 }
 
 const styles = StyleSheet.create({
-  framesContainer: {
-    flex: 1,
-    justifyContent: "center", // 三行垂直居中
-    // 预留底部按钮空间，避免被遮挡
-    paddingBottom: 90,
+  scrollContent: {
+    paddingTop: 12,
+    paddingBottom: 140,
+    rowGap: 28,
+    paddingHorizontal: H_PADDING,
+  },
+  slotSection: {
+    rowGap: 12,
+    alignItems: "stretch",
+  },
+  slotHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  slotLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  slotHint: {
+    fontSize: 12,
+    color: "#7a7a7a",
+  },
+  fixedCardWrapper: {
+    alignItems: "center",
+    width: "100%",
+  },
+  accessoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-start",
+  },
+  accessoryCardWrapper: {
+    width: ACC_W,
+    marginBottom: ACCESSORY_GAP,
+  },
+  accessoryCardSpacer: {
+    marginRight: ACCESSORY_GAP,
   },
   carouselWrap: {
     position: "relative",
-    // 行间距缩小（相对之前 paddingTop/paddingBottom 的一半）
+    width: Math.max(FRAME_W, width - H_PADDING * 2),
+    alignSelf: "center",
   },
   frame: {
     width: FRAME_W,
@@ -326,6 +753,13 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
+  },
+  frameActive: {
+    borderColor: "#111",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
   },
   frameImage: {
     width: "100%",
@@ -341,6 +775,47 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    color: "#111",
+  },
+  badgePill: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "#111",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+  },
+  selectTag: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "#d5d5d5",
+  },
+  selectTagActive: {
+    backgroundColor: "#111",
+    borderColor: "#111",
+  },
+  selectTagText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#111",
+    letterSpacing: 0.4,
+  },
+  selectTagTextActive: {
+    color: "#fff",
   },
   heartBtn: {
     position: "absolute",
@@ -384,5 +859,31 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
+  },
+  swipeTip: {
+    position: "absolute",
+    bottom: 110,
+    alignSelf: "center",
+    backgroundColor: "#111",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    zIndex: 12,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 14,
+  },
+  swipeTipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  swipeTipText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    marginLeft: 6,
   },
 });

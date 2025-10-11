@@ -8,10 +8,17 @@ import CheckoutScreen from "./CheckoutScreen";
 import PurchaseScreen from "./PurchaseScreen";
 import type { BagItem, ListingItem } from "../../../types/shop";
 import HomeScreen from "../HomeStack/HomeScreen";
+import UserProfileScreen from "./UserProfileScreen";
   
 export type BuyStackParamList = {
   ListingDetail: { item: ListingItem };
   MixMatch: { baseItem: ListingItem };
+  UserProfile: {
+    username: string;
+    avatar: string;
+    rating: number;
+    sales: number;
+  };
   Bag: { items: BagItem[] } | undefined;
   Checkout: { items: BagItem[]; subtotal: number; shipping: number };
   Purchase: {
@@ -31,6 +38,7 @@ export default function BuyStackNavigator() {
       <Stack.Screen name="HomeMain" component={HomeScreen} />
       <Stack.Screen name="ListingDetail" component={ListingDetailScreen} />
       <Stack.Screen name="MixMatch" component={MixMatchScreen} />
+      <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       <Stack.Screen name="Bag" component={BagScreen} />
       <Stack.Screen name="Checkout" component={CheckoutScreen} />
       <Stack.Screen name="Purchase" component={PurchaseScreen} />

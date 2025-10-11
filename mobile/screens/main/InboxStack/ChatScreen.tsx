@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -150,8 +150,20 @@ export default function ChatScreen() {
     ];
   }, [kind, order, sender]);
 
+  const listRef = useRef<FlatList<ChatItem>>(null);
   const [items, setItems] = useState<ChatItem[]>(itemsInit);
   const [input, setInput] = useState("");
+
+  useEffect(() => {
+    const id = setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 0);
+    return () => clearTimeout(id);
+  }, []);
+
+  useEffect(() => {
+    if (!items.length) return;
+    const id = setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
+    return () => clearTimeout(id);
+  }, [items]);
 
   const sendMessage = () => {
     if (!input.trim()) return;
@@ -229,11 +241,13 @@ export default function ChatScreen() {
               {id === "cardReviewSeller" && (
                 <TouchableOpacity
                   style={styles.userCardBtn}
-                  onPress={() =>
-                    item.orderId && (navigation as any).navigate("Feedback", { orderId: item.orderId })
-                  }
+                  onPress={() => {
+                    if (item.orderId) {
+                      (navigation as any).navigate("MutualReview", { orderId: item.orderId });
+                    }
+                  }}
                 >
-                  <Text style={styles.userCardBtnText}>View review</Text>
+                  <Text style={styles.userCardBtnText}>View mutual review</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -260,12 +274,12 @@ export default function ChatScreen() {
       {/* 只保留这段提示文字 */}
       <Text style={styles.reviewHint}>{text}</Text>
       {/* 居中按钮 */}
-      <TouchableOpacity
-        style={styles.reviewBtnCenter}
-        onPress={() => (navigation as any).navigate("Feedback", { orderId })}
-      >
-        <Text style={styles.reviewBtnText}>Leave Feedback</Text>
-      </TouchableOpacity>
+  <TouchableOpacity
+    style={styles.reviewBtnCenter}
+    onPress={() => (navigation as any).navigate("Review", { orderId })}
+  >
+    <Text style={styles.reviewBtnText}>Leave Review</Text>
+  </TouchableOpacity>
     </View>
   );
 
@@ -281,6 +295,7 @@ export default function ChatScreen() {
       />
 
       <FlatList
+        ref={listRef}
         data={items}
         keyExtractor={(it) => it.id}
         contentContainerStyle={{ padding: 12, paddingBottom: 12 }}

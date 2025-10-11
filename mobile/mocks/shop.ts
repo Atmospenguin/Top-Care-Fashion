@@ -32,6 +32,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-green-dress",
     title: "Green Midi Dress",
+    category: "top",
     price: 20,
     description:
       "Relaxed-fit midi dress in emerald green with a subtle pleated skirt and adjustable straps for a flattering fit.",
@@ -54,6 +55,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-skinny-jeans",
     title: "American Eagle Super Stretch Jeans",
+    category: "bottom",
     price: 14.5,
     description:
       "High-rise skinny jeans in a soft, super-stretch denim that keeps its shape all day.",
@@ -76,6 +78,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-nerdy-hoodie",
     title: "Purple Nerdy Hoodie",
+    category: "top",
     price: 15,
     description:
       "Oversized hoodie from Nerdy with brushed fleece interior and embroidered chest logo.",
@@ -98,6 +101,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-red-jacket",
     title: "Vintage Red Jacket",
+    category: "top",
     price: 30,
     description:
       "Statement red wool jacket with structured shoulders and snap-button closure.",
@@ -119,6 +123,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-casual-hoodie",
     title: "Casual Beige Hoodie",
+    category: "top",
     price: 25,
     description:
       "Neutral-toned hoodie with kangaroo pocket and ribbed cuffs, perfect for everyday wear.",
@@ -135,6 +140,190 @@ export const MOCK_LISTINGS: ListingItem[] = [
       avatar: avatar(22),
       rating: 4.4,
       sales: 112,
+    },
+  },
+  {
+    id: "listing-satin-slip-dress",
+    title: "Rose Satin Slip Dress",
+    category: "top",
+    price: 28,
+    description:
+      "Bias-cut satin slip dress with delicate shoulder straps and a soft drape that moves with you.",
+    brand: "Evening Muse",
+    size: "S",
+    condition: "Like new",
+    material: "Polyester satin",
+    colors: ["Rose", "Champagne"],
+    images: [
+      "https://images.unsplash.com/photo-1525171254930-643fc658b64e?auto=format&fit=crop&w=640&q=80",
+      "https://tse3.mm.bing.net/th/id/OIP.mbv8-A49xgbIH4hkKjhCBwHaJc?rs=1&pid=ImgDetMain&o=7&rm=3",
+    ],
+    seller: {
+      name: "eveningMuse",
+      avatar: avatar(32),
+      rating: 4.9,
+      sales: 76,
+    },
+  },
+  {
+    id: "listing-y2k-football-top",
+    title: "Y2K Football Crop Top",
+    category: "top",
+    price: 18,
+    description:
+      "Cropped jersey-style tee with varsity stripes and a bold front graphic for a nostalgic streetwear look.",
+    brand: "RetroWave",
+    size: "S",
+    condition: "Good",
+    material: "Cotton",
+    colors: ["Navy", "White"],
+    images: [
+      "https://images.unsplash.com/photo-1514996937319-344454492b37?auto=format&fit=crop&w=640&q=80",
+      "https://y2kdream.com/cdn/shop/files/Y2K-Football-Crop-Top-6.webp?v=1723621579&width=750",
+    ],
+    seller: {
+      name: "retroWave",
+      avatar: avatar(33),
+      rating: 4.6,
+      sales: 54,
+    },
+  },
+  {
+    id: "listing-pleated-tennis-skirt",
+    title: "Pleated Tennis Skirt",
+    category: "bottom",
+    price: 22,
+    description:
+      "High-waisted pleated skirt with built-in shorts and contrast piping inspired by classic tennis silhouettes.",
+    brand: "Court Club",
+    size: "M",
+    condition: "Excellent",
+    material: "Polyester",
+    colors: ["Ivory", "Charcoal"],
+    images: [
+      "https://images.unsplash.com/photo-1503341455253-b2e723bb3dbb?auto=format&fit=crop&w=640&q=80",
+      "https://tse3.mm.bing.net/th/id/OIP.81YGmCDrRsgih3_rHL6qxgHaHa?rs=1&pid=ImgDetMain&o=7&rm=3",
+    ],
+    seller: {
+      name: "courtClub",
+      avatar: avatar(34),
+      rating: 4.5,
+      sales: 89,
+    },
+  },
+  {
+    id: "listing-wide-leg-trousers",
+    title: "Wide-Leg Tailored Trousers",
+    category: "bottom",
+    price: 26,
+    description:
+      "High-waisted trousers with soft pleats and a relaxed wide leg for effortless office-to-evening styling.",
+    brand: "City Line",
+    size: "M",
+    condition: "Very good",
+    material: "Polyester blend",
+    colors: ["Stone", "Sand"],
+    images: [
+      "https://images.unsplash.com/photo-1562157873-818bc0726f92?auto=format&fit=crop&w=640&q=80",
+      "https://tse3.mm.bing.net/th/id/OIP.VLA_zUUPCS-z2IemiQ43PgHaHa?rs=1&pid=ImgDetMain&o=7&rm=3",
+    ],
+    seller: {
+      name: "cityLine",
+      avatar: avatar(35),
+      rating: 4.3,
+      sales: 61,
+    },
+  },
+  {
+    id: "listing-platform-sneakers",
+    title: "Platform Canvas Sneakers",
+    category: "shoe",
+    price: 32,
+    description:
+      "Chunky platform sneakers in breathable canvas with a contrast gum sole and padded collar.",
+    brand: "StepUp",
+    size: "38",
+    condition: "Like new",
+    material: "Canvas",
+    colors: ["White", "Gum"],
+    images: [
+      "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=640&q=80",
+      "https://images.unsplash.com/photo-1475180098004-ca77a66827be?auto=format&fit=crop&w=640&q=80",
+    ],
+    seller: {
+      name: "stepUpStore",
+      avatar: avatar(36),
+      rating: 4.7,
+      sales: 134,
+    },
+  },
+  {
+    id: "listing-chunky-ankle-boots",
+    title: "Chunky Ankle Boots",
+    category: "shoe",
+    price: 38,
+    description:
+      "Matte leather ankle boots with elastic side panels and a lug sole for rainy-day grip.",
+    brand: "Downtown",
+    size: "39",
+    condition: "Good",
+    material: "Leather",
+    colors: ["Black"],
+    images: [
+      "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=640&q=80",
+      "https://images.unsplash.com/photo-1516763296043-76d3f3157948?auto=format&fit=crop&w=640&q=80",
+    ],
+    seller: {
+      name: "downtownFinds",
+      avatar: avatar(37),
+      rating: 4.4,
+      sales: 102,
+    },
+  },
+  {
+    id: "listing-leather-crossbody",
+    title: "Leather Crossbody Bag",
+    category: "accessory",
+    price: 24,
+    description:
+      "Structured crossbody bag with adjustable strap, interior zip pocket, and matte gold hardware.",
+    brand: "Street Atelier",
+    size: "One size",
+    condition: "Very good",
+    material: "Leather",
+    colors: ["Cognac"],
+    images: [
+      "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=640&q=80",
+      "https://tse1.mm.bing.net/th/id/OIP._PU2jbpd_bGX-M3WoLm6IAHaLe?rs=1&pid=ImgDetMain&o=7&rm=3",
+    ],
+    seller: {
+      name: "atelierStreet",
+      avatar: avatar(38),
+      rating: 4.8,
+      sales: 147,
+    },
+  },
+  {
+    id: "listing-gold-hoop-earrings",
+    title: "Gold Hoop Earrings",
+    category: "accessory",
+    price: 16,
+    description:
+      "Lightweight gold-tone hoops with a click-closure backing and mirrored finish.",
+    brand: "Luna Jewelry",
+    size: "One size",
+    condition: "Like new",
+    material: "Gold plated brass",
+    colors: ["Gold"],
+    images: [
+      "https://images.unsplash.com/photo-1522312346375-d1a52e2b99b3?auto=format&fit=crop&w=640&q=80",
+      "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=640&q=80",
+    ],
+    seller: {
+      name: "lunaJewelry",
+      avatar: avatar(39),
+      rating: 4.9,
+      sales: 205,
     },
   },
 ];

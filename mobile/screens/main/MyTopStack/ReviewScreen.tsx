@@ -15,8 +15,8 @@ import type { RootStackParamList } from "../../../App";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect } from "react";
 
-export default function FeedbackScreen() {
-  const route = useRoute<RouteProp<RootStackParamList, "Feedback">>();
+export default function ReviewScreen() {
+  const route = useRoute<RouteProp<RootStackParamList, "Review">>();
   const { orderId } = route.params;
   const navigation = useNavigation();
 
@@ -32,7 +32,7 @@ export default function FeedbackScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       {/* Header (内部已经有 SafeArea) */}
-      <Header title="Leave Feedback" showBack />
+      <Header title="Leave Review" showBack />
 
       <ScrollView contentContainerStyle={styles.container}>
         {/* 用户信息 */}
