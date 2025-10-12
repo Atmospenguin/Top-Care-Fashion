@@ -1,1 +1,17 @@
+# Root .gitignore for Top-Care-Fashion
+
+# Ignore node modules at root and in subprojects
+node_modules/
+
+# Ignore mobile subproject build/caches
+/mobile/node_modules/
+/mobile/.expo/
+/mobile/.expo-shared/
+
+# Ignore general logs
+npm-debug.log*
+yarn-error.log*
+
+# Ignore OS files
+.DS_Store
 docs/vercel_supabase_credentials

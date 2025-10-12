@@ -81,6 +81,10 @@ root/
 - Icon.svg: Use for favicons, mobile icons, and social media card thumbnails.
 - Logo_BrandColor.svg: Preferred for site headers, landing pages, and marketing pages on light backgrounds.
 - Logo_White.svg: Use for footers on dark backgrounds or when overlaying images to ensure accessible contrast. - Reference example (Web): Use a public path to reference directly, such as `/Icon.svg` or `/Logo_BrandColor.svg`.
+- Mobile app asset pipeline:
+  - All runtime assets are centralised in `mobile/constants/assetUrls.ts`; import from this module instead of referencing `assets/` directly.
+  - SVG rendering is backed by `react-native-svg` + `react-native-svg-transformer` and requires the Metro adjustments in `mobile/metro.config.js` plus the type declarations in `mobile/svg.d.ts`.
+  - Expo configuration (`mobile/app.json`) still expects PNG files for the app icon/adaptive icon/splash; keep those files in sync with the latest brand artwork.
 
 ---
 
