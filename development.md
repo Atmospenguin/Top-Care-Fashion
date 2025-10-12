@@ -72,15 +72,14 @@ root/
 ---
 
 ## Brand Assets
-
 - Three static logo files (placed in web/public)
-- web/public/Icon.svg — Small icon/favicon/app icon (for small sizes like 32x32/64x64)
-- web/public/Logo_BrandColor.svg — Primary brand color version (for light backgrounds/page headers)
-- web/public/Logo_White.svg — White version (for dark backgrounds/overlay images)
+- web/public/icon.svg — Small icon/favicon/app icon (for small sizes like 32x32/64x64)
+- web/public/logo_brandcolor.svg — Primary brand color version (for light backgrounds/page headers)
+- web/public/logo_white.svg — White version (for dark backgrounds/overlay images)
 - Recommended usage:
-- Icon.svg: Use for favicons, mobile icons, and social media card thumbnails.
-- Logo_BrandColor.svg: Preferred for site headers, landing pages, and marketing pages on light backgrounds.
-- Logo_White.svg: Use for footers on dark backgrounds or when overlaying images to ensure accessible contrast. - Reference example (Web): Use a public path to reference directly, such as `/Icon.svg` or `/Logo_BrandColor.svg`.
+- icon.svg: Use for favicons, mobile icons, and social media card thumbnails.
+- logo_brandcolor.svg: Preferred for site headers, landing pages, and marketing pages on light backgrounds.
+- logo_white.svg: Use for footers on dark backgrounds or when overlaying images to ensure accessible contrast. - Reference example (Web): Use a public path to reference directly, such as `/icon.svg` or `/logo_brandcolor.svg`.
 - Mobile app asset pipeline:
   - All runtime assets are centralised in `mobile/constants/assetUrls.ts`; import from this module instead of referencing `assets/` directly.
   - SVG rendering is backed by `react-native-svg` + `react-native-svg-transformer` and requires the Metro adjustments in `mobile/metro.config.js` plus the type declarations in `mobile/svg.d.ts`.

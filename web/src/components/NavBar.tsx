@@ -14,7 +14,7 @@ export default function NavBar() {
     <nav className="w-full bg-[var(--brand-color)] text-white relative z-50">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2" aria-label="Top Care Fashion home">
-          <Image src="/logo_White.svg" alt="Top Care Fashion" width={120} height={32} priority />
+          <Image src="/logo_white.svg" alt="Top Care Fashion" width={120} height={32} priority />
         </Link>
 
         <div className="flex items-center gap-5 text-sm">
