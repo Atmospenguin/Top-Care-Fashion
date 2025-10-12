@@ -1,13 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
   Easing,
   FlatList,
   Image,
+  InteractionManager,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  InteractionManager,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,6 +19,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
@@ -95,6 +96,7 @@ export default function MixMatchScreen() {
   const route = useRoute<RouteProp<BuyStackParamList, "MixMatch">>();
   const baseItem = route.params.baseItem;
   const scrollRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
 
   const matches = useMemo(() => findMatches(baseItem), [baseItem]);
   const { baseCategory, top, bottom, shoe, accessory, fallback } = matches;
@@ -296,6 +298,21 @@ export default function MixMatchScreen() {
     dismissTip();
   };
 
+  const viewTop = pickedTop ?? (baseCategory === "top" ? baseItem : null);
+  const viewBottom = pickedBottom ?? (baseCategory === "bottom" ? baseItem : null);
+  const viewShoe = pickedShoe ?? (baseCategory === "shoe" ? baseItem : null);
+
+  const navigateToViewOutfit = useCallback(() => {
+    navigation.navigate("ViewOutfit", {
+      baseItem,
+      top: viewTop,
+      bottom: viewBottom,
+      shoe: viewShoe,
+      accessories: selectedAccessoryItems,
+      selection,
+    });
+  }, [navigation, baseItem, viewTop, viewBottom, viewShoe, selectedAccessoryItems, selection]);
+
   const slotConfigs = [
     {
       key: "top" as const,
@@ -459,10 +476,18 @@ export default function MixMatchScreen() {
 
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={styles.primaryButton}
+          style={styles.bottomButtonLeft}
+          onPress={navigateToViewOutfit}
+          activeOpacity={0.85}
+          accessibilityLabel="View outfit fullscreen"
+        >
+          <Text style={styles.bottomButtonText}>View Outfit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.bottomButtonRight}
           onPress={() => navigation.navigate("Bag", { items: selection })}
         >
-          <Text style={styles.primaryText}>Add All To Bag</Text>
+          <Text style={styles.bottomButtonPrimaryText}>Add All To Bag</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -700,7 +725,7 @@ function FrameCarousel({
 const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: 12,
-    paddingBottom: 140,
+    paddingBottom: 80,
     rowGap: 28,
     paddingHorizontal: H_PADDING,
   },
@@ -844,21 +869,41 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     paddingHorizontal: 16,
-    paddingVertical: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
     backgroundColor: "#fff",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#ddd",
+    flexDirection: "row",
+    columnGap: 12,
   },
-  primaryButton: {
-    backgroundColor: "#111",
+  bottomButtonLeft: {
+    flex: 1,
     borderRadius: 28,
+    borderWidth: 1,
+    borderColor: "#111",
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    backgroundColor: "#fff",
+  },
+  bottomButtonRight: {
+    flex: 1,
+    borderRadius: 28,
+    backgroundColor: "#111",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
   },
-  primaryText: {
-    color: "#fff",
+  bottomButtonText: {
     fontSize: 16,
     fontWeight: "700",
+    color: "#111",
+  },
+  bottomButtonPrimaryText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
   },
   swipeTip: {
     position: "absolute",
@@ -885,5 +930,39 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: 0.4,
     marginLeft: 6,
+  },
+  secondaryButton: {
+    flex: 1,
+    marginRight: 12,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: "#111",
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  bottomButton: {
+    flex: 1,
+  },
+  shareButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buttonDisabled: {
+    opacity: 0.55,
+  },
+  shareSpinnerWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  secondaryText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111",
+  },
+  addToBagButton: {
+    marginLeft: 12,
   },
 });
