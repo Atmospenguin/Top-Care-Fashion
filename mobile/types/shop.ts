@@ -1,3 +1,5 @@
+export type ListingCategory = "top" | "bottom" | "shoe" | "accessory";
+
 export type ListingItem = {
   id: string;
   title: string;
@@ -9,6 +11,7 @@ export type ListingItem = {
   material?: string;
   colors: string[];
   images: string[];
+  category?: ListingCategory;
   seller: {
     name: string;
     avatar: string;

@@ -33,6 +33,7 @@ const Header: React.FC<HeaderProps> = ({
           <TouchableOpacity
             style={styles.backBtn}
             onPress={onBackPress || (() => navigation.goBack())}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
           >
             <Icon name="arrow-back" size={26} color={iconColor} />
           </TouchableOpacity>
@@ -61,6 +62,8 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     padding: 6,
+    alignItems: "center",
+    justifyContent: "center",
   },
   backBtnPlaceholder: {
     width: 26, // 占位，保持标题居中

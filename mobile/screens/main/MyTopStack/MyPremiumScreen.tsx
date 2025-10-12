@@ -31,7 +31,7 @@ type BenefitItem = {
 const BENEFITS: BenefitItem[] = [
   {
     id: "commission",
-    icon: "map-outline",
+    icon: "cash-outline",
     bgColor: "#E5F5FF",
     iconColor: "#2AB6B6",
     title: "Reduced commission",
@@ -39,7 +39,7 @@ const BENEFITS: BenefitItem[] = [
   },
   {
     id: "listing",
-    icon: "laptop-outline",
+    icon: "albums-outline",
     bgColor: "#E7F4FF",
     iconColor: "#4A8CFF",
     title: "Unlimited",

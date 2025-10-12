@@ -10,7 +10,6 @@ import {
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
-
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { BuyStackParamList } from "./index";
@@ -65,29 +64,30 @@ export default function PurchaseScreen() {
 
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={styles.secondaryButton}
-          onPress={() =>
-            navigation
-              .getParent<NativeStackNavigationProp<HomeStackParamList>>()
-              ?.navigate("HomeMain")
-          }
+          style={styles.primaryButton}
+          onPress={() => {
+            // 回退到 Home：优先通过父导航器导航到 HomeMain 根路由，
+            // 如果没有父导航器则在当前栈中回到根（popToTop）。
+            const parent = (navigation as any).getParent?.();
+            if (parent && typeof parent.reset === "function") {
+              // Reset root stack so back gesture won't return to Purchase
+              parent.reset({
+                index: 0,
+                routes: [
+                  { name: "Main", params: { screen: "Home", params: { screen: "HomeMain" } } },
+                ],
+              });
+            } else if (parent && typeof parent.navigate === "function") {
+              // Fallback: navigate without reset
+              parent.navigate("Main", { screen: "Home", params: { screen: "HomeMain" } });
+            } else if (typeof navigation.popToTop === "function") {
+              navigation.popToTop();
+            } else if (typeof navigation.goBack === "function") {
+              navigation.goBack();
+            }
+          }}
         >
-          <Text style={styles.secondaryText}>Continue shopping</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.primaryButton, !reviewTarget && styles.primaryDisabled]}
-          disabled={!reviewTarget}
-          onPress={() =>
-            reviewTarget
-              ? navigation.navigate("Review", {
-                  orderId,
-                  sellerName: reviewTarget.seller.name,
-                  itemTitle: reviewTarget.title,
-                })
-              : undefined
-          }
-        >
-          <Text style={styles.primaryText}>Leave a review</Text>
+          <Text style={styles.primaryText}>Continue shopping</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -173,16 +173,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#ddd",
   },
-  secondaryButton: {
-    flex: 1,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: "#111",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-  },
-  secondaryText: { fontSize: 14, fontWeight: "700", color: "#111" },
+
   primaryButton: {
     flex: 1,
     borderRadius: 28,

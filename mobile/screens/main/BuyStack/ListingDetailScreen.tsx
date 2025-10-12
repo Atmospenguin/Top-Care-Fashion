@@ -1,12 +1,16 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
+  Alert,
   Dimensions,
   Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
+  Share,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -26,6 +30,7 @@ export default function ListingDetailScreen() {
   const {
     params: { item },
   } = useRoute<RouteProp<BuyStackParamList, "ListingDetail">>();
+  const [showMenu, setShowMenu] = useState(false);
 
   const defaultBag = useMemo<BagItem[]>(
     () => [{ item, quantity: 1 }],
@@ -37,9 +42,80 @@ export default function ListingDetailScreen() {
   );
   const shippingFee = 8;
 
+  const handleReport = () => {
+    setShowMenu(false);
+    Alert.alert(
+      "Report listing",
+      "Thanks for flagging this item. Our team will review it shortly."
+    );
+  };
+
+  const handleShare = async () => {
+    setShowMenu(false);
+    try {
+      await Share.share({
+        message: `Check out this find on TOP: ${item.title} for $${item.price.toFixed(
+          2
+        )}`,
+      });
+    } catch {
+      // no-op if the share sheet fails or is dismissed
+    }
+  };
+
   return (
     <View style={styles.screen}>
-      <Header title="" showBack />
+      <Modal
+        transparent
+        animationType="fade"
+        visible={showMenu}
+        onRequestClose={() => setShowMenu(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowMenu(false)}>
+          <View style={styles.menuBackdrop}>
+            <TouchableWithoutFeedback>
+              <View style={styles.menuCard}>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={handleReport}
+                >
+                  <Icon name="flag-outline" size={18} color="#111" />
+                  <Text style={styles.menuItemText}>Report</Text>
+                </TouchableOpacity>
+                <View style={styles.menuDivider} />
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={handleShare}
+                >
+                  <Icon name="share-social-outline" size={18} color="#111" />
+                  <Text style={styles.menuItemText}>Share</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <Header
+        title=""
+        showBack
+        rightAction={
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("MixMatch", { baseItem: item })}
+              style={styles.headerIconBtn}
+            >
+              <Icon name="color-palette-outline" size={22} color="#111" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowMenu(true)}
+              style={styles.headerIconBtn}
+            >
+              <Icon name="ellipsis-vertical" size={20} color="#111" />
+            </TouchableOpacity>
+          </View>
+        }
+      />
       <ScrollView contentContainerStyle={styles.container}>
         <ScrollView
           horizontal
@@ -68,6 +144,15 @@ export default function ListingDetailScreen() {
             >
               <Icon name="heart-outline" size={22} color="#111" />
             </TouchableOpacity>
+            {/* Mix & Match chip aligned with like icon and same height */}
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.mixChipBtn}
+              onPress={() => navigation.navigate("MixMatch", { baseItem: item })}
+            >
+              <Text style={styles.mixChipText}>Mix & Match</Text>
+            </TouchableOpacity>
+
           </View>
           <View style={styles.metaRow}>
             <View style={styles.metaPill}>
@@ -106,13 +191,25 @@ export default function ListingDetailScreen() {
         <View style={styles.sectionCard}>
           <Text style={styles.sectionHeading}>Seller</Text>
           <View style={styles.sellerRow}>
-            <Image source={{ uri: item.seller.avatar }} style={styles.sellerAvatar} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sellerName}>{item.seller.name}</Text>
-              <Text style={styles.sellerMeta}>
-                {item.seller.rating.toFixed(1)} stars | {item.seller.sales} sales
-              </Text>
-            </View>
+            <TouchableOpacity
+              style={styles.sellerInfo}
+              onPress={() =>
+                navigation.navigate("UserProfile", {
+                  username: item.seller.name,
+                  avatar: item.seller.avatar,
+                  rating: item.seller.rating,
+                  sales: item.seller.sales,
+                })
+              }
+            >
+              <Image source={{ uri: item.seller.avatar }} style={styles.sellerAvatar} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sellerName}>{item.seller.name}</Text>
+                <Text style={styles.sellerMeta}>
+                  {item.seller.rating.toFixed(1)} stars | {item.seller.sales} sales
+                </Text>
+              </View>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.messageBtn}>
               <Icon name="chatbubble-ellipses-outline" size={18} color="#000" />
               <Text style={styles.messageText}>Message</Text>
@@ -170,6 +267,52 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: "#f2f2f2",
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 12,
+  },
+  headerIconBtn: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
+  menuBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.08)",
+    paddingTop: 60,
+    paddingRight: 16,
+    alignItems: "flex-end",
+  },
+  menuCard: {
+    width: 180,
+    borderRadius: 14,
+    backgroundColor: "#fff",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#d9d9d9",
+    paddingVertical: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 16,
+    elevation: 5,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  menuItemText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#111",
+  },
+  menuDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#e5e5e5",
+    marginVertical: 4,
+  },
   sectionCard: {
     marginHorizontal: 16,
     backgroundColor: "#fff",
@@ -198,6 +341,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  mixChipBtn: {
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#111",
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mixChipText: { fontSize: 13, fontWeight: "700", color: "#111" },
   metaRow: {
     flexDirection: "row",
     columnGap: 12,
@@ -258,6 +412,12 @@ const styles = StyleSheet.create({
   sellerRow: {
     flexDirection: "row",
     alignItems: "center",
+    columnGap: 12,
+  },
+  sellerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
     columnGap: 12,
   },
   sellerAvatar: {
