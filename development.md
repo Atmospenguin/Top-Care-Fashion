@@ -18,16 +18,12 @@ This guide outlines setup, architecture, conventions, workflows, and operational
 - Install per package
   - Web: `cd web && npm i`
   - Mobile: `cd mobile && npm i`
-  - Backend: `cd backend && npm i`
-  - AI services: `cd ai-services && pip install -r requirements.txt`
 - Environment
   - Copy `.env.example` to `.env` in each package
   - Request secrets from an admin
 - Run (dev)
-  - Web: `npm run dev`
-  - Mobile: `npx expo start`
-  - Backend: `npm run start:dev`
-  - AI: `uvicorn app.main:app --reload`
+  - Web: `cd web && npm run dev`
+  - Mobile: `cd mobile && npx expo start`
 
 > TIP: In UI, prefer brand accents (hex #F54B3D) for interactive states and links.
 
@@ -36,24 +32,24 @@ This guide outlines setup, architecture, conventions, workflows, and operational
 ## 2. Tech Stack
 
 ### Frontend
-- Web App: React.js (Next.js for SSR & SEO)
-- Mobile App: React Native
-- Styling: TailwindCSS / Styled Components
-- State Management: Redux Toolkit / Context API
+- **Web App**: Next.js 15.5.2 (React 19.1.0) with App Router
+- **Mobile App**: React Native 0.81.4 with Expo 54
+- **Styling**: TailwindCSS 4
+- **State Management**: React Context API
 
-### Backend
-- Server: Next.js Route Handlers / Server Actions (deployed on Vercel)
-- API: REST-style endpoints served from the web app (`/api/*`)
-- Auth & Storage: Supabase Auth, Supabase Storage buckets
-- Database: Supabase Postgres (accessed via Prisma Client)
+### Backend & Database
+- **Framework**: Next.js API Routes (`/api/*`) deployed on Vercel
+- **ORM**: Prisma 6.16.2 with PostgreSQL
+- **Database**: Supabase PostgreSQL (managed)
+- **Authentication**: Supabase Auth + local user sync
+- **File Storage**: Supabase Storage buckets
+- **API Style**: REST JSON endpoints
 
-### AI Module
-- Language: Python
-- Framework: FastAPI / Flask
-- Models:
-  - YOLOv5 / DeepFashion2 (clothing classification)
-  - OutfitGAN / Graph Neural Networks (Mix & Match)
-- Deployment: Dockerized microservice, exposed via REST API
+### AI Module (Future)
+- **Language**: Python 3.10+
+- **Framework**: FastAPI
+- **Models**: YOLOv5 / DeepFashion2 (clothing classification), OutfitGAN (Mix & Match)
+- **Deployment**: Dockerized microservice
 
 ---
 
@@ -61,12 +57,10 @@ This guide outlines setup, architecture, conventions, workflows, and operational
 
 ```
 root/
-├── web/                # React.js web app
-├── mobile/             # React Native mobile app
-├── backend/            # Node.js API server
-├── ai-services/        # Python FastAPI services (object detection, outfit recommender)
+├── web/                # Next.js web app with API routes
+├── mobile/             # React Native mobile app (Expo)
 ├── docs/               # Documentation (PRD, SRS, TDM, etc.)
-└── scripts/            # (legacy) deployment automation
+└── ai-services/        # Python FastAPI services (future)
 ```
 
 ---
@@ -177,12 +171,14 @@ The database now contains comprehensive sample data:
 ### Environment Configuration
 ```bash
 # .env.local (web)
+NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
 DATABASE_URL="postgresql://USERNAME:PASSWORD@aws-1-...pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true"
 DIRECT_URL="postgresql://USERNAME:PASSWORD@db.YOUR-ID.supabase.co:5432/postgres?sslmode=require"
 PRISMA_DISABLE_PREPARED_STATEMENTS=1
 ```
 
-> Prisma reads these variables automatically; keep DIRECT_URL for migrations.
+> Prisma reads DATABASE_URL/DIRECT_URL automatically. Supabase env vars are required for auth and storage.
 
 ### Supabase Auth & Storage
 
@@ -201,19 +197,32 @@ PRISMA_DISABLE_PREPARED_STATEMENTS=1
 
 ---
 
-## 6. API Standards
+## 6. API Architecture
 
-- REST JSON; version under `/api/v1`
-- Status codes: use RFC 9110-aligned semantics
-- Error format
+### Next.js API Routes
+- **Location**: `web/src/app/api/*`
+- **Style**: REST JSON endpoints
+- **Database**: Prisma Client (`@/lib/db`)
+- **Auth**: Supabase Auth + local user sync
+- **Error Handling**: Standardized error responses
+
+### API Standards
+- **Status Codes**: RFC 9110-aligned semantics
+- **Error Format**:
   ```json
-  { "error": { "code": "RESOURCE_NOT_FOUND", "message": "...", "details": {} } }
+  { "error": "Database error", "details": "..." }
   ```
-- Pagination: `?page=1&pageSize=20`
-- Filtering: `?status=active&category=tops`
-- Auth: Bearer JWT; include `x-request-id` for tracing
+- **Pagination**: `?page=1&pageSize=20` (future)
+- **Filtering**: `?status=active&category=tops` (future)
+- **Auth**: Session cookies + Supabase JWT
 
-> NOTE: For public endpoints, enforce read-only and strict CORS.
+### Current Endpoints
+- `GET /api/listings` - Fetch all active listings
+- `POST /api/auth/signin` - User authentication
+- `POST /api/auth/register` - User registration
+- `GET /api/auth/me` - Current user profile
+- `GET /api/profile` - User profile data
+- `GET /api/landing-content` - Homepage content
 
 ---
 
@@ -263,19 +272,18 @@ Commit format
 
 ## 9. Local Scripts
 
-Web
-- `npm run dev` – dev server
-- `npm run build` – production build
-- `npm run lint` – linting
+Web (Next.js)
+- `npm run dev` – dev server with Turbopack
+- `npm run build` – production build (includes Prisma generate)
+- `npm run start` – production server
+- `npm run lint` – ESLint
+- `npm run test` – Vitest unit tests
 
-Backend
-- `npm run start:dev` – watch mode
-- `npm run test` – unit tests
-- `npm run lint` – linting
-
-AI Services
-- `make serve` or `uvicorn app.main:app --reload`
-- `pytest -q`
+Mobile (Expo)
+- `npm start` – Expo DevTools
+- `npm run android` – Android build
+- `npm run ios` – iOS build
+- `npm run web` – Web preview
 
 ---
 
@@ -314,10 +322,10 @@ AI Services
 
 ## 13. Deployment
 
-- Web: GitHub Actions → Vercel (Next.js app connected to Supabase)
-- Mobile: Expo build & submit workflows
-- Backend: GitHub Actions → chosen host (e.g., Render/VM)
-- AI: Docker image pushed; service restarted with zero-downtime
+- **Web**: Vercel (auto-deploy from GitHub, connected to Supabase)
+- **Mobile**: Expo EAS Build & Submit workflows
+- **Database**: Supabase PostgreSQL (managed)
+- **Storage**: Supabase Storage buckets
 
 > RELEASE: Tag with `vX.Y.Z`. Maintain changelog. Roll back via previous Vercel deployment snapshot.
 

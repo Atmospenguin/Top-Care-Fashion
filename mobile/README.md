@@ -64,8 +64,11 @@ mobile/
 
 ## 🧩 State and Data
 
-- The project does not yet include global state management or backend integration; pages temporarily store inputs and mock data using `useState`
-- All static assets are registered in `constants/assetUrls.ts`. Use the exported `ASSETS` object (or named exports such as `LOGO_FULL_COLOR`) instead of importing from `assets/` directly. A `REMOTE_ASSET_BASE_URL` is available if you need to reference Supabase-hosted files.
+- **Current State**: Pages use `useState` for local state management
+- **Backend Integration**: Ready for Next.js API integration via fetch/axios
+- **Asset Management**: All static assets are registered in `constants/assetUrls.ts`
+- **Remote Assets**: `REMOTE_ASSET_BASE_URL` points to Supabase Storage for dynamic content
+- **Mock Data**: Located in `mocks/shop.ts` for development/testing
 
 ## 🎨 Design and Assets
 
@@ -133,6 +136,35 @@ Before building, update app icons, splash screen assets, and check `app.json` fo
 - TypeScript is configured with `strict` mode. Add type declarations for new files to maintain type safety.
 - React Navigation 7 requires `@react-navigation/native` along with dependencies like `react-native-screens` and `react-native-safe-area-context`. Follow official documentation when adding new navigation stacks.
 - For backend API calls, consider adding an `api.ts` file in `constants/` or using libraries like React Query for centralized management.
+
+## 🔌 API Integration
+
+### Backend Architecture
+- **API Server**: Next.js API Routes (`/api/*`) deployed on Vercel
+- **Database**: Supabase PostgreSQL with Prisma ORM
+- **Authentication**: Supabase Auth + local user sync
+- **File Storage**: Supabase Storage buckets
+
+### Available Endpoints
+- `GET /api/listings` - Fetch all active listings
+- `POST /api/auth/signin` - User authentication
+- `POST /api/auth/register` - User registration
+- `GET /api/auth/me` - Current user profile
+- `GET /api/profile` - User profile data
+
+### Integration Example
+```typescript
+// Example API call
+const fetchListings = async () => {
+  try {
+    const response = await fetch('https://your-domain.vercel.app/api/listings');
+    const data = await response.json();
+    return data.items;
+  } catch (error) {
+    console.error('Failed to fetch listings:', error);
+  }
+};
+```
 
 ## ✅ Next Steps
 
