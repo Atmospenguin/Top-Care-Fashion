@@ -47,6 +47,11 @@ export default function SettingScreen() {
             label="My Premium"
             onPress={() => rootNavigation.navigate("Premium")}
           />
+            <SettingItem
+            icon="flash-outline"
+            label="My Boost Listings"
+            onPress={() => navigation.navigate("MyBoostListings")}
+          />
           <SettingItem
             icon="help-circle-outline"
             label="Help & Support"

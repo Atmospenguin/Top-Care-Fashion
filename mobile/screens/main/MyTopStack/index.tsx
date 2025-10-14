@@ -13,6 +13,10 @@ import ReportScreen from "./ReportScreen";
 import ActiveListingDetailScreen from "./ActiveListingDetailScreen";
 import ManageListingScreen from "./ManageListingScreen";
 import EditListingScreen from "./EditListingScreen";
+import PromotionPlansScreen from "./PromotionPlansScreen";
+import MyBoostListingScreen from "./MyBoostListingScreen";
+import BoostedListingScreen from "./BoostedListingScreen";
+
 
 export type MyTopStackParamList = {
   MyTopMain: undefined;
@@ -28,6 +32,9 @@ export type MyTopStackParamList = {
   ActiveListingDetail: undefined;
   ManageListing: undefined;
   EditListing: undefined;
+  PromotionPlans: undefined;
+  MyBoostListings: undefined;
+  BoostedListing: undefined;
 };
 
 const Stack = createNativeStackNavigator<MyTopStackParamList>();
@@ -53,6 +60,9 @@ export default function MyTopStackNavigator() {
       <Stack.Screen name="ActiveListingDetail" component={ActiveListingDetailScreen} />
       <Stack.Screen name="ManageListing" component={ManageListingScreen} />
       <Stack.Screen name="EditListing" component={EditListingScreen} />
+      <Stack.Screen name="PromotionPlans" component={PromotionPlansScreen} />
+      <Stack.Screen name="MyBoostListings" component={MyBoostListingScreen} />
+  <Stack.Screen name="BoostedListing" component={BoostedListingScreen} />
     </Stack.Navigator>
   );
 }
