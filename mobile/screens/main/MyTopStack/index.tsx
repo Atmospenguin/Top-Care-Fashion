@@ -16,7 +16,16 @@ import EditListingScreen from "./EditListingScreen";
 import PromotionPlansScreen from "./PromotionPlansScreen";
 import MyBoostListingScreen from "./MyBoostListingScreen";
 import BoostedListingScreen from "./BoostedListingScreen";
+import MyPreferenceScreen from "./MyPreferenceScreen";
+import AddSizeScreen from "./AddSizeScreen";
+import AddStyleScreen from "./AddStyleScreen";
+import EditBrandScreen from "./EditBrandScreen";
 
+export type PreferenceSizes = {
+  shoe?: string;
+  top?: string;
+  bottom?: string;
+};
 
 export type MyTopStackParamList = {
   MyTopMain: undefined;
@@ -35,6 +44,28 @@ export type MyTopStackParamList = {
   PromotionPlans: undefined;
   MyBoostListings: undefined;
   BoostedListing: undefined;
+  MyPreference:
+    | {
+        selectedStyles?: string[];
+        selectedBrands?: string[];
+        selectedSizes?: PreferenceSizes;
+      }
+    | undefined;
+  AddSize:
+    | {
+        selectedSizes?: PreferenceSizes;
+      }
+    | undefined;
+  AddStyle:
+    | {
+        selectedStyles?: string[];
+      }
+    | undefined;
+  EditBrand:
+    | {
+        selectedBrands?: string[];
+      }
+    | undefined;
 };
 
 const Stack = createNativeStackNavigator<MyTopStackParamList>();
@@ -62,7 +93,11 @@ export default function MyTopStackNavigator() {
       <Stack.Screen name="EditListing" component={EditListingScreen} />
       <Stack.Screen name="PromotionPlans" component={PromotionPlansScreen} />
       <Stack.Screen name="MyBoostListings" component={MyBoostListingScreen} />
-  <Stack.Screen name="BoostedListing" component={BoostedListingScreen} />
+      <Stack.Screen name="BoostedListing" component={BoostedListingScreen} />
+      <Stack.Screen name="MyPreference" component={MyPreferenceScreen} />
+      <Stack.Screen name="AddSize" component={AddSizeScreen} />
+      <Stack.Screen name="AddStyle" component={AddStyleScreen} />
+      <Stack.Screen name="EditBrand" component={EditBrandScreen} />
     </Stack.Navigator>
   );
 }

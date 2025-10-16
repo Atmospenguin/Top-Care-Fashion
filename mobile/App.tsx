@@ -1,6 +1,7 @@
 import 'react-native-gesture-handler';
 import { enableScreens } from 'react-native-screens';
 import { NavigationContainer, getFocusedRouteNameFromRoute } from "@react-navigation/native";
+import type { NavigatorScreenParams } from "@react-navigation/native";
 import { Text } from "react-native";
 
 enableScreens();
@@ -27,6 +28,7 @@ import BuyStackNavigator from './screens/main/BuyStack';
 import Icon from "./components/Icon";
 import MyTopStackNavigator from './screens/main/MyTopStack';
 import PremiumStackNavigator from './screens/main/PremiumStack';
+import type { PremiumStackParamList } from "./screens/main/PremiumStack";
 import SellStackNavigator from './screens/main/SellStack/SellStackNavigator';
 import ReviewScreen from './screens/main/MyTopStack/ReviewScreen';
 import MutualReviewScreen from './screens/main/InboxStack/MutualReviewScreen';
@@ -40,7 +42,7 @@ export type RootStackParamList = {
   Register: undefined;
   ForgotPassword: undefined;
   Main: undefined;
-  Premium: undefined;
+  Premium: NavigatorScreenParams<PremiumStackParamList> | undefined;
   Buy: undefined;
   Review: { orderId: string };
   Notification: undefined;

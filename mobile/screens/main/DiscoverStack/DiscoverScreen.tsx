@@ -19,7 +19,7 @@ export default function DiscoverScreen() {
     "Dr. Martens",
     "Levi's",
     "Gucci",
-    "Oh Polly",
+    "Off-White",
     "Brandy Melville",
     "ASOS",
     "Chanel",

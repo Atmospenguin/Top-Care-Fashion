@@ -8,12 +8,22 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import type { CompositeNavigationProp, NavigatorScreenParams } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { MyTopStackParamList } from "./index";
+import type { RootStackParamList } from "../../../App";
+import type { PremiumStackParamList } from "../PremiumStack";
 
-type Nav = NativeStackNavigationProp<MyTopStackParamList, "MyBoostListings">;
+type Nav = CompositeNavigationProp<
+  NativeStackNavigationProp<MyTopStackParamList, "MyBoostListings">,
+  NativeStackNavigationProp<RootStackParamList>
+>;
+
+const promotionPlansRoute: NavigatorScreenParams<PremiumStackParamList> = {
+  screen: "PromotionPlans",
+};
 
 const MOCK_ACTIVE: Array<{
   id: string;
@@ -109,7 +119,7 @@ export default function BoostListingScreen() {
       {/* 顶部统计卡：点击进入已 Boost 列表页 */}
       <TouchableOpacity
         style={styles.topCard}
-  onPress={() => navigation.navigate("BoostedListing")}
+        onPress={() => navigation.navigate("BoostedListing")}
         activeOpacity={0.9}
       >
         <View style={styles.rowCenter}>
@@ -128,8 +138,8 @@ export default function BoostListingScreen() {
         data={MOCK_ACTIVE}
         keyExtractor={(item) => item.id}
         numColumns={3}
-  contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 100 }}
-  columnWrapperStyle={{ gap: 12, marginBottom: 12 }}
+    contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 100 }}
+    columnWrapperStyle={{ gap: 12, marginBottom: 12 }}
         renderItem={({ item }) => {
           const isSelected = !!selected[item.id];
           return (
@@ -176,7 +186,7 @@ export default function BoostListingScreen() {
             selectedCount === 0 && { opacity: 0.4 },
           ]}
           disabled={selectedCount === 0}
-          onPress={() => navigation.navigate("PromotionPlans")}
+          onPress={() => navigation.navigate("Premium", promotionPlansRoute)}
         >
           <Text style={styles.primaryText}>
             Boost selected ({selectedCount})

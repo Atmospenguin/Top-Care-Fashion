@@ -53,6 +53,12 @@ export default function SettingScreen() {
             onPress={() => navigation.navigate("MyBoostListings")}
           />
           <SettingItem
+           icon="heart-outline"
+           label="My Preference"
+           onPress={() => navigation.navigate("MyPreference")}
+          />
+
+          <SettingItem
             icon="help-circle-outline"
             label="Help & Support"
             onPress={() => navigation.navigate("HelpSupport")}
