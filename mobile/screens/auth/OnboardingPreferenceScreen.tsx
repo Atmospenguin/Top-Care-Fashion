@@ -1,0 +1,661 @@
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Image,
+  Dimensions,
+  Modal,
+  Pressable,
+  StatusBar,
+  BackHandler,
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../../App";
+import Icon from "../../components/Icon";
+
+type OnboardingNav = NativeStackNavigationProp<RootStackParamList, "Main">;
+
+const { width } = Dimensions.get("window");
+const CARD_WIDTH = (width - 48) / 2;
+
+// Style options with images
+const STYLE_OPTIONS = [
+  {
+    name: "Streetwear",
+    img: "https://tse1.mm.bing.net/th/id/OIP.VzaAIQ7keKtETkQY3XiR7QHaLG?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3",
+  },
+  {
+    name: "90s/Y2K",
+    img: "https://image-cdn.hypb.st/https://hypebeast.com/image/2023/05/diesel-resort-2024-collection-008.jpg?q=75&w=800&cbr=1&fit=max",
+  },
+  {
+    name: "Vintage",
+    img: "https://cdn.mos.cms.futurecdn.net/whowhatwear/posts/291781/vintage-inspired-fashion-brands-291781-1614100119475-image-768-80.jpg",
+  },
+  {
+    name: "Sportswear",
+    img: "https://static.nike.com/a/images/t_PDP_1728_v1/f_auto,q_auto:eco/734a943f-8d74-4841-be22-e6076816ea44/sportswear-tech-fleece-windrunner-mens-full-zip-hoodie-rznlBf.png",
+  },
+  {
+    name: "Independent Brands",
+    img: "https://tse3.mm.bing.net/th/id/OIP.zfm0Md_lr-4tMhh7v1W6vAHaKC?cb=12&w=756&h=1024&rs=1&pid=ImgDetMain&o=7&rm=3",
+  },
+  {
+    name: "Luxury Designer",
+    img: "https://www.chanel.com/us/img/t_one/q_auto:good,f_auto,fl_lossy,dpr_1.2/w_1920/prd-emea/sys-master-content-hfe-h6e-9980941336606look-003-spring-summer-2023-chanel-show.jpg",
+  },
+];
+
+const SIZE_OPTIONS_CLOTHES = [
+  "XXS / EU 32 / UK 4 / US 0",
+  "XS / EU 34 / UK 6 / US 2",
+  "S / EU 36 / UK 8 / US 4",
+  "M / EU 38 / UK 10 / US 6",
+  "L / EU 40 / UK 12 / US 8",
+  "XL / EU 42 / UK 14 / US 10",
+  "XXL / EU 44 / UK 16 / US 12",
+  "XXXL / EU 46 / UK 18 / US 14",
+];
+
+const SIZE_OPTIONS_SHOES = [
+  "EU 35 / US 5 / UK 3",
+  "EU 36 / US 6 / UK 4",
+  "EU 37 / US 6.5 / UK 4.5",
+  "EU 38 / US 7 / UK 5",
+  "EU 39 / US 8 / UK 6",
+  "EU 40 / US 9 / UK 7",
+  "EU 41 / US 10 / UK 8",
+  "EU 42 / US 11 / UK 9",
+  "EU 43 / US 12 / UK 10",
+];
+
+export default function OnboardingPreferenceScreen() {
+  const navigation = useNavigation<OnboardingNav>();
+  const [currentStep, setCurrentStep] = useState(0);
+
+  // User preferences state
+  const [selectedGender, setSelectedGender] = useState<string>("Womenswear");
+  const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
+  const [shoeSize, setShoeSize] = useState<string | null>(null);
+  const [topSize, setTopSize] = useState<string | null>(null);
+  const [bottomSize, setBottomSize] = useState<string | null>(null);
+
+  // Modal states
+  const [showShoePicker, setShowShoePicker] = useState(false);
+  const [showTopPicker, setShowTopPicker] = useState(false);
+  const [showBottomPicker, setShowBottomPicker] = useState(false);
+
+  const totalSteps = 3;
+
+  const handleNext = () => {
+    if (currentStep < totalSteps - 1) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  // 禁用 Android 返回键
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        // 如果在第一步，阻止返回
+        if (currentStep === 0) {
+          return true; // 阻止默认行为
+        }
+        // 否则返回上一步
+        handleBack();
+        return true;
+      }
+    );
+
+    return () => backHandler.remove();
+  }, [currentStep]);
+
+  const handleFinish = () => {
+    // TODO: Save preferences to backend/storage
+    console.log("Saving preferences:", {
+      gender: selectedGender,
+      styles: selectedStyles,
+      sizes: { shoe: shoeSize, top: topSize, bottom: bottomSize },
+    });
+    // 使用 replace 导航，防止用户返回到引导页面
+    navigation.replace("Main");
+  };
+
+  const toggleStyle = (name: string) => {
+    if (selectedStyles.includes(name)) {
+      setSelectedStyles(selectedStyles.filter((n) => n !== name));
+    } else if (selectedStyles.length < 3) {
+      setSelectedStyles([...selectedStyles, name]);
+    }
+  };
+
+  const canProceedCurrentStep = () => {
+    switch (currentStep) {
+      case 0:
+        return selectedGender !== null;
+      case 1:
+        return selectedStyles.length > 0;
+      case 2:
+        return shoeSize !== null || topSize !== null || bottomSize !== null;
+      default:
+        return false;
+    }
+  };
+
+  // Size Picker Modal Component
+  const OptionPicker = ({
+    title,
+    visible,
+    options,
+    value,
+    onClose,
+    onSelect,
+  }: {
+    title: string;
+    visible: boolean;
+    options: string[];
+    value: string | null;
+    onClose: () => void;
+    onSelect: (value: string) => void;
+  }) => (
+    <Modal transparent animationType="slide" visible={visible}>
+      <Pressable style={styles.sheetMask} onPress={onClose} />
+      <View style={styles.sheet}>
+        <View style={styles.sheetHandle} />
+        <Text style={styles.sheetTitle}>{title}</Text>
+        <ScrollView style={{ maxHeight: 360 }}>
+          {options.map((opt) => (
+            <TouchableOpacity
+              key={opt}
+              style={[
+                styles.optionRow,
+                value === opt && {
+                  backgroundColor: "#F3E8FF",
+                  borderColor: "#5B21B6",
+                },
+              ]}
+              onPress={() => {
+                onSelect(opt);
+                onClose();
+              }}
+            >
+              <Text style={styles.optionText}>{opt}</Text>
+              {value === opt ? <Text style={{ color: "#5B21B6" }}>✓</Text> : null}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        <TouchableOpacity style={styles.sheetCancel} onPress={onClose}>
+          <Text style={{ fontWeight: "600" }}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+
+  // Step 1: Gender Interest
+  const renderGenderStep = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>What are you interested in?</Text>
+      <Text style={styles.stepSubtitle}>
+        This helps us show you relevant fashion items
+      </Text>
+
+      <View style={styles.genderContainer}>
+        {["Menswear", "Mens & Womenswear", "Womenswear"].map((option) => (
+          <TouchableOpacity
+            key={option}
+            style={[
+              styles.genderCard,
+              selectedGender === option && styles.genderCardSelected,
+            ]}
+            onPress={() => setSelectedGender(option)}
+            activeOpacity={0.8}
+          >
+            <View
+              style={[
+                styles.radioOuter,
+                selectedGender === option && styles.radioOuterSelected,
+              ]}
+            >
+              {selectedGender === option && <View style={styles.radioInner} />}
+            </View>
+            <Text
+              style={[
+                styles.genderText,
+                selectedGender === option && styles.genderTextSelected,
+              ]}
+            >
+              {option}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  // Step 2: Style Preferences
+  const renderStyleStep = () => {
+    const remaining = 3 - selectedStyles.length;
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>Pick your favorite styles</Text>
+        <Text style={styles.stepSubtitle}>
+          Choose up to 3 styles you love (select at least 1)
+        </Text>
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.stylesGrid}
+        >
+          {STYLE_OPTIONS.map((style) => {
+            const isSelected = selectedStyles.includes(style.name);
+            return (
+              <TouchableOpacity
+                key={style.name}
+                style={styles.styleCard}
+                onPress={() => toggleStyle(style.name)}
+                activeOpacity={0.8}
+              >
+                <Image
+                  source={{ uri: style.img }}
+                  style={[styles.styleImage, isSelected && { opacity: 0.5 }]}
+                />
+                {isSelected && (
+                  <View style={styles.styleCheckOverlay}>
+                    <Icon name="checkmark-circle" size={40} color="#000" />
+                  </View>
+                )}
+                <Text style={styles.styleName}>{style.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {selectedStyles.length > 0 && (
+          <Text style={styles.tipText}>
+            {remaining > 0
+              ? `You can pick ${remaining} more style${remaining > 1 ? "s" : ""}`
+              : "Perfect! You're all set"}
+          </Text>
+        )}
+      </View>
+    );
+  };
+
+  // Step 3: Size Preferences
+  const renderSizeStep = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>What are your sizes?</Text>
+      <Text style={styles.stepSubtitle}>
+        This helps us recommend items that fit you (optional)
+      </Text>
+
+      <View style={styles.sizesContainer}>
+        <Text style={styles.sizeLabel}>Shoe Size</Text>
+        <TouchableOpacity
+          style={styles.sizeButton}
+          onPress={() => setShowShoePicker(true)}
+        >
+          <Text style={[styles.sizeButtonText, shoeSize && styles.sizeButtonTextSelected]}>
+            {shoeSize || "Select your shoe size"}
+          </Text>
+          <Icon name="chevron-down" size={20} color="#999" />
+        </TouchableOpacity>
+
+        <Text style={styles.sizeLabel}>Top Size</Text>
+        <TouchableOpacity
+          style={styles.sizeButton}
+          onPress={() => setShowTopPicker(true)}
+        >
+          <Text style={[styles.sizeButtonText, topSize && styles.sizeButtonTextSelected]}>
+            {topSize || "Select your top size"}
+          </Text>
+          <Icon name="chevron-down" size={20} color="#999" />
+        </TouchableOpacity>
+
+        <Text style={styles.sizeLabel}>Bottom Size</Text>
+        <TouchableOpacity
+          style={styles.sizeButton}
+          onPress={() => setShowBottomPicker(true)}
+        >
+          <Text style={[styles.sizeButtonText, bottomSize && styles.sizeButtonTextSelected]}>
+            {bottomSize || "Select your bottom size"}
+          </Text>
+          <Icon name="chevron-down" size={20} color="#999" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      
+      {/* Header with progress */}
+      <View style={styles.header}>
+        {currentStep > 0 ? (
+          <TouchableOpacity onPress={handleBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Icon name="arrow-back" size={24} color="#111" />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 24 }} />
+        )}
+        
+        <View style={styles.progressContainer}>
+          {Array.from({ length: totalSteps }).map((_, index) => (
+            <View
+              key={index}
+              style={[
+                styles.progressDot,
+                index <= currentStep && styles.progressDotActive,
+              ]}
+            />
+          ))}
+        </View>
+
+        <View style={{ width: 24 }} />
+      </View>
+
+      {/* Step Content */}
+      <View style={{ flex: 1 }}>
+        {currentStep === 0 && renderGenderStep()}
+        {currentStep === 1 && renderStyleStep()}
+        {currentStep === 2 && renderSizeStep()}
+      </View>
+
+      {/* Footer with navigation buttons */}
+      <View style={styles.footer}>
+        <TouchableOpacity
+          style={[
+            styles.nextButton,
+            !canProceedCurrentStep() && styles.nextButtonDisabled,
+          ]}
+          onPress={currentStep === totalSteps - 1 ? handleFinish : handleNext}
+          disabled={!canProceedCurrentStep()}
+        >
+          <Text style={styles.nextButtonText}>
+            {currentStep === totalSteps - 1 ? "Get Started" : "Continue"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Size Pickers */}
+      <OptionPicker
+        title="Select Shoe Size"
+        visible={showShoePicker}
+        options={SIZE_OPTIONS_SHOES}
+        value={shoeSize}
+        onClose={() => setShowShoePicker(false)}
+        onSelect={setShoeSize}
+      />
+      <OptionPicker
+        title="Select Top Size"
+        visible={showTopPicker}
+        options={SIZE_OPTIONS_CLOTHES}
+        value={topSize}
+        onClose={() => setShowTopPicker(false)}
+        onSelect={setTopSize}
+      />
+      <OptionPicker
+        title="Select Bottom Size"
+        visible={showBottomPicker}
+        options={SIZE_OPTIONS_CLOTHES}
+        value={bottomSize}
+        onClose={() => setShowBottomPicker(false)}
+        onSelect={setBottomSize}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e6e6e6",
+  },
+  progressContainer: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  progressDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#e6e6e6",
+  },
+  progressDotActive: {
+    backgroundColor: "#111",
+    width: 24,
+  },
+  stepContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 32,
+  },
+  stepTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#111",
+    marginBottom: 12,
+  },
+  stepSubtitle: {
+    fontSize: 16,
+    color: "#666",
+    marginBottom: 32,
+    lineHeight: 22,
+  },
+  // Gender Step Styles
+  genderContainer: {
+    gap: 12,
+  },
+  genderCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#e6e6e6",
+    backgroundColor: "#fff",
+  },
+  genderCardSelected: {
+    borderColor: "#111",
+    backgroundColor: "#f9f9f9",
+  },
+  radioOuter: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#ccc",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  radioOuterSelected: {
+    borderColor: "#111",
+  },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#111",
+  },
+  genderText: {
+    fontSize: 17,
+    color: "#111",
+    fontWeight: "500",
+  },
+  genderTextSelected: {
+    fontWeight: "700",
+  },
+  // Style Step Styles
+  stylesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    paddingBottom: 80,
+  },
+  styleCard: {
+    width: CARD_WIDTH,
+    marginBottom: 20,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  styleImage: {
+    width: "100%",
+    height: CARD_WIDTH * 1.2,
+    borderRadius: 12,
+    backgroundColor: "#f0f0f0",
+  },
+  styleCheckOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  styleName: {
+    marginTop: 8,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111",
+    textAlign: "center",
+  },
+  tipText: {
+    textAlign: "center",
+    fontSize: 14,
+    color: "#666",
+    marginTop: 8,
+  },
+  // Size Step Styles
+  sizesContainer: {
+    gap: 16,
+  },
+  sizeLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111",
+    marginBottom: 8,
+  },
+  sizeButton: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#e6e6e6",
+    backgroundColor: "#fff",
+  },
+  sizeButtonText: {
+    fontSize: 15,
+    color: "#999",
+  },
+  sizeButtonTextSelected: {
+    color: "#111",
+    fontWeight: "600",
+  },
+  // Footer Styles
+  footer: {
+    padding: 20,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#e6e6e6",
+    backgroundColor: "#fff",
+  },
+  nextButton: {
+    backgroundColor: "#111",
+    borderRadius: 28,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  nextButtonDisabled: {
+    backgroundColor: "#ccc",
+  },
+  nextButtonText: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  // Modal Styles
+  sheetMask: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  sheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: "80%",
+  },
+  sheetHandle: {
+    alignSelf: "center",
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#DDD",
+    marginBottom: 16,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 16,
+    color: "#111",
+  },
+  optionRow: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1.5,
+    borderColor: "#eee",
+    borderRadius: 12,
+    marginBottom: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  optionText: {
+    fontSize: 15,
+    color: "#111",
+  },
+  sheetCancel: {
+    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#F6F6F6",
+    alignItems: "center",
+  },
+});
+

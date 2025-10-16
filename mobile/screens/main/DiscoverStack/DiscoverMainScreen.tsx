@@ -7,11 +7,38 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
+import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "../../../components/Icon";
+import { useNavigation } from "@react-navigation/native";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import type { NavigatorScreenParams } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { BuyStackParamList } from "../BuyStack/index";
+import type { NativeStackNavigationProp as BuyNav } from "@react-navigation/native-stack";
 
-export default function DiscoverScreen() {
-  const categories = ["Men", "Women", "Kids", "Everything else"];
+import type { MyTopStackParamList } from "../MyTopStack";
+import type { DiscoverStackParamList } from "./index";
+
+type MainTabParamList = {
+  Home: undefined;
+  Discover: undefined;
+  Sell: undefined;
+  Inbox: undefined;
+  "My TOP": NavigatorScreenParams<MyTopStackParamList> | undefined;
+};
+
+type DiscoverNavigation = NativeStackNavigationProp<DiscoverStackParamList>;
+
+const CATEGORY_OPTIONS: Array<{ label: string; value: "men" | "women" | "unisex" }> = [
+  { label: "Men", value: "men" },
+  { label: "Women", value: "women" },
+  { label: "Unisex", value: "unisex" },
+];
+
+export default function DiscoverMainScreen() {
+  const navigation = useNavigation<DiscoverNavigation>();
+  const [searchText, setSearchText] = useState("");
   const brands = [
     "Nike",
     "Zara",
@@ -19,9 +46,9 @@ export default function DiscoverScreen() {
     "Dr. Martens",
     "Levi's",
     "Gucci",
-    "Oh Polly",
-    "Brandy Melville",
+    "Off-White",
     "ASOS",
+    "Brandy Melville",
     "Chanel",
   ];
 
@@ -36,13 +63,30 @@ export default function DiscoverScreen() {
         style={styles.searchBar}
         placeholder="Search for anything"
         placeholderTextColor="#666"
+        value={searchText}
+        onChangeText={setSearchText}
+        returnKeyType="search"
+        onSubmitEditing={() => {
+          // Navigate to SearchResult in Buy stack (allow empty string)
+          // Use parent/root navigator to reach the Buy stack
+          const parent = navigation.getParent();
+          parent?.navigate("Buy", { screen: "SearchResult", params: { query: searchText || "" } });
+        }}
       />
 
       {/* 分类 */}
       <Text style={styles.sectionTitle}>Shop by category</Text>
-      {categories.map((c) => (
-        <TouchableOpacity key={c} style={styles.categoryRow}>
-          <Text style={styles.categoryText}>{c}</Text>
+      {CATEGORY_OPTIONS.map(({ label, value }) => (
+        <TouchableOpacity
+          key={value}
+          style={styles.categoryRow}
+          onPress={() =>
+            navigation.navigate("DiscoverCategory", {
+              gender: value,
+            })
+          }
+        >
+          <Text style={styles.categoryText}>{label}</Text>
           <Icon name="chevron-forward" size={18} color="#888" />
         </TouchableOpacity>
       ))}
@@ -50,7 +94,15 @@ export default function DiscoverScreen() {
       {/* 品牌 */}
       <View style={styles.brandHeader}>
         <Text style={styles.sectionTitle}>Brands</Text>
-        <TouchableOpacity>
+        <TouchableOpacity
+          onPress={() =>
+            navigation
+              .getParent<BottomTabNavigationProp<MainTabParamList>>()
+              ?.navigate("My TOP", {
+                screen: "EditBrand",
+              })
+          }
+        >
           <Text style={styles.selectBrands}>Select brands</Text>
         </TouchableOpacity>
       </View>

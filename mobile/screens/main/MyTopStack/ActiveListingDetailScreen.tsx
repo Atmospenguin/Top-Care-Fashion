@@ -154,7 +154,10 @@ export default function ActiveListingDetailScreen() {
           <Text style={styles.secondaryText}>Manage Listing</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.primaryButton} onPress={() => {}}>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={() => navigation.navigate("PromotionPlans")}
+        >
           <Text style={styles.primaryText}>Boost Listing</Text>
         </TouchableOpacity>
       </View>

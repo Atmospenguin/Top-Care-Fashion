@@ -8,14 +8,28 @@ import {
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import type {
+  CompositeNavigationProp,
+  NavigatorScreenParams,
+} from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { MyTopStackParamList } from "./index";
+import type { RootStackParamList } from "../../../App";
+import type { PremiumStackParamList } from "../PremiumStack";
 
 export default function ManageListingScreen() {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
+  const navigation = useNavigation<
+    CompositeNavigationProp<
+      NativeStackNavigationProp<MyTopStackParamList, "ManageListing">,
+      NativeStackNavigationProp<RootStackParamList>
+    >
+  >();
+
+  const promotionPlansRoute: NavigatorScreenParams<PremiumStackParamList> = {
+    screen: "PromotionPlans",
+  };
 
   // 复用同一条 Listing 的关键信息（与详情一致）
   const thumb =
@@ -59,7 +73,10 @@ export default function ManageListingScreen() {
               Wanna make more people to see your listing?
             </Text>
           </View>
-          <TouchableOpacity style={styles.promoLinkWrapper} onPress={() => {}}>
+          <TouchableOpacity
+            style={styles.promoLinkWrapper}
+            onPress={() => navigation.navigate("Premium", promotionPlansRoute)}
+          >
             <Text style={styles.promoLink}>Click To Get Promotion</Text>
           </TouchableOpacity>
         </View>

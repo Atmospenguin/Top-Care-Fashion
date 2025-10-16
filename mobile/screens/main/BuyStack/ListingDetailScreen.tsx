@@ -205,9 +205,12 @@ export default function ListingDetailScreen() {
               <Image source={{ uri: item.seller.avatar }} style={styles.sellerAvatar} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.sellerName}>{item.seller.name}</Text>
-                <Text style={styles.sellerMeta}>
-                  {item.seller.rating.toFixed(1)} stars | {item.seller.sales} sales
-                </Text>
+                <View style={styles.sellerMeta}>
+                  <Icon name="star" size={13} color="#f5a623" />
+                  <Text style={styles.sellerMetaText}>{item.seller.rating.toFixed(1)}</Text>
+                  <Text style={styles.sellerMetaText}>|</Text>
+                  <Text style={styles.sellerMetaText}>{item.seller.sales} sales</Text>
+                </View>
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.messageBtn}>
@@ -431,9 +434,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   sellerMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 4,
+    marginTop: 2,
+  },
+  sellerMetaText: {
     fontSize: 13,
     color: "#666",
-    marginTop: 2,
   },
   messageBtn: {
     flexDirection: "row",

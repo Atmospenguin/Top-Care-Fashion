@@ -1,0 +1,434 @@
+import React, { useState, useMemo, useRef } from "react";
+import {
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  Animated,
+} from "react-native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RouteProp } from "@react-navigation/native";
+
+import Header from "../../../components/Header";
+import Icon from "../../../components/Icon";
+import FilterModal from "../../../components/FilterModal";
+import { MOCK_LISTINGS } from "../../../mocks/shop";
+import type { ListingItem } from "../../../types/shop";
+import type { BuyStackParamList } from "./index";
+
+type SearchResultRoute = RouteProp<BuyStackParamList, "SearchResult">;
+type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
+
+const MAIN_CATEGORIES = ["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"] as const;
+const SIZES = ["All", "My Size", "XS", "S", "M", "L", "XL", "XXL"] as const;
+const CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
+const PRICE_RANGES = [
+  { label: "All", min: 0, max: Infinity },
+  { label: "$0 - $25", min: 0, max: 25 },
+  { label: "$25 - $50", min: 25, max: 50 },
+  { label: "$50 - $100", min: 50, max: 100 },
+  { label: "$100+", min: 100, max: Infinity },
+] as const;
+
+export default function SearchResultScreen() {
+  const navigation = useNavigation<BuyNavigation>();
+  const {
+    params: { query },
+  } = useRoute<SearchResultRoute>();
+
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  
+  // Applied filters (used for actual filtering)
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [selectedSize, setSelectedSize] = useState<string>("All");
+  const [selectedCondition, setSelectedCondition] = useState<string>("All");
+  const [selectedPriceRange, setSelectedPriceRange] = useState(0);
+
+  // Temporary filters (used in modal, applied on button click)
+  const [tempCategory, setTempCategory] = useState<string>("All");
+  const [tempSize, setTempSize] = useState<string>("All");
+  const [tempCondition, setTempCondition] = useState<string>("All");
+  const [tempPriceRange, setTempPriceRange] = useState(0);
+
+  // Scroll animation state
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const lastScrollY = useRef(0);
+  const headerTranslateY = useRef(new Animated.Value(0)).current;
+  const [headerVisible, setHeaderVisible] = useState(true);
+
+  const filteredListings = useMemo(() => {
+    let results = MOCK_LISTINGS.filter((item) =>
+      item.title.toLowerCase().includes(query.toLowerCase())
+    );
+
+    if (selectedCategory !== "All") {
+      results = results.filter((item) => {
+        const categoryLower = selectedCategory.toLowerCase();
+        if (categoryLower === "tops") return item.category === "top";
+        if (categoryLower === "bottoms") return item.category === "bottom";
+        if (categoryLower === "footwear") return item.category === "shoe";
+        if (categoryLower === "accessories") return item.category === "accessory";
+        return true;
+      });
+    }
+
+    if (selectedSize !== "All") {
+      if (selectedSize === "My Size") {
+        // TODO: Get user's preferred size from user settings/preferences
+        const userPreferredSize = "M"; // Default to M for now
+        results = results.filter((item) => item.size === userPreferredSize);
+      } else {
+        results = results.filter((item) => item.size === selectedSize);
+      }
+    }
+
+    if (selectedCondition !== "All") {
+      results = results.filter((item) => item.condition === selectedCondition);
+    }
+
+    const priceRange = PRICE_RANGES[selectedPriceRange];
+    results = results.filter(
+      (item) => item.price >= priceRange.min && item.price <= priceRange.max
+    );
+
+    return results;
+  }, [query, selectedCategory, selectedSize, selectedCondition, selectedPriceRange]);
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedCategory !== "All") count++;
+    if (selectedSize !== "All") count++;
+    if (selectedCondition !== "All") count++;
+    if (selectedPriceRange !== 0) count++;
+    return count;
+  }, [selectedCategory, selectedSize, selectedCondition, selectedPriceRange]);
+
+  const handleOpenFilters = () => {
+    // Sync temp filters with current applied filters
+    setTempCategory(selectedCategory);
+    setTempSize(selectedSize);
+    setTempCondition(selectedCondition);
+    setTempPriceRange(selectedPriceRange);
+    setFilterModalVisible(true);
+  };
+
+  const handleClearFilters = () => {
+    setTempCategory("All");
+    setTempSize("All");
+    setTempCondition("All");
+    setTempPriceRange(0);
+  };
+
+  const handleApplyFilters = () => {
+    setSelectedCategory(tempCategory);
+    setSelectedSize(tempSize);
+    setSelectedCondition(tempCondition);
+    setSelectedPriceRange(tempPriceRange);
+    setFilterModalVisible(false);
+  };
+
+  const handleScroll = (event: any) => {
+    const currentScrollY = event.nativeEvent.contentOffset.y;
+    
+    // If at the top, always show header
+    if (currentScrollY <= 0) {
+      if (!headerVisible) {
+        setHeaderVisible(true);
+        Animated.timing(headerTranslateY, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+      }
+      lastScrollY.current = currentScrollY;
+      return;
+    }
+
+    // Scrolling down -> hide header with animation
+    if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
+      if (headerVisible) {
+        setHeaderVisible(false);
+        Animated.timing(headerTranslateY, {
+          toValue: -200, // Slide up and hide
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+      }
+    }
+    // Scrolling up -> show header with animation
+    else if (currentScrollY < lastScrollY.current) {
+      if (!headerVisible) {
+        setHeaderVisible(true);
+        Animated.timing(headerTranslateY, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+      }
+    }
+
+    lastScrollY.current = currentScrollY;
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: "#fff" }}>
+      <Animated.View
+        style={{
+          transform: [{ translateY: headerTranslateY }],
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 10,
+          backgroundColor: "#fff",
+        }}
+      >
+        <Header title={`"${query}"`} showBack />
+
+        <View style={styles.filterBar}>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={handleOpenFilters}
+          >
+            <Icon name="options-outline" size={18} color="#111" />
+            <Text style={styles.filterButtonText}>Filter</Text>
+            {activeFiltersCount > 0 && (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <Text style={styles.resultCount}>{filteredListings.length} results</Text>
+        </View>
+      </Animated.View>
+
+      <FlatList
+        data={filteredListings}
+        keyExtractor={(item) => item.id}
+        numColumns={2}
+        contentContainerStyle={styles.gridContent}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={styles.gridItem}
+            onPress={() => navigation.navigate("ListingDetail", { item })}
+          >
+            <Image source={{ uri: item.images[0] }} style={styles.gridImage} />
+            <View style={styles.itemInfo}>
+              <Text style={styles.itemTitle} numberOfLines={1}>
+                {item.title}
+              </Text>
+              <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
+              <Text style={styles.itemSize} numberOfLines={1}>
+                Size {item.size}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Icon name="search-outline" size={64} color="#ccc" />
+            <Text style={styles.emptyTitle}>No results found</Text>
+            <Text style={styles.emptySubtitle}>
+              Try adjusting your filters or search terms
+            </Text>
+          </View>
+        }
+        ListFooterComponent={
+          filteredListings.length > 0 ? (
+            <View style={styles.footerContainer}>
+              <View style={styles.footerDivider} />
+              <Text style={styles.footerText}>
+                You've reached the end • {filteredListings.length} {filteredListings.length === 1 ? 'item' : 'items'} found
+              </Text>
+              <Text style={styles.footerSubtext}>
+                Try adjusting your filters to see more results
+              </Text>
+            </View>
+          ) : null
+        }
+      />
+
+      {/* Filter Modal */}
+      <FilterModal
+        visible={filterModalVisible}
+        sections={[
+          {
+            key: "category",
+            title: "Category",
+            options: MAIN_CATEGORIES.map((category) => ({
+              label: category,
+              value: category,
+            })),
+            selectedValue: tempCategory,
+            onSelect: (value) => setTempCategory(String(value)),
+          },
+          {
+            key: "size",
+            title: "Size",
+            options: SIZES.map((size) => ({
+              label: size,
+              value: size,
+            })),
+            selectedValue: tempSize,
+            onSelect: (value) => setTempSize(String(value)),
+          },
+          {
+            key: "condition",
+            title: "Condition",
+            options: CONDITIONS.map((condition) => ({
+              label: condition,
+              value: condition,
+            })),
+            selectedValue: tempCondition,
+            onSelect: (value) => setTempCondition(String(value)),
+          },
+          {
+            key: "priceRange",
+            title: "Price Range",
+            options: PRICE_RANGES.map((range, index) => ({
+              label: range.label,
+              value: index,
+            })),
+            selectedValue: tempPriceRange,
+            onSelect: (value) => setTempPriceRange(Number(value)),
+          },
+        ]}
+        onClose={() => setFilterModalVisible(false)}
+        onClear={handleClearFilters}
+        onApply={handleApplyFilters}
+        applyButtonLabel={`Apply Filters (${filteredListings.length})`}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  filterBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e5e5e5",
+  },
+  filterButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    backgroundColor: "#fff",
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111",
+  },
+  filterBadge: {
+    backgroundColor: "#111",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+  filterBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  resultCount: {
+    fontSize: 14,
+    color: "#666",
+  },
+  gridContent: {
+    paddingHorizontal: 12,
+    paddingTop: 190, // Space for header + filter bar
+    paddingBottom: 120,
+  },
+  gridItem: {
+    flex: 1,
+    margin: 4,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#f9f9f9",
+  },
+  gridImage: {
+    width: "100%",
+    aspectRatio: 1,
+    backgroundColor: "#f1f1f1",
+  },
+  itemInfo: {
+    padding: 10,
+    rowGap: 4,
+  },
+  itemTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111",
+  },
+  itemPrice: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111",
+  },
+  itemSize: {
+    fontSize: 12,
+    color: "#666",
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 80,
+    paddingHorizontal: 32,
+    rowGap: 12,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111",
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  footerContainer: {
+    alignItems: "center",
+    paddingVertical: 40,
+    paddingHorizontal: 32,
+    rowGap: 8,
+  },
+  footerDivider: {
+    width: 60,
+    height: 3,
+    backgroundColor: "#e5e5e5",
+    borderRadius: 999,
+    marginBottom: 16,
+  },
+  footerText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#666",
+    textAlign: "center",
+  },
+  footerSubtext: {
+    fontSize: 13,
+    color: "#999",
+    textAlign: "center",
+    marginTop: 4,
+  },
+});
+

@@ -1,6 +1,7 @@
 import 'react-native-gesture-handler';
 import { enableScreens } from 'react-native-screens';
 import { NavigationContainer, getFocusedRouteNameFromRoute } from "@react-navigation/native";
+import type { NavigatorScreenParams } from "@react-navigation/native";
 import { Text } from "react-native";
 
 enableScreens();
@@ -11,6 +12,7 @@ import LandingScreen from "./screens/auth/LandingScreen";
 import LoginScreen from "./screens/auth/LoginScreen";
 import RegisterScreen from './screens/auth/RegisterScreen';
 import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
+import OnboardingPreferenceScreen from './screens/auth/OnboardingPreferenceScreen';
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
 
@@ -21,12 +23,13 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 //import SellScreen from "./screens/main/SellStack/SellScreen";
 //import InboxScreen from "./screens/main/InboxStack/InboxScreen";
 import InboxStackNavigator from './screens/main/InboxStack/InboxStackNavigator';
-import DiscoverScreen from './screens/main/DiscoverStack/DiscoverScreen';
+import DiscoverStackNavigator from './screens/main/DiscoverStack';
 import HomeStackNavigator from './screens/main/HomeStack';
 import BuyStackNavigator from './screens/main/BuyStack';
 import Icon from "./components/Icon";
 import MyTopStackNavigator from './screens/main/MyTopStack';
 import PremiumStackNavigator from './screens/main/PremiumStack';
+import type { PremiumStackParamList } from "./screens/main/PremiumStack";
 import SellStackNavigator from './screens/main/SellStack/SellStackNavigator';
 import ReviewScreen from './screens/main/MyTopStack/ReviewScreen';
 import MutualReviewScreen from './screens/main/InboxStack/MutualReviewScreen';
@@ -39,8 +42,9 @@ export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
+  OnboardingPreference: undefined;
   Main: undefined;
-  Premium: undefined;
+  Premium: NavigatorScreenParams<PremiumStackParamList> | undefined;
   Buy: undefined;
   Review: { orderId: string };
   Notification: undefined;
@@ -138,7 +142,7 @@ function MainTabs() {
           };
         }}
       />
-      <Tab.Screen name="Discover" component={DiscoverScreen} />
+  <Tab.Screen name="Discover" component={DiscoverStackNavigator} />
       <Tab.Screen name="Sell" component={SellStackNavigator} />
       <Tab.Screen name="Inbox" component={InboxStackNavigator} />
       <Tab.Screen
@@ -170,6 +174,11 @@ export default function App() {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen 
+          name="OnboardingPreference" 
+          component={OnboardingPreferenceScreen}
+          options={{ gestureEnabled: false }}
+        />
         <Stack.Screen name="Main" component={MainTabs} />
         <Stack.Screen name="Review" component={ReviewScreen} />
         <Stack.Screen name="MutualReview" component={MutualReviewScreen} />

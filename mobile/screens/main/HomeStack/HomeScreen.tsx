@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -8,11 +8,12 @@ import Icon from "../../../components/Icon";
 import type { HomeStackParamList } from "./index";
 import { DEFAULT_BAG_ITEMS, MOCK_LISTINGS } from "../../../mocks/shop";
 import AdaptiveImage from "../../../components/AdaptiveImage";
-import type { BuyStackParamList } from "../BuyStack";
+import type { RootStackParamList } from "../../../App";
 
 export default function HomeScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
+  const [searchText, setSearchText] = useState("");
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
@@ -23,8 +24,27 @@ export default function HomeScreen() {
             style={styles.searchBar}
             placeholder="Search for anything"
             placeholderTextColor="#666"
+            value={searchText}
+            onChangeText={setSearchText}
+            returnKeyType="search"
+            onSubmitEditing={() => {
+              // Navigate to SearchResult in Buy stack
+              const parent = navigation.getParent()?.getParent();
+              parent?.navigate("Buy", { screen: "SearchResult", params: { query: searchText || "" } });
+            }}
           />
-          <TouchableOpacity style={{ marginLeft: 12 }} accessibilityRole="button">
+          <TouchableOpacity
+            style={{ marginLeft: 12 }}
+            accessibilityRole="button"
+            onPress={() =>
+              navigation
+                .getParent()
+                ?.navigate("My TOP", {
+                  screen: "MyTopMain",
+                  params: { initialTab: "Likes" },
+                })
+            }
+          >
             <Icon name="heart-outline" size={24} color="#111" />
           </TouchableOpacity>
           <TouchableOpacity
@@ -51,7 +71,20 @@ export default function HomeScreen() {
           <Text style={styles.bannerSubtitle}>
             Unlimited Mix & Match Styling{"\n"}Reduced commission fees & Free boosts
           </Text>
-          <TouchableOpacity style={styles.premiumBtn}>
+          <TouchableOpacity
+            style={styles.premiumBtn}
+            onPress={() => {
+              const rootNavigation = navigation
+                .getParent()
+                ?.getParent() as
+                | NativeStackNavigationProp<RootStackParamList>
+                | undefined;
+
+              rootNavigation?.navigate("Premium", {
+                screen: "PremiumPlans",
+              });
+            }}
+          >
             <Text style={styles.premiumText}>Get Premium</Text>
           </TouchableOpacity>
         </View>
