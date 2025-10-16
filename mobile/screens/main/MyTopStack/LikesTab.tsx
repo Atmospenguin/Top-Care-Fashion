@@ -43,11 +43,6 @@ function formatData(data: any[], numColumns: number) {
 export default function LikesTab() {
   return (
     <View style={{ flex: 1 }}>
-      {/* Filter 区域 */}
-      <View style={styles.filterRow}>
-        <Text style={styles.filterBtn}>All ▼</Text>
-      </View>
-
       {/* 图片网格 */}
       <FlatList
         data={formatData([...likedItems], 3)}
@@ -72,20 +67,6 @@ export default function LikesTab() {
 }
 
 const styles = StyleSheet.create({
-  filterRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  filterBtn: {
-    fontSize: 16,
-    fontWeight: "500",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    alignSelf: "flex-start",
-  },
   item: {
     flex: 1,
     margin: 2,

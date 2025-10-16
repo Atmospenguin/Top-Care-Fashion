@@ -19,7 +19,7 @@ const BOOSTED = [
   {
     id: "b1",
     title: "Flower pattern shirt, great condition",
-    size: "UK 10",
+    size: "L",
     price: 50,
     image:
       "https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?q=80&w=600&auto=format&fit=crop",
@@ -32,7 +32,7 @@ const BOOSTED = [
   {
     id: "b2",
     title: "Blue dungarees, wide leg and comfy",
-    size: "UK 10",
+    size: "M",
     price: 55,
     image:
       "https://images.unsplash.com/photo-1520975652208-8bdf0a1a3f3c?q=80&w=600&auto=format&fit=crop",

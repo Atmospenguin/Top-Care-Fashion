@@ -28,7 +28,11 @@ export type PreferenceSizes = {
 };
 
 export type MyTopStackParamList = {
-  MyTopMain: undefined;
+  MyTopMain:
+    | {
+        initialTab?: "Shop" | "Sold" | "Purchases" | "Likes";
+      }
+    | undefined;
   EditProfile: undefined;
   Settings: undefined;
   Security: undefined;
