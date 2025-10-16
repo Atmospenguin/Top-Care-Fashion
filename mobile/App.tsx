@@ -12,6 +12,7 @@ import LandingScreen from "./screens/auth/LandingScreen";
 import LoginScreen from "./screens/auth/LoginScreen";
 import RegisterScreen from './screens/auth/RegisterScreen';
 import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
+import OnboardingPreferenceScreen from './screens/auth/OnboardingPreferenceScreen';
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
 
@@ -41,6 +42,7 @@ export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
+  OnboardingPreference: undefined;
   Main: undefined;
   Premium: NavigatorScreenParams<PremiumStackParamList> | undefined;
   Buy: undefined;
@@ -172,6 +174,11 @@ export default function App() {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen 
+          name="OnboardingPreference" 
+          component={OnboardingPreferenceScreen}
+          options={{ gestureEnabled: false }}
+        />
         <Stack.Screen name="Main" component={MainTabs} />
         <Stack.Screen name="Review" component={ReviewScreen} />
         <Stack.Screen name="MutualReview" component={MutualReviewScreen} />
