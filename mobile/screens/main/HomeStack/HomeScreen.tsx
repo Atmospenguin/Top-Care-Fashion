@@ -8,7 +8,7 @@ import Icon from "../../../components/Icon";
 import type { HomeStackParamList } from "./index";
 import { DEFAULT_BAG_ITEMS, MOCK_LISTINGS } from "../../../mocks/shop";
 import AdaptiveImage from "../../../components/AdaptiveImage";
-import type { BuyStackParamList } from "../BuyStack";
+import type { RootStackParamList } from "../../../App";
 
 export default function HomeScreen() {
   const navigation =
@@ -24,7 +24,18 @@ export default function HomeScreen() {
             placeholder="Search for anything"
             placeholderTextColor="#666"
           />
-          <TouchableOpacity style={{ marginLeft: 12 }} accessibilityRole="button">
+          <TouchableOpacity
+            style={{ marginLeft: 12 }}
+            accessibilityRole="button"
+            onPress={() =>
+              navigation
+                .getParent()
+                ?.navigate("My TOP", {
+                  screen: "MyTopMain",
+                  params: { initialTab: "Likes" },
+                })
+            }
+          >
             <Icon name="heart-outline" size={24} color="#111" />
           </TouchableOpacity>
           <TouchableOpacity
@@ -51,7 +62,20 @@ export default function HomeScreen() {
           <Text style={styles.bannerSubtitle}>
             Unlimited Mix & Match Styling{"\n"}Reduced commission fees & Free boosts
           </Text>
-          <TouchableOpacity style={styles.premiumBtn}>
+          <TouchableOpacity
+            style={styles.premiumBtn}
+            onPress={() => {
+              const rootNavigation = navigation
+                .getParent()
+                ?.getParent() as
+                | NativeStackNavigationProp<RootStackParamList>
+                | undefined;
+
+              rootNavigation?.navigate("Premium", {
+                screen: "PremiumPlans",
+              });
+            }}
+          >
             <Text style={styles.premiumText}>Get Premium</Text>
           </TouchableOpacity>
         </View>

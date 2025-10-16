@@ -22,7 +22,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 //import SellScreen from "./screens/main/SellStack/SellScreen";
 //import InboxScreen from "./screens/main/InboxStack/InboxScreen";
 import InboxStackNavigator from './screens/main/InboxStack/InboxStackNavigator';
-import DiscoverScreen from './screens/main/DiscoverStack/DiscoverScreen';
+import DiscoverStackNavigator from './screens/main/DiscoverStack';
 import HomeStackNavigator from './screens/main/HomeStack';
 import BuyStackNavigator from './screens/main/BuyStack';
 import Icon from "./components/Icon";
@@ -140,7 +140,7 @@ function MainTabs() {
           };
         }}
       />
-      <Tab.Screen name="Discover" component={DiscoverScreen} />
+  <Tab.Screen name="Discover" component={DiscoverStackNavigator} />
       <Tab.Screen name="Sell" component={SellStackNavigator} />
       <Tab.Screen name="Inbox" component={InboxStackNavigator} />
       <Tab.Screen

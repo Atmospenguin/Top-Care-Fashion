@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,8 +10,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 import Icon from "../../../components/Icon";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RouteProp } from "@react-navigation/native";
 import type { MyTopStackParamList } from "./index";
 import SoldTab from "./SoldTab";
 import PurchasesTab from "./PurchasesTab";
@@ -33,8 +34,18 @@ function formatData(data: any[], numColumns: number) {
 export default function MyTopScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
+  const route = useRoute<RouteProp<MyTopStackParamList, "MyTopMain">>();
   const [activeTab, setActiveTab] =
     useState<"Shop" | "Sold" | "Purchases" | "Likes">("Shop");
+
+  useFocusEffect(
+    useCallback(() => {
+      if (route.params?.initialTab) {
+        setActiveTab(route.params.initialTab);
+        navigation.setParams({ initialTab: undefined });
+      }
+    }, [route.params?.initialTab, navigation])
+  );
 
   const mockUser = {
     username: "ccc446981",
