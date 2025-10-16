@@ -7,12 +7,15 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
+import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "../../../components/Icon";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NavigatorScreenParams } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { BuyStackParamList } from "../BuyStack/index";
+import type { NativeStackNavigationProp as BuyNav } from "@react-navigation/native-stack";
 
 import type { MyTopStackParamList } from "../MyTopStack";
 import type { DiscoverStackParamList } from "./index";
@@ -35,6 +38,7 @@ const CATEGORY_OPTIONS: Array<{ label: string; value: "men" | "women" | "unisex"
 
 export default function DiscoverMainScreen() {
   const navigation = useNavigation<DiscoverNavigation>();
+  const [searchText, setSearchText] = useState("");
   const brands = [
     "Nike",
     "Zara",
@@ -59,6 +63,15 @@ export default function DiscoverMainScreen() {
         style={styles.searchBar}
         placeholder="Search for anything"
         placeholderTextColor="#666"
+        value={searchText}
+        onChangeText={setSearchText}
+        returnKeyType="search"
+        onSubmitEditing={() => {
+          // Navigate to SearchResult in Buy stack (allow empty string)
+          // Use parent/root navigator to reach the Buy stack
+          const parent = navigation.getParent();
+          parent?.navigate("Buy", { screen: "SearchResult", params: { query: searchText || "" } });
+        }}
       />
 
       {/* 分类 */}

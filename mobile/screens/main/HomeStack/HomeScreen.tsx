@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -13,6 +13,7 @@ import type { RootStackParamList } from "../../../App";
 export default function HomeScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
+  const [searchText, setSearchText] = useState("");
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
@@ -23,6 +24,14 @@ export default function HomeScreen() {
             style={styles.searchBar}
             placeholder="Search for anything"
             placeholderTextColor="#666"
+            value={searchText}
+            onChangeText={setSearchText}
+            returnKeyType="search"
+            onSubmitEditing={() => {
+              // Navigate to SearchResult in Buy stack
+              const parent = navigation.getParent()?.getParent();
+              parent?.navigate("Buy", { screen: "SearchResult", params: { query: searchText || "" } });
+            }}
           />
           <TouchableOpacity
             style={{ marginLeft: 12 }}
