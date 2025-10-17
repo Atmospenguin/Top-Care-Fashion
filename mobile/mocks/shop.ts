@@ -1,7 +1,13 @@
 import type { BagItem, ListingItem, PaymentMethod, ShippingAddress } from "../types/shop";
 
-export type PurchaseOrderStatus = "InProgress" | "Delivered" | "Cancelled";
-export type SoldOrderStatus = "ToShip" | "InTransit" | "Cancelled" | "Completed";
+export type PurchaseOrderStatus =
+  | "InProgress"
+  | "Shipped"
+  | "Delivered"
+  | "Received"
+  | "Completed"
+  | "Cancelled";
+export type SoldOrderStatus = "ToShip" | "Shipped" | "InTransit" | "Cancelled" | "Completed";
 
 export type PurchaseOrder = {
   id: string;
@@ -326,6 +332,28 @@ export const MOCK_LISTINGS: ListingItem[] = [
       sales: 205,
     },
   },
+  {
+    id: "listing-hello-kitty-jeans",
+    title: "Hello Kitty Baggy Jeans",
+    category: "bottom",
+    price: 25,
+    description:
+      "Playful baggy jeans featuring an all-over Hello Kitty print and relaxed straight-leg silhouette.",
+    brand: "Sanrio",
+    size: "M",
+    condition: "Very good",
+    material: "Denim",
+    colors: ["Blue"],
+    images: [
+      "https://tse3.mm.bing.net/th/id/OIP.VLA_zUUPCS-z2IemiQ43PgHaHa?rs=1&pid=ImgDetMain&o=7&rm=3",
+    ],
+    seller: {
+      name: "seller333",
+      avatar: avatar(14),
+      rating: 4.5,
+      sales: 87,
+    },
+  },
 ];
 
 export const DEFAULT_BAG_ITEMS: BagItem[] = [
@@ -372,7 +400,7 @@ export const PURCHASE_ORDERS: PurchaseOrder[] = [
     id: "2",
     product: MOCK_LISTINGS[1],
     seller: { name: "seller111", avatar: avatar(12) },
-    status: "Delivered",
+    status: "Completed",
     address: {
       ...DEFAULT_SHIPPING_ADDRESS,
       detail: "101 W Coast Vale, Block101 17-05, Parc Riviera, Singapore",
@@ -402,6 +430,24 @@ export const PURCHASE_ORDERS: PurchaseOrder[] = [
     },
     feedbackGiven: false,
   },
+  {
+    id: "4",
+    product:
+      MOCK_LISTINGS.find((item) => item.id === "listing-hello-kitty-jeans")!,
+    seller: { name: "seller333", avatar: avatar(14) },
+    status: "Delivered",
+    address: {
+      ...DEFAULT_SHIPPING_ADDRESS,
+      detail: "Singapore, Bukit Batok Ave 3",
+    },
+    payment: {
+      method: "PayPal",
+      amount: 25,
+      date: "2025-09-23 14:15",
+      transactionId: "TXNHELLOKITTY001",
+    },
+    feedbackGiven: false,
+  },
 ];
 
 export const SOLD_ORDERS: SoldOrder[] = [
@@ -421,11 +467,14 @@ export const SOLD_ORDERS: SoldOrder[] = [
   },
 ];
 
-export const PURCHASE_GRID_ITEMS = PURCHASE_ORDERS.map(({ id, product, status }) => ({
-  id,
-  image: product.images[0],
-  status,
-}));
+export const PURCHASE_GRID_ITEMS = PURCHASE_ORDERS.map(
+  ({ id, product, status, feedbackGiven }) => ({
+    id,
+    image: product.images[0],
+    status,
+    feedbackGiven,
+  })
+);
 
 export const SOLD_GRID_ITEMS = SOLD_ORDERS.map(({ id, product, status }) => ({
   id,

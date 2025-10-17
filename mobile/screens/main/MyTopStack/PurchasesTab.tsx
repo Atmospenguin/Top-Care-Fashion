@@ -43,9 +43,16 @@ export default function PurchasesTab() {
   };
 
   // Filter data
-  const filtered = PURCHASE_GRID_ITEMS.filter((p) =>
-    filter === "All" ? true : p.status === filter
-  );
+  const filtered = PURCHASE_GRID_ITEMS.filter((p) => {
+    if (filter === "All") return true;
+
+    // ✅ 新增逻辑：Received 也归到 Completed 分类中
+    if (filter === "Completed" && ["Completed", "Received"].includes(p.status)) {
+      return true;
+    }
+
+    return p.status === filter;
+  });
 
   return (
     <View style={{ flex: 1 }}>
@@ -98,6 +105,12 @@ export default function PurchasesTab() {
               style={styles.item}
               onPress={() => {
                 if (!item.id) return;
+                // 🔍 Debug: confirm navigating with correct id
+                try {
+                  console.log("Navigating to order id:", item.id);
+                } catch (e) {
+                  // no-op
+                }
                 navigation.navigate("OrderDetail", {
                   id: item.id,
                   source: "purchase",

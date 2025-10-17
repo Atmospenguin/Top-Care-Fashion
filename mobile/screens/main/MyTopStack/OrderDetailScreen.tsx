@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,189 +6,135 @@ import {
   Image,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 import Header from "../../../components/Header";
-import Icon from "../../../components/Icon";
 import { useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { MyTopStackParamList } from "./index";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import {
+  PURCHASE_ORDERS as purchaseOrders,
+  SOLD_ORDERS as soldOrders,
+  DEFAULT_SHIPPING_ADDRESS,
+} from "../../../mocks/shop";
 
-
-// mock 数据（分开买家/卖家）
-const purchaseOrders: any[] = [
-  {
-    id: "1",
-    product: {
-      title: "Green Dress",
-      price: 20,
-      size: "S",
-      image:
-        "https://cdn.shopify.com/s/files/1/0281/2071/1254/products/191219hm74370_1800x1800.jpg?v=1607871412",
-    },
-    seller: { name: "sellerA", avatar: "https://i.pravatar.cc/100?img=11" },
-    status: "InProgress",
-    address: {
-      name: "Cindy Chen",
-      phone: "+65 9123 4567",
-      detail: "Singapore, Parc Riviera",
-    },
-    payment: {
-      method: "PayPal",
-      amount: 20,
-      date: "2025-09-20 18:32",
-      transactionId: "TXN0001",
-    },
-    feedbackGiven: false,
-  },
-  {
-    id: "2",
-    product: {
-      title: "American Eagle Super Stretch Skinny Jeans",
-      price: 10,
-      size: "6",
-      image:
-        "https://tse4.mm.bing.net/th/id/OIP.TC_mOkLd6sQzsLiE_uSloQHaJ3?w=600&h=799&rs=1&pid=ImgDetMain&o=7&rm=3",
-    },
-    seller: { name: "seller111", avatar: "https://i.pravatar.cc/100?img=12" },
-    status: "Delivered",
-    address: {
-      name: "Cindy Chen",
-      phone: "+65 9123 4567",
-      detail: "101 W Coast Vale, Block101 17-05, Parc Riviera, Singapore",
-    },
-    payment: {
-      method: "PayPal",
-      amount: 14.5,
-      date: "2025-09-20 18:32",
-      transactionId: "TXN123456789",
-    },
-    feedbackGiven: false,
-  },
-  {
-    id: "3", // 
-    product: {
-      title: "Purple Nerdy Hoodie",
-      price: 15,
-      size: "M",
-      image: "https://assets.atmos-tokyo.com/items/L/pnef21ke11-ppl-1.jpg",
-    },
-    seller: { name: "seller222", avatar: "https://i.pravatar.cc/100?img=13" },
-    status: "Cancelled", // 可以改成 Cancelled，测试取消状态
-    address: {
-      name: "Cindy Chen",
-      phone: "+65 9123 4567",
-      detail: "Singapore, Clementi Ave",
-    },
-    payment: {
-      method: "PayPal",
-      amount: 15,
-      date: "2025-09-22 15:10",
-      transactionId: "TXN999888777",
-    },
-    feedbackGiven: false,
-  },
-];
-
-const soldOrders: any[] = [
-  {
-    id: "1",
-    product: {
-      title: "Red Jacket",
-      price: 30,
-      size: "M",
-      image:
-        "https://th.bing.com/th/id/R.d54043fa984e94c86b926d96ed3eb6a1?rik=l0s2kAsoEoM6Og&pid=ImgRaw&r=0",
-    },
-    buyer: { name: "buyer001", avatar: "https://i.pravatar.cc/100?img=31" },
-    status: "ToShip", // ✅ 状态用 ToShip
-    feedbackGiven: false,
-  },
-  {
-    id: "2",
-    product: {
-      title: "Casual Hoodie",
-      price: 25,
-      size: "L",
-      image:
-        "https://i5.walmartimages.com/asr/7aed82da-69af-46b8-854e-5c22d45a4df3.e7011d0ebdea1d9fabb68417c789ae16.jpeg",
-    },
-    buyer: { name: "buyer002", avatar: "https://i.pravatar.cc/100?img=32" },
-    status: "Completed",
-    feedbackGiven: false,
-  },
-  
-];
+type Purchase = (typeof purchaseOrders)[number];
+type Sold = (typeof soldOrders)[number];
 
 export default function OrderDetailScreen() {
   const route = useRoute<RouteProp<MyTopStackParamList, "OrderDetail">>();
-  // route.params may be undefined if navigation didn't pass params — guard it
   const navigation = useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
-  const params = (route.params as { id?: string; source?: "purchase" | "sold" } | undefined) ?? undefined;
-  const id = params?.id;
-  const source = params?.source ?? "purchase";
 
-  if (!id) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <Text>Order id missing</Text>
-      </View>
+  const params = (route.params as { id?: string; source?: "purchase" | "sold" } | undefined) ?? {};
+  const id = params.id;
+  const source = params.source ?? "purchase";
+
+  // 🔍 Debug logs to verify runtime data and navigation params
+  try {
+    console.log(
+      "✅ purchaseOrders in runtime:",
+      purchaseOrders.map((o) => String(o.id))
     );
+  } catch (e) {
+    // no-op
   }
+  console.log("🟢 route params:", id, source);
 
-  const order =
+  // ✅ 确保能匹配字符串与数字
+  const foundOrder =
     source === "purchase"
-      ? purchaseOrders.find((o: any) => o.id === id)
-      : soldOrders.find((o: any) => o.id === id);
+      ? purchaseOrders.find((o) => String(o.id) === String(id))
+      : soldOrders.find((o) => String(o.id) === String(id));
+
+  const [order, setOrder] = useState<Purchase | Sold | null>(foundOrder ?? null);
+
+ 
+  console.log("🟣 current status:", (order as any)?.status);
 
   if (!order) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <View style={styles.centered}>
         <Text>Order not found</Text>
       </View>
     );
   }
 
+  const isPurchase = source === "purchase";
+
+  const handleCancel = () => {
+    if (!isPurchase) return;
+    setOrder((prev) => {
+      if (!prev) return prev;
+      const current = prev as Purchase;
+      return { ...current, status: "Cancelled" };
+    });
+    Alert.alert("Order Cancelled", "Your order has been successfully cancelled.");
+  };
+
+  const handleReceived = () => {
+    if (!isPurchase) return;
+    setOrder((prev) => {
+      if (!prev) return prev;
+      const current = prev as Purchase;
+      return { ...current, status: "Received" };
+    });
+    Alert.alert("Order marked as received", "You can now leave a review.");
+  };
+
+  // --- Seller side handlers ---
+  const handleMarkShipped = () => {
+    if (isPurchase) return;
+    setOrder((prev) => {
+      if (!prev) return prev;
+      const current = prev as Sold;
+      return { ...current, status: "Shipped" as any };
+    });
+    Alert.alert("Order marked as shipped", "Your buyer will be notified.");
+  };
+
+  const handleCancelSold = () => {
+    if (isPurchase) return;
+    setOrder((prev) => {
+      if (!prev) return prev;
+      const current = prev as Sold;
+      return { ...current, status: "Cancelled" };
+    });
+    Alert.alert("Order cancelled", "You have cancelled this order.");
+  };
+
+  const purchaseOrder = isPurchase ? (order as Purchase) : null;
+  const soldOrder = !isPurchase ? (order as Sold) : null;
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
-      {/* Header */}
       <Header title={`Order #${order.id}`} showBack />
 
       <ScrollView contentContainerStyle={styles.container}>
         {/* 商品信息 */}
         <View style={styles.card}>
           <Image
-            source={{ uri: order.product?.image ?? "" }}
+            source={{ uri: order.product.images[0] }}
             style={styles.productImg}
           />
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.productTitle} numberOfLines={2}>
-              {order.product?.title ?? ""}
+              {order.product.title}
             </Text>
-            <Text style={styles.productPrice}>
-              ${order.product?.price ?? ""}
-            </Text>
-            <Text style={styles.productMeta}>
-              Size: {order.product?.size ?? ""}
-            </Text>
+            <Text style={styles.productPrice}>${order.product.price}</Text>
+            <Text style={styles.productMeta}>Size: {order.product.size}</Text>
 
             {/* 显示买家/卖家 */}
-            {source === "purchase" && order.seller ? (
+            {isPurchase && purchaseOrder?.seller ? (
               <View style={styles.userRow}>
-                <Image
-                  source={{ uri: order.seller.avatar }}
-                  style={styles.userAvatar}
-                />
-                <Text style={styles.userName}>{order.seller.name}</Text>
+                <Image source={{ uri: purchaseOrder.seller.avatar }} style={styles.userAvatar} />
+                <Text style={styles.userName}>{purchaseOrder.seller.name}</Text>
               </View>
-            ) : source === "sold" && order.buyer ? (
+            ) : !isPurchase && soldOrder?.buyer ? (
               <View style={styles.userRow}>
-                <Image
-                  source={{ uri: order.buyer.avatar }}
-                  style={styles.userAvatar}
-                />
-                <Text style={styles.userName}>{order.buyer.name}</Text>
+                <Image source={{ uri: soldOrder.buyer.avatar }} style={styles.userAvatar} />
+                <Text style={styles.userName}>{soldOrder.buyer.name}</Text>
               </View>
             ) : null}
           </View>
@@ -196,139 +142,145 @@ export default function OrderDetailScreen() {
 
         {/* 状态显示 */}
         <View style={styles.section}>
-  <Text style={styles.sectionTitle}>Order Status</Text>
+          <Text style={styles.sectionTitle}>Order Status</Text>
 
-  {order.status === "Cancelled" ? (
-    <Text style={styles.stepCancelled}>✗ Cancelled</Text>
-  ) : (
-    <View style={styles.progressRow}>
-      {/* Paid 永远打勾 */}
-      <Text style={[styles.step, styles.stepDone]}>✓ Paid</Text>
-
-      {/* Shipped 阶段 */}
-      <Text
-        style={[
-          styles.step,
-          order.status === "Shipped" ||
-          order.status === "Delivered" ||
-          order.status === "Completed"
-            ? styles.stepDone
-            : order.status === "InProgress" || order.status === "ToShip"
-            ? styles.stepPending
-            : styles.step,
-        ]}
-      >
-        {order.status === "InProgress" || order.status === "ToShip"
-          ? "… Pending"
-          : "✓ Shipped"}
-      </Text>
-
-      {/* Delivered 阶段 */}
-      <Text
-        style={[
-          styles.step,
-          order.status === "Delivered" || order.status === "Completed"
-            ? styles.stepDone
-            : order.status === "Shipped"
-            ? styles.stepPending
-            : styles.step,
-        ]}
-      >
-        {order.status === "Delivered" || order.status === "Completed"
-          ? "✓ Delivered"
-          : order.status === "Shipped"
-          ? "… In Transit"
-          : ""}
-      </Text>
-    </View>
-  )}
-</View>
-
+          {order.status === "Cancelled" ? (
+            <Text style={styles.stepCancelled}>✗ Cancelled</Text>
+          ) : (
+            <View style={styles.progressRow}>
+              <Text style={[styles.step, styles.stepDone]}>✓ Paid</Text>
+              <Text
+                style={[
+                  styles.step,
+                  ["Shipped", "Delivered", "Received", "Completed"].includes(order.status)
+                    ? styles.stepDone
+                    : ["InProgress", "ToShip"].includes(order.status)
+                    ? styles.stepPending
+                    : styles.step,
+                ]}
+              >
+                {["InProgress", "ToShip"].includes(order.status)
+                  ? "… Pending"
+                  : "✓ Shipped"}
+              </Text>
+              <Text
+                style={[
+                  styles.step,
+                  ["Delivered", "Received", "Completed"].includes(order.status)
+                    ? styles.stepDone
+                    : order.status === "Shipped"
+                    ? styles.stepPending
+                    : styles.step,
+                ]}
+              >
+                {order.status === "Shipped" ? "… In Transit" : "✓ Delivered"}
+              </Text>
+              {["Received", "Completed"].includes(order.status) && (
+                <Text style={[styles.step, styles.stepDone]}>✓ Received</Text>
+              )}
+            </View>
+          )}
+        </View>
 
         {/* 收货地址 / Buyer Info */}
-        {source === "purchase" && order.address ? (
+        {isPurchase && purchaseOrder?.address ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Shipping Address</Text>
-            <Text style={styles.text}>{order.address.name}</Text>
-            <Text style={styles.text}>{order.address.phone}</Text>
-            <Text style={styles.text}>{order.address.detail}</Text>
+            <Text style={styles.text}>{purchaseOrder.address.name}</Text>
+            <Text style={styles.text}>{purchaseOrder.address.phone}</Text>
+            <Text style={styles.text}>{purchaseOrder.address.detail}</Text>
           </View>
-        ) : source === "sold" && order.buyer ? (
+        ) : !isPurchase && soldOrder?.buyer ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Buyer Info</Text>
-            <Text style={styles.text}>{order.buyer.name}</Text>
+            <Text style={styles.text}>{soldOrder.buyer.name}</Text>
+
+            {/* Seller-side: Show shipping address (mocked from default) */}
+            <Text style={[styles.sectionTitle, { marginTop: 10 }]}>Shipping Address</Text>
+            <Text style={styles.text}>{DEFAULT_SHIPPING_ADDRESS.name}</Text>
+            <Text style={styles.text}>{DEFAULT_SHIPPING_ADDRESS.phone}</Text>
+            <Text style={styles.text}>
+              {DEFAULT_SHIPPING_ADDRESS.line1}, {DEFAULT_SHIPPING_ADDRESS.city}, {DEFAULT_SHIPPING_ADDRESS.country}
+            </Text>
+
+            {/* Seller-side: Payment Info (mock/demo) */}
+            <Text style={[styles.sectionTitle, { marginTop: 10 }]}>Payment Info</Text>
+            <Text style={styles.text}>Method: PayPal</Text>
+            <Text style={styles.text}>Date: 2025-09-20 18:32</Text>
+            <Text style={styles.text}>Transaction ID: TXN-DEMO-SELLER</Text>
           </View>
         ) : null}
 
-        {(order.status === "Delivered" || order.status === "Completed") && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Mutual Reviews</Text>
-            <View style={styles.mutualCard}>
-              <Icon name="chatbubbles-outline" size={22} color="#2d7ef0" />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.mutualTitle}>
-                  See what both parties said about this order.
-                </Text>
-                <TouchableOpacity
-                  style={styles.mutualButton}
-                  onPress={() => {
-                    const parentNav =
-                      (navigation as any).getParent?.()?.getParent?.() ??
-                      (navigation as any).getParent?.() ??
-                      navigation;
-                    if (parentNav && typeof parentNav.navigate === "function") {
-                      parentNav.navigate("MutualReview", { orderId: order.id });
-                    }
-                  }}
-                >
-                  <Text style={styles.mutualButtonText}>View mutual review</Text>
-                  <Icon name="chevron-forward" size={16} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        )}
-
         {/* 支付信息 */}
-        {source === "purchase" && order.payment ? (
+        {isPurchase && purchaseOrder?.payment ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Payment</Text>
             <Text style={styles.text}>
-              Paid ${order.payment.amount} with {order.payment.method}
+              Paid ${purchaseOrder.payment.amount} with {purchaseOrder.payment.method}
             </Text>
-            <Text style={styles.text}>Date: {order.payment.date}</Text>
+            <Text style={styles.text}>Date: {purchaseOrder.payment.date}</Text>
             <Text style={styles.text}>
-              Transaction ID: {order.payment.transactionId}
+              Transaction ID: {purchaseOrder.payment.transactionId}
             </Text>
           </View>
         ) : null}
       </ScrollView>
 
-      {/* 底部操作按钮 */}
-  {source === "purchase" &&
-  !order.feedbackGiven &&
-  order.status === "Delivered" && (
-    <View style={styles.footer}>
-      <TouchableOpacity
-        style={styles.feedbackBtn}
-        // Review screen lives on root; cast navigation to reach it
-        onPress={() => (navigation as any).navigate("Review", { orderId: order.id })}
-      >
-        <Text style={styles.feedbackText}>Leave Review</Text>
-      </TouchableOpacity>
-    </View>
-)}
+      {/* 🧭 底部操作按钮逻辑 */}
+      {isPurchase && !order.feedbackGiven && (
+        <>
+          {/* 🟠 InProgress → Cancel */}
+          {order.status === "InProgress" && (
+            <View style={styles.footer}>
+              <TouchableOpacity
+                style={[styles.feedbackBtn, { backgroundColor: "#F54B3D" }]}
+                onPress={handleCancel}
+              >
+                <Text style={styles.feedbackText}>Cancel Order</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
+          {/* 🟢 Delivered → Received */}
+          {order.status === "Delivered" && (
+            <View style={styles.footer}>
+              <TouchableOpacity
+                style={[styles.feedbackBtn, { backgroundColor: "#000" }]}
+                onPress={handleReceived}
+              >
+                <Text style={styles.feedbackText}>Order Received</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
-      {source === "sold" && order.status === "ToShip" && (
+          {/* 🟣 Received / Completed → Review */}
+          {["Received", "Completed"].includes(order.status) && (
+            <View style={styles.footer}>
+              <TouchableOpacity
+                style={styles.feedbackBtn}
+                onPress={() =>
+                  (navigation as any).navigate("Review", { orderId: order.id })
+                }
+              >
+                <Text style={styles.feedbackText}>Leave Review</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </>
+      )}
+
+      {/* 卖家视图操作区 */}
+      {!isPurchase && order.status === "ToShip" && (
         <View style={styles.footer}>
           <TouchableOpacity
             style={[styles.feedbackBtn, { backgroundColor: "black" }]}
+            onPress={handleMarkShipped}
           >
             <Text style={styles.feedbackText}>Mark as Shipped</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.feedbackBtn, { backgroundColor: "#F54B3D", marginTop: 8 }]}
+            onPress={handleCancelSold}
           >
             <Text style={styles.feedbackText}>Cancel Order</Text>
           </TouchableOpacity>
@@ -340,6 +292,7 @@ export default function OrderDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { padding: 16, paddingBottom: 100 },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   card: {
     flexDirection: "row",
     backgroundColor: "#fafafa",
@@ -362,37 +315,6 @@ const styles = StyleSheet.create({
   stepDone: { color: "green", fontWeight: "600" },
   stepPending: { color: "orange", fontWeight: "600" },
   stepCancelled: { fontSize: 14, color: "red", fontWeight: "700" },
-  mutualCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#f5f7ff",
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#d6e1ff",
-  },
-  mutualTitle: {
-    fontSize: 14,
-    color: "#24355c",
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  mutualButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    backgroundColor: "#2d7ef0",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    columnGap: 6,
-  },
-  mutualButtonText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#fff",
-    letterSpacing: 0.2,
-  },
   footer: {
     position: "absolute",
     bottom: 0,
