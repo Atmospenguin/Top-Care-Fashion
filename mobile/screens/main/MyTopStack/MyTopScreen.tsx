@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 import Icon from "../../../components/Icon";
+import FilterModal from "../../../components/FilterModal";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
@@ -17,6 +18,11 @@ import type { MyTopStackParamList } from "./index";
 import SoldTab from "./SoldTab";
 import PurchasesTab from "./PurchasesTab";
 import LikesTab from "./LikesTab";
+
+const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
+const SHOP_CATEGORIES = ["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories", "Dresses"] as const;
+const SHOP_CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
+
 // --- 保证 3 列对齐 ---
 function formatData(data: any[], numColumns: number) {
   const newData = [...data];
@@ -37,6 +43,21 @@ export default function MyTopScreen() {
   const route = useRoute<RouteProp<MyTopStackParamList, "MyTopMain">>();
   const [activeTab, setActiveTab] =
     useState<"Shop" | "Sold" | "Purchases" | "Likes">("Shop");
+
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [minPrice, setMinPrice] = useState<string>("");
+  const [maxPrice, setMaxPrice] = useState<string>("");
+  const [sortBy, setSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
+
+  const [tempMinPrice, setTempMinPrice] = useState<string>("");
+  const [tempMaxPrice, setTempMaxPrice] = useState<string>("");
+  const [tempSortBy, setTempSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
+
+  // Category and Condition filters
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [selectedCondition, setSelectedCondition] = useState<string>("All");
+  const [tempCategory, setTempCategory] = useState<string>("All");
+  const [tempCondition, setTempCondition] = useState<string>("All");
 
   useFocusEffect(
     useCallback(() => {
@@ -135,8 +156,18 @@ export default function MyTopScreen() {
                   <Text style={styles.activeTitle}>
                     Active ({mockUser.activeListings.length} listings)
                   </Text>
-                  <TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => setFilterModalVisible(true)}
+                    style={styles.filterButtonContainer}
+                  >
                     <Icon name="filter" size={24} color="#111" />
+                    {(selectedCategory !== "All" || selectedCondition !== "All" || minPrice || maxPrice || sortBy !== "Latest") && (
+                      <View style={styles.filterBadge}>
+                        <Text style={styles.filterBadgeText}>
+                          {(selectedCategory !== "All" ? 1 : 0) + (selectedCondition !== "All" ? 1 : 0) + (minPrice ? 1 : 0) + (maxPrice ? 1 : 0) + (sortBy !== "Latest" ? 1 : 0)}
+                        </Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -171,6 +202,71 @@ export default function MyTopScreen() {
         {activeTab === "Purchases" && <PurchasesTab />}
         {activeTab === "Likes" && <LikesTab />}
       </View>
+
+      <FilterModal
+        visible={filterModalVisible}
+        title="My Listings Filters"
+        sections={[
+          {
+            key: "category",
+            title: "Category",
+            options: SHOP_CATEGORIES.map((category) => ({
+              label: category,
+              value: category,
+            })),
+            selectedValue: tempCategory,
+            onSelect: (value) => setTempCategory(String(value)),
+          },
+          {
+            key: "condition",
+            title: "Condition",
+            options: SHOP_CONDITIONS.map((condition) => ({
+              label: condition,
+              value: condition,
+            })),
+            selectedValue: tempCondition,
+            onSelect: (value) => setTempCondition(String(value)),
+          },
+          {
+            key: "priceRange",
+            title: "Price Range",
+            type: "range",
+            minValue: parseFloat(tempMinPrice) || 0,
+            maxValue: parseFloat(tempMaxPrice) || 0,
+            minPlaceholder: "$0",
+            maxPlaceholder: "$1000+",
+            onMinChange: setTempMinPrice,
+            onMaxChange: setTempMaxPrice,
+          },
+          {
+            key: "sortBy",
+            title: "Sort By",
+            options: SORT_OPTIONS.map((option) => ({
+              label: option,
+              value: option,
+            })),
+            selectedValue: tempSortBy,
+            onSelect: (value) => setTempSortBy(String(value) as typeof SORT_OPTIONS[number]),
+          },
+        ]}
+        onClose={() => setFilterModalVisible(false)}
+        onApply={() => {
+          setSelectedCategory(tempCategory);
+          setSelectedCondition(tempCondition);
+          setMinPrice(tempMinPrice);
+          setMaxPrice(tempMaxPrice);
+          setSortBy(tempSortBy);
+          setFilterModalVisible(false);
+        }}
+        onClear={() => {
+          setTempCategory("All");
+          setTempCondition("All");
+          setTempMinPrice("");
+          setTempMaxPrice("");
+          setTempSortBy("Latest");
+        }}
+        applyButtonLabel="Apply Filters"
+      />
     </SafeAreaView>
   );
 }
@@ -258,6 +354,26 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   activeTitle: { fontSize: 17, fontWeight: "700" },
+  filterButtonContainer: {
+    position: "relative",
+  },
+  filterBadge: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    backgroundColor: "#FF4D4D",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  filterBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
 
   // Empty 状态
   emptyBox: {
