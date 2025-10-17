@@ -54,7 +54,7 @@ export default function ChatScreen() {
         ...order,
         seller: {
           name: order?.seller?.name ?? "seller111",
-          avatar: order?.seller?.avatar ?? "https://i.pravatar.cc/100?img=12",
+          avatar: order?.seller?.avatar ?? (order?.seller?.name === "sellerCozy" ? "https://i.pravatar.cc/100?img=22" : "https://i.pravatar.cc/100?img=12"),
         },
         buyer: {
           name: "buyer002",

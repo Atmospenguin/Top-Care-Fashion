@@ -269,6 +269,34 @@ export default function OrderDetailScreen() {
         </>
       )}
 
+      {/* 查看互评 - View Mutual Review for Completed Orders */}
+      {isPurchase && order.status === "Completed" && (
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.feedbackBtn, { backgroundColor: "#2d7ef0" }]}
+            onPress={() =>
+              (navigation as any).navigate("MutualReview", { orderId: order.id })
+            }
+          >
+            <Text style={styles.feedbackText}>View Mutual Review</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* 卖家视图 - Seller side: View Mutual Review */}
+      {!isPurchase && order.status === "Completed" && (
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.feedbackBtn, { backgroundColor: "#2d7ef0" }]}
+            onPress={() =>
+              (navigation as any).navigate("MutualReview", { orderId: order.id })
+            }
+          >
+            <Text style={styles.feedbackText}>View Mutual Review</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* 卖家视图操作区 */}
       {!isPurchase && order.status === "ToShip" && (
         <View style={styles.footer}>

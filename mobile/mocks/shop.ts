@@ -453,9 +453,9 @@ export const PURCHASE_ORDERS: PurchaseOrder[] = [
 export const SOLD_ORDERS: SoldOrder[] = [
   {
     id: "1",
-    product: MOCK_LISTINGS[3],
+    product: MOCK_LISTINGS[5],
     buyer: { name: "buyer001", avatar: avatar(31) },
-    status: "ToShip",
+    status: "Completed",
     feedbackGiven: false,
   },
   {
