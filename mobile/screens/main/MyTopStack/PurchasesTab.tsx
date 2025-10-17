@@ -38,13 +38,21 @@ export default function PurchasesTab() {
     All: "All",
     InProgress: "In Progress",
     Delivered: "Delivered",
+    Completed: "Completed",
     Cancelled: "Cancelled",
   };
 
   // Filter data
-  const filtered = PURCHASE_GRID_ITEMS.filter((p) =>
-    filter === "All" ? true : p.status === filter
-  );
+  const filtered = PURCHASE_GRID_ITEMS.filter((p) => {
+    if (filter === "All") return true;
+
+    // ✅ 新增逻辑：Received 也归到 Completed 分类中
+    if (filter === "Completed" && ["Completed", "Received"].includes(p.status)) {
+      return true;
+    }
+
+    return p.status === filter;
+  });
 
   return (
     <View style={{ flex: 1 }}>
@@ -77,6 +85,7 @@ export default function PurchasesTab() {
               <Picker.Item label="All" value="All" />
               <Picker.Item label="In Progress" value="InProgress" />
               <Picker.Item label="Delivered" value="Delivered" />
+              <Picker.Item label="Completed" value="Completed" />
               <Picker.Item label="Cancelled" value="Cancelled" />
             </Picker>
           </View>
@@ -96,6 +105,12 @@ export default function PurchasesTab() {
               style={styles.item}
               onPress={() => {
                 if (!item.id) return;
+                // 🔍 Debug: confirm navigating with correct id
+                try {
+                  console.log("Navigating to order id:", item.id);
+                } catch (e) {
+                  // no-op
+                }
                 navigation.navigate("OrderDetail", {
                   id: item.id,
                   source: "purchase",

@@ -23,22 +23,22 @@ type ReviewSide = {
 
 const mockMutualReviews: Record<string, { buyer: ReviewSide; seller: ReviewSide }> =
   {
-    ORD222: {
+    "2": {
       buyer: {
         name: "buyer002",
         avatar: "https://i.pravatar.cc/100?img=32",
         role: "Buyer",
         rating: 5,
         comment:
-          "Fast shipping and item was exactly as described. Thanks so much!",
+          "Excellent quality! The Casual Beige Hoodie is even more comfortable than I expected. Perfect fit and fast delivery!",
       },
       seller: {
-        name: "ccc446981",
-        avatar: "https://i.pravatar.cc/100?img=47",
+        name: "sellerCozy",
+        avatar: "https://i.pravatar.cc/100?img=22",
         role: "Seller",
-        rating: 4,
+        rating: 5,
         comment:
-          "Great communication throughout and smooth pickup arrangement.",
+          "Great buyer! Very smooth transaction and quick payment. Would be happy to work with again.",
       },
     },
   };

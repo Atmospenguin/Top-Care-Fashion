@@ -60,14 +60,14 @@ const mockThreads = [
     avatar: { uri: "https://i.pravatar.cc/100?img=32" },
     kind: "order",
     order: {
-      id: "ORD222",
+      id: "2",
       product: {
-        title: "Casual Hoodie",
+        title: "Casual Beige Hoodie",
         price: 25,
         size: "L",
         image: "https://i5.walmartimages.com/asr/7aed82da-69af-46b8-854e-5c22d45a4df3.e7011d0ebdea1d9fabb68417c789ae16.jpeg",
       },
-      seller: { name: "ccc446981" },
+      seller: { name: "sellerCozy" },
       buyer: { name: "buyer002", avatar: "https://i.pravatar.cc/100?img=32" },
       status: "Completed",
       feedbackGiven: false,
