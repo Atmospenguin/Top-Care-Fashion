@@ -6,6 +6,9 @@ import {
   Text,
   TouchableOpacity,
   View,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 
 import Icon from "./Icon";
@@ -23,12 +26,27 @@ export type FilterSection = {
   options: FilterOption[];
   selectedValue: FilterOptionValue;
   onSelect: (value: FilterOptionValue) => void;
+  type?: "chip"; // Default is chip
 };
+
+export type RangeFilterSection = {
+  key: string;
+  title: string;
+  type: "range";
+  minValue: number;
+  maxValue: number;
+  minPlaceholder?: string;
+  maxPlaceholder?: string;
+  onMinChange: (value: string) => void;
+  onMaxChange: (value: string) => void;
+};
+
+type AllFilterSection = FilterSection | RangeFilterSection;
 
 type FilterModalProps = {
   visible: boolean;
   title?: string;
-  sections: FilterSection[];
+  sections: AllFilterSection[];
   onClose: () => void;
   onApply: () => void;
   onClear?: () => void;
@@ -44,6 +62,10 @@ function FilterModal({
   onClear,
   applyButtonLabel = "Apply Filters",
 }: FilterModalProps) {
+  const isRangeSection = (section: AllFilterSection): section is RangeFilterSection => {
+    return section.type === "range";
+  };
+
   return (
     <Modal
       visible={visible}
@@ -52,64 +74,98 @@ function FilterModal({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={onClose} accessibilityRole="button">
-              <Icon name="close" size={24} color="#111" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>{title}</Text>
-            {onClear ? (
-              <TouchableOpacity onPress={onClear} accessibilityRole="button">
-                <Text style={styles.clearText}>Clear</Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.keyboardAvoidingView}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={onClose} accessibilityRole="button">
+                <Icon name="close" size={24} color="#111" />
               </TouchableOpacity>
-            ) : (
-              <View style={{ width: 48 }} />
-            )}
-          </View>
+              <Text style={styles.modalTitle}>{title}</Text>
+              {onClear ? (
+                <TouchableOpacity onPress={onClear} accessibilityRole="button">
+                  <Text style={styles.clearText}>Clear</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={{ width: 48 }} />
+              )}
+            </View>
 
-          <ScrollView style={styles.modalContent}>
-            {sections.map((section) => (
-              <View key={section.key}>
-                <Text style={styles.filterSectionTitle}>{section.title}</Text>
-                <View style={styles.filterOptions}>
-                  {section.options.map((option) => {
-                    const isActive = section.selectedValue === option.value;
-                    return (
-                      <TouchableOpacity
-                        key={option.label}
-                        style={[
-                          styles.filterChip,
-                          isActive && styles.filterChipActive,
-                        ]}
-                        onPress={() => section.onSelect(option.value)}
-                        accessibilityRole="button"
-                      >
-                        <Text
-                          style={[
-                            styles.filterChipText,
-                            isActive && styles.filterChipTextActive,
-                          ]}
-                        >
-                          {option.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-            ))}
-          </ScrollView>
+            <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
+              {sections.map((section) => {
+                if (isRangeSection(section)) {
+                  return (
+                    <View key={section.key}>
+                      <Text style={styles.filterSectionTitle}>{section.title}</Text>
+                      <View style={styles.rangeContainer}>
+                        <TextInput
+                          style={styles.rangeInput}
+                          placeholder={section.minPlaceholder || "Min"}
+                          placeholderTextColor="#999"
+                          value={String(section.minValue)}
+                          onChangeText={section.onMinChange}
+                          keyboardType="decimal-pad"
+                        />
+                        <Text style={styles.rangeSeparator}>-</Text>
+                        <TextInput
+                          style={styles.rangeInput}
+                          placeholder={section.maxPlaceholder || "Max"}
+                          placeholderTextColor="#999"
+                          value={String(section.maxValue)}
+                          onChangeText={section.onMaxChange}
+                          keyboardType="decimal-pad"
+                        />
+                      </View>
+                    </View>
+                  );
+                }
 
-          <View style={styles.modalFooter}>
-            <TouchableOpacity
-              style={styles.applyButton}
-              onPress={onApply}
-              accessibilityRole="button"
-            >
-              <Text style={styles.applyButtonText}>{applyButtonLabel}</Text>
-            </TouchableOpacity>
+                return (
+                  <View key={section.key}>
+                    <Text style={styles.filterSectionTitle}>{section.title}</Text>
+                    <View style={styles.filterOptions}>
+                      {section.options.map((option) => {
+                        const isActive = section.selectedValue === option.value;
+                        return (
+                          <TouchableOpacity
+                            key={option.label}
+                            style={[
+                              styles.filterChip,
+                              isActive && styles.filterChipActive,
+                            ]}
+                            onPress={() => section.onSelect(option.value)}
+                            accessibilityRole="button"
+                          >
+                            <Text
+                              style={[
+                                styles.filterChipText,
+                                isActive && styles.filterChipTextActive,
+                              ]}
+                            >
+                              {option.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.applyButton}
+                onPress={onApply}
+                accessibilityRole="button"
+              >
+                <Text style={styles.applyButtonText}>{applyButtonLabel}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -121,6 +177,10 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  keyboardAvoidingView: {
+    flex: 1,
     justifyContent: "flex-end",
   },
   modalContainer: {
@@ -184,6 +244,28 @@ const styles = StyleSheet.create({
   filterChipTextActive: {
     color: "#fff",
     fontWeight: "600",
+  },
+  rangeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 12,
+    marginBottom: 16,
+  },
+  rangeInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#111",
+    backgroundColor: "#f9f9f9",
+  },
+  rangeSeparator: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#666",
   },
   modalFooter: {
     paddingHorizontal: 20,
