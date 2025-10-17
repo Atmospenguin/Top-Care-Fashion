@@ -83,7 +83,7 @@ export default function ChatScreen() {
           {
             id: "sys3",
             type: "system",
-            text: "Parcel arrived. Waiting for buyer to confirm receipt.",
+            text: "Parcel arrived. Waiting for buyer to confirm received.",
             time: "Sep 24, 2025 08:00",
           },
           {
@@ -122,7 +122,7 @@ export default function ChatScreen() {
           {
             id: "sys3",
             type: "system",
-            text: "Buyer has confirmed receipt. Transaction completed.",
+            text: "Buyer has confirmed received. Transaction completed.",
             time: "Sep 30, 2025 16:00",
           },
           {

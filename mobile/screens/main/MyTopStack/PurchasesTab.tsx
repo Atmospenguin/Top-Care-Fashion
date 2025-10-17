@@ -38,6 +38,7 @@ export default function PurchasesTab() {
     All: "All",
     InProgress: "In Progress",
     Delivered: "Delivered",
+    Completed: "Completed",
     Cancelled: "Cancelled",
   };
 
@@ -77,6 +78,7 @@ export default function PurchasesTab() {
               <Picker.Item label="All" value="All" />
               <Picker.Item label="In Progress" value="InProgress" />
               <Picker.Item label="Delivered" value="Delivered" />
+              <Picker.Item label="Completed" value="Completed" />
               <Picker.Item label="Cancelled" value="Cancelled" />
             </Picker>
           </View>
