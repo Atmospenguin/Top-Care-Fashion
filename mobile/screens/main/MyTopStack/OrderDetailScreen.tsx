@@ -152,7 +152,7 @@ export default function OrderDetailScreen() {
               <Text
                 style={[
                   styles.step,
-                  ["Shipped", "Delivered", "Received", "Completed"].includes(order.status)
+                  ["Shipped", "Delivered", "Received", "Completed", "Reviewed"].includes(order.status)
                     ? styles.stepDone
                     : ["InProgress", "ToShip"].includes(order.status)
                     ? styles.stepPending
@@ -166,7 +166,7 @@ export default function OrderDetailScreen() {
               <Text
                 style={[
                   styles.step,
-                  ["Delivered", "Received", "Completed"].includes(order.status)
+                  ["Delivered", "Received", "Completed", "Reviewed"].includes(order.status)
                     ? styles.stepDone
                     : order.status === "Shipped"
                     ? styles.stepPending
@@ -175,7 +175,7 @@ export default function OrderDetailScreen() {
               >
                 {order.status === "Shipped" ? "… In Transit" : "✓ Delivered"}
               </Text>
-              {["Received", "Completed"].includes(order.status) && (
+              {["Received", "Completed", "Reviewed"].includes(order.status) && (
                 <Text style={[styles.step, styles.stepDone]}>✓ Received</Text>
               )}
             </View>
@@ -227,7 +227,7 @@ export default function OrderDetailScreen() {
       </ScrollView>
 
       {/* 🧭 底部操作按钮逻辑 */}
-      {isPurchase && !order.feedbackGiven && (
+      {isPurchase && (
         <>
           {/* 🟠 InProgress → Cancel */}
           {order.status === "InProgress" && (
@@ -269,8 +269,8 @@ export default function OrderDetailScreen() {
         </>
       )}
 
-      {/* 查看互评 - View Mutual Review for Completed Orders */}
-      {isPurchase && order.status === "Completed" && (
+      {/* 查看互评 - View Mutual Review for Reviewed Orders */}
+      {!isPurchase && order.status === "Reviewed" && (
         <View style={styles.footer}>
           <TouchableOpacity
             style={[styles.feedbackBtn, { backgroundColor: "#2d7ef0" }]}
@@ -283,16 +283,16 @@ export default function OrderDetailScreen() {
         </View>
       )}
 
-      {/* 卖家视图 - Seller side: View Mutual Review */}
+      {/* Leave Review - for completed orders without reviews yet */}
       {!isPurchase && order.status === "Completed" && (
         <View style={styles.footer}>
           <TouchableOpacity
-            style={[styles.feedbackBtn, { backgroundColor: "#2d7ef0" }]}
+            style={styles.feedbackBtn}
             onPress={() =>
-              (navigation as any).navigate("MutualReview", { orderId: order.id })
+              (navigation as any).navigate("Review", { orderId: order.id })
             }
           >
-            <Text style={styles.feedbackText}>View Mutual Review</Text>
+            <Text style={styles.feedbackText}>Leave Review</Text>
           </TouchableOpacity>
         </View>
       )}

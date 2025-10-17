@@ -7,7 +7,7 @@ export type PurchaseOrderStatus =
   | "Received"
   | "Completed"
   | "Cancelled";
-export type SoldOrderStatus = "ToShip" | "Shipped" | "InTransit" | "Cancelled" | "Completed";
+export type SoldOrderStatus = "ToShip" | "Shipped" | "Delivered" | "Cancelled" | "Completed" | "Reviewed";
 
 export type PurchaseOrder = {
   id: string;
@@ -21,7 +21,6 @@ export type PurchaseOrder = {
     date: string;
     transactionId: string;
   };
-  feedbackGiven: boolean;
 };
 
 export type SoldOrder = {
@@ -29,7 +28,6 @@ export type SoldOrder = {
   product: ListingItem;
   buyer: { name: string; avatar: string };
   status: SoldOrderStatus;
-  feedbackGiven: boolean;
 };
 
 const avatar = (id: number) => `https://i.pravatar.cc/100?img=${id}`;
@@ -394,7 +392,6 @@ export const PURCHASE_ORDERS: PurchaseOrder[] = [
       date: "2025-09-20 18:32",
       transactionId: "TXN0001",
     },
-    feedbackGiven: false,
   },
   {
     id: "2",
@@ -411,7 +408,6 @@ export const PURCHASE_ORDERS: PurchaseOrder[] = [
       date: "2025-09-20 18:32",
       transactionId: "TXN123456789",
     },
-    feedbackGiven: false,
   },
   {
     id: "3",
@@ -428,7 +424,6 @@ export const PURCHASE_ORDERS: PurchaseOrder[] = [
       date: "2025-09-22 15:10",
       transactionId: "TXN999888777",
     },
-    feedbackGiven: false,
   },
   {
     id: "4",
@@ -446,7 +441,6 @@ export const PURCHASE_ORDERS: PurchaseOrder[] = [
       date: "2025-09-23 14:15",
       transactionId: "TXNHELLOKITTY001",
     },
-    feedbackGiven: false,
   },
 ];
 
@@ -456,30 +450,26 @@ export const SOLD_ORDERS: SoldOrder[] = [
     product: MOCK_LISTINGS[3],
     buyer: { name: "buyer001", avatar: avatar(31) },
     status: "ToShip",
-    feedbackGiven: false,
   },
   {
     id: "2",
     product: MOCK_LISTINGS[4],
     buyer: { name: "buyer002", avatar: avatar(32) },
-    status: "Completed",
-    feedbackGiven: false,
+    status: "Reviewed",
   },
   {
     id: "3",
     product: MOCK_LISTINGS[5],
     buyer: { name: "buyer003", avatar: avatar(33) },
     status: "Completed",
-    feedbackGiven: false,
   },
 ];
 
 export const PURCHASE_GRID_ITEMS = PURCHASE_ORDERS.map(
-  ({ id, product, status, feedbackGiven }) => ({
+  ({ id, product, status }) => ({
     id,
     image: product.images[0],
     status,
-    feedbackGiven,
   })
 );
 

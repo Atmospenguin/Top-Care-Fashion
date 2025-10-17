@@ -70,7 +70,6 @@ const mockThreads = [
       seller: { name: "sellerCozy" },
       buyer: { name: "buyer002", avatar: "https://i.pravatar.cc/100?img=32" },
       status: "Completed",
-      feedbackGiven: false,
     },
     unread: false,
     lastFrom: "buyer",
