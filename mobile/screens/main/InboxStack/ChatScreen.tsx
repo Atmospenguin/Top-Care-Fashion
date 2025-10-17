@@ -25,7 +25,6 @@ type Order = {
   status: "Delivered" | "Shipped" | "Processing" | string;
   address?: { name?: string; phone?: string; detail?: string };
   payment?: { method?: string; amount?: number; date?: string; transactionId?: string };
-  feedbackGiven?: boolean;
 };
 
 type ChatItem =
