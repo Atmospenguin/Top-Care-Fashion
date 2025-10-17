@@ -11,6 +11,9 @@ import {
   TouchableWithoutFeedback,
   View,
   Share,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -24,6 +27,17 @@ import type { BuyStackParamList } from "./index";
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
 
+const REPORT_CATEGORIES = [
+  { id: "counterfeit", label: "Counterfeit item or other intellectual property infringement" },
+  { id: "prohibited", label: "Prohibited or dangerous item" },
+  { id: "inappropriate", label: "Nudity, violence or hate speech" },
+  { id: "outside_payment", label: "Request to be paid outside of the TOP app" },
+  { id: "unavailable", label: "Item isn't available to buy" },
+  { id: "dislike", label: "I just don't like it" },
+  { id: "illegal", label: "Violates a specific law or regulation" },
+  { id: "other", label: "Something else" },
+];
+
 export default function ListingDetailScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
@@ -31,6 +45,9 @@ export default function ListingDetailScreen() {
     params: { item },
   } = useRoute<RouteProp<BuyStackParamList, "ListingDetail">>();
   const [showMenu, setShowMenu] = useState(false);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [reportDetails, setReportDetails] = useState("");
 
   const defaultBag = useMemo<BagItem[]>(
     () => [{ item, quantity: 1 }],
@@ -44,10 +61,40 @@ export default function ListingDetailScreen() {
 
   const handleReport = () => {
     setShowMenu(false);
+    setReportModalVisible(true);
+  };
+
+  const handleSubmitReport = () => {
+    if (!selectedCategory) {
+      Alert.alert("Notice", "Please select a report category");
+      return;
+    }
+    if (!reportDetails.trim()) {
+      Alert.alert("Notice", "Please fill in report details");
+      return;
+    }
+    
+    // TODO: Submit report to backend
     Alert.alert(
-      "Report listing",
-      "Thanks for flagging this item. Our team will review it shortly."
+      "Report Submitted",
+      "Thank you for your feedback. We will review it shortly.",
+      [
+        {
+          text: "OK",
+          onPress: () => {
+            setReportModalVisible(false);
+            setSelectedCategory(null);
+            setReportDetails("");
+          },
+        },
+      ]
     );
+  };
+
+  const handleCancelReport = () => {
+    setReportModalVisible(false);
+    setSelectedCategory(null);
+    setReportDetails("");
   };
 
   const handleShare = async () => {
@@ -94,6 +141,87 @@ export default function ListingDetailScreen() {
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Report Modal */}
+      <Modal
+        visible={reportModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancelReport}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.keyboardAvoidingView}
+          >
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Report Listing</Text>
+                <TouchableOpacity onPress={handleCancelReport}>
+                  <Icon name="close" size={24} color="#111" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
+                <Text style={styles.sectionTitle}>Select Report Category</Text>
+                <View style={styles.categoriesContainer}>
+                  {REPORT_CATEGORIES.map((category) => (
+                    <TouchableOpacity
+                      key={category.id}
+                      style={[
+                        styles.categoryItem,
+                        selectedCategory === category.id && styles.categoryItemSelected,
+                      ]}
+                      onPress={() => setSelectedCategory(category.id)}
+                    >
+                      <View style={styles.categoryRadio}>
+                        {selectedCategory === category.id && (
+                          <View style={styles.categoryRadioInner} />
+                        )}
+                      </View>
+                      <Text
+                        style={[
+                          styles.categoryLabel,
+                          selectedCategory === category.id && styles.categoryLabelSelected,
+                        ]}
+                      >
+                        {category.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={styles.sectionTitle}>Report Details</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Please describe your reason for reporting..."
+                  placeholderTextColor="#999"
+                  multiline
+                  numberOfLines={6}
+                  textAlignVertical="top"
+                  value={reportDetails}
+                  onChangeText={setReportDetails}
+                />
+              </ScrollView>
+
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={handleCancelReport}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.submitButton]}
+                  onPress={handleSubmitReport}
+                >
+                  <Text style={styles.submitButtonText}>Submit Report</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       <Header
@@ -500,5 +628,131 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#fff",
+  },
+  // Report Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "85%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e5e5e5",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111",
+  },
+  modalContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111",
+    marginBottom: 12,
+  },
+  categoriesContainer: {
+    rowGap: 10,
+    marginBottom: 24,
+  },
+  categoryItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: "#e5e5e5",
+    backgroundColor: "#fff",
+  },
+  categoryItemSelected: {
+    borderColor: "#111",
+    backgroundColor: "#f5f5f5",
+  },
+  categoryRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#ccc",
+    marginRight: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  categoryRadioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#111",
+  },
+  categoryLabel: {
+    fontSize: 15,
+    color: "#666",
+    fontWeight: "500",
+  },
+  categoryLabelSelected: {
+    color: "#111",
+    fontWeight: "600",
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 15,
+    color: "#111",
+    minHeight: 120,
+    backgroundColor: "#f9f9f9",
+  },
+  modalFooter: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#e5e5e5",
+    columnGap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelButton: {
+    backgroundColor: "#f5f5f5",
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#666",
+  },
+  submitButton: {
+    backgroundColor: "#111",
+  },
+  submitButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+    justifyContent: "flex-end",
   },
 });

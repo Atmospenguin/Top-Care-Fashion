@@ -10,6 +10,8 @@ import {
   Modal,
   ScrollView,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -26,17 +28,20 @@ type UserProfileParam = RouteProp<BuyStackParamList, "UserProfile">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
 
 const REPORT_CATEGORIES = [
-  { id: "fake", label: "Counterfeit Items" },
-  { id: "inappropriate", label: "Inappropriate Behavior" },
-  { id: "scam", label: "Scam" },
-  { id: "spam", label: "Spam" },
-  { id: "harassment", label: "Harassment" },
-  { id: "other", label: "Other" },
+  { id: "prohibited_items", label: "Selling prohibited items" },
+  { id: "bullying", label: "Bullying or abusive behaviour" },
+  { id: "unsafe", label: "Concerning or unsafe behaviour" },
+  { id: "hate_speech", label: "Hate speech or discrimination" },
+  { id: "sexual_harassment", label: "Sexual harassment" },
+  { id: "scamming", label: "Scamming" },
+  { id: "outside_payment", label: "Out of app payment or activity" },
+  { id: "other", label: "Something else" },
 ];
 
 const SHOP_CATEGORIES = ["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories", "Dresses"] as const;
 const SHOP_SIZES = ["All", "My Size", "XS", "S", "M", "L", "XL", "XXL"] as const;
 const SHOP_CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
+const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
 
 const REVIEW_FILTERS = {
   ROLE: ["All", "From Buyer", "From Seller"] as const,
@@ -128,12 +133,14 @@ export default function UserProfileScreen() {
   const [shopCategory, setShopCategory] = useState<string>("All");
   const [shopSize, setShopSize] = useState<string>("All");
   const [shopCondition, setShopCondition] = useState<string>("All");
+  const [shopSortBy, setShopSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
 
   // Shop Filter Modal States
   const [shopFilterVisible, setShopFilterVisible] = useState(false);
   const [tempShopCategory, setTempShopCategory] = useState<string>("All");
   const [tempShopSize, setTempShopSize] = useState<string>("All");
   const [tempShopCondition, setTempShopCondition] = useState<string>("All");
+  const [tempShopSortBy, setTempShopSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
 
   // Review Filter States
   const [reviewsFilterVisible, setReviewsFilterVisible] = useState(false);
@@ -175,8 +182,14 @@ export default function UserProfileScreen() {
       results = results.filter((item) => item.condition === shopCondition);
     }
 
+    if (shopSortBy === "Price Low to High") {
+      results.sort((a, b) => a.price - b.price);
+    } else if (shopSortBy === "Price High to Low") {
+      results.sort((a, b) => b.price - a.price);
+    }
+
     return results;
-  }, [userListings, shopCategory, shopSize, shopCondition]);
+  }, [userListings, shopCategory, shopSize, shopCondition, shopSortBy]);
 
   const listingsData = useMemo(
     () => formatData(filteredListings, 3),
@@ -253,6 +266,7 @@ export default function UserProfileScreen() {
     setTempShopCategory(shopCategory);
     setTempShopSize(shopSize);
     setTempShopCondition(shopCondition);
+    setTempShopSortBy(shopSortBy);
     setShopFilterVisible(true);
   };
 
@@ -261,6 +275,7 @@ export default function UserProfileScreen() {
     setShopCategory(tempShopCategory);
     setShopSize(tempShopSize);
     setShopCondition(tempShopCondition);
+    setShopSortBy(tempShopSortBy);
     setShopFilterVisible(false);
   };
 
@@ -268,6 +283,7 @@ export default function UserProfileScreen() {
     setTempShopCategory("All");
     setTempShopSize("All");
     setTempShopCondition("All");
+    setTempShopSortBy("Latest");
   };
 
   const handleClearReviewFilters = () => {
@@ -282,8 +298,9 @@ export default function UserProfileScreen() {
     if (shopCategory !== "All") count++;
     if (shopSize !== "All") count++;
     if (shopCondition !== "All") count++;
+    if (shopSortBy !== "Latest") count++;
     return count;
-  }, [shopCategory, shopSize, shopCondition]);
+  }, [shopCategory, shopSize, shopCondition, shopSortBy]);
 
   const reviewActiveFiltersCount = useMemo(() => {
     let count = 0;
@@ -579,71 +596,76 @@ export default function UserProfileScreen() {
         onRequestClose={handleCancelReport}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>举报用户</Text>
-              <TouchableOpacity onPress={handleCancelReport}>
-                <Icon name="close" size={24} color="#111" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalContent}>
-              <Text style={styles.sectionTitle}>Select Report Category</Text>
-              <View style={styles.categoriesContainer}>
-                {REPORT_CATEGORIES.map((category) => (
-                  <TouchableOpacity
-                    key={category.id}
-                    style={[
-                      styles.categoryItem,
-                      selectedCategory === category.id && styles.categoryItemSelected,
-                    ]}
-                    onPress={() => setSelectedCategory(category.id)}
-                  >
-                    <View style={styles.categoryRadio}>
-                      {selectedCategory === category.id && (
-                        <View style={styles.categoryRadioInner} />
-                      )}
-                    </View>
-                    <Text
-                      style={[
-                        styles.categoryLabel,
-                        selectedCategory === category.id && styles.categoryLabelSelected,
-                      ]}
-                    >
-                      {category.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.keyboardAvoidingView}
+          >
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Report User</Text>
+                <TouchableOpacity onPress={handleCancelReport}>
+                  <Icon name="close" size={24} color="#111" />
+                </TouchableOpacity>
               </View>
 
-              <Text style={styles.sectionTitle}>Report Details</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Please describe your reason for reporting..."
-                placeholderTextColor="#999"
-                multiline
-                numberOfLines={6}
-                textAlignVertical="top"
-                value={reportDetails}
-                onChangeText={setReportDetails}
-              />
-            </ScrollView>
+              <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
+                <Text style={styles.sectionTitle}>Select Report Category</Text>
+                <View style={styles.categoriesContainer}>
+                  {REPORT_CATEGORIES.map((category) => (
+                    <TouchableOpacity
+                      key={category.id}
+                      style={[
+                        styles.categoryItem,
+                        selectedCategory === category.id && styles.categoryItemSelected,
+                      ]}
+                      onPress={() => setSelectedCategory(category.id)}
+                    >
+                      <View style={styles.categoryRadio}>
+                        {selectedCategory === category.id && (
+                          <View style={styles.categoryRadioInner} />
+                        )}
+                      </View>
+                      <Text
+                        style={[
+                          styles.categoryLabel,
+                          selectedCategory === category.id && styles.categoryLabelSelected,
+                        ]}
+                      >
+                        {category.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
 
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={handleCancelReport}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.submitButton]}
-                onPress={handleSubmitReport}
-              >
-                <Text style={styles.submitButtonText}>Submit Report</Text>
-              </TouchableOpacity>
+                <Text style={styles.sectionTitle}>Report Details</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Please describe your reason for reporting..."
+                  placeholderTextColor="#999"
+                  multiline
+                  numberOfLines={6}
+                  textAlignVertical="top"
+                  value={reportDetails}
+                  onChangeText={setReportDetails}
+                />
+              </ScrollView>
+
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={handleCancelReport}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.submitButton]}
+                  onPress={handleSubmitReport}
+                >
+                  <Text style={styles.submitButtonText}>Submit Report</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -680,6 +702,16 @@ export default function UserProfileScreen() {
             })),
             selectedValue: tempShopCondition,
             onSelect: (value) => setTempShopCondition(String(value)),
+          },
+          {
+            key: "sort",
+            title: "Sort By",
+            options: SORT_OPTIONS.map((option) => ({
+              label: option,
+              value: option,
+            })),
+            selectedValue: tempShopSortBy,
+            onSelect: (value) => setTempShopSortBy(String(value) as typeof SORT_OPTIONS[number]),
           },
         ]}
         onClose={() => setShopFilterVisible(false)}
@@ -1086,5 +1118,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#fff",
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+    justifyContent: "flex-end",
   },
 });

@@ -25,13 +25,7 @@ type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
 const MAIN_CATEGORIES = ["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"] as const;
 const SIZES = ["All", "My Size", "XS", "S", "M", "L", "XL", "XXL"] as const;
 const CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
-const PRICE_RANGES = [
-  { label: "All", min: 0, max: Infinity },
-  { label: "$0 - $25", min: 0, max: 25 },
-  { label: "$25 - $50", min: 25, max: 50 },
-  { label: "$50 - $100", min: 50, max: 100 },
-  { label: "$100+", min: 100, max: Infinity },
-] as const;
+const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
 
 export default function SearchResultScreen() {
   const navigation = useNavigation<BuyNavigation>();
@@ -40,18 +34,22 @@ export default function SearchResultScreen() {
   } = useRoute<SearchResultRoute>();
 
   const [filterModalVisible, setFilterModalVisible] = useState(false);
-  
+
   // Applied filters (used for actual filtering)
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [selectedSize, setSelectedSize] = useState<string>("All");
   const [selectedCondition, setSelectedCondition] = useState<string>("All");
-  const [selectedPriceRange, setSelectedPriceRange] = useState(0);
+  const [minPrice, setMinPrice] = useState<string>("");
+  const [maxPrice, setMaxPrice] = useState<string>("");
+  const [sortBy, setSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
 
   // Temporary filters (used in modal, applied on button click)
   const [tempCategory, setTempCategory] = useState<string>("All");
   const [tempSize, setTempSize] = useState<string>("All");
   const [tempCondition, setTempCondition] = useState<string>("All");
-  const [tempPriceRange, setTempPriceRange] = useState(0);
+  const [tempMinPrice, setTempMinPrice] = useState<string>("");
+  const [tempMaxPrice, setTempMaxPrice] = useState<string>("");
+  const [tempSortBy, setTempSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
 
   // Scroll animation state
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -89,29 +87,42 @@ export default function SearchResultScreen() {
       results = results.filter((item) => item.condition === selectedCondition);
     }
 
-    const priceRange = PRICE_RANGES[selectedPriceRange];
-    results = results.filter(
-      (item) => item.price >= priceRange.min && item.price <= priceRange.max
-    );
+    // Apply custom price range
+    const min = minPrice ? parseFloat(minPrice) : 0;
+    const max = maxPrice ? parseFloat(maxPrice) : Infinity;
+    if (minPrice || maxPrice) {
+      results = results.filter((item) => item.price >= min && item.price <= max);
+    }
+
+    // Apply sorting
+    if (sortBy === "Price Low to High") {
+      results = [...results].sort((a, b) => a.price - b.price);
+    } else if (sortBy === "Price High to Low") {
+      results = [...results].sort((a, b) => b.price - a.price);
+    }
+    // Latest is the default order
 
     return results;
-  }, [query, selectedCategory, selectedSize, selectedCondition, selectedPriceRange]);
+  }, [query, selectedCategory, selectedSize, selectedCondition, minPrice, maxPrice, sortBy]);
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (selectedCategory !== "All") count++;
     if (selectedSize !== "All") count++;
     if (selectedCondition !== "All") count++;
-    if (selectedPriceRange !== 0) count++;
+    if (minPrice || maxPrice) count++;
+    if (sortBy !== "Latest") count++;
     return count;
-  }, [selectedCategory, selectedSize, selectedCondition, selectedPriceRange]);
+  }, [selectedCategory, selectedSize, selectedCondition, minPrice, maxPrice, sortBy]);
 
   const handleOpenFilters = () => {
     // Sync temp filters with current applied filters
     setTempCategory(selectedCategory);
     setTempSize(selectedSize);
     setTempCondition(selectedCondition);
-    setTempPriceRange(selectedPriceRange);
+    setTempMinPrice(minPrice);
+    setTempMaxPrice(maxPrice);
+    setTempSortBy(sortBy);
     setFilterModalVisible(true);
   };
 
@@ -119,14 +130,18 @@ export default function SearchResultScreen() {
     setTempCategory("All");
     setTempSize("All");
     setTempCondition("All");
-    setTempPriceRange(0);
+    setTempMinPrice("");
+    setTempMaxPrice("");
+    setTempSortBy("Latest");
   };
 
   const handleApplyFilters = () => {
     setSelectedCategory(tempCategory);
     setSelectedSize(tempSize);
     setSelectedCondition(tempCondition);
-    setSelectedPriceRange(tempPriceRange);
+    setMinPrice(tempMinPrice);
+    setMaxPrice(tempMaxPrice);
+    setSortBy(tempSortBy);
     setFilterModalVisible(false);
   };
 
@@ -290,12 +305,23 @@ export default function SearchResultScreen() {
           {
             key: "priceRange",
             title: "Price Range",
-            options: PRICE_RANGES.map((range, index) => ({
-              label: range.label,
-              value: index,
+            type: "range",
+            minValue: parseFloat(tempMinPrice) || 0,
+            maxValue: parseFloat(tempMaxPrice) || 0,
+            minPlaceholder: "$0",
+            maxPlaceholder: "$1000+",
+            onMinChange: setTempMinPrice,
+            onMaxChange: setTempMaxPrice,
+          },
+          {
+            key: "sortBy",
+            title: "Sort By",
+            options: SORT_OPTIONS.map((option) => ({
+              label: option,
+              value: option,
             })),
-            selectedValue: tempPriceRange,
-            onSelect: (value) => setTempPriceRange(Number(value)),
+            selectedValue: tempSortBy,
+            onSelect: (value) => setTempSortBy(String(value) as typeof SORT_OPTIONS[number]),
           },
         ]}
         onClose={() => setFilterModalVisible(false)}
