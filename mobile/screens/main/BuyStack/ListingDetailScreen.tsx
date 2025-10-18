@@ -49,9 +49,23 @@ export default function ListingDetailScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [reportDetails, setReportDetails] = useState("");
 
+  // 安全处理 item 数据，兼容 images 和 imageUrls 字段
+  const safeItem = useMemo(() => {
+    if (!item) return null;
+    
+    return {
+      ...item,
+      // 兼容处理：优先使用 images，如果没有则使用 imageUrls
+      images: Array.isArray(item.images) ? item.images : 
+              Array.isArray(item.imageUrls) ? item.imageUrls : [],
+      // 确保 colors 是数组
+      colors: Array.isArray(item.colors) ? item.colors : [],
+    };
+  }, [item]);
+
   const defaultBag = useMemo<BagItem[]>(
-    () => [{ item, quantity: 1 }],
-    [item],
+    () => safeItem ? [{ item: safeItem, quantity: 1 }] : [],
+    [safeItem],
   );
   const subtotal = useMemo(
     () => defaultBag.reduce((sum, current) => sum + current.item.price * current.quantity, 0),
@@ -100,15 +114,29 @@ export default function ListingDetailScreen() {
   const handleShare = async () => {
     setShowMenu(false);
     try {
-      await Share.share({
-        message: `Check out this find on TOP: ${item.title} for $${item.price.toFixed(
-          2
-        )}`,
-      });
+      if (safeItem) {
+        await Share.share({
+          message: `Check out this find on TOP: ${safeItem.title} for $${safeItem.price.toFixed(
+            2
+          )}`,
+        });
+      }
     } catch {
       // no-op if the share sheet fails or is dismissed
     }
   };
+
+  // 如果数据未加载完成，显示加载状态
+  if (!safeItem) {
+    return (
+      <View style={styles.screen}>
+        <Header title="" showBack />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading item details...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>
@@ -166,7 +194,7 @@ export default function ListingDetailScreen() {
               <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
                 <Text style={styles.sectionTitle}>Select Report Category</Text>
                 <View style={styles.categoriesContainer}>
-                  {REPORT_CATEGORIES.map((category) => (
+                  {Array.isArray(REPORT_CATEGORIES) && REPORT_CATEGORIES.map((category) => (
                     <TouchableOpacity
                       key={category.id}
                       style={[
@@ -230,7 +258,7 @@ export default function ListingDetailScreen() {
         rightAction={
           <View style={styles.headerActions}>
             <TouchableOpacity
-              onPress={() => navigation.navigate("MixMatch", { baseItem: item })}
+              onPress={() => safeItem && navigation.navigate("MixMatch", { baseItem: safeItem })}
               style={styles.headerIconBtn}
             >
               <Icon name="color-palette-outline" size={22} color="#111" />
@@ -251,20 +279,20 @@ export default function ListingDetailScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.imageCarousel}
         >
-          {item.images.map((uri: string, index: number) => (
+          {safeItem?.images?.map((uri: string, index: number) => (
             <Image
-              key={`${item.id}-${index}`}
+              key={`${safeItem.id}-${index}`}
               source={{ uri }}
               style={styles.image}
             />
-          ))}
+          )) || []}
         </ScrollView>
 
         <View style={styles.sectionCard}>
           <View style={styles.titleRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>{item.title}</Text>
-              <Text style={styles.price}>${item.price.toFixed(2)}</Text>
+              <Text style={styles.title}>{safeItem?.title || 'Loading...'}</Text>
+              <Text style={styles.price}>${safeItem?.price?.toFixed(2) || '0.00'}</Text>
             </View>
             <TouchableOpacity
               accessibilityRole="button"
@@ -276,7 +304,7 @@ export default function ListingDetailScreen() {
             <TouchableOpacity
               accessibilityRole="button"
               style={styles.mixChipBtn}
-              onPress={() => navigation.navigate("MixMatch", { baseItem: item })}
+              onPress={() => safeItem && navigation.navigate("MixMatch", { baseItem: safeItem })}
             >
               <Text style={styles.mixChipText}>Mix & Match</Text>
             </TouchableOpacity>
@@ -285,34 +313,34 @@ export default function ListingDetailScreen() {
           <View style={styles.metaRow}>
             <View style={styles.metaPill}>
               <Text style={styles.metaLabel}>Size</Text>
-              <Text style={styles.metaValue}>{item.size}</Text>
+              <Text style={styles.metaValue}>{safeItem?.size || 'N/A'}</Text>
             </View>
             <View style={styles.metaPill}>
               <Text style={styles.metaLabel}>Condition</Text>
-              <Text style={styles.metaValue}>{item.condition}</Text>
+              <Text style={styles.metaValue}>{safeItem?.condition || 'N/A'}</Text>
             </View>
           </View>
-          <Text style={styles.description}>{item.description}</Text>
+          <Text style={styles.description}>{safeItem?.description || 'No description available'}</Text>
 
           <View style={styles.attributeRow}>
             <View style={styles.attributeBlock}>
               <Text style={styles.attributeLabel}>Brand</Text>
-              <Text style={styles.attributeValue}>{item.brand}</Text>
+              <Text style={styles.attributeValue}>{safeItem?.brand || 'N/A'}</Text>
             </View>
-            {item.material ? (
+            {safeItem?.material ? (
               <View style={styles.attributeBlock}>
                 <Text style={styles.attributeLabel}>Material</Text>
-                <Text style={styles.attributeValue}>{item.material}</Text>
+                <Text style={styles.attributeValue}>{safeItem.material}</Text>
               </View>
             ) : null}
           </View>
 
           <View style={styles.colorsRow}>
-            {item.colors.map((color: string) => (
+            {safeItem?.colors?.map((color: string) => (
               <Text key={color} style={styles.colorChip}>
                 {color}
               </Text>
-            ))}
+            )) || []}
           </View>
         </View>
 
@@ -322,22 +350,22 @@ export default function ListingDetailScreen() {
             <TouchableOpacity
               style={styles.sellerInfo}
               onPress={() =>
-                navigation.navigate("UserProfile", {
-                  username: item.seller.name,
-                  avatar: item.seller.avatar,
-                  rating: item.seller.rating,
-                  sales: item.seller.sales,
+                safeItem?.seller && navigation.navigate("UserProfile", {
+                  username: safeItem.seller.name,
+                  avatar: safeItem.seller.avatar,
+                  rating: safeItem.seller.rating,
+                  sales: safeItem.seller.sales,
                 })
               }
             >
-              <Image source={{ uri: item.seller.avatar }} style={styles.sellerAvatar} />
+              <Image source={{ uri: safeItem?.seller?.avatar || '' }} style={styles.sellerAvatar} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.sellerName}>{item.seller.name}</Text>
+                <Text style={styles.sellerName}>{safeItem?.seller?.name || 'Unknown Seller'}</Text>
                 <View style={styles.sellerMeta}>
                   <Icon name="star" size={13} color="#f5a623" />
-                  <Text style={styles.sellerMetaText}>{item.seller.rating.toFixed(1)}</Text>
+                  <Text style={styles.sellerMetaText}>{safeItem?.seller?.rating?.toFixed(1) || '0.0'}</Text>
                   <Text style={styles.sellerMetaText}>|</Text>
-                  <Text style={styles.sellerMetaText}>{item.seller.sales} sales</Text>
+                  <Text style={styles.sellerMetaText}>{safeItem?.seller?.sales || 0} sales</Text>
                 </View>
               </View>
             </TouchableOpacity>
@@ -754,5 +782,16 @@ const styles = StyleSheet.create({
   keyboardAvoidingView: {
     flex: 1,
     justifyContent: "flex-end",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
   },
 });
