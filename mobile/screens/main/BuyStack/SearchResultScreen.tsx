@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   FlatList,
   Image,
@@ -16,6 +16,7 @@ import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import FilterModal from "../../../components/FilterModal";
 import { MOCK_LISTINGS } from "../../../mocks/shop";
+import { fetchListings } from "../../../api";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
 
@@ -57,8 +58,40 @@ export default function SearchResultScreen() {
   const headerTranslateY = useRef(new Animated.Value(0)).current;
   const [headerVisible, setHeaderVisible] = useState(true);
 
+  const [apiListings, setApiListings] = useState<ListingItem[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchListings()
+      .then((items) => {
+        if (!mounted) return;
+        // items should be ListingItem[] shape; if not, map minimally
+        setApiListings(
+          (items || []).map((it: any) => ({
+            id: String(it.id ?? it._id ?? Math.random().toString(36).slice(2)),
+            title: String(it.title ?? "Untitled"),
+            price: Number(it.price ?? 0),
+            size: String(it.size ?? "M"),
+            condition: String(it.condition ?? "Good"),
+            category: String(it.category ?? "top"),
+            images: Array.isArray(it.images) && it.images.length > 0 ? it.images : [
+              typeof it.image === "string" ? it.image : "https://via.placeholder.com/512"
+            ],
+            seller: it.seller ?? { id: "api", name: "Seller" },
+            location: it.location ?? "",
+          })) as ListingItem[]
+        );
+      })
+      .catch(() => setApiListings([]));
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const sourceListings = apiListings.length > 0 ? apiListings : MOCK_LISTINGS;
+
   const filteredListings = useMemo(() => {
-    let results = MOCK_LISTINGS.filter((item) =>
+    let results = sourceListings.filter((item) =>
       item.title.toLowerCase().includes(query.toLowerCase())
     );
 
@@ -103,7 +136,7 @@ export default function SearchResultScreen() {
     // Latest is the default order
 
     return results;
-  }, [query, selectedCategory, selectedSize, selectedCondition, minPrice, maxPrice, sortBy]);
+  }, [query, selectedCategory, selectedSize, selectedCondition, minPrice, maxPrice, sortBy, sourceListings]);
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;

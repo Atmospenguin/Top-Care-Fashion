@@ -55,18 +55,11 @@ export default function LoginScreen({ navigation }: Props) {
       {/* 登录按钮 */}
       <TouchableOpacity
         style={styles.loginBtn}
-        onPress={() => navigation.replace("Main")}
+        onPress={() => navigation.replace("OnboardingPreference")}
       >
         <Text style={styles.loginText}>Login</Text>
       </TouchableOpacity>
 
-      {/* 注册引导 */}
-      <Text style={styles.registerText}>
-        Don’t have an account?{" "}
-        <Text style={styles.registerLink} onPress={() => navigation.navigate("Register")}>
-          Register Now
-        </Text>
-      </Text>
     </View>
   );
 }
@@ -110,6 +103,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: "#EEF0F3",
+    fontSize: 16,
   },
 
   passwordWrap: {

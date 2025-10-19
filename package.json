@@ -1,7 +1,6 @@
 {
   "dependencies": {
-    "@react-navigation/stack": "^7.4.8",
-    "react-native-svg": "^15.13.0",
-    "react-native-svg-transformer": "^1.5.1"
+    "@supabase/supabase-js": "^2.75.1",
+    "supabase": "^2.51.0"
   }
 }
