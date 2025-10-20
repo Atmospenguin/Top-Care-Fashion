@@ -40,7 +40,7 @@ interface LandingContent {
   heroSubtitle: string;
   heroCarouselImages?: string[] | null;
   aiFeatures?: {
-    mixmatch?: { title?: string; desc?: string; girlImages?: string[] | null; boyImages?: string[] | null };
+    mixmatch?: { title?: string; desc?: string; images?: string[] | null; girlImages?: string[] | null; boyImages?: string[] | null };
     ailisting?: { title?: string; desc?: string; images?: string[] | null };
     search?: { title?: string; desc?: string; images?: string[] | null };
   };

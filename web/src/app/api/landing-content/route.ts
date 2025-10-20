@@ -7,8 +7,8 @@ export async function GET() {
     
     const [content] = await connection.execute(
       `SELECT hero_title, hero_subtitle,
-              hero_carousel_images,
-              mixmatch_title, mixmatch_desc, mixmatch_girl_images, mixmatch_boy_images,
+        hero_carousel_images,
+        mixmatch_title, mixmatch_desc, mixmatch_images,
               ailisting_title, ailisting_desc, ailisting_images,
               search_title, search_desc, search_images
          FROM landing_content WHERE id = 1`
@@ -30,18 +30,13 @@ export async function GET() {
           mixmatch: {
             title: 'Mix & Match',
             desc: 'AI outfit recommendations from your listed items.',
-            girlImages: [
+            // default unified images: reuse previous girl defaults
+            images: [
               '/TOPApp/mixnmatch1/Mix%20%26%20Match.png',
               '/TOPApp/mixnmatch1/Mix%20%26%20Match-1.png',
               '/TOPApp/mixnmatch1/Mix%20%26%20Match-2.png',
               '/TOPApp/mixnmatch1/Mix%20%26%20Match-3.png'
             ],
-            boyImages: [
-              '/TOPApp/mixnmatch2/Mix%20%26%20Match.png',
-              '/TOPApp/mixnmatch2/Mix%20%26%20Match-1.png',
-              '/TOPApp/mixnmatch2/Mix%20%26%20Match-2.png',
-              '/TOPApp/mixnmatch2/Mix%20%26%20Match-3.png'
-            ]
           },
           ailisting: {
             title: 'AI Listing',
@@ -75,8 +70,8 @@ export async function GET() {
         mixmatch: {
           title: landingContent.mixmatch_title ?? 'Mix & Match',
           desc: landingContent.mixmatch_desc ?? 'AI outfit recommendations from your listed items.',
-          girlImages: parseMaybeJsonArray(landingContent.mixmatch_girl_images),
-          boyImages: parseMaybeJsonArray(landingContent.mixmatch_boy_images),
+          // Unified field only (legacy columns removed in DB)
+          images: parseMaybeJsonArray((landingContent as any).mixmatch_images),
         },
         ailisting: {
           title: landingContent.ailisting_title ?? 'AI Listing',

@@ -27,13 +27,12 @@ function PhoneCarousel({ images, className = "", altPrefix = "Feature" }: { imag
 }
 
 type AIFeaturesConfig = {
-  mixmatch?: { title?: string; desc?: string; girlImages?: string[] | null; boyImages?: string[] | null };
+  mixmatch?: { title?: string; desc?: string; images?: string[] | null; girlImages?: string[] | null; boyImages?: string[] | null };
   ailisting?: { title?: string; desc?: string; images?: string[] | null };
   search?: { title?: string; desc?: string; images?: string[] | null };
 };
 
 export default function AIFeatures({ config }: { config?: AIFeaturesConfig }) {
-  const [mixSet, setMixSet] = useState<'girl' | 'boy'>(() => 'girl');
   const defaultMixGirl = [
     "/TOPApp/mixnmatch1/Mix & Match.png",
     "/TOPApp/mixnmatch1/Mix & Match-1.png",
@@ -49,8 +48,10 @@ export default function AIFeatures({ config }: { config?: AIFeaturesConfig }) {
   const defaultListing = ["/TOPApp/AI-Listing.png"];
   const defaultSearch = ["/TOPApp/Search Result.png"];
 
-  const mixGirl = (config?.mixmatch?.girlImages && config.mixmatch.girlImages.length > 0) ? config.mixmatch.girlImages : defaultMixGirl;
-  const mixBoy = (config?.mixmatch?.boyImages && config.mixmatch.boyImages.length > 0) ? config.mixmatch.boyImages : defaultMixBoy;
+  // Use unified images; fallback to legacy girlImages if needed
+  const mixImages = (config?.mixmatch?.images && config.mixmatch.images.length > 0)
+    ? config.mixmatch.images
+    : ((config?.mixmatch?.girlImages && config.mixmatch.girlImages.length > 0) ? config.mixmatch.girlImages : defaultMixGirl);
   const listing = (config?.ailisting?.images && config.ailisting.images.length > 0) ? config.ailisting.images : defaultListing;
   const search = (config?.search?.images && config.search.images.length > 0) ? config.search.images : defaultSearch;
 
@@ -58,7 +59,7 @@ export default function AIFeatures({ config }: { config?: AIFeaturesConfig }) {
     {
       title: config?.mixmatch?.title || "Mix & Match",
       desc: config?.mixmatch?.desc || "AI outfit recommendations from your listed items.",
-      images: mixSet === 'girl' ? mixGirl : mixBoy,
+      images: mixImages,
     },
     {
       title: config?.ailisting?.title || "AI Listing",
@@ -84,24 +85,7 @@ export default function AIFeatures({ config }: { config?: AIFeaturesConfig }) {
               {/* toggles moved to overlay above phone status bar */}
             </div>
             <div className="relative mt-4 mt-auto">
-              {c.title === 'Mix & Match' && (
-                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 inline-flex rounded-md overflow-hidden border border-black/10 shadow-sm">
-                  <button
-                    className={`px-2.5 py-1 text-xs ${mixSet === 'girl' ? 'bg-[var(--brand-color)] text-white' : 'bg-white text-black hover:bg-black/5'}`}
-                    onClick={() => setMixSet('girl')}
-                    type="button"
-                  >
-                    Girl
-                  </button>
-                  <button
-                    className={`px-2.5 py-1 text-xs ${mixSet === 'boy' ? 'bg-[var(--brand-color)] text-white' : 'bg-white text-black hover:bg-black/5'}`}
-                    onClick={() => setMixSet('boy')}
-                    type="button"
-                  >
-                    Boy
-                  </button>
-                </div>
-              )}
+              {/* Mix & Match uses the unified images set; no gender selector */}
               <PhoneCarousel images={c.images} className="pt-2" altPrefix={c.title} />
             </div>
           </div>
