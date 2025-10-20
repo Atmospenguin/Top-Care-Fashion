@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const conn = await getConnection();
     const [rows]: any = await conn.execute(
-      "SELECT tags FROM feedback WHERE tags IS NOT NULL AND jsonb_typeof(tags) = 'array' AND jsonb_array_length(tags) > 0"
+      "SELECT tags FROM feedback WHERE tags IS NOT NULL AND json_typeof(tags::json) = 'array' AND json_array_length(tags::json) > 0"
     );
     await conn.end();
 

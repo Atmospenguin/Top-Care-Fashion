@@ -11,6 +11,12 @@ interface SiteStats {
 interface LandingContent {
   heroTitle: string;
   heroSubtitle: string;
+  heroCarouselImages?: string[];
+  aiFeatures?: {
+    mixmatch?: { title?: string; desc?: string; girlImages?: string[]; boyImages?: string[] };
+    ailisting?: { title?: string; desc?: string; images?: string[] };
+    search?: { title?: string; desc?: string; images?: string[] };
+  }
 }
 
 interface Testimonial {
@@ -44,7 +50,7 @@ interface PricingPlan {
 
 export default function ContentManagementPage() {
   const [stats, setStats] = useState<SiteStats>({ users: 0, listings: 0, sold: 0, rating: 0 });
-  const [content, setContent] = useState<LandingContent>({ heroTitle: '', heroSubtitle: '' });
+  const [content, setContent] = useState<LandingContent>({ heroTitle: '', heroSubtitle: '', heroCarouselImages: [], aiFeatures: {} });
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
@@ -306,6 +312,177 @@ export default function ContentManagementPage() {
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+
+            {/* Hero Carousel Images (comma separated URLs or paths) */}
+            <div>
+              <label htmlFor="heroImages" className="block text-sm font-medium text-gray-700 mb-1">
+                Hero Carousel Images (comma separated)
+              </label>
+              <input
+                id="heroImages"
+                type="text"
+                value={(content.heroCarouselImages || []).join(", ")}
+                onChange={(e) => setContent({ ...content, heroCarouselImages: e.target.value.split(/\s*,\s*/).filter(Boolean) })}
+                placeholder="/TOPApp/Cart.png, /TOPApp/Listing%20Detail.png, ..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* AI Features editable fields */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Mix & Match */}
+              <div className="border border-gray-200 rounded-lg p-3">
+                <h3 className="font-medium mb-2">Mix &amp; Match</h3>
+                <input
+                  type="text"
+                  placeholder="Title"
+                  value={content.aiFeatures?.mixmatch?.title || ''}
+                  onChange={(e) => setContent({
+                    ...content,
+                    aiFeatures: {
+                      ...content.aiFeatures,
+                      mixmatch: { ...(content.aiFeatures?.mixmatch || {}), title: e.target.value }
+                    }
+                  })}
+                  className="w-full mb-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <textarea
+                  placeholder="Description"
+                  value={content.aiFeatures?.mixmatch?.desc || ''}
+                  onChange={(e) => setContent({
+                    ...content,
+                    aiFeatures: {
+                      ...content.aiFeatures,
+                      mixmatch: { ...(content.aiFeatures?.mixmatch || {}), desc: e.target.value }
+                    }
+                  })}
+                  rows={2}
+                  className="w-full mb-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <label htmlFor="mixmatch-girl-images" className="block text-xs text-gray-600 mb-1">Girl Images (comma separated)</label>
+                <input
+                  id="mixmatch-girl-images"
+                  type="text"
+                  value={(content.aiFeatures?.mixmatch?.girlImages || []).join(", ")}
+                  onChange={(e) => setContent({
+                    ...content,
+                    aiFeatures: {
+                      ...content.aiFeatures,
+                      mixmatch: { ...(content.aiFeatures?.mixmatch || {}), girlImages: e.target.value.split(/\s*,\s*/).filter(Boolean) }
+                    }
+                  })}
+                  placeholder="/TOPApp/mixnmatch1/Mix%20%26%20Match.png, ..."
+                  className="w-full mb-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <label htmlFor="mixmatch-boy-images" className="block text-xs text-gray-600 mb-1">Boy Images (comma separated)</label>
+                <input
+                  id="mixmatch-boy-images"
+                  type="text"
+                  value={(content.aiFeatures?.mixmatch?.boyImages || []).join(", ")}
+                  onChange={(e) => setContent({
+                    ...content,
+                    aiFeatures: {
+                      ...content.aiFeatures,
+                      mixmatch: { ...(content.aiFeatures?.mixmatch || {}), boyImages: e.target.value.split(/\s*,\s*/).filter(Boolean) }
+                    }
+                  })}
+                  placeholder="/TOPApp/mixnmatch2/Mix%20%26%20Match.png, ..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* AI Listing */}
+              <div className="border border-gray-200 rounded-lg p-3">
+                <h3 className="font-medium mb-2">AI Listing</h3>
+                <input
+                  type="text"
+                  placeholder="Title"
+                  value={content.aiFeatures?.ailisting?.title || ''}
+                  onChange={(e) => setContent({
+                    ...content,
+                    aiFeatures: {
+                      ...content.aiFeatures,
+                      ailisting: { ...(content.aiFeatures?.ailisting || {}), title: e.target.value }
+                    }
+                  })}
+                  className="w-full mb-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <textarea
+                  placeholder="Description"
+                  value={content.aiFeatures?.ailisting?.desc || ''}
+                  onChange={(e) => setContent({
+                    ...content,
+                    aiFeatures: {
+                      ...content.aiFeatures,
+                      ailisting: { ...(content.aiFeatures?.ailisting || {}), desc: e.target.value }
+                    }
+                  })}
+                  rows={2}
+                  className="w-full mb-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <label htmlFor="ailisting-images" className="block text-xs text-gray-600 mb-1">Images (comma separated)</label>
+                <input
+                  id="ailisting-images"
+                  type="text"
+                  value={(content.aiFeatures?.ailisting?.images || []).join(", ")}
+                  onChange={(e) => setContent({
+                    ...content,
+                    aiFeatures: {
+                      ...content.aiFeatures,
+                      ailisting: { ...(content.aiFeatures?.ailisting || {}), images: e.target.value.split(/\s*,\s*/).filter(Boolean) }
+                    }
+                  })}
+                  placeholder="/TOPApp/AI-Listing.png"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Search */}
+              <div className="border border-gray-200 rounded-lg p-3">
+                <h3 className="font-medium mb-2">Search</h3>
+                <input
+                  type="text"
+                  placeholder="Title"
+                  value={content.aiFeatures?.search?.title || ''}
+                  onChange={(e) => setContent({
+                    ...content,
+                    aiFeatures: {
+                      ...content.aiFeatures,
+                      search: { ...(content.aiFeatures?.search || {}), title: e.target.value }
+                    }
+                  })}
+                  className="w-full mb-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <textarea
+                  placeholder="Description"
+                  value={content.aiFeatures?.search?.desc || ''}
+                  onChange={(e) => setContent({
+                    ...content,
+                    aiFeatures: {
+                      ...content.aiFeatures,
+                      search: { ...(content.aiFeatures?.search || {}), desc: e.target.value }
+                    }
+                  })}
+                  rows={2}
+                  className="w-full mb-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <label htmlFor="search-images" className="block text-xs text-gray-600 mb-1">Images (comma separated)</label>
+                <input
+                  id="search-images"
+                  type="text"
+                  value={(content.aiFeatures?.search?.images || []).join(", ")}
+                  onChange={(e) => setContent({
+                    ...content,
+                    aiFeatures: {
+                      ...content.aiFeatures,
+                      search: { ...(content.aiFeatures?.search || {}), images: e.target.value.split(/\s*,\s*/).filter(Boolean) }
+                    }
+                  })}
+                  placeholder="/TOPApp/Search%20Result.png"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
             <button
               onClick={updateLandingContent}

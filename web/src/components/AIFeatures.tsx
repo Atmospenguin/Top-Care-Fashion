@@ -26,27 +26,50 @@ function PhoneCarousel({ images, className = "", altPrefix = "Feature" }: { imag
   );
 }
 
-export default function AIFeatures() {
+type AIFeaturesConfig = {
+  mixmatch?: { title?: string; desc?: string; girlImages?: string[] | null; boyImages?: string[] | null };
+  ailisting?: { title?: string; desc?: string; images?: string[] | null };
+  search?: { title?: string; desc?: string; images?: string[] | null };
+};
+
+export default function AIFeatures({ config }: { config?: AIFeaturesConfig }) {
   const [mixSet, setMixSet] = useState<'girl' | 'boy'>(() => 'girl');
-  const mixGirl = [
+  const defaultMixGirl = [
     "/TOPApp/mixnmatch1/Mix & Match.png",
     "/TOPApp/mixnmatch1/Mix & Match-1.png",
     "/TOPApp/mixnmatch1/Mix & Match-2.png",
     "/TOPApp/mixnmatch1/Mix & Match-3.png",
   ];
-  const mixBoy = [
+  const defaultMixBoy = [
     "/TOPApp/mixnmatch2/Mix & Match.png",
     "/TOPApp/mixnmatch2/Mix & Match-1.png",
     "/TOPApp/mixnmatch2/Mix & Match-2.png",
     "/TOPApp/mixnmatch2/Mix & Match-3.png",
   ];
-  const listing = ["/TOPApp/AI-Listing.png"];
-  const search = ["/TOPApp/Search Result.png"];
+  const defaultListing = ["/TOPApp/AI-Listing.png"];
+  const defaultSearch = ["/TOPApp/Search Result.png"];
+
+  const mixGirl = (config?.mixmatch?.girlImages && config.mixmatch.girlImages.length > 0) ? config.mixmatch.girlImages : defaultMixGirl;
+  const mixBoy = (config?.mixmatch?.boyImages && config.mixmatch.boyImages.length > 0) ? config.mixmatch.boyImages : defaultMixBoy;
+  const listing = (config?.ailisting?.images && config.ailisting.images.length > 0) ? config.ailisting.images : defaultListing;
+  const search = (config?.search?.images && config.search.images.length > 0) ? config.search.images : defaultSearch;
 
   const cards: Array<{ title: string; desc: string; images: string[] }> = [
-    { title: "Mix & Match", desc: "AI outfit recommendations from your listed items.", images: mixSet === 'girl' ? mixGirl : mixBoy },
-    { title: "AI Listing", desc: "Auto-generate titles, tags and descriptions from photos.", images: listing },
-    { title: "Search", desc: "Natural language and image-based search to find pieces fast.", images: search },
+    {
+      title: config?.mixmatch?.title || "Mix & Match",
+      desc: config?.mixmatch?.desc || "AI outfit recommendations from your listed items.",
+      images: mixSet === 'girl' ? mixGirl : mixBoy,
+    },
+    {
+      title: config?.ailisting?.title || "AI Listing",
+      desc: config?.ailisting?.desc || "Auto-generate titles, tags and descriptions from photos.",
+      images: listing,
+    },
+    {
+      title: config?.search?.title || "Search",
+      desc: config?.search?.desc || "Natural language and image-based search to find pieces fast.",
+      images: search,
+    },
   ];
 
   return (
