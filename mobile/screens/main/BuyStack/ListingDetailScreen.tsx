@@ -279,13 +279,21 @@ export default function ListingDetailScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.imageCarousel}
         >
-          {safeItem?.images?.map((uri: string, index: number) => (
+          {(safeItem?.images?.filter(img => img && typeof img === 'string') || []).map((uri: string, index: number) => (
             <Image
               key={`${safeItem.id}-${index}`}
               source={{ uri }}
               style={styles.image}
+              onError={() => console.warn(`Failed to load image: ${uri}`)}
             />
-          )) || []}
+          ))}
+          {/* 如果没有有效图片，显示默认图片 */}
+          {(!safeItem?.images || safeItem.images.length === 0 || !safeItem.images.some(img => img && typeof img === 'string')) && (
+            <Image
+              source={{ uri: "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image" }}
+              style={styles.image}
+            />
+          )}
         </ScrollView>
 
         <View style={styles.sectionCard}>

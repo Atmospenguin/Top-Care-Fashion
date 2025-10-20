@@ -74,8 +74,63 @@ export async function POST(req: NextRequest) {
   });
 
   if (!signInError && signInData?.user) {
-    await ensureLocalUser(signInData.user.id, normalizedEmail);
-    return NextResponse.json({ ok: true, supabaseUserId: signInData.user.id });
+    const userId = await ensureLocalUser(signInData.user.id, normalizedEmail);
+    
+    // 获取用户完整信息
+    const user = await prisma.users.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        status: true,
+        is_premium: true,
+        premium_until: true,
+        dob: true,
+        gender: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const dob = user.dob ? user.dob.toISOString().slice(0, 10) : null;
+    const responseUser = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: mapRole(user.role),
+      status: mapStatus(user.status),
+      dob,
+      gender: mapGender(user.gender),
+      isPremium: Boolean(user.is_premium),
+      premiumUntil: user.premium_until ?? null,
+    };
+
+    const response = NextResponse.json({ user: responseUser, source: "supabase" });
+    
+    // 设置 Supabase session cookie
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData.session) {
+      response.cookies.set('sb-access-token', sessionData.session.access_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+        path: '/'
+      });
+      response.cookies.set('sb-refresh-token', sessionData.session.refresh_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+        path: '/'
+      });
+    }
+    
+    return response;
   }
 
   const user = await prisma.users.findUnique({

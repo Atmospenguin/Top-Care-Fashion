@@ -1,13 +1,17 @@
 import { apiClient } from './api';
 import { API_CONFIG } from '../config/api';
 
-// 用户类型
+// 用户类型 (匹配 Web API 响应)
 export interface User {
-  id: string;
+  id: number;
   username: string;
   email: string;
-  avatar?: string;
-  createdAt: string;
+  role: "User" | "Admin";
+  status: "active" | "suspended";
+  isPremium: boolean;
+  premiumUntil?: string | null;
+  dob?: string | null;
+  gender?: "Male" | "Female" | null;
 }
 
 // 登录请求
@@ -23,10 +27,11 @@ export interface SignUpRequest {
   password: string;
 }
 
-// 认证响应
+// 认证响应 (匹配 Web API 响应)
 export interface AuthResponse {
   user: User;
-  token: string;
+  source?: string; // "supabase" | "legacy-cookie"
+  fallback?: boolean;
 }
 
 // 认证服务类
@@ -40,9 +45,7 @@ export class AuthService {
       );
       
       if (response.data) {
-        // 存储 token 到本地存储
-        // TODO: 使用 AsyncStorage 存储 token
-        console.log('Login successful, token:', response.data.token);
+        console.log('Login successful, user:', response.data.user.username);
         return response.data;
       }
       
@@ -62,9 +65,7 @@ export class AuthService {
       );
       
       if (response.data) {
-        // 存储 token 到本地存储
-        // TODO: 使用 AsyncStorage 存储 token
-        console.log('Registration successful, token:', response.data.token);
+        console.log('Registration successful, user:', response.data.user.username);
         return response.data;
       }
       
@@ -78,8 +79,8 @@ export class AuthService {
   // 获取当前用户信息
   async getCurrentUser(): Promise<User | null> {
     try {
-      const response = await apiClient.get<User>(API_CONFIG.ENDPOINTS.AUTH.ME);
-      return response.data || null;
+      const response = await apiClient.get<{ user: User | null }>(API_CONFIG.ENDPOINTS.AUTH.ME);
+      return response.data?.user || null;
     } catch (error) {
       console.error('Error getting current user:', error);
       return null;
@@ -90,8 +91,7 @@ export class AuthService {
   async signOut(): Promise<void> {
     try {
       await apiClient.post(API_CONFIG.ENDPOINTS.AUTH.SIGNOUT);
-      // 清除本地存储的 token
-      // TODO: 清除 AsyncStorage 中的 token
+      // TODO: 清除本地存储的用户信息
       console.log('Sign out successful');
     } catch (error) {
       console.error('Error signing out:', error);
@@ -112,3 +112,5 @@ export class AuthService {
 
 // 创建单例实例
 export const authService = new AuthService();
+
+

@@ -1,15 +1,38 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../App";
 import { LOGO_FULL_COLOR } from "../../constants/assetUrls";
 import Icon from "../../components/Icon";
+import { useAuth } from "../../contexts/AuthContext";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
 
 export default function LoginScreen({ navigation }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { login, error, clearError } = useAuth();
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      clearError();
+      await login(email.trim(), password);
+      
+      // 登录成功，导航到主应用
+      navigation.replace("OnboardingPreference");
+    } catch (error: any) {
+      Alert.alert("Login Failed", error.message || "Please check your credentials and try again");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -52,12 +75,22 @@ export default function LoginScreen({ navigation }: Props) {
       <Text style={styles.forgot}>Forgot Password?</Text>
       </TouchableOpacity>
 
+      {/* 错误信息 */}
+      {error && (
+        <Text style={styles.errorText}>{error}</Text>
+      )}
+
       {/* 登录按钮 */}
       <TouchableOpacity
-        style={styles.loginBtn}
-        onPress={() => navigation.replace("OnboardingPreference")}
+        style={[styles.loginBtn, loading && styles.loginBtnDisabled]}
+        onPress={handleLogin}
+        disabled={loading}
       >
-        <Text style={styles.loginText}>Login</Text>
+        {loading ? (
+          <ActivityIndicator color="#fff" size="small" />
+        ) : (
+          <Text style={styles.loginText}>Login</Text>
+        )}
       </TouchableOpacity>
 
     </View>
@@ -137,8 +170,14 @@ const styles = StyleSheet.create({
    
   },
   loginText: { color: "#fff", fontSize: 18, fontWeight: "700" },
+  loginBtnDisabled: { opacity: 0.6 },
 
-  registerText: { textAlign: "center", marginTop: 24, fontSize: 15, color: "#1F2937" },
-  registerLink: { color: "#00BFA6", fontWeight: "700" },
+  errorText: {
+    color: "#F54B3D",
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 16,
+    paddingHorizontal: 20,
+  },
 });
 

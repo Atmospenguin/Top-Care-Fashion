@@ -15,7 +15,6 @@ import type { RouteProp } from "@react-navigation/native";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import FilterModal from "../../../components/FilterModal";
-import { MOCK_LISTINGS } from "../../../mocks/shop";
 import { fetchListings } from "../../../api";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
@@ -88,7 +87,7 @@ export default function SearchResultScreen() {
     };
   }, []);
 
-  const sourceListings = apiListings.length > 0 ? apiListings : MOCK_LISTINGS;
+  const sourceListings = apiListings;
 
   const filteredListings = useMemo(() => {
     let results = sourceListings.filter((item) =>

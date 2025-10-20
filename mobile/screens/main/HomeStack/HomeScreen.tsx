@@ -1,19 +1,42 @@
-import React, { useState } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import Icon from "../../../components/Icon";
 import type { HomeStackParamList } from "./index";
-import { DEFAULT_BAG_ITEMS, MOCK_LISTINGS } from "../../../mocks/shop";
+import { fetchListings } from "../../../api";
 import AdaptiveImage from "../../../components/AdaptiveImage";
 import type { RootStackParamList } from "../../../App";
+import type { ListingItem } from "../../../types/shop";
 
 export default function HomeScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const [searchText, setSearchText] = useState("");
+  const [featuredItems, setFeaturedItems] = useState<ListingItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // 获取推荐商品数据
+  useEffect(() => {
+    const loadFeaturedItems = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const items = await fetchListings({ limit: 6 });
+        setFeaturedItems(items);
+      } catch (err) {
+        console.error('Error loading featured items:', err);
+        setError('Failed to load items');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFeaturedItems();
+  }, []);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
@@ -47,22 +70,21 @@ export default function HomeScreen() {
           >
             <Icon name="heart-outline" size={24} color="#111" />
           </TouchableOpacity>
-          <TouchableOpacity
+            <TouchableOpacity
             style={{ marginLeft: 12 }}
             accessibilityRole="button"
             onPress={() =>
               // Jump to root Buy stack
               (navigation as any)
-                .getParent()
-                ?.getParent()
-                ?.navigate("Buy", {
-                  screen: "Bag",
-                  params: { items: DEFAULT_BAG_ITEMS },
-                } as any)
+              .getParent()
+              ?.getParent()
+              ?.navigate("Buy", {
+                screen: "Bag",
+              } as any)
             }
-          >
+            >
             <Icon name="bag-outline" size={24} color="#111" />
-          </TouchableOpacity>
+            </TouchableOpacity>
         </View>
 
         {/* 🌟 Premium Banner */}
@@ -91,28 +113,52 @@ export default function HomeScreen() {
 
         {/* 👕 推荐区 */}
         <Text style={styles.sectionTitle}>Suggested for you</Text>
-        <View style={styles.grid}>
-          {MOCK_LISTINGS.slice(0, 3).map((item) => (
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.loadingText}>Loading items...</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity
-              key={item.id}
-              style={styles.card}
-              onPress={() =>
-                (navigation as any)
-                  .getParent()
-                  ?.getParent()
-                  ?.navigate("Buy", {
-                    screen: "ListingDetail",
-                    params: { item },
-                  } as any)
-              }
-              accessibilityRole="button"
+              style={styles.retryButton}
+              onPress={() => {
+                setError(null);
+                setLoading(true);
+                fetchListings({ limit: 6 }).then(setFeaturedItems).catch(() => setError('Failed to load items')).finally(() => setLoading(false));
+              }}
             >
-              <AdaptiveImage uri={item.images[0]} style={styles.itemImg} />
-              <Text style={styles.cardTitle}>{item.title}</Text>
-              <Text style={styles.price}>${item.price.toFixed(2)}</Text>
+              <Text style={styles.retryText}>Retry</Text>
             </TouchableOpacity>
-          ))}
-        </View>
+          </View>
+        ) : (
+          <View style={styles.grid}>
+            {featuredItems.slice(0, 3).map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.card}
+                onPress={() =>
+                  (navigation as any)
+                    .getParent()
+                    ?.getParent()
+                    ?.navigate("Buy", {
+                      screen: "ListingDetail",
+                      params: { item },
+                    } as any)
+                }
+                accessibilityRole="button"
+              >
+                <AdaptiveImage 
+                  uri={item.images?.[0]} 
+                  style={styles.itemImg} 
+                />
+                <Text style={styles.cardTitle}>{item.title}</Text>
+                <Text style={styles.price}>${item.price?.toFixed(2) || '0.00'}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -165,4 +211,35 @@ const styles = StyleSheet.create({
   itemImg: { borderRadius: 8, marginBottom: 6, overflow: "hidden" },
   cardTitle: { fontSize: 15, fontWeight: "600", marginBottom: 2 },
   price: { fontWeight: "700" },
+
+  // 加载和错误状态
+  loadingContainer: {
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: "#666",
+  },
+  errorContainer: {
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  errorText: {
+    fontSize: 14,
+    color: "#FF3B30",
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  retryButton: {
+    backgroundColor: "#007AFF",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
 });

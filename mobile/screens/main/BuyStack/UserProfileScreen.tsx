@@ -409,8 +409,11 @@ export default function UserProfileScreen() {
                       }
                     >
                       <Image
-                        source={{ uri: (item as ListingItem).images[0] }}
+                        source={{ 
+                          uri: (item as ListingItem).images?.[0] || "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image"
+                        }}
                         style={styles.gridImage}
+                        onError={() => console.warn(`Failed to load grid image: ${(item as ListingItem).images?.[0]}`)}
                       />
                     </TouchableOpacity>
                   )
