@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: __dirname, // 明确当前目录为 root
+  },
   images: {
     remotePatterns: [
       {
