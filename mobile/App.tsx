@@ -3,6 +3,7 @@ import { enableScreens } from 'react-native-screens';
 import { NavigationContainer, getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import type { NavigatorScreenParams } from "@react-navigation/native";
 import { Text } from "react-native";
+import { AuthProvider } from "./contexts/AuthContext";
 
 enableScreens();
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -10,7 +11,6 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import SplashScreen from "./screens/auth/SplashScreen";
 import LandingScreen from "./screens/auth/LandingScreen";
 import LoginScreen from "./screens/auth/LoginScreen";
-import RegisterScreen from './screens/auth/RegisterScreen';
 import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
 import OnboardingPreferenceScreen from './screens/auth/OnboardingPreferenceScreen';
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -40,7 +40,6 @@ export type RootStackParamList = {
   Splash: undefined;
   Landing: undefined;
   Login: undefined;
-  Register: undefined;
   ForgotPassword: undefined;
   OnboardingPreference: undefined;
   Main: undefined;
@@ -167,27 +166,28 @@ function MainTabs() {
 
 export default function App() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Splash" component={SplashScreen} />
-        <Stack.Screen name="Landing" component={LandingScreen} />
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Register" component={RegisterScreen} />
-        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-        <Stack.Screen 
-          name="OnboardingPreference" 
-          component={OnboardingPreferenceScreen}
-          options={{ gestureEnabled: false }}
-        />
-        <Stack.Screen name="Main" component={MainTabs} />
-        <Stack.Screen name="Review" component={ReviewScreen} />
-        <Stack.Screen name="MutualReview" component={MutualReviewScreen} />
-        <Stack.Screen name="Notification" component={NotificationScreen} />
-        {/* Premium stack lives on root; entering it hides the bottom tab by design */}
-        <Stack.Screen name="Premium" component={PremiumStackNavigator} />
-        {/* Buy stack mirrors Premium: lives on root to avoid tab flicker */}
-        <Stack.Screen name="Buy" component={BuyStackNavigator} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <AuthProvider>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Splash" component={SplashScreen} />
+          <Stack.Screen name="Landing" component={LandingScreen} />
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+          <Stack.Screen 
+            name="OnboardingPreference" 
+            component={OnboardingPreferenceScreen}
+            options={{ gestureEnabled: false }}
+          />
+          <Stack.Screen name="Main" component={MainTabs} />
+          <Stack.Screen name="Review" component={ReviewScreen} />
+          <Stack.Screen name="MutualReview" component={MutualReviewScreen} />
+          <Stack.Screen name="Notification" component={NotificationScreen} />
+          {/* Premium stack lives on root; entering it hides the bottom tab by design */}
+          <Stack.Screen name="Premium" component={PremiumStackNavigator} />
+          {/* Buy stack mirrors Premium: lives on root to avoid tab flicker */}
+          <Stack.Screen name="Buy" component={BuyStackNavigator} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </AuthProvider>
   );
 }

@@ -47,10 +47,20 @@ export async function createSupabaseServer() {
         return cookieStore.get(name)?.value;
       },
       set(name: string, value: string, options?: CookieOptions) {
-        cookieStore.set(name, value, options);
+        try {
+          cookieStore.set(name, value, options);
+        } catch (error) {
+          // 忽略 cookie 设置错误，可能是在中间件中调用
+          console.warn(`Failed to set cookie ${name}:`, error);
+        }
       },
       remove(name: string, options?: CookieOptions) {
-        cookieStore.set(name, "", { ...options, maxAge: 0 });
+        try {
+          cookieStore.set(name, "", { ...options, maxAge: 0 });
+        } catch (error) {
+          // 忽略 cookie 删除错误
+          console.warn(`Failed to remove cookie ${name}:`, error);
+        }
       },
     },
   });

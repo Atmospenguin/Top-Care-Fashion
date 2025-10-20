@@ -1,0 +1,211 @@
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { signIn, signUp, signOut, getCurrentUser, forgotPassword, resetPassword } from '../api';
+
+// 用户类型定义 (匹配 Web API)
+export interface User {
+  id: number;
+  username: string;
+  email: string;
+  role: "User" | "Admin";
+  status: "active" | "suspended";
+  isPremium: boolean;
+  premiumUntil?: string | null;
+  dob?: string | null;
+  gender?: "Male" | "Female" | null;
+}
+
+// 认证上下文类型
+interface AuthContextType {
+  user: User | null;
+  loading: boolean;
+  isAuthenticated: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  resetPassword: (token: string, newPassword: string) => Promise<void>;
+  error: string | null;
+  clearError: () => void;
+}
+
+// 创建认证上下文
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// 认证提供者组件
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // 检查用户是否已登录
+  const isAuthenticated = !!user;
+
+  // 清除错误
+  const clearError = () => setError(null);
+
+  // 存储 token 到本地存储
+  const storeToken = async (token: string) => {
+    try {
+      await AsyncStorage.setItem('auth_token', token);
+    } catch (error) {
+      console.error('Error storing token:', error);
+    }
+  };
+
+  // 从本地存储获取 token
+  const getStoredToken = async (): Promise<string | null> => {
+    try {
+      return await AsyncStorage.getItem('auth_token');
+    } catch (error) {
+      console.error('Error getting stored token:', error);
+      return null;
+    }
+  };
+
+  // 清除存储的 token
+  const clearStoredToken = async () => {
+    try {
+      await AsyncStorage.removeItem('auth_token');
+    } catch (error) {
+      console.error('Error clearing stored token:', error);
+    }
+  };
+
+  // 登录
+  const login = async (email: string, password: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await signIn(email, password);
+      
+      if (response.user) {
+        // Web API 使用 cookie，不需要存储 token
+        setUser(response.user);
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (error: any) {
+      setError(error.message || 'Login failed');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 注册
+  const register = async (username: string, email: string, password: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await signUp(username, email, password);
+      
+      if (response.user) {
+        // Web API 使用 cookie，不需要存储 token
+        setUser(response.user);
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (error: any) {
+      setError(error.message || 'Registration failed');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 登出
+  const logout = async () => {
+    try {
+      setLoading(true);
+      await signOut();
+    } catch (error) {
+      console.error('Error during logout:', error);
+    } finally {
+      await clearStoredToken();
+      setUser(null);
+      setLoading(false);
+    }
+  };
+
+  // 请求密码重置
+  const requestPasswordReset = async (email: string) => {
+    try {
+      setError(null);
+      await forgotPassword(email);
+    } catch (error: any) {
+      setError(error.message || 'Failed to send reset email');
+      throw error;
+    }
+  };
+
+  // 重置密码
+  const resetPasswordHandler = async (token: string, newPassword: string) => {
+    try {
+      setError(null);
+      await resetPassword(token, newPassword);
+    } catch (error: any) {
+      setError(error.message || 'Failed to reset password');
+      throw error;
+    }
+  };
+
+  // 应用启动时检查用户登录状态
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      try {
+        setLoading(true);
+        
+        // 直接检查当前用户状态（Web API 使用 cookie）
+        const response = await getCurrentUser();
+        if (response && response.user) {
+          setUser(response.user);
+        }
+      } catch (error) {
+        console.error('Error checking auth status:', error);
+        // 清除任何存储的 token（如果有的话）
+        await clearStoredToken();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuthStatus();
+  }, []);
+
+  const value: AuthContextType = {
+    user,
+    loading,
+    isAuthenticated,
+    login,
+    register,
+    logout,
+    requestPasswordReset,
+    resetPassword: resetPasswordHandler,
+    error,
+    clearError,
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+// 使用认证上下文的 Hook
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+
