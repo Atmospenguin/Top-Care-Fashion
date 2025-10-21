@@ -60,7 +60,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   const FILTERS = [
-    { key: "all", label: "All (Past 3 weeks)" },
+    { key: "all", label: "All Feedback" },
     { key: "mixmatch", label: "Mix & Match" },
     { key: "ailisting", label: "AI Listing" },
     { key: "premium", label: "Premium Member" },
@@ -112,12 +112,9 @@ export default function Home() {
     fetchData();
   }, []);
 
-  const threeWeeks = 21 * 24 * 60 * 60 * 1000;
-  const now = Date.now();
-
   const visible = testimonials.filter((t) =>
     filter === "all"
-      ? now - t.ts <= threeWeeks
+      ? true
       : t.tags.includes(filter as Testimonial["tags"][number])
   );
   return (
