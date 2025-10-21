@@ -273,6 +273,23 @@ export default function SearchResultScreen() {
               <Text style={styles.itemSize} numberOfLines={1}>
                 Size {item.size}
               </Text>
+              {item.material && (
+                <Text style={styles.itemMaterial} numberOfLines={1}>
+                  {item.material}
+                </Text>
+              )}
+              {item.tags && item.tags.length > 0 && (
+                <View style={styles.itemTags}>
+                  {item.tags.slice(0, 2).map((tag, index) => (
+                    <View key={index} style={styles.itemTagChip}>
+                      <Text style={styles.itemTagText}>{tag}</Text>
+                    </View>
+                  ))}
+                  {item.tags.length > 2 && (
+                    <Text style={styles.itemTagMore}>+{item.tags.length - 2}</Text>
+                  )}
+                </View>
+              )}
             </View>
           </TouchableOpacity>
         )}
@@ -443,6 +460,37 @@ const styles = StyleSheet.create({
   itemSize: {
     fontSize: 12,
     color: "#666",
+  },
+  itemMaterial: {
+    fontSize: 11,
+    color: "#888",
+    marginTop: 2,
+    fontStyle: "italic",
+  },
+  itemTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 4,
+    gap: 4,
+  },
+  itemTagChip: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 0.5,
+    borderColor: "#e0e0e0",
+  },
+  itemTagText: {
+    fontSize: 10,
+    color: "#666",
+    fontWeight: "500",
+  },
+  itemTagMore: {
+    fontSize: 10,
+    color: "#999",
+    fontStyle: "italic",
+    alignSelf: "center",
   },
   emptyState: {
     flex: 1,

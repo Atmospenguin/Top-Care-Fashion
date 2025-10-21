@@ -1,60 +1,85 @@
-import React, { useMemo } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useMemo, useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
+import { listingsService, type CategoryData } from "../../../src/services/listingsService";
 import type { DiscoverStackParamList } from "./index";
 
 type CategoryDetailRoute = RouteProp<DiscoverStackParamList, "CategoryDetail">;
 
 type GenderKey = "men" | "women" | "unisex";
 
-type CategoryMap = Record<
-  GenderKey,
-  Record<string, string[]>
->;
-
-const DATA: CategoryMap = {
-  men: {
-    Tops: ["T-shirts", "Hoodies", "Shirts", "Sweaters", "Crop tops", "Tank tops", "Other"],
-    Bottoms: ["Jeans", "Pants", "Shorts", "Skirts", "Leggings", "Other"],
-    Outerwear: ["Jackets", "Coats", "Vests", "Blazers", "Other"],
-    Footwear: ["Sneakers", "Boots", "Loafers", "Sandals", "Slippers", "Other"],
-    Accessories: [
-      "Bags",
-      "Hats and caps",
-      "Jewelry",
-      "Sunglasses",
-      "Watches",
-      "Scarves",
-      "Belts",
-      "Other",
-    ],
-  },
-  women: {
-    Tops: ["T-shirts", "Blouses", "Crop tops", "Tank tops", "Hoodies", "Sweaters", "Other"],
-    Bottoms: ["Jeans", "Skirts", "Pants", "Leggings", "Shorts", "Other"],
-    Outerwear: ["Jackets", "Coats", "Blazers", "Cardigans", "Other"],
-    Footwear: ["Sneakers", "Boots", "Heels", "Flats", "Sandals", "Other"],
-    Accessories: ["Bags", "Jewelry", "Sunglasses", "Belts", "Hair accessories", "Other"],
-    Dresses: ["Mini dresses", "Midi dresses", "Maxi dresses", "Bodycon", "Other"],
-  },
-  unisex: {
-    Tops: ["T-shirts", "Hoodies", "Shirts", "Sweaters", "Other"],
-    Bottoms: ["Jeans", "Pants", "Shorts", "Joggers", "Other"],
-    Outerwear: ["Jackets", "Coats", "Vests", "Other"],
-    Footwear: ["Sneakers", "Boots", "Sandals", "Other"],
-    Accessories: ["Bags", "Hats and caps", "Sunglasses", "Jewelry", "Other"],
-    Dresses: ["Casual dresses", "Oversized shirt dresses", "Other"],
-  },
-};
-
 export default function CategoryDetailScreen() {
   const { params } = useRoute<CategoryDetailRoute>();
   const { gender, mainCategory } = params;
+  
+  const [categories, setCategories] = useState<CategoryData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const subcategories = useMemo(() => DATA[gender]?.[mainCategory] ?? [], [gender, mainCategory]);
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  const loadCategories = async () => {
+    try {
+      setLoading(true);
+      const data = await listingsService.getCategories();
+      setCategories(data);
+    } catch (err) {
+      console.error('Error loading categories:', err);
+      setError('Failed to load categories');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const subcategories = useMemo(() => {
+    if (!categories || !categories[gender] || !categories[gender][mainCategory]) {
+      return [];
+    }
+    return categories[gender][mainCategory];
+  }, [categories, gender, mainCategory]);
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Header
+          title={mainCategory}
+          showBack
+          bgColor="#fff"
+          textColor="#000"
+          iconColor="#111"
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#5B21B6" />
+          <Text style={styles.loadingText}>Loading subcategories...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <Header
+          title={mainCategory}
+          showBack
+          bgColor="#fff"
+          textColor="#000"
+          iconColor="#111"
+        />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadCategories}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -82,4 +107,36 @@ const styles = StyleSheet.create({
     borderBottomColor: "#eee",
   },
   text: { fontSize: 17, color: "#111" },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: '#5B21B6',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });

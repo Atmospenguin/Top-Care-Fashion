@@ -22,10 +22,16 @@ export class UserService {
   }
 
   async updateProfile(profileData: UpdateProfileRequest): Promise<User> {
+    console.log("🔄 Calling updateProfile with:", JSON.stringify(profileData, null, 2));
+    console.log("🔄 API endpoint:", API_CONFIG.ENDPOINTS.PROFILE);
+    
     const res = await apiClient.patch<User>(
       API_CONFIG.ENDPOINTS.PROFILE,
       profileData
     );
+    
+    console.log("🔄 UpdateProfile response:", res);
+    
     if (!res.data) throw new Error("Profile update failed");
     return res.data;
   }
@@ -47,6 +53,11 @@ export class UserService {
         } as any);
 
         console.log("👉 Trying FormData upload...");
+        console.log("📸 Image URI:", imageUri);
+        console.log("📸 File name:", fileName);
+        console.log("📸 File type:", fileType);
+        console.log("📸 API endpoint:", `${API_CONFIG.ENDPOINTS.PROFILE}/avatar`);
+        
         const response = await apiClient.post<{ avatarUrl: string }>(
           `${API_CONFIG.ENDPOINTS.PROFILE}/avatar`,
           formData

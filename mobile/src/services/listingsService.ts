@@ -12,8 +12,31 @@ export interface ListingsQueryParams {
   offset?: number;
 }
 
+// 分类数据结构
+export interface CategoryData {
+  men: Record<string, string[]>;
+  women: Record<string, string[]>;
+  unisex: Record<string, string[]>;
+}
+
 // 商品服务类
 export class ListingsService {
+  // 获取分类数据
+  async getCategories(): Promise<CategoryData> {
+    try {
+      const response = await apiClient.get<{ data: CategoryData }>('/api/categories');
+      
+      if (response.data?.data) {
+        return response.data.data;
+      }
+      
+      throw new Error('No categories data received');
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      throw error;
+    }
+  }
+
   // 获取商品列表
   async getListings(params?: ListingsQueryParams): Promise<ListingItem[]> {
     try {

@@ -341,6 +341,20 @@ export default function ListingDetailScreen() {
             ) : null}
           </View>
 
+          {/* Tags Section */}
+          {safeItem?.tags && safeItem.tags.length > 0 && (
+            <View style={styles.tagsSection}>
+              <Text style={styles.tagsLabel}>Tags</Text>
+              <View style={styles.tagsContainer}>
+                {safeItem.tags.map((tag, index) => (
+                  <View key={index} style={styles.tagChip}>
+                    <Text style={styles.tagText}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
         </View>
 
         <View style={styles.sectionCard}>
@@ -548,6 +562,34 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     marginTop: 4,
+  },
+  tagsSection: {
+    marginTop: 16,
+  },
+  tagsLabel: {
+    fontSize: 12,
+    color: "#999",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  tagsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  tagChip: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  tagText: {
+    fontSize: 13,
+    color: "#666",
+    fontWeight: "500",
   },
   sectionHeading: {
     fontSize: 16,

@@ -41,6 +41,11 @@ export async function POST(req: NextRequest) {
     const fileName = `avatar-${sessionUser.id}-${Date.now()}.${fileExtension}`;
     
     // 上传文件到 Supabase Storage
+    console.log("📤 Uploading to Supabase Storage...");
+    console.log("📤 File name:", fileName);
+    console.log("📤 File size:", avatarFile.size);
+    console.log("📤 File type:", avatarFile.type);
+    
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('avatars')
       .upload(fileName, avatarFile, {
@@ -50,8 +55,10 @@ export async function POST(req: NextRequest) {
 
     if (uploadError) {
       console.error("Supabase upload error:", uploadError);
+      console.error("Upload error details:", JSON.stringify(uploadError, null, 2));
       return NextResponse.json({ 
-        error: "Failed to upload to storage" 
+        error: "Failed to upload to storage",
+        details: uploadError.message
       }, { status: 500 });
     }
 

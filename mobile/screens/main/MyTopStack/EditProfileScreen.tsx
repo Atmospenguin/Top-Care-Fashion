@@ -137,7 +137,9 @@ export default function EditProfileScreen() {
       }
 
       // 更新用户资料
+      console.log("📝 Updating profile with data:", JSON.stringify(updateData, null, 2));
       const updatedUser = await userService.updateProfile(updateData);
+      console.log("✅ Profile update successful:", updatedUser);
       
       // 更新本地用户状态
       updateUser(updatedUser);

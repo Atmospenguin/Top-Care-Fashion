@@ -44,6 +44,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "S",
     condition: "Very good",
     material: "Polyester blend",
+    tags: ["Elegant", "Minimal", "Casual"],
     images: [
       "https://cdn.shopify.com/s/files/1/0281/2071/1254/products/191219hm74370_1800x1800.jpg?v=1607871412",
       "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=600&q=80",
@@ -174,6 +175,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "S",
     condition: "Good",
     material: "Cotton",
+    tags: ["Y2K", "Streetwear", "Vintage"],
     images: [
       "https://images.unsplash.com/photo-1514996937319-344454492b37?auto=format&fit=crop&w=640&q=80",
       "https://y2kdream.com/cdn/shop/files/Y2K-Football-Crop-Top-6.webp?v=1723621579&width=750",
@@ -196,6 +198,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "M",
     condition: "Excellent",
     material: "Polyester",
+    tags: ["Sporty", "Minimal", "Casual"],
     images: [
       "https://images.unsplash.com/photo-1503341455253-b2e723bb3dbb?auto=format&fit=crop&w=640&q=80",
       "https://tse3.mm.bing.net/th/id/OIP.81YGmCDrRsgih3_rHL6qxgHaHa?rs=1&pid=ImgDetMain&o=7&rm=3",
