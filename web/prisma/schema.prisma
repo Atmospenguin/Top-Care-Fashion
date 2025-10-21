@@ -1,9 +1,8 @@
-// Top Care Fashion — Prisma schema (Postgres / Supabase)
+// Top Care Fashion — Updated Prisma schema (Postgres / Supabase)
+// 根据mobile应用需求更新的数据库结构
 
 generator client {
   provider = "prisma-client-js"
-  // 可以删除 output，使用默认生成目录
-  // output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -40,6 +39,7 @@ enum TxStatus {
   PENDING
   PAID
   SHIPPED
+  DELIVERED
   COMPLETED
   CANCELLED
 }
@@ -65,6 +65,36 @@ enum ReportStatus {
   DISMISSED
 }
 
+enum PaymentMethodType {
+  CREDIT_CARD
+  DEBIT_CARD
+  PAYPAL
+  APPLE_PAY
+  GOOGLE_PAY
+}
+
+enum AddressType {
+  HOME
+  WORK
+  OTHER
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum CartItemStatus {
+  ACTIVE
+  REMOVED
+  PURCHASED
+}
+
 /* =========== MODELS =========== */
 
 // 用户
@@ -82,7 +112,12 @@ model users {
   premium_until  DateTime?  @db.Timestamptz(6)
   average_rating Decimal?   @db.Decimal(3, 2)
   total_reviews  Int        @default(0)
+  avatar_url     String?    @db.VarChar(500)
+  phone          String?    @db.VarChar(20)
+  bio            String?    @db.Text
+  location       String?    @db.VarChar(100)
   created_at     DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime   @default(now()) @db.Timestamptz(6)
 
   // relations
   listings_as_seller listings[]     @relation("UserListings")
@@ -92,6 +127,11 @@ model users {
   transactions_sell  transactions[] @relation("Seller")
   feedbacks          feedback[]
   faqs               faq[]
+  addresses          user_addresses[]
+  payment_methods    user_payment_methods[]
+  cart_items         cart_items[]
+  orders_buy         orders[]       @relation("BuyerOrders")
+  orders_sell        orders[]       @relation("SellerOrders")
 
   @@map("users")
 }
@@ -100,9 +140,17 @@ model users {
 model listing_categories {
   id          Int      @id @default(autoincrement())
   name        String   @db.VarChar(100)
+  slug        String   @unique @db.VarChar(100)
   description String?  @db.VarChar(255)
+  icon_url    String?  @db.VarChar(500)
+  parent_id   Int?
+  sort_order  Int      @default(0)
+  is_active   Boolean  @default(true)
   created_at  DateTime @default(now()) @db.Timestamptz(6)
 
+  // relations
+  parent   listing_categories? @relation("CategoryParent", fields: [parent_id], references: [id])
+  children listing_categories[] @relation("CategoryParent")
   listings listings[]
 
   @@map("listing_categories")
@@ -112,29 +160,168 @@ model listing_categories {
 model listings {
   id             Int           @id @default(autoincrement())
   name           String        @db.VarChar(120)
-  description    String?
+  description    String?       @db.Text
   category_id    Int?
   seller_id      Int?
   listed         Boolean       @default(true)
   sold           Boolean       @default(false)
   price          Decimal       @db.Decimal(10, 2)
-  image_url      String?
+  original_price Decimal?      @db.Decimal(10, 2)
+  image_url      String?       @db.VarChar(500)
   image_urls     Json?         @db.Json
   brand          String?       @db.VarChar(100)
   size           String?       @db.VarChar(50)
   condition_type ConditionType @default(GOOD)
+  material       String?       @db.VarChar(100)
   tags           Json?         @db.Json
+  weight         Decimal?      @db.Decimal(8, 2)
+  dimensions     Json?         @db.Json
+  sku            String?       @db.VarChar(50)
+  inventory_count Int         @default(1)
+  views_count    Int          @default(0)
+  likes_count    Int          @default(0)
   created_at     DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime      @default(now()) @db.Timestamptz(6)
   sold_at        DateTime?     @db.Timestamptz(6)
 
   // relations
   category listing_categories? @relation(fields: [category_id], references: [id], onDelete: SetNull)
   seller   users?              @relation("UserListings", fields: [seller_id], references: [id], onDelete: SetNull)
   transactions transactions[]
+  cart_items cart_items[]
+  order_items order_items[]
 
   @@map("listings")
   @@index([category_id])
   @@index([seller_id])
+  @@index([listed, sold])
+  @@index([created_at])
+}
+
+// 用户地址
+model user_addresses {
+  id           Int         @id @default(autoincrement())
+  user_id      Int
+  type         AddressType @default(HOME)
+  name         String      @db.VarChar(100)
+  phone        String      @db.VarChar(20)
+  line1        String      @db.VarChar(200)
+  line2        String?     @db.VarChar(200)
+  city         String      @db.VarChar(100)
+  state        String      @db.VarChar(100)
+  postal_code  String      @db.VarChar(20)
+  country      String      @db.VarChar(100)
+  is_default   Boolean     @default(false)
+  created_at   DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime    @default(now()) @db.Timestamptz(6)
+
+  // relations
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  orders orders[]
+
+  @@map("user_addresses")
+  @@index([user_id])
+}
+
+// 用户支付方式
+model user_payment_methods {
+  id            Int               @id @default(autoincrement())
+  user_id       Int
+  type          PaymentMethodType
+  label         String            @db.VarChar(100)
+  brand         String?           @db.VarChar(50)
+  last4         String?           @db.VarChar(4)
+  expiry_month Int?
+  expiry_year  Int?
+  is_default   Boolean           @default(false)
+  is_active    Boolean           @default(true)
+  created_at   DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime          @default(now()) @db.Timestamptz(6)
+
+  // relations
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  orders orders[]
+
+  @@map("user_payment_methods")
+  @@index([user_id])
+}
+
+// 购物车
+model cart_items {
+  id         Int           @id @default(autoincrement())
+  user_id    Int
+  listing_id Int
+  quantity   Int           @default(1)
+  status     CartItemStatus @default(ACTIVE)
+  created_at DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at DateTime      @default(now()) @db.Timestamptz(6)
+
+  // relations
+  user    users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  listing listings @relation(fields: [listing_id], references: [id], onDelete: Cascade)
+
+  @@map("cart_items")
+  @@unique([user_id, listing_id])
+  @@index([user_id])
+  @@index([listing_id])
+}
+
+// 订单
+model orders {
+  id                Int         @id @default(autoincrement())
+  order_number      String      @unique @db.VarChar(50)
+  buyer_id          Int
+  seller_id         Int
+  address_id        Int
+  payment_method_id Int?
+  status            OrderStatus @default(PENDING)
+  subtotal          Decimal     @db.Decimal(10, 2)
+  shipping_fee      Decimal     @db.Decimal(10, 2)
+  tax_amount        Decimal     @db.Decimal(10, 2)
+  total_amount      Decimal     @db.Decimal(10, 2)
+  currency          String      @default("USD") @db.VarChar(3)
+  payment_status    String      @default("pending") @db.VarChar(20)
+  shipping_method   String?     @db.VarChar(50)
+  tracking_number   String?     @db.VarChar(100)
+  estimated_delivery DateTime?   @db.Timestamptz(6)
+  notes             String?     @db.Text
+  created_at        DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime   @default(now()) @db.Timestamptz(6)
+  shipped_at        DateTime?  @db.Timestamptz(6)
+  delivered_at      DateTime?  @db.Timestamptz(6)
+
+  // relations
+  buyer         users              @relation("BuyerOrders", fields: [buyer_id], references: [id], onDelete: Restrict)
+  seller        users              @relation("SellerOrders", fields: [seller_id], references: [id], onDelete: Restrict)
+  address       user_addresses     @relation(fields: [address_id], references: [id], onDelete: Restrict)
+  payment_method user_payment_methods? @relation(fields: [payment_method_id], references: [id], onDelete: SetNull)
+  order_items   order_items[]
+  transactions  transactions[]
+
+  @@map("orders")
+  @@index([buyer_id])
+  @@index([seller_id])
+  @@index([status])
+  @@index([created_at])
+}
+
+// 订单项
+model order_items {
+  id         Int     @id @default(autoincrement())
+  order_id   Int
+  listing_id Int
+  quantity   Int     @default(1)
+  unit_price Decimal @db.Decimal(10, 2)
+  total_price Decimal @db.Decimal(10, 2)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  // relations
+  order   orders   @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  listing listings @relation(fields: [listing_id], references: [id], onDelete: Restrict)
+
+  @@map("order_items")
+  @@index([order_id])
+  @@index([listing_id])
 }
 
 // 交易
@@ -143,15 +330,18 @@ model transactions {
   buyer_id    Int
   seller_id   Int
   listing_id  Int
+  order_id    Int?
   quantity    Int      @default(1)
   price_each  Decimal  @db.Decimal(10, 2)
   status      TxStatus @default(PENDING)
   created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
 
   // relations
   buyer   users    @relation("Buyer",  fields: [buyer_id],  references: [id], onDelete: Restrict)
   seller  users    @relation("Seller", fields: [seller_id], references: [id], onDelete: Restrict)
   listing listings @relation(fields: [listing_id], references: [id], onDelete: Restrict)
+  order   orders?  @relation(fields: [order_id], references: [id], onDelete: SetNull)
   reviews reviews[]
 
   @@map("transactions")
@@ -159,6 +349,7 @@ model transactions {
   @@index([buyer_id])
   @@index([seller_id])
   @@index([listing_id])
+  @@index([order_id])
 }
 
 // 评价
@@ -168,9 +359,11 @@ model reviews {
   reviewer_id    Int
   reviewee_id    Int
   rating         Int          // 1..5（应用层校验）
-  comment        String
+  comment        String       @db.Text
   reviewer_type  ReviewerType
+  is_public      Boolean      @default(true)
   created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime     @default(now()) @db.Timestamptz(6)
 
   // relations
   transaction transactions @relation(fields: [transaction_id], references: [id], onDelete: Cascade)
@@ -190,17 +383,24 @@ model feedback {
   user_id    Int?
   user_email String?  @db.VarChar(191)
   user_name  String?  @db.VarChar(100)
-  message    String
+  type       String   @db.VarChar(20) // 'bug', 'feature', 'general'
+  title      String   @db.VarChar(200)
+  message    String   @db.Text
+  priority   String   @db.VarChar(10) // 'low', 'medium', 'high'
+  status     String   @db.VarChar(20) // 'open', 'in_progress', 'resolved', 'closed'
   rating     Int?
   tags       Json?    @db.Json
   featured   Boolean  @default(false)
   created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
 
   // relations
   user users? @relation(fields: [user_id], references: [id], onDelete: SetNull)
 
   @@map("feedback")
   @@index([user_id])
+  @@index([type])
+  @@index([status])
 }
 
 // FAQ
@@ -208,8 +408,10 @@ model faq {
   id          Int      @id @default(autoincrement())
   user_id     Int?
   user_email  String?  @db.VarChar(191)
-  question    String
-  answer      String?
+  question    String   @db.Text
+  answer      String?  @db.Text
+  category    String?  @db.VarChar(50)
+  is_public   Boolean  @default(false)
   created_at  DateTime @default(now()) @db.Timestamptz(6)
   answered_at DateTime? @db.Timestamptz(6)
 
@@ -218,6 +420,7 @@ model faq {
 
   @@map("faq")
   @@index([user_id])
+  @@index([category])
 }
 
 // 落地页文案
@@ -272,11 +475,13 @@ model reports {
   target_type ReportTargetType
   target_id   String           @db.VarChar(64)
   reporter    String           @db.VarChar(191)
-  reason      String
+  reason      String           @db.Text
   status      ReportStatus     @default(OPEN)
-  notes       String?
+  notes       String?          @db.Text
   created_at  DateTime         @default(now()) @db.Timestamptz(6)
   resolved_at DateTime?        @db.Timestamptz(6)
 
   @@map("reports")
+  @@index([target_type])
+  @@index([status])
 }

@@ -12,6 +12,12 @@ export interface User {
   premiumUntil?: string | null;
   dob?: string | null;
   gender?: "Male" | "Female" | null;
+  avatar_url?: string | null;
+  phone?: string | null;
+  bio?: string | null;
+  location?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // 登录请求

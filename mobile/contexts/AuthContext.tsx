@@ -13,6 +13,12 @@ export interface User {
   premiumUntil?: string | null;
   dob?: string | null;
   gender?: "Male" | "Female" | null;
+  avatar_url?: string | null;
+  phone?: string | null;
+  bio?: string | null;
+  location?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // 认证上下文类型
@@ -25,6 +31,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
   resetPassword: (token: string, newPassword: string) => Promise<void>;
+  updateUser: (updatedUser: User) => void;
   error: string | null;
   clearError: () => void;
 }
@@ -156,6 +163,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // 更新用户信息
+  const updateUser = (updatedUser: User) => {
+    setUser(updatedUser);
+  };
+
   // 应用启动时检查用户登录状态
   useEffect(() => {
     const checkAuthStatus = async () => {
@@ -188,6 +200,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     requestPasswordReset,
     resetPassword: resetPasswordHandler,
+    updateUser,
     error,
     clearError,
   };

@@ -51,6 +51,19 @@ class ApiClient {
       body: data ? JSON.stringify(data) : undefined,
     });
   }
+
+  async put<T>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async delete<T>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'DELETE',
+    });
+  }
 }
 
 const apiClient = new ApiClient();
@@ -200,6 +213,191 @@ export async function createFeedback(feedbackData: {
     return data;
   } catch (error) {
     console.error("Error creating feedback:", error);
+    throw error;
+  }
+}
+
+// 购物车 API
+export async function getCartItems() {
+  try {
+    const data = await apiClient.get<{ items: any[] }>('/api/cart');
+    return data.items || [];
+  } catch (error) {
+    console.error("Error fetching cart items:", error);
+    return [];
+  }
+}
+
+export async function addToCart(listingId: string, quantity: number = 1) {
+  try {
+    const data = await apiClient.post<any>('/api/cart', {
+      listingId,
+      quantity
+    });
+    return data;
+  } catch (error) {
+    console.error("Error adding to cart:", error);
+    throw error;
+  }
+}
+
+export async function updateCartItem(cartItemId: number, quantity: number) {
+  try {
+    const data = await apiClient.put<any>('/api/cart', {
+      cartItemId,
+      quantity
+    });
+    return data;
+  } catch (error) {
+    console.error("Error updating cart item:", error);
+    throw error;
+  }
+}
+
+export async function removeFromCart(cartItemId: number) {
+  try {
+    const data = await apiClient.delete<any>(`/api/cart?cartItemId=${cartItemId}`);
+    return data;
+  } catch (error) {
+    console.error("Error removing from cart:", error);
+    throw error;
+  }
+}
+
+// 订单 API
+export async function getOrders(type?: 'buy' | 'sell', status?: string) {
+  try {
+    const params: any = {};
+    if (type) params.type = type;
+    if (status) params.status = status;
+    
+    const data = await apiClient.get<{ orders: any[] }>('/api/orders', params);
+    return data.orders || [];
+  } catch (error) {
+    console.error("Error fetching orders:", error);
+    return [];
+  }
+}
+
+export async function createOrder(orderData: {
+  cartItemIds: number[];
+  addressId: number;
+  paymentMethodId?: number;
+  shippingMethod?: string;
+  notes?: string;
+}) {
+  try {
+    const data = await apiClient.post<any>('/api/orders', orderData);
+    return data;
+  } catch (error) {
+    console.error("Error creating order:", error);
+    throw error;
+  }
+}
+
+// 地址 API
+export async function getAddresses() {
+  try {
+    const data = await apiClient.get<{ addresses: any[] }>('/api/addresses');
+    return data.addresses || [];
+  } catch (error) {
+    console.error("Error fetching addresses:", error);
+    return [];
+  }
+}
+
+export async function createAddress(addressData: {
+  type?: 'home' | 'work' | 'other';
+  name: string;
+  phone: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  isDefault?: boolean;
+}) {
+  try {
+    const data = await apiClient.post<any>('/api/addresses', addressData);
+    return data;
+  } catch (error) {
+    console.error("Error creating address:", error);
+    throw error;
+  }
+}
+
+export async function updateAddress(addressId: number, addressData: any) {
+  try {
+    const data = await apiClient.put<any>('/api/addresses', {
+      addressId,
+      ...addressData
+    });
+    return data;
+  } catch (error) {
+    console.error("Error updating address:", error);
+    throw error;
+  }
+}
+
+export async function deleteAddress(addressId: number) {
+  try {
+    const data = await apiClient.delete<any>(`/api/addresses?addressId=${addressId}`);
+    return data;
+  } catch (error) {
+    console.error("Error deleting address:", error);
+    throw error;
+  }
+}
+
+// 支付方式 API
+export async function getPaymentMethods() {
+  try {
+    const data = await apiClient.get<{ paymentMethods: any[] }>('/api/payment-methods');
+    return data.paymentMethods || [];
+  } catch (error) {
+    console.error("Error fetching payment methods:", error);
+    return [];
+  }
+}
+
+export async function createPaymentMethod(paymentData: {
+  type: 'credit_card' | 'debit_card' | 'paypal' | 'apple_pay' | 'google_pay';
+  label: string;
+  brand?: string;
+  last4?: string;
+  expiryMonth?: number;
+  expiryYear?: number;
+  isDefault?: boolean;
+}) {
+  try {
+    const data = await apiClient.post<any>('/api/payment-methods', paymentData);
+    return data;
+  } catch (error) {
+    console.error("Error creating payment method:", error);
+    throw error;
+  }
+}
+
+export async function updatePaymentMethod(paymentMethodId: number, paymentData: any) {
+  try {
+    const data = await apiClient.put<any>('/api/payment-methods', {
+      paymentMethodId,
+      ...paymentData
+    });
+    return data;
+  } catch (error) {
+    console.error("Error updating payment method:", error);
+    throw error;
+  }
+}
+
+export async function deletePaymentMethod(paymentMethodId: number) {
+  try {
+    const data = await apiClient.delete<any>(`/api/payment-methods?paymentMethodId=${paymentMethodId}`);
+    return data;
+  } catch (error) {
+    console.error("Error deleting payment method:", error);
     throw error;
   }
 }

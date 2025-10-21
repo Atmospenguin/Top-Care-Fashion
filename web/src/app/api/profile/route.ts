@@ -41,6 +41,62 @@ function mapGenderOut(value: Gender | null | undefined): "Male" | "Female" | nul
   return null;
 }
 
+export async function GET() {
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const user = await prisma.users.findUnique({
+      where: { id: Number(sessionUser.id) },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        status: true,
+        is_premium: true,
+        premium_until: true,
+        dob: true,
+        gender: true,
+        avatar_url: true,
+        phone: true,
+        bio: true,
+        location: true,
+        created_at: true,
+        updated_at: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: mapRole(user.role),
+        status: mapStatus(user.status),
+        isPremium: Boolean(user.is_premium),
+        premiumUntil: user.premium_until ?? null,
+        dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
+        gender: mapGenderOut(user.gender),
+        avatar_url: user.avatar_url,
+        phone: user.phone,
+        bio: user.bio,
+        location: user.location,
+        created_at: user.created_at.toISOString(),
+        updated_at: user.updated_at.toISOString(),
+      },
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || "Failed to fetch profile" }, { status: 500 });
+  }
+}
+
 export async function PATCH(req: NextRequest) {
   const sessionUser = await getSessionUser();
   if (!sessionUser) {
@@ -48,7 +104,14 @@ export async function PATCH(req: NextRequest) {
   }
 
   const payload = await req.json().catch(() => ({}));
-  const { username, email } = payload as Record<string, unknown>;
+  const { 
+    username, 
+    email, 
+    avatar_url, 
+    phone, 
+    bio, 
+    location 
+  } = payload as Record<string, unknown>;
 
   const data: Record<string, unknown> = {};
 
@@ -64,6 +127,34 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "invalid email" }, { status: 400 });
     }
     data.email = email.trim();
+  }
+
+  if (avatar_url !== undefined) {
+    if (avatar_url !== null && (typeof avatar_url !== "string" || !avatar_url.trim())) {
+      return NextResponse.json({ error: "invalid avatar_url" }, { status: 400 });
+    }
+    data.avatar_url = avatar_url ? avatar_url.trim() : null;
+  }
+
+  if (phone !== undefined) {
+    if (phone !== null && (typeof phone !== "string" || !phone.trim())) {
+      return NextResponse.json({ error: "invalid phone" }, { status: 400 });
+    }
+    data.phone = phone ? phone.trim() : null;
+  }
+
+  if (bio !== undefined) {
+    if (bio !== null && (typeof bio !== "string" || !bio.trim())) {
+      return NextResponse.json({ error: "invalid bio" }, { status: 400 });
+    }
+    data.bio = bio ? bio.trim() : null;
+  }
+
+  if (location !== undefined) {
+    if (location !== null && (typeof location !== "string" || !location.trim())) {
+      return NextResponse.json({ error: "invalid location" }, { status: 400 });
+    }
+    data.location = location ? location.trim() : null;
   }
 
   let dobUpdate: { value: string | null; present: boolean };
@@ -102,6 +193,11 @@ export async function PATCH(req: NextRequest) {
         premium_until: true,
         dob: true,
         gender: true,
+        avatar_url: true,
+        phone: true,
+        bio: true,
+        location: true,
+        updated_at: true,
       },
     });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -117,6 +213,11 @@ export async function PATCH(req: NextRequest) {
         premiumUntil: user.premium_until ?? null,
         dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
         gender: mapGenderOut(user.gender),
+        avatar_url: user.avatar_url,
+        phone: user.phone,
+        bio: user.bio,
+        location: user.location,
+        updated_at: user.updated_at.toISOString(),
       },
     });
   } catch (error: any) {

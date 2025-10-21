@@ -30,14 +30,22 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     const url = this.buildUrl(endpoint);
     
+    // 构建默认选项
     const defaultOptions: RequestInit = {
       headers: {
-        'Content-Type': 'application/json',
         ...this.getAuthHeaders(),
         ...options.headers,
       },
       timeout: this.timeout,
     };
+
+    // 如果不是 FormData，设置 Content-Type
+    if (!(options.body instanceof FormData)) {
+      defaultOptions.headers = {
+        'Content-Type': 'application/json',
+        ...defaultOptions.headers,
+      };
+    }
 
     try {
       const response = await fetch(url, { ...defaultOptions, ...options });
@@ -84,17 +92,33 @@ class ApiClient {
   }
 
   // POST 请求
-  async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, {
+  async post<T>(endpoint: string, data?: any, options?: RequestInit): Promise<ApiResponse<T>> {
+    const requestOptions: RequestInit = {
       method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
-    });
+    };
+
+    // 如果是 FormData，不设置 Content-Type，让浏览器自动设置
+    if (data instanceof FormData) {
+      requestOptions.body = data;
+    } else if (data) {
+      requestOptions.body = JSON.stringify(data);
+    }
+
+    return this.request<T>(endpoint, { ...requestOptions, ...options });
   }
 
   // PUT 请求
   async put<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  // PATCH 请求
+  async patch<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
       body: data ? JSON.stringify(data) : undefined,
     });
   }

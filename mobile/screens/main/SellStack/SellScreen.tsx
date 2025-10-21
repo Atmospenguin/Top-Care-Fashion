@@ -488,7 +488,7 @@ export default function SellScreen({
 
             <Text style={styles.guideSectionTitle}>1. Use Natural Light 🌤️</Text>
             <Text style={styles.guideText}>
-              Shoot in daylight near a window — natural light shows true colors. Avoid dark rooms or harsh flash that can distort your item’s appearance.
+              Shoot in daylight near a window — natural light shows true appearance. Avoid dark rooms or harsh flash that can distort your item's appearance.
             </Text>
 
             <Text style={styles.guideSectionTitle}>2. Keep It Clean & Simple 🧺</Text>
@@ -508,7 +508,7 @@ export default function SellScreen({
 
             <Text style={styles.guideSectionTitle}>4. Be Honest 💬</Text>
             <Text style={styles.guideText}>
-              Only upload photos of your actual item. Do not use stock images. Make sure colors and textures are true to life.
+              Only upload photos of your actual item. Do not use stock images. Make sure textures are true to life.
             </Text>
 
             <Text style={styles.guideSectionTitle}>5. Respect Privacy 🚫</Text>

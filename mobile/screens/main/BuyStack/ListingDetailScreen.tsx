@@ -58,8 +58,6 @@ export default function ListingDetailScreen() {
       // 兼容处理：优先使用 images，如果没有则使用 imageUrls
       images: Array.isArray(item.images) ? item.images : 
               Array.isArray(item.imageUrls) ? item.imageUrls : [],
-      // 确保 colors 是数组
-      colors: Array.isArray(item.colors) ? item.colors : [],
     };
   }, [item]);
 
@@ -343,13 +341,6 @@ export default function ListingDetailScreen() {
             ) : null}
           </View>
 
-          <View style={styles.colorsRow}>
-            {safeItem?.colors?.map((color: string) => (
-              <Text key={color} style={styles.colorChip}>
-                {color}
-              </Text>
-            )) || []}
-          </View>
         </View>
 
         <View style={styles.sectionCard}>
@@ -557,20 +548,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     marginTop: 4,
-  },
-  colorsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  colorChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "#f0f0f0",
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#333",
   },
   sectionHeading: {
     fontSize: 16,

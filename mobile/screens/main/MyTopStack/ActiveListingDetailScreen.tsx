@@ -36,7 +36,6 @@ export default function ActiveListingDetailScreen() {
     condition: "Brand new",
     material: "Corduroy",
     brand: "Brandy Melville",
-    colors: ["Brown"],
     description:
       "Brand new Brandy Melville Elisha Corduroy Jacket.\nFeatures a warm, sherpa lining and a corduroy exterior.\nClassic brown color, one-size fit, perfect for colder months.\nStill has original tags attached.",
     seller: {
@@ -107,15 +106,6 @@ export default function ActiveListingDetailScreen() {
                 <Text style={styles.attributeValue}>{listing.material}</Text>
               </View>
             ) : null}
-          </View>
-
-          {/* colors（可选） */}
-          <View style={styles.colorsRow}>
-            {listing.colors.map((c) => (
-              <Text key={c} style={styles.colorChip}>
-                {c}
-              </Text>
-            ))}
           </View>
         </View>
 
@@ -221,17 +211,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   attributeValue: { fontSize: 15, fontWeight: "600", marginTop: 4 },
-
-  colorsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  colorChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "#f0f0f0",
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#333",
-  },
 
   sectionHeading: { fontSize: 16, fontWeight: "700" },
 

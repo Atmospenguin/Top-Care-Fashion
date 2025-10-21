@@ -1,75 +1,105 @@
-import { apiClient } from './api';
-import { API_CONFIG } from '../config/api';
-import type { User } from './authService';
+import { Platform } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
+import { apiClient } from "./api";
+import { API_CONFIG } from "../config/api";
+import type { User } from "./authService";
 
-// 用户资料更新请求
 export interface UpdateProfileRequest {
   username?: string;
-  avatar?: string;
-  bio?: string;
+  email?: string;
+  avatar_url?: string | null;
+  phone?: string | null;
+  bio?: string | null;
+  location?: string | null;
+  dob?: string | null;
+  gender?: "Male" | "Female" | null;
 }
 
-// 用户服务类
 export class UserService {
-  // 获取用户资料
   async getProfile(): Promise<User | null> {
-    try {
-      const response = await apiClient.get<User>(API_CONFIG.ENDPOINTS.PROFILE);
-      return response.data || null;
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      throw error;
-    }
+    const res = await apiClient.get<User>(API_CONFIG.ENDPOINTS.PROFILE);
+    return res.data || null;
   }
 
-  // 更新用户资料
   async updateProfile(profileData: UpdateProfileRequest): Promise<User> {
-    try {
-      const response = await apiClient.put<User>(
-        API_CONFIG.ENDPOINTS.PROFILE,
-        profileData
-      );
-      
-      if (response.data) {
-        return response.data;
-      }
-      
-      throw new Error('Profile update failed');
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      throw error;
-    }
+    const res = await apiClient.patch<User>(
+      API_CONFIG.ENDPOINTS.PROFILE,
+      profileData
+    );
+    if (!res.data) throw new Error("Profile update failed");
+    return res.data;
   }
 
-  // 上传头像
+  // ✅ 修复后的头像上传：支持 FormData + base64 fallback
   async uploadAvatar(imageUri: string): Promise<string> {
     try {
-      // 创建 FormData 用于文件上传
-      const formData = new FormData();
-      formData.append('avatar', {
-        uri: imageUri,
-        type: 'image/jpeg',
-        name: 'avatar.jpg',
-      } as any);
+      console.log("📸 Starting avatar upload...");
+      const fileName = imageUri.split("/").pop() || "avatar.jpg";
+      const fileType = fileName.endsWith(".png") ? "image/png" : "image/jpeg";
 
-      const response = await apiClient.post<{ avatarUrl: string }>(
-        `${API_CONFIG.ENDPOINTS.PROFILE}/avatar`,
-        formData
-      );
-      
-      if (response.data?.avatarUrl) {
-        return response.data.avatarUrl;
+      // --- 方法 1：fetch + FormData ---
+      try {
+        const formData = new FormData();
+        formData.append("avatar", {
+          uri: Platform.OS === "ios" ? imageUri.replace("file://", "") : imageUri,
+          name: fileName,
+          type: fileType,
+        } as any);
+
+        console.log("👉 Trying FormData upload...");
+        const response = await fetch(
+          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROFILE}/avatar`,
+          {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "multipart/form-data",
+            },
+            body: formData,
+          }
+        );
+
+        if (response.ok) {
+          const json = await response.json();
+          console.log("✅ FormData upload success:", json);
+          return json.avatarUrl;
+        } else {
+          console.warn("⚠️ FormData upload failed:", response.status);
+          throw new Error(`FormData upload failed with status ${response.status}`);
+        }
+      } catch (err) {
+        console.warn("⚠️ FormData upload threw:", err);
+        throw err; // 重新抛出错误以触发 fallback
       }
-      
-      throw new Error('Avatar upload failed');
+
+      // --- 方法 2：base64 fallback ---
+      console.log("🔁 Fallback to base64 upload...");
+      const base64Data = await this.convertImageToBase64(imageUri);
+      const res = await apiClient.post<{ avatarUrl: string }>(
+        `${API_CONFIG.ENDPOINTS.PROFILE}/avatar-base64`,
+        { imageData: base64Data, fileName }
+      );
+
+      if (res.data?.avatarUrl) {
+        return res.data!.avatarUrl;
+      }
+      throw new Error("Avatar upload failed: no avatarUrl");
     } catch (error) {
-      console.error('Error uploading avatar:', error);
+      console.error("❌ Avatar upload error:", error);
       throw error;
     }
   }
+
+  private async convertImageToBase64(uri: string): Promise<string> {
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: 'base64' as any,
+    });
+    return base64;
+  }
+
+  async deleteAvatar(): Promise<void> {
+    await apiClient.delete(`${API_CONFIG.ENDPOINTS.PROFILE}/avatar`);
+  }
 }
 
-// 创建单例实例
 export const userService = new UserService();
-
-

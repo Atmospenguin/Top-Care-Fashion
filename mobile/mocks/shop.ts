@@ -44,7 +44,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "S",
     condition: "Very good",
     material: "Polyester blend",
-    colors: ["Emerald", "Soft white"],
     images: [
       "https://cdn.shopify.com/s/files/1/0281/2071/1254/products/191219hm74370_1800x1800.jpg?v=1607871412",
       "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=600&q=80",
@@ -67,7 +66,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "6",
     condition: "Like new",
     material: "Cotton & Elastane",
-    colors: ["Mid wash"],
     images: [
       "https://tse4.mm.bing.net/th/id/OIP.TC_mOkLd6sQzsLiE_uSloQHaJ3?w=600&h=799&rs=1&pid=ImgDetMain&o=7&rm=3",
       "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80",
@@ -90,7 +88,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "M",
     condition: "Good",
     material: "Cotton",
-    colors: ["Purple"],
     images: [
       "https://assets.atmos-tokyo.com/items/L/pnef21ke11-ppl-1.jpg",
       "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=600&q=80",
@@ -113,7 +110,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "M",
     condition: "Good",
     material: "Wool",
-    colors: ["Ruby"],
     images: [
       "https://th.bing.com/th/id/R.d54043fa984e94c86b926d96ed3eb6a1?rik=l0s2kAsoEoM6Og&pid=ImgRaw&r=0",
     ],
@@ -135,7 +131,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "L",
     condition: "Very good",
     material: "Cotton",
-    colors: ["Beige"],
     images: [
       "https://i5.walmartimages.com/asr/7aed82da-69af-46b8-854e-5c22d45a4df3.e7011d0ebdea1d9fabb68417c789ae16.jpeg",
     ],
@@ -157,7 +152,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "S",
     condition: "Like new",
     material: "Polyester satin",
-    colors: ["Rose", "Champagne"],
     images: [
       "https://images.unsplash.com/photo-1525171254930-643fc658b64e?auto=format&fit=crop&w=640&q=80",
       "https://tse3.mm.bing.net/th/id/OIP.mbv8-A49xgbIH4hkKjhCBwHaJc?rs=1&pid=ImgDetMain&o=7&rm=3",
@@ -180,7 +174,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "S",
     condition: "Good",
     material: "Cotton",
-    colors: ["Navy", "White"],
     images: [
       "https://images.unsplash.com/photo-1514996937319-344454492b37?auto=format&fit=crop&w=640&q=80",
       "https://y2kdream.com/cdn/shop/files/Y2K-Football-Crop-Top-6.webp?v=1723621579&width=750",
@@ -203,7 +196,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "M",
     condition: "Excellent",
     material: "Polyester",
-    colors: ["Ivory", "Charcoal"],
     images: [
       "https://images.unsplash.com/photo-1503341455253-b2e723bb3dbb?auto=format&fit=crop&w=640&q=80",
       "https://tse3.mm.bing.net/th/id/OIP.81YGmCDrRsgih3_rHL6qxgHaHa?rs=1&pid=ImgDetMain&o=7&rm=3",
@@ -226,7 +218,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "M",
     condition: "Very good",
     material: "Polyester blend",
-    colors: ["Stone", "Sand"],
     images: [
       "https://images.unsplash.com/photo-1562157873-818bc0726f92?auto=format&fit=crop&w=640&q=80",
       "https://tse3.mm.bing.net/th/id/OIP.VLA_zUUPCS-z2IemiQ43PgHaHa?rs=1&pid=ImgDetMain&o=7&rm=3",
@@ -249,7 +240,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "38",
     condition: "Like new",
     material: "Canvas",
-    colors: ["White", "Gum"],
     images: [
       "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=640&q=80",
       "https://images.unsplash.com/photo-1475180098004-ca77a66827be?auto=format&fit=crop&w=640&q=80",
@@ -272,7 +262,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "39",
     condition: "Good",
     material: "Leather",
-    colors: ["Black"],
     images: [
       "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=640&q=80",
       "https://images.unsplash.com/photo-1516763296043-76d3f3157948?auto=format&fit=crop&w=640&q=80",
@@ -295,7 +284,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "One size",
     condition: "Very good",
     material: "Leather",
-    colors: ["Cognac"],
     images: [
       "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=640&q=80",
       "https://tse1.mm.bing.net/th/id/OIP._PU2jbpd_bGX-M3WoLm6IAHaLe?rs=1&pid=ImgDetMain&o=7&rm=3",
@@ -318,7 +306,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "One size",
     condition: "Like new",
     material: "Gold plated brass",
-    colors: ["Gold"],
     images: [
       "https://images.unsplash.com/photo-1522312346375-d1a52e2b99b3?auto=format&fit=crop&w=640&q=80",
       "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=640&q=80",
@@ -341,7 +328,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "M",
     condition: "Very good",
     material: "Denim",
-    colors: ["Blue"],
     images: [
       "https://tse3.mm.bing.net/th/id/OIP.VLA_zUUPCS-z2IemiQ43PgHaHa?rs=1&pid=ImgDetMain&o=7&rm=3",
     ],

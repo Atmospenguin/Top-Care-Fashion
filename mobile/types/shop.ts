@@ -9,7 +9,6 @@ export type ListingItem = {
   size: string;
   condition: string;
   material?: string;
-  colors: string[];
   images: string[];
   category?: ListingCategory;
   seller: {
