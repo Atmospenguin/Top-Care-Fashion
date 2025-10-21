@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View, FlatList } from 'react-native';
+import { MixAndMatchScreen } from './src/screens/MixAndMatchScreen';
 
 type Screen = 'landing' | 'register' | 'marketplace';
 
