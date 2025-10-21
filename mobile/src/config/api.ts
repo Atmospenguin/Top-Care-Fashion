@@ -1,9 +1,10 @@
+import Constants from 'expo-constants';
+
 // API 配置文件
 export const API_CONFIG = {
   // 你的 Web API 基础 URL
-  // 如果是本地开发，使用: http://localhost:3000
-  // 如果是部署的，使用你的 Vercel/Netlify 等部署地址
-  BASE_URL: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000',
+  // 从 app.json 的 extra 字段获取，或回退到环境变量
+  BASE_URL: Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000',
   
   // API 端点
   ENDPOINTS: {

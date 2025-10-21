@@ -1,4 +1,5 @@
 import { apiClient as newApiClient } from './src/services/api';
+import { supabase } from './constants/supabase';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -80,8 +81,8 @@ export async function fetchListings(params?: {
   offset?: number;
 }) {
   try {
-    const data = await apiClient.get<{ items: any[] }>('/api/listings', params);
-    return data.items || [];
+    const response = await apiClient.get<{ data: { items: any[] } }>('/api/listings', params);
+    return response.data?.items || [];
   } catch (error) {
     console.error("Error fetching listings:", error);
     return [];
@@ -101,27 +102,132 @@ export async function fetchListingById(id: string) {
 // 用户认证 API
 export async function signIn(email: string, password: string) {
   try {
-    const data = await newApiClient.post<{ user: any; source?: string; fallback?: boolean }>('/api/auth/signin', {
+    console.log("🔍 Starting login process...");
+    
+    // 方法 1: 先尝试 Web API 登录（兼容现有用户）
+    try {
+      console.log("🔍 Trying Web API login first...");
+      const data = await newApiClient.post<{ user: any; source?: string; fallback?: boolean }>('/api/auth/signin', {
+        email,
+        password,
+      });
+      
+      if (data.data?.user) {
+        console.log('🔍 Web API login successful, user:', data.data.user.username);
+        
+        // 如果 Web API 登录成功，尝试建立 Supabase session（可选）
+        try {
+          console.log("🔍 Attempting to establish Supabase session...");
+          const { data: supabaseData, error: supabaseError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          
+          if (!supabaseError && supabaseData?.user && supabaseData.session) {
+            console.log("🔍 Supabase session established successfully");
+            console.log("🔍 Access token:", supabaseData.session.access_token);
+            
+            // 设置 API 客户端的认证 token
+            newApiClient.setAuthToken(supabaseData.session.access_token);
+            
+            return data;
+          } else {
+            console.log("🔍 Supabase session failed:", supabaseError?.message);
+            console.log("🔍 Continuing with Web API authentication only");
+            // 如果 Supabase session 失败，仍然返回 Web API 登录结果
+            return data;
+          }
+        } catch (supabaseError) {
+          console.log("🔍 Supabase session failed:", supabaseError);
+          console.log("🔍 Continuing with Web API authentication only");
+          // 如果 Supabase session 失败，仍然返回 Web API 登录结果
+          return data;
+        }
+      }
+    } catch (webApiError) {
+      console.log("🔍 Web API login failed:", webApiError);
+    }
+    
+    // 方法 2: 回退到纯 Supabase 认证
+    console.log("🔍 Falling back to Supabase-only authentication...");
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    return data;
+    
+    if (error) {
+      console.error("🔍 Supabase sign in error:", error);
+      throw new Error(error.message);
+    }
+    
+    if (!data.user || !data.session) {
+      throw new Error("No user or session returned from Supabase");
+    }
+    
+    console.log("🔍 Supabase sign in successful, user ID:", data.user.id);
+    console.log("🔍 Access token:", data.session.access_token);
+    
+    // 设置 API 客户端的认证 token
+    newApiClient.setAuthToken(data.session.access_token);
+    
+    // 返回 Supabase 用户数据，格式与 Web API 一致
+    return {
+      data: {
+        user: {
+          id: data.user.id,
+          email: data.user.email,
+          username: data.user.email?.split('@')[0] || 'User',
+          source: 'supabase'
+        }
+      }
+    };
   } catch (error) {
-    console.error("Error signing in:", error);
+    console.error("🔍 Error signing in:", error);
     throw error;
   }
 }
 
 export async function signUp(username: string, email: string, password: string) {
   try {
-    const data = await newApiClient.post<{ user: any; requiresConfirmation?: boolean }>('/api/auth/register', {
-      username,
+    console.log("🔍 Starting Supabase sign up...");
+    
+    // 使用 Supabase 原生认证
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
     });
-    return data;
+    
+    if (error) {
+      console.error("🔍 Supabase sign up error:", error);
+      throw new Error(error.message);
+    }
+    
+    if (!data.user) {
+      throw new Error("No user returned from Supabase");
+    }
+    
+    console.log("🔍 Supabase sign up successful, user ID:", data.user.id);
+    
+    // 如果有 session，设置认证 token
+    if (data.session) {
+      console.log("🔍 Access token:", data.session.access_token);
+      newApiClient.setAuthToken(data.session.access_token);
+    }
+    
+    // 返回 Supabase 用户数据，格式与 Web API 一致
+    return {
+      data: {
+        user: {
+          id: data.user.id,
+          email: data.user.email,
+          username: username,
+          source: 'supabase'
+        },
+        requiresConfirmation: !data.session
+      }
+    };
   } catch (error) {
-    console.error("Error signing up:", error);
+    console.error("🔍 Error signing up:", error);
     throw error;
   }
 }
@@ -138,10 +244,27 @@ export async function getCurrentUser() {
 
 export async function signOut() {
   try {
+    console.log("🔍 Starting Supabase sign out...");
+    
+    // 清除 API 客户端的认证 token
+    newApiClient.clearAuthToken();
+    
+    // 使用 Supabase 原生认证
+    const { error } = await supabase.auth.signOut();
+    
+    if (error) {
+      console.error("🔍 Supabase sign out error:", error);
+      throw new Error(error.message);
+    }
+    
+    console.log("🔍 Supabase sign out successful");
+    
+    // 也调用 Web API 登出
     await newApiClient.post('/api/auth/signout');
+    console.log('🔍 Web API sign out successful');
     return true;
   } catch (error) {
-    console.error("Error signing out:", error);
+    console.error("🔍 Error signing out:", error);
     throw error;
   }
 }

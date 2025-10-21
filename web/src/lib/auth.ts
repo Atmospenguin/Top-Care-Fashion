@@ -31,12 +31,30 @@ function mapGender(value: unknown): "Male" | "Female" | null {
   return null;
 }
 
-export async function getSessionUser(): Promise<SessionUser | null> {
+export async function getSessionUser(req?: Request): Promise<SessionUser | null> {
   const store = await cookies();
   
   // 首先尝试 Supabase 认证
   try {
     const supabase = await createSupabaseServer();
+    
+    // 如果有 Request 对象，尝试从 Authorization header 获取 token
+    if (req) {
+      const authHeader = req.headers.get('authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        try {
+          const { data: { user: supabaseUser }, error } = await supabase.auth.getUser(token);
+          if (supabaseUser && !error) {
+            return await findUserBySupabaseId(supabaseUser.id);
+          }
+        } catch (error) {
+          console.log("Bearer token auth failed:", error);
+        }
+      }
+    }
+    
+    // 回退到 cookie 认证
     const { data: { user: supabaseUser } } = await supabase.auth.getUser();
     
     if (supabaseUser) {
@@ -108,6 +126,40 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   } finally {
     await conn.end();
   }
+}
+
+async function findUserBySupabaseId(supabaseUserId: string): Promise<SessionUser | null> {
+  const conn = await getConnection();
+  try {
+    const [rows]: any = await conn.execute(
+      "SELECT id, username, email, role, status, is_premium AS isPremium, dob, gender FROM users WHERE supabase_user_id = ?",
+      [supabaseUserId]
+    );
+
+    if (rows.length) {
+      const row: any = rows[0];
+      const dobVal = row.dob;
+      const user: SessionUser = {
+        id: Number(row.id),
+        username: row.username,
+        email: row.email,
+        role: mapRole(row.role),
+        status: mapStatus(row.status),
+        isPremium:
+          typeof row.isPremium === "boolean"
+            ? row.isPremium
+            : Number(row.isPremium ?? 0),
+        dob: dobVal
+          ? (dobVal instanceof Date ? dobVal.toISOString().slice(0, 10) : String(dobVal))
+          : null,
+        gender: mapGender(row.gender),
+      };
+      return user;
+    }
+  } finally {
+    await conn.end();
+  }
+  return null;
 }
 
 export async function requireAdmin(): Promise<SessionUser | null> {

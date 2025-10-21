@@ -1,5 +1,6 @@
 import { apiClient } from './api';
 import { API_CONFIG } from '../config/api';
+import { supabase } from '../../constants/supabase';
 
 // 用户类型 (匹配 Web API 响应)
 export interface User {
@@ -42,42 +43,82 @@ export interface AuthResponse {
 
 // 认证服务类
 export class AuthService {
-  // 用户登录
+  // 用户登录 - 使用 Supabase 原生认证
   async signIn(credentials: SignInRequest): Promise<AuthResponse> {
     try {
+      console.log("🔍 Starting Supabase sign in...");
+      
+      // 使用 Supabase 原生认证
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.password,
+      });
+      
+      if (error) {
+        console.error("🔍 Supabase sign in error:", error);
+        throw new Error(error.message);
+      }
+      
+      if (!data.user) {
+        throw new Error("No user returned from Supabase");
+      }
+      
+      console.log("🔍 Supabase sign in successful, user ID:", data.user.id);
+      
+      // 通过 Web API 获取用户详细信息
       const response = await apiClient.post<AuthResponse>(
         API_CONFIG.ENDPOINTS.AUTH.SIGNIN,
         credentials
       );
       
       if (response.data) {
-        console.log('Login successful, user:', response.data.user.username);
+        console.log('🔍 Web API login successful, user:', response.data.user.username);
         return response.data;
       }
       
-      throw new Error('Login failed');
+      throw new Error('Web API login failed');
     } catch (error) {
-      console.error('Error signing in:', error);
+      console.error('🔍 Error signing in:', error);
       throw error;
     }
   }
 
-  // 用户注册
+  // 用户注册 - 使用 Supabase 原生认证
   async signUp(userData: SignUpRequest): Promise<AuthResponse> {
     try {
+      console.log("🔍 Starting Supabase sign up...");
+      
+      // 使用 Supabase 原生认证
+      const { data, error } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+      });
+      
+      if (error) {
+        console.error("🔍 Supabase sign up error:", error);
+        throw new Error(error.message);
+      }
+      
+      if (!data.user) {
+        throw new Error("No user returned from Supabase");
+      }
+      
+      console.log("🔍 Supabase sign up successful, user ID:", data.user.id);
+      
+      // 通过 Web API 获取用户详细信息
       const response = await apiClient.post<AuthResponse>(
         API_CONFIG.ENDPOINTS.AUTH.SIGNUP,
         userData
       );
       
       if (response.data) {
-        console.log('Registration successful, user:', response.data.user.username);
+        console.log('🔍 Web API registration successful, user:', response.data.user.username);
         return response.data;
       }
       
-      throw new Error('Registration failed');
+      throw new Error('Web API registration failed');
     } catch (error) {
-      console.error('Error signing up:', error);
+      console.error('🔍 Error signing up:', error);
       throw error;
     }
   }
@@ -93,14 +134,26 @@ export class AuthService {
     }
   }
 
-  // 用户登出
+  // 用户登出 - 使用 Supabase 原生认证
   async signOut(): Promise<void> {
     try {
+      console.log("🔍 Starting Supabase sign out...");
+      
+      // 使用 Supabase 原生认证
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error("🔍 Supabase sign out error:", error);
+        throw new Error(error.message);
+      }
+      
+      console.log("🔍 Supabase sign out successful");
+      
+      // 也调用 Web API 登出
       await apiClient.post(API_CONFIG.ENDPOINTS.AUTH.SIGNOUT);
-      // TODO: 清除本地存储的用户信息
-      console.log('Sign out successful');
+      console.log('🔍 Web API sign out successful');
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('🔍 Error signing out:', error);
       throw error;
     }
   }

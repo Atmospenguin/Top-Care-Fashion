@@ -1,14 +1,44 @@
 import { API_CONFIG, ApiResponse, ApiError } from '../config/api';
 import { supabase } from '../../constants/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // 基础 API 客户端类
 class ApiClient {
   private baseURL: string;
   private timeout: number;
+  private authToken: string | null = null;
 
   constructor() {
     this.baseURL = API_CONFIG.BASE_URL;
     this.timeout = API_CONFIG.TIMEOUT;
+    this.loadStoredToken();
+  }
+
+  // 从 AsyncStorage 加载存储的 token
+  private async loadStoredToken(): Promise<void> {
+    try {
+      const storedToken = await AsyncStorage.getItem('supabase_access_token');
+      if (storedToken) {
+        this.authToken = storedToken;
+        console.log("🔍 API Client - Loaded stored token");
+      }
+    } catch (error) {
+      console.log('🔍 API Client - Failed to load stored token:', error);
+    }
+  }
+
+  // 设置认证 token
+  public setAuthToken(token: string): void {
+    this.authToken = token;
+    AsyncStorage.setItem('supabase_access_token', token);
+    console.log("🔍 API Client - Token set and stored");
+  }
+
+  // 清除认证 token
+  public clearAuthToken(): void {
+    this.authToken = null;
+    AsyncStorage.removeItem('supabase_access_token');
+    console.log("🔍 API Client - Token cleared");
   }
 
   // 构建完整 URL
@@ -19,13 +49,27 @@ class ApiClient {
   // 获取认证头
   private async getAuthHeaders(): Promise<Record<string, string>> {
     try {
+      // 首先尝试使用存储的 token
+      if (this.authToken) {
+        console.log("🔍 API Client - Using stored token");
+        return { Authorization: `Bearer ${this.authToken}` };
+      }
+
+      // 然后尝试从 Supabase 获取 session
       const { data: { session } } = await supabase.auth.getSession();
       
+      console.log("🔍 API Client - Session exists:", !!session);
+      console.log("🔍 API Client - Access token exists:", !!session?.access_token);
+      
       if (session?.access_token) {
+        console.log("🔍 API Client - Got Supabase session, storing token");
+        this.setAuthToken(session.access_token);
         return { Authorization: `Bearer ${session.access_token}` };
       }
+      
+      console.log("🔍 API Client - No valid session found");
     } catch (error) {
-      console.log('Failed to get auth token:', error);
+      console.log('🔍 API Client - Failed to get auth token:', error);
     }
     
     return {};
@@ -47,7 +91,6 @@ class ApiClient {
         ...authHeaders,
         ...options.headers,
       },
-      timeout: this.timeout,
     };
 
     // 如果不是 FormData，设置 Content-Type

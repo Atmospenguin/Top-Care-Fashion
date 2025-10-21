@@ -12,6 +12,23 @@ export interface ListingsQueryParams {
   offset?: number;
 }
 
+// 创建商品请求参数
+export interface CreateListingRequest {
+  title: string;
+  description: string;
+  price: number;
+  brand: string;
+  size: string;
+  condition: string;
+  material?: string;
+  tags?: string[];
+  category: string;
+  images: string[];
+  shippingOption?: string;
+  shippingFee?: number;
+  location?: string;
+}
+
 // 分类数据结构
 export interface CategoryData {
   men: Record<string, string[]>;
@@ -21,6 +38,24 @@ export interface CategoryData {
 
 // 商品服务类
 export class ListingsService {
+  private async convertImageToBase64(imageUri: string): Promise<string> {
+    const response = await fetch(imageUri);
+    const arrayBuffer = await response.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    let binaryString = "";
+    const chunkSize = 8192;
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.slice(i, i + chunkSize);
+      binaryString += String.fromCharCode(...chunk);
+    }
+    return globalThis.btoa(binaryString);
+  }
+
+  private extractFileName(uri: string): string {
+    const segments = uri.split("/").filter(Boolean);
+    return segments.length ? segments[segments.length - 1] : `listing-${Date.now()}.jpg`;
+  }
+
   // 获取分类数据
   async getCategories(): Promise<CategoryData> {
     try {
@@ -33,6 +68,43 @@ export class ListingsService {
       throw new Error('No categories data received');
     } catch (error) {
       console.error('Error fetching categories:', error);
+      throw error;
+    }
+  }
+
+  // 创建商品
+  async createListing(listingData: CreateListingRequest): Promise<ListingItem> {
+    try {
+      const response = await apiClient.post<{ data: ListingItem }>('/api/listings/create', listingData);
+      
+      if (response.data?.data) {
+        return response.data.data;
+      }
+      
+      throw new Error('No listing data received');
+    } catch (error) {
+      console.error('Error creating listing:', error);
+      throw error;
+    }
+  }
+
+  async uploadListingImage(imageUri: string): Promise<string> {
+    try {
+      const imageData = await this.convertImageToBase64(imageUri);
+      const fileName = this.extractFileName(imageUri);
+
+      const response = await apiClient.post<{ imageUrl: string }>(
+        '/api/listings/upload-image',
+        { imageData, fileName }
+      );
+
+      if (response.data?.imageUrl) {
+        return response.data.imageUrl;
+      }
+
+      throw new Error('Image upload failed');
+    } catch (error) {
+      console.error('Error uploading listing image:', error);
       throw error;
     }
   }

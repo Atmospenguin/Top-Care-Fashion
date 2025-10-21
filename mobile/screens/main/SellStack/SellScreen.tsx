@@ -10,13 +10,16 @@ import {
   Modal,
   Pressable,
   ScrollView as RNScrollView,
-  FlatList,
+  Alert,
+  Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 // note: keep Header's SafeAreaView; remove outer SafeAreaView to avoid double padding
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header"; 
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { SellStackParamList } from "./SellStackNavigator";
+import { listingsService, type CreateListingRequest } from "../../../src/services/listingsService";
 /** --- Options --- */
 const CATEGORY_OPTIONS = ["Tops", "Bottoms", "Shoes", "Bags", "Accessories", "Outerwear", "Dresses", "Others"];
 const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "Others"];
@@ -84,6 +87,8 @@ const DEFAULT_TAGS = [
   "Cyberpunk",
 ];
 
+const PHOTO_LIMIT = 9;
+
 /** --- Bottom Sheet Picker --- */
 type OptionPickerProps = {
   title: string;
@@ -97,6 +102,14 @@ type OptionPickerProps = {
   setCustomValue?: (value: string) => void;
   customInputLabel?: string;
   customPlaceholder?: string;
+};
+
+type PhotoItem = {
+  id: string;
+  localUri: string;
+  remoteUrl?: string;
+  uploading: boolean;
+  error?: string;
 };
 
 function OptionPicker({
@@ -174,6 +187,7 @@ export default function SellScreen({
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [aiDesc, setAiDesc] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Info
   const [category, setCategory] = useState("Select");
@@ -185,6 +199,8 @@ export default function SellScreen({
   const [brand, setBrand] = useState("Select");
   const [brandCustomMode, setBrandCustomMode] = useState(false);
   const [brandCustom, setBrandCustom] = useState("");
+  const [price, setPrice] = useState("");
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
 
   // Shipping
   const [shippingOption, setShippingOption] = useState("Select");
@@ -204,6 +220,71 @@ export default function SellScreen({
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
+  const ensureMediaPermissions = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Please allow photo library access to upload images.");
+      return false;
+    }
+    return true;
+  };
+
+  const handleAddPhoto = async () => {
+    if (photos.length >= PHOTO_LIMIT) {
+      Alert.alert("Limit reached", `You can upload up to ${PHOTO_LIMIT} photos per listing.`);
+      return;
+    }
+
+    const allowed = await ensureMediaPermissions();
+    if (!allowed) return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.85,
+      aspect: [4, 5],
+    });
+
+    if (result.canceled || !result.assets?.length) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    const tempId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    setPhotos((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        localUri: asset.uri,
+        uploading: true,
+      },
+    ]);
+
+    try {
+      const remoteUrl = await listingsService.uploadListingImage(asset.uri);
+      setPhotos((prev) =>
+        prev.map((photo) =>
+          photo.id === tempId
+            ? {
+                ...photo,
+                remoteUrl,
+                uploading: false,
+              }
+            : photo
+        )
+      );
+    } catch (error) {
+      console.error("Photo upload failed:", error);
+      setPhotos((prev) => prev.filter((photo) => photo.id !== tempId));
+      Alert.alert("Upload failed", "We couldn't upload that photo. Please try again.");
+    }
+  };
+
+  const handleRemovePhoto = (photoId: string) => {
+    setPhotos((prev) => prev.filter((photo) => photo.id !== photoId));
+  };
+
   // 模拟 AI
   const generateDescription = async () => {
     setLoading(true);
@@ -215,6 +296,90 @@ export default function SellScreen({
       console.error("AI generation failed:", err);
     }
     setLoading(false);
+  };
+
+  // 保存 listing
+  const handlePostListing = async () => {
+    // 验证必需字段
+    if (category === "Select" || condition === "Select" || size === "Select" || brand === "Select" || !price.trim()) {
+      Alert.alert("Missing Information", "Please fill in all required fields including price");
+      return;
+    }
+
+    if (!description.trim()) {
+      Alert.alert("Missing Information", "Please add a description");
+      return;
+    }
+
+    const priceValue = parseFloat(price);
+    if (isNaN(priceValue) || priceValue <= 0) {
+      Alert.alert("Invalid Price", "Please enter a valid price");
+      return;
+    }
+
+    if (photos.some((photo) => photo.uploading)) {
+      Alert.alert("Uploading", "Please wait for all photos to finish uploading before posting.");
+      return;
+    }
+
+    const uploadedImages = photos
+      .filter((photo) => !!photo.remoteUrl)
+      .map((photo) => photo.remoteUrl!)
+      .slice(0, PHOTO_LIMIT);
+
+    setSaving(true);
+    try {
+      const listingData: CreateListingRequest = {
+        title: description.split(' ').slice(0, 5).join(' ') || "New Listing", // 从描述生成标题
+        description: description.trim(),
+        price: priceValue,
+        brand: brand === "Others" ? brandCustom : brand,
+        size: size === "Other" ? customSize : size,
+        condition,
+        material: material === "Other" ? customMaterial : material,
+        tags,
+        category,
+        images: uploadedImages,
+        shippingOption,
+        shippingFee: shippingFee ? parseFloat(shippingFee) : undefined,
+        location: location.trim() || undefined,
+      };
+
+      const createdListing = await listingsService.createListing(listingData);
+      
+      Alert.alert(
+        "Success!",
+        "Your listing has been posted successfully!",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              // 重置表单
+              setDescription("");
+              setCategory("Select");
+              setCondition("Select");
+              setSize("Select");
+              setMaterial("Select");
+              setBrand("Select");
+              setPrice("");
+              setPhotos([]);
+              setTags([]);
+              setShippingOption("Select");
+              setShippingFee("");
+              setLocation("");
+              // 导航到用户主页或 Discover
+              const parentNav = navigation.getParent();
+              (parentNav as any)?.navigate("My TOP", { screen: "ActiveListings" });
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("Error posting listing:", error);
+      Alert.alert("Error", "Failed to post listing. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -232,18 +397,35 @@ export default function SellScreen({
 
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
         {/* 图片上传 */}
-        <FlatList
-          data={[...Array(9)]}
-          keyExtractor={(_, i) => i.toString()}
+        <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          renderItem={() => (
-            <TouchableOpacity style={styles.photoBox}>
-              <Icon name="add" size={24} color="#999" />
-            </TouchableOpacity>
-          )}
-          style={{ marginBottom: 8 }}
-        />
+          contentContainerStyle={styles.photoRow}
+        >
+          <TouchableOpacity style={styles.photoBox} onPress={handleAddPhoto}>
+            <Icon name="add" size={24} color="#999" />
+            <Text style={styles.photoAddHint}>Add photo</Text>
+          </TouchableOpacity>
+
+          {photos.map((photo) => (
+            <View key={photo.id} style={styles.photoPreview}>
+              <Image source={{ uri: photo.localUri }} style={styles.photoPreviewImage} />
+              {photo.uploading ? (
+                <View style={styles.photoUploadingOverlay}>
+                  <ActivityIndicator color="#fff" />
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.photoRemoveBtn}
+                  onPress={() => handleRemovePhoto(photo.id)}
+                >
+                  <Icon name="close" size={16} color="#fff" />
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
+        </ScrollView>
+
         <TouchableOpacity onPress={() => setShowGuide(true)}>
           <Text style={styles.photoTips}>Read our photo tips</Text>
         </TouchableOpacity>
@@ -317,6 +499,15 @@ export default function SellScreen({
           </View>
         )}
 
+        <Text style={styles.fieldLabel}>Price</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter price (e.g. 25.00)"
+          value={price}
+          onChangeText={setPrice}
+          keyboardType="numeric"
+        />
+
         <Text style={styles.fieldLabel}>Condition</Text>
         <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCond(true)}>
           <Text style={styles.selectValue}>{condition}</Text>
@@ -335,10 +526,6 @@ export default function SellScreen({
             {material === "Other" && customMaterial ? customMaterial : material}
           </Text>
         </TouchableOpacity>
-
-        {/* Price */}
-        <Text style={styles.sectionTitle}>Price</Text>
-        <TextInput style={styles.input} placeholder="$ 0.00" keyboardType="numeric" />
 
         {/* Tags Section */}
         <Text style={styles.sectionTitle}>Tags</Text>
@@ -411,8 +598,16 @@ export default function SellScreen({
           <TouchableOpacity style={styles.draftBtn}>
             <Text style={styles.draftText}>Save to drafts</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.postBtn}>
-            <Text style={styles.postText}>Post listing</Text>
+          <TouchableOpacity 
+            style={[styles.postBtn, saving && styles.postBtnDisabled]} 
+            onPress={handlePostListing}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.postText}>Post listing</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -637,8 +832,54 @@ function TagPickerModal({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", padding: 16 },
   photoBox: {
-    width: 70, height: 70, borderWidth: 1, borderColor: "#ccc", borderRadius: 8,
-    justifyContent: "center", alignItems: "center", backgroundColor: "#fafafa", marginRight: 8,
+    width: 100,
+    height: 120,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fafafa",
+    marginRight: 12,
+  },
+  photoRow: {
+    paddingVertical: 4,
+    alignItems: "center",
+  },
+  photoAddHint: {
+    marginTop: 8,
+    fontSize: 12,
+    color: "#666",
+  },
+  photoPreview: {
+    width: 100,
+    height: 120,
+    borderRadius: 12,
+    marginRight: 12,
+    overflow: "hidden",
+    backgroundColor: "#f1f1f1",
+    position: "relative",
+  },
+  photoPreviewImage: {
+    width: "100%",
+    height: "100%",
+  },
+  photoUploadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoRemoveBtn: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   photoTips: { fontSize: 14, color: "#5B21B6", marginBottom: 16 },
 
@@ -662,6 +903,10 @@ const styles = StyleSheet.create({
   draftText: { fontWeight: "600", fontSize: 16 },
   postBtn: { flex: 1, backgroundColor: "#000", borderRadius: 25, paddingVertical: 12, alignItems: "center", marginLeft: 8 },
   postText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  postBtnDisabled: {
+    backgroundColor: "#ccc",
+    opacity: 0.6,
+  },
 
   sheetMask: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.25)" },
   sheet: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16 },
