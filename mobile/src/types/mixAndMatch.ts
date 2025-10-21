@@ -20,6 +20,8 @@ export interface UserPreferences {
   purchaseHistory: string[]; // item IDs
   likedItems: string[]; // item IDs
   viewedItems: string[]; // item IDs
+  dislikedItems: string[];     
+  preferredGender: 'boy' | 'girl' | 'both'; 
 }
 
 export interface Outfit {
@@ -30,4 +32,5 @@ export interface Outfit {
   accessories?: ClothingItem[];
   totalPrice: number;
   matchScore: number;
+
 }
