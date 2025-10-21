@@ -92,7 +92,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
   if ("featured" in body) {
     updates.push("featured = ?");
-    values.push(body.featured ? 1 : 0);
+    values.push(Boolean(body.featured));
   }
 
   if (updates.length === 0) {
