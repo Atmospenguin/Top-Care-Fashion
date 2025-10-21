@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { createSupabaseServer } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
   const sessionUser = await getSessionUser();
@@ -32,21 +33,43 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // 这里应该上传到云存储服务 (如 AWS S3, Cloudinary, 或 Supabase Storage)
-    // 为了演示，我们使用一个简单的 base64 编码
-    const bytes = await avatarFile.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const base64 = buffer.toString('base64');
-    const dataUrl = `data:${avatarFile.type};base64,${base64}`;
+    // 上传到 Supabase Storage
+    const supabase = await createSupabaseServer();
+    
+    // 生成唯一的文件名
+    const fileExtension = avatarFile.name.split('.').pop() || 'jpg';
+    const fileName = `avatar-${sessionUser.id}-${Date.now()}.${fileExtension}`;
+    
+    // 上传文件到 Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, avatarFile, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error("Supabase upload error:", uploadError);
+      return NextResponse.json({ 
+        error: "Failed to upload to storage" 
+      }, { status: 500 });
+    }
+
+    // 获取公开 URL
+    const { data: urlData } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(fileName);
+
+    const avatarUrl = urlData.publicUrl;
 
     // 更新用户头像
     await prisma.users.update({
       where: { id: Number(sessionUser.id) },
-      data: { avatar_url: dataUrl }
+      data: { avatar_url: avatarUrl }
     });
 
     return NextResponse.json({ 
-      avatarUrl: dataUrl,
+      avatarUrl: avatarUrl,
       message: "Avatar uploaded successfully" 
     });
 
@@ -82,3 +105,4 @@ export async function DELETE() {
     }, { status: 500 });
   }
 }
+

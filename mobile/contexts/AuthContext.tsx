@@ -91,9 +91,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       const response = await signIn(email, password);
       
-      if (response.user) {
+      if (response.data?.user) {
         // Web API 使用 cookie，不需要存储 token
-        setUser(response.user);
+        setUser(response.data.user);
       } else {
         throw new Error('Invalid response from server');
       }
@@ -113,9 +113,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       const response = await signUp(username, email, password);
       
-      if (response.user) {
+      if (response.data?.user) {
         // Web API 使用 cookie，不需要存储 token
-        setUser(response.user);
+        setUser(response.data.user);
       } else {
         throw new Error('Invalid response from server');
       }

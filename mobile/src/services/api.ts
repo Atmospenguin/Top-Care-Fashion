@@ -1,4 +1,5 @@
 import { API_CONFIG, ApiResponse, ApiError } from '../config/api';
+import { supabase } from '../../constants/supabase';
 
 // 基础 API 客户端类
 class ApiClient {
@@ -16,11 +17,18 @@ class ApiClient {
   }
 
   // 获取认证头
-  private getAuthHeaders(): Record<string, string> {
-    // 这里可以从 AsyncStorage 或其他地方获取 token
-    const token = null; // TODO: 从存储中获取 token
+  private async getAuthHeaders(): Promise<Record<string, string>> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.access_token) {
+        return { Authorization: `Bearer ${session.access_token}` };
+      }
+    } catch (error) {
+      console.log('Failed to get auth token:', error);
+    }
     
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    return {};
   }
 
   // 基础请求方法
@@ -30,10 +38,13 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     const url = this.buildUrl(endpoint);
     
+    // 获取认证头
+    const authHeaders = await this.getAuthHeaders();
+    
     // 构建默认选项
     const defaultOptions: RequestInit = {
       headers: {
-        ...this.getAuthHeaders(),
+        ...authHeaders,
         ...options.headers,
       },
       timeout: this.timeout,

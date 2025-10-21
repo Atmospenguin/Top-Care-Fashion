@@ -1,3 +1,5 @@
+import { apiClient as newApiClient } from './src/services/api';
+
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 // 基础 API 客户端
@@ -99,7 +101,7 @@ export async function fetchListingById(id: string) {
 // 用户认证 API
 export async function signIn(email: string, password: string) {
   try {
-    const data = await apiClient.post<{ user: any; source?: string; fallback?: boolean }>('/api/auth/signin', {
+    const data = await newApiClient.post<{ user: any; source?: string; fallback?: boolean }>('/api/auth/signin', {
       email,
       password,
     });
@@ -112,7 +114,7 @@ export async function signIn(email: string, password: string) {
 
 export async function signUp(username: string, email: string, password: string) {
   try {
-    const data = await apiClient.post<{ user: any; requiresConfirmation?: boolean }>('/api/auth/register', {
+    const data = await newApiClient.post<{ user: any; requiresConfirmation?: boolean }>('/api/auth/register', {
       username,
       email,
       password,
@@ -126,7 +128,7 @@ export async function signUp(username: string, email: string, password: string) 
 
 export async function getCurrentUser() {
   try {
-    const data = await apiClient.get<{ user: any | null }>('/api/auth/me');
+    const data = await newApiClient.get<{ user: any | null }>('/api/auth/me');
     return data;
   } catch (error) {
     console.error("Error getting current user:", error);
@@ -136,7 +138,7 @@ export async function getCurrentUser() {
 
 export async function signOut() {
   try {
-    await apiClient.post('/api/auth/signout');
+    await newApiClient.post('/api/auth/signout');
     return true;
   } catch (error) {
     console.error("Error signing out:", error);
