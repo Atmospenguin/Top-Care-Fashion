@@ -110,7 +110,9 @@ export async function PATCH(req: NextRequest) {
     avatar_url, 
     phone, 
     bio, 
-    location 
+    location,
+    dob,
+    gender
   } = payload as Record<string, unknown>;
 
   const data: Record<string, unknown> = {};

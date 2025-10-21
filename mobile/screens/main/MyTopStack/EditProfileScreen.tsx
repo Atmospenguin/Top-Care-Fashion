@@ -116,12 +116,12 @@ export default function EditProfileScreen() {
       
       // 准备更新数据
       const updateData: UpdateProfileRequest = {
-        username: formData.username,
-        email: formData.email,
-        phone: formData.phone || null,
-        bio: formData.bio || null,
-        location: formData.location || null,
-        dob: formData.dob || null,
+        username: formData.username.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone?.trim() || null,
+        bio: formData.bio?.trim() || null,
+        location: formData.location?.trim() || null,
+        dob: formData.dob?.trim() || null,
         gender: formData.gender as "Male" | "Female" | null,
       };
 

@@ -47,26 +47,13 @@ export class UserService {
         } as any);
 
         console.log("👉 Trying FormData upload...");
-        const response = await fetch(
-          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROFILE}/avatar`,
-          {
-            method: "POST",
-            headers: {
-              Accept: "application/json",
-              "Content-Type": "multipart/form-data",
-            },
-            body: formData,
-          }
+        const response = await apiClient.post<{ avatarUrl: string }>(
+          `${API_CONFIG.ENDPOINTS.PROFILE}/avatar`,
+          formData
         );
 
-        if (response.ok) {
-          const json = await response.json();
-          console.log("✅ FormData upload success:", json);
-          return json.avatarUrl;
-        } else {
-          console.warn("⚠️ FormData upload failed:", response.status);
-          throw new Error(`FormData upload failed with status ${response.status}`);
-        }
+        console.log("✅ FormData upload success:", response.data);
+        return response.data!.avatarUrl;
       } catch (err) {
         console.warn("⚠️ FormData upload threw:", err);
         throw err; // 重新抛出错误以触发 fallback
