@@ -127,5 +127,27 @@ export type FaqQuery = {
 export type LandingContent = {
   heroTitle: string;
   heroSubtitle: string;
-  updatedAt: string;
+  heroCarouselImages?: string[];
+  aiFeatures?: {
+    mixmatch?: {
+      title?: string;
+      desc?: string;
+      // New unified field (preferred)
+      images?: string[];
+      // Legacy fields (will be removed after DB migration), kept optional for backward compatibility
+      girlImages?: string[];
+      boyImages?: string[];
+    };
+    ailisting?: {
+      title?: string;
+      desc?: string;
+      images?: string[];
+    };
+    search?: {
+      title?: string;
+      desc?: string;
+      images?: string[];
+    };
+  };
+  updatedAt?: string;
 };

@@ -1,15 +1,17 @@
 // Top Care Fashion — Updated Prisma schema (Postgres / Supabase)
 // 根据mobile应用需求更新的数据库结构
 
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")  // 运行时：池化串 (:6543 &pgbouncer=true)
-  directUrl = env("DIRECT_URL")    // 迁移：直连串 (:5432)
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
+        
 
 /* =========== ENUMS (每个值一行) =========== */
 enum Gender {
@@ -428,6 +430,21 @@ model landing_content {
   id            Int      @id @default(1) @db.SmallInt
   hero_title    String   @db.VarChar(200)
   hero_subtitle String   @db.VarChar(300)
+  // New configurable fields
+  hero_carousel_images Json?    @db.Json
+  // AI Features - Mix & Match
+  mixmatch_title        String?  @db.VarChar(100)
+  mixmatch_desc         String?  @db.VarChar(300)
+  mixmatch_girl_images  Json?    @db.Json
+  mixmatch_boy_images   Json?    @db.Json
+  // AI Features - AI Listing
+  ailisting_title       String?  @db.VarChar(100)
+  ailisting_desc        String?  @db.VarChar(300)
+  ailisting_images      Json?    @db.Json
+  // AI Features - Search
+  search_title          String?  @db.VarChar(100)
+  search_desc           String?  @db.VarChar(300)
+  search_images         Json?    @db.Json
   updated_at    DateTime @default(now()) @db.Timestamptz(6)
 
   @@map("landing_content")

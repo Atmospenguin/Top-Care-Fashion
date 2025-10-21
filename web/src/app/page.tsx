@@ -38,6 +38,12 @@ interface PricingPlan {
 interface LandingContent {
   heroTitle: string;
   heroSubtitle: string;
+  heroCarouselImages?: string[] | null;
+  aiFeatures?: {
+    mixmatch?: { title?: string; desc?: string; images?: string[] | null; girlImages?: string[] | null; boyImages?: string[] | null };
+    ailisting?: { title?: string; desc?: string; images?: string[] | null };
+    search?: { title?: string; desc?: string; images?: string[] | null };
+  };
 }
 
 export default function Home() {
@@ -47,12 +53,14 @@ export default function Home() {
   const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
   const [landingContent, setLandingContent] = useState<LandingContent>({
     heroTitle: 'Discover outfits powered by AI',
-    heroSubtitle: 'Mix & Match is an AI outfit recommender that builds looks from listed items. Snap, list, and get smart suggestions instantly.'
+    heroSubtitle: 'Mix & Match is an AI outfit recommender that builds looks from listed items. Snap, list, and get smart suggestions instantly.',
+    heroCarouselImages: undefined,
+    aiFeatures: undefined,
   });
   const [loading, setLoading] = useState(true);
 
   const FILTERS = [
-    { key: "all", label: "All (Past 3 weeks)" },
+    { key: "all", label: "All Feedback" },
     { key: "mixmatch", label: "Mix & Match" },
     { key: "ailisting", label: "AI Listing" },
     { key: "premium", label: "Premium Member" },
@@ -104,12 +112,9 @@ export default function Home() {
     fetchData();
   }, []);
 
-  const threeWeeks = 21 * 24 * 60 * 60 * 1000;
-  const now = Date.now();
-
   const visible = testimonials.filter((t) =>
     filter === "all"
-      ? now - t.ts <= threeWeeks
+      ? true
       : t.tags.includes(filter as Testimonial["tags"][number])
   );
   return (
@@ -133,13 +138,16 @@ export default function Home() {
           </div>
         </div>
         <div className="relative w-full">
-          <AppScreensCarousel className="w-full max-w-[320px] md:max-w-[380px] mx-auto" />
+          <AppScreensCarousel
+            className="w-full max-w-[320px] md:max-w-[380px] mx-auto"
+            images={landingContent.heroCarouselImages ?? undefined}
+          />
         </div>
       </section>
 
       {/* AI Features with screenshots + carousels */}
       <div id="features">
-        <AIFeatures />
+        <AIFeatures config={landingContent.aiFeatures} />
       </div>
 
       {/* Social proof + Stats merged */}
