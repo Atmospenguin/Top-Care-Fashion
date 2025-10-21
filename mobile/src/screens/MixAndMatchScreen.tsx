@@ -1,4 +1,10 @@
 // screens/MixAndMatchScreen.tsx
+import { 
+  generateSampleClothingItems, 
+  generateSampleUserPreferences,
+  mockAPIDelay 
+} from '../utils/sampleDataGenerator';
+import { ClothingItem, UserPreferences, Outfit } from '../types/mixAndMatch';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -28,8 +34,19 @@ export const MixAndMatchScreen = () => {
   
   const loadRecommendations = async () => {
     // Fetch items and user preferences from your backend
-    const items = await fetchClothingItems();
-    const userPrefs = await fetchUserPreferences();
+   const fetchClothingItems = async (): Promise<ClothingItem[]> => {
+  await mockAPIDelay(500); // Simulate network delay
+  return generateSampleClothingItems();
+};
+    const fetchUserPreferences = async (): Promise<UserPreferences> => {
+  await mockAPIDelay(300);
+  return generateSampleUserPreferences('test-user-123');
+};
+    
+    const addItemsToCart = async (items: ClothingItem[]) => {
+  console.log('Adding to cart:', items);
+  return true;
+};
     
     const recommendations = recommendationEngine.generateOutfits(
       items,
@@ -311,4 +328,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+
 });
