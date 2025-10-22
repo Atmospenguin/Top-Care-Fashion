@@ -25,15 +25,17 @@ export class UserService {
     console.log("🔄 Calling updateProfile with:", JSON.stringify(profileData, null, 2));
     console.log("🔄 API endpoint:", API_CONFIG.ENDPOINTS.PROFILE);
     
-    const res = await apiClient.patch<User>(
+    const res = await apiClient.patch<{ ok: boolean; user: User }>(
       API_CONFIG.ENDPOINTS.PROFILE,
       profileData
     );
     
     console.log("🔄 UpdateProfile response:", res);
     
-    if (!res.data) throw new Error("Profile update failed");
-    return res.data;
+    if (!res.data?.user) throw new Error("Profile update failed");
+    
+    // ✅ 返回更新后的完整用户数据
+    return res.data.user;
   }
 
   // ✅ 修复后的头像上传：支持 FormData + base64 fallback

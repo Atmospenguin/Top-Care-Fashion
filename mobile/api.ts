@@ -129,6 +129,20 @@ export async function signIn(email: string, password: string) {
           // 设置 API 客户端的认证 token
           newApiClient.setAuthToken(data.data.access_token);
           
+          // ✅ 登录成功后自动加载完整用户资料
+          try {
+            console.log("🔍 Loading complete user profile...");
+            const profileResponse = await newApiClient.get<{ ok: boolean; user: any }>('/api/profile');
+            if (profileResponse.data?.user) {
+              console.log("✅ Profile loaded successfully:", profileResponse.data.user.username);
+              // 将完整的用户资料合并到登录响应中
+              data.data.user = profileResponse.data.user;
+            }
+          } catch (profileError) {
+            console.warn("⚠️ Failed to load profile:", profileError);
+            // 即使加载profile失败，仍然返回登录成功
+          }
+          
           return data;
         } else {
           console.log("🔍 No access token from Web API, trying Supabase fallback...");
@@ -146,6 +160,20 @@ export async function signIn(email: string, password: string) {
               
               // 设置 API 客户端的认证 token
               newApiClient.setAuthToken(supabaseData.session.access_token);
+              
+              // ✅ 登录成功后自动加载完整用户资料
+              try {
+                console.log("🔍 Loading complete user profile...");
+                const profileResponse = await newApiClient.get<{ ok: boolean; user: any }>('/api/profile');
+                if (profileResponse.data?.user) {
+                  console.log("✅ Profile loaded successfully:", profileResponse.data.user.username);
+                  // 将完整的用户资料合并到登录响应中
+                  data.data.user = profileResponse.data.user;
+                }
+              } catch (profileError) {
+                console.warn("⚠️ Failed to load profile:", profileError);
+                // 即使加载profile失败，仍然返回登录成功
+              }
               
               return data;
             } else {

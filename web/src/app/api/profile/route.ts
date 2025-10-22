@@ -49,16 +49,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  console.log("📖 Loading profile for user:", dbUser.id);
+  console.log("📖 Avatar URL:", dbUser.avatar_url);
+
   return NextResponse.json({
-    id: dbUser.id,
-    username: dbUser.username,
-    email: dbUser.email,
-    phone: dbUser.phone_number,
-    bio: dbUser.bio,
-    location: dbUser.location,
-    dob: dbUser.dob,
-    gender: dbUser.gender,
-    avatar_url: dbUser.avatar_url,
+    ok: true,
+    user: {
+      id: dbUser.id,
+      username: dbUser.username,
+      email: dbUser.email,
+      phone: dbUser.phone_number,
+      bio: dbUser.bio,
+      location: dbUser.location,
+      dob: dbUser.dob ? dbUser.dob.toISOString().slice(0, 10) : null,
+      gender: dbUser.gender === "MALE" ? "Male" : dbUser.gender === "FEMALE" ? "Female" : null,
+      avatar_url: dbUser.avatar_url,
+    },
   });
 }
 
