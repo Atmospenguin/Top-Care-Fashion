@@ -118,13 +118,13 @@ export class ListingsService {
   // 获取商品列表
   async getListings(params?: ListingsQueryParams): Promise<ListingItem[]> {
     try {
-      const response = await apiClient.get<{ items: ListingItem[] }>(
+      const response = await apiClient.get<{ success: boolean; data: { items: ListingItem[] } }>(
         API_CONFIG.ENDPOINTS.LISTINGS,
         params
       );
       
-      if (response.data?.items) {
-        return response.data.items;
+      if (response.data?.success && response.data.data?.items) {
+        return response.data.data.items;
       }
       
       throw new Error('No listings data received');

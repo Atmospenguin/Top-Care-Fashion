@@ -25,7 +25,10 @@ export default function HomeScreen() {
       try {
         setLoading(true);
         setError(null);
+        console.log('🔍 HomeScreen: Loading featured items...');
         const items = await fetchListings({ limit: 6 });
+        console.log('🔍 HomeScreen: Received items:', items?.length || 0);
+        console.log('🔍 HomeScreen: Items data:', items);
         setFeaturedItems(items);
       } catch (err) {
         console.error('Error loading featured items:', err);
@@ -134,6 +137,7 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.grid}>
+            {console.log('🔍 HomeScreen: Rendering items:', featuredItems.length)}
             {featuredItems.slice(0, 3).map((item) => (
               <TouchableOpacity
                 key={item.id}

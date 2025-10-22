@@ -81,8 +81,12 @@ export async function fetchListings(params?: {
   offset?: number;
 }) {
   try {
-    const response = await apiClient.get<{ data: { items: any[] } }>('/api/listings', params);
-    return response.data?.items || [];
+    console.log('🔍 fetchListings: Making API request with params:', params);
+    const response = await newApiClient.get<{ success: boolean; data: { items: any[] } }>('/api/listings', params);
+    console.log('🔍 fetchListings: API response:', response);
+    const items = response.data?.data?.items || [];
+    console.log('🔍 fetchListings: Extracted items:', items.length);
+    return items;
   } catch (error) {
     console.error("Error fetching listings:", error);
     return [];
@@ -91,7 +95,7 @@ export async function fetchListings(params?: {
 
 export async function fetchListingById(id: string) {
   try {
-    const data = await apiClient.get<any>(`/api/listings/${id}`);
+    const data = await newApiClient.get<any>(`/api/listings/${id}`);
     return data;
   } catch (error) {
     console.error("Error fetching listing by ID:", error);
