@@ -76,28 +76,29 @@ export async function PATCH(req: NextRequest) {
     console.log("📝 Profile update request data:", JSON.stringify(data, null, 2));
     console.log("📝 Current user ID:", dbUser.id);
 
-    // 准备更新数据，处理字段映射和类型转换
+    // ✅ 防覆盖更新：只更新有值的字段
     const updateData: any = {};
     
-    if (data.username !== undefined) {
+    // 过滤掉 undefined 和 null 值，只更新实际有值的字段
+    if (data.username !== undefined && data.username !== null) {
       updateData.username = data.username;
     }
-    if (data.email !== undefined) {
+    if (data.email !== undefined && data.email !== null) {
       updateData.email = data.email;
     }
-    if (data.phone !== undefined) {
+    if (data.phone !== undefined && data.phone !== null) {
       updateData.phone_number = data.phone;
     }
-    if (data.bio !== undefined) {
+    if (data.bio !== undefined && data.bio !== null) {
       updateData.bio = data.bio;
     }
-    if (data.location !== undefined) {
+    if (data.location !== undefined && data.location !== null) {
       updateData.location = data.location;
     }
-    if (data.dob !== undefined) {
-      updateData.dob = data.dob ? new Date(data.dob) : null;
+    if (data.dob !== undefined && data.dob !== null) {
+      updateData.dob = new Date(data.dob);
     }
-    if (data.gender !== undefined) {
+    if (data.gender !== undefined && data.gender !== null) {
       // 转换移动端的性别格式到数据库格式
       if (data.gender === "Male") {
         updateData.gender = "MALE";
@@ -107,11 +108,30 @@ export async function PATCH(req: NextRequest) {
         updateData.gender = null;
       }
     }
-    if (data.avatar_url !== undefined) {
+    if (data.avatar_url !== undefined && data.avatar_url !== null) {
       updateData.avatar_url = data.avatar_url;
     }
 
     console.log("📝 Update data prepared:", JSON.stringify(updateData, null, 2));
+
+    // ✅ 检查是否有实际要更新的字段
+    if (Object.keys(updateData).length === 0) {
+      console.log("📝 No fields to update, returning current user data");
+      return NextResponse.json({
+        ok: true,
+        user: {
+          id: dbUser.id,
+          username: dbUser.username,
+          email: dbUser.email,
+          phone: dbUser.phone_number,
+          bio: dbUser.bio,
+          location: dbUser.location,
+          dob: dbUser.dob ? dbUser.dob.toISOString().slice(0, 10) : null,
+          gender: dbUser.gender === "MALE" ? "Male" : dbUser.gender === "FEMALE" ? "Female" : null,
+          avatar_url: dbUser.avatar_url,
+        },
+      });
+    }
 
     const updated = await prisma.users.update({
       where: { id: dbUser.id },

@@ -43,11 +43,11 @@ export class UserService {
       const fileName = imageUri.split("/").pop() || "avatar.jpg";
       const fileType = fileName.endsWith(".png") ? "image/png" : "image/jpeg";
 
-      // --- 方法 1：fetch + FormData ---
+      // --- 方法 1：正确的 FormData 格式 ---
       try {
         const formData = new FormData();
-        formData.append("avatar", {
-          uri: Platform.OS === "ios" ? imageUri.replace("file://", "") : imageUri,
+        formData.append("file", {
+          uri: imageUri,
           name: fileName,
           type: fileType,
         } as any);
@@ -58,6 +58,7 @@ export class UserService {
         console.log("📸 File type:", fileType);
         console.log("📸 API endpoint:", `${API_CONFIG.ENDPOINTS.PROFILE}/avatar`);
         
+        // ✅ 使用正确的API调用方式，不手动设置Content-Type
         const response = await apiClient.post<{ avatarUrl: string }>(
           `${API_CONFIG.ENDPOINTS.PROFILE}/avatar`,
           formData
