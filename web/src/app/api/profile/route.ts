@@ -1,228 +1,145 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
-import { Gender, UserRole, UserStatus } from "@prisma/client";
+import { createSupabaseServer } from "@/lib/supabase";
 
-function normalizeDobInput(dob: unknown): { value: string | null; present: boolean } {
-  if (dob === undefined) return { value: null, present: false };
-  if (dob === null) return { value: null, present: true };
-  if (typeof dob !== "string") return { value: null, present: false };
-  const trimmed = dob.trim();
-  if (!trimmed) return { value: null, present: true };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    throw new Error("invalid dob");
+/**
+ * 获取当前登录用户
+ */
+async function getCurrentUser(req: NextRequest) {
+  try {
+    const supabase = await createSupabaseServer();
+
+    // 从 Authorization 头读取 token
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : null;
+
+    let userId: string | null = null;
+
+    if (token) {
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user) {
+        userId = user.id;
+      }
+    }
+
+    if (!userId) {
+      return null;
+    }
+
+    // 查询本地数据库用户
+    const dbUser = await prisma.users.findUnique({
+      where: { supabase_user_id: userId },
+    });
+
+    return dbUser;
+  } catch (err) {
+    console.error("❌ getCurrentUser failed:", err);
+    return null;
   }
-  return { value: trimmed, present: true };
 }
 
-function normalizeGenderInput(gender: unknown): { value: "MALE" | "FEMALE" | null; present: boolean } {
-  if (gender === undefined) return { value: null, present: false };
-  if (gender === null) return { value: null, present: true };
-  if (typeof gender !== "string") return { value: null, present: false };
-  const trimmed = gender.trim();
-  if (!trimmed) return { value: null, present: true };
-  if (trimmed !== "Male" && trimmed !== "Female") {
-    throw new Error("invalid gender");
-  }
-  return { value: trimmed === "Male" ? "MALE" : "FEMALE", present: true };
-}
-
-function mapRole(value: UserRole | null | undefined): "User" | "Admin" {
-  return value === UserRole.ADMIN ? "Admin" : "User";
-}
-
-function mapStatus(value: UserStatus | null | undefined): "active" | "suspended" {
-  return value === UserStatus.SUSPENDED ? "suspended" : "active";
-}
-
-function mapGenderOut(value: Gender | null | undefined): "Male" | "Female" | null {
-  if (value === Gender.MALE) return "Male";
-  if (value === Gender.FEMALE) return "Female";
-  return null;
-}
-
-export async function GET() {
-  const sessionUser = await getSessionUser();
-  if (!sessionUser) {
+/**
+ * 获取用户资料
+ */
+export async function GET(req: NextRequest) {
+  const dbUser = await getCurrentUser(req);
+  if (!dbUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    const user = await prisma.users.findUnique({
-      where: { id: Number(sessionUser.id) },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        role: true,
-        status: true,
-        is_premium: true,
-        premium_until: true,
-        dob: true,
-        gender: true,
-        avatar_url: true,
-        phone: true,
-        bio: true,
-        location: true,
-        created_at: true,
-        updated_at: true,
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: mapRole(user.role),
-        status: mapStatus(user.status),
-        isPremium: Boolean(user.is_premium),
-        premiumUntil: user.premium_until ?? null,
-        dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
-        gender: mapGenderOut(user.gender),
-        avatar_url: user.avatar_url,
-        phone: user.phone,
-        bio: user.bio,
-        location: user.location,
-        created_at: user.created_at.toISOString(),
-        updated_at: user.updated_at.toISOString(),
-      },
-    });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || "Failed to fetch profile" }, { status: 500 });
-  }
+  return NextResponse.json({
+    id: dbUser.id,
+    username: dbUser.username,
+    email: dbUser.email,
+    phone: dbUser.phone_number,
+    bio: dbUser.bio,
+    location: dbUser.location,
+    dob: dbUser.dob,
+    gender: dbUser.gender,
+    avatar_url: dbUser.avatar_url,
+  });
 }
 
+/**
+ * 更新用户资料
+ */
 export async function PATCH(req: NextRequest) {
-  const sessionUser = await getSessionUser();
-  if (!sessionUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const payload = await req.json().catch(() => ({}));
-  const { 
-    username, 
-    email, 
-    avatar_url, 
-    phone, 
-    bio, 
-    location,
-    dob,
-    gender
-  } = payload as Record<string, unknown>;
-
-  const data: Record<string, unknown> = {};
-
-  if (username !== undefined) {
-    if (typeof username !== "string" || !username.trim()) {
-      return NextResponse.json({ error: "invalid username" }, { status: 400 });
-    }
-    data.username = username.trim();
-  }
-
-  if (email !== undefined) {
-    if (typeof email !== "string" || !email.trim()) {
-      return NextResponse.json({ error: "invalid email" }, { status: 400 });
-    }
-    data.email = email.trim();
-  }
-
-  if (avatar_url !== undefined) {
-    if (avatar_url !== null && (typeof avatar_url !== "string" || !avatar_url.trim())) {
-      return NextResponse.json({ error: "invalid avatar_url" }, { status: 400 });
-    }
-    data.avatar_url = avatar_url ? avatar_url.trim() : null;
-  }
-
-  if (phone !== undefined) {
-    if (phone !== null && (typeof phone !== "string" || !phone.trim())) {
-      return NextResponse.json({ error: "invalid phone" }, { status: 400 });
-    }
-    data.phone = phone ? phone.trim() : null;
-  }
-
-  if (bio !== undefined) {
-    if (bio !== null && (typeof bio !== "string" || !bio.trim())) {
-      return NextResponse.json({ error: "invalid bio" }, { status: 400 });
-    }
-    data.bio = bio ? bio.trim() : null;
-  }
-
-  if (location !== undefined) {
-    if (location !== null && (typeof location !== "string" || !location.trim())) {
-      return NextResponse.json({ error: "invalid location" }, { status: 400 });
-    }
-    data.location = location ? location.trim() : null;
-  }
-
-  let dobUpdate: { value: string | null; present: boolean };
-  let genderUpdate: { value: "MALE" | "FEMALE" | null; present: boolean };
   try {
-    dobUpdate = normalizeDobInput((payload as any).dob);
-    genderUpdate = normalizeGenderInput((payload as any).gender);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "invalid input";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
+    const dbUser = await getCurrentUser(req);
+    if (!dbUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  if (dobUpdate.present) {
-    data.dob = dobUpdate.value ? new Date(dobUpdate.value) : null;
-  }
+    const data = await req.json();
+    console.log("📝 Profile update request data:", JSON.stringify(data, null, 2));
+    console.log("📝 Current user ID:", dbUser.id);
 
-  if (genderUpdate.present) {
-    data.gender = genderUpdate.value as Gender | null;
-  }
+    // 准备更新数据，处理字段映射和类型转换
+    const updateData: any = {};
+    
+    if (data.username !== undefined) {
+      updateData.username = data.username;
+    }
+    if (data.email !== undefined) {
+      updateData.email = data.email;
+    }
+    if (data.phone !== undefined) {
+      updateData.phone_number = data.phone;
+    }
+    if (data.bio !== undefined) {
+      updateData.bio = data.bio;
+    }
+    if (data.location !== undefined) {
+      updateData.location = data.location;
+    }
+    if (data.dob !== undefined) {
+      updateData.dob = data.dob ? new Date(data.dob) : null;
+    }
+    if (data.gender !== undefined) {
+      // 转换移动端的性别格式到数据库格式
+      if (data.gender === "Male") {
+        updateData.gender = "MALE";
+      } else if (data.gender === "Female") {
+        updateData.gender = "FEMALE";
+      } else {
+        updateData.gender = null;
+      }
+    }
+    if (data.avatar_url !== undefined) {
+      updateData.avatar_url = data.avatar_url;
+    }
 
-  if (Object.keys(data).length === 0) {
-    return NextResponse.json({ error: "No fields provided" }, { status: 400 });
-  }
-  try {
-    await prisma.users.update({ where: { id: Number(sessionUser.id) }, data });
+    console.log("📝 Update data prepared:", JSON.stringify(updateData, null, 2));
 
-    const user = await prisma.users.findUnique({
-      where: { id: Number(sessionUser.id) },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        role: true,
-        status: true,
-        is_premium: true,
-        premium_until: true,
-        dob: true,
-        gender: true,
-        avatar_url: true,
-        phone: true,
-        bio: true,
-        location: true,
-        updated_at: true,
-      },
+    const updated = await prisma.users.update({
+      where: { id: dbUser.id },
+      data: updateData,
     });
-    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    console.log("✅ Profile updated successfully");
 
     return NextResponse.json({
+      ok: true,
       user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: mapRole(user.role),
-        status: mapStatus(user.status),
-        isPremium: Boolean(user.is_premium),
-        premiumUntil: user.premium_until ?? null,
-        dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
-        gender: mapGenderOut(user.gender),
-        avatar_url: user.avatar_url,
-        phone: user.phone,
-        bio: user.bio,
-        location: user.location,
-        updated_at: user.updated_at.toISOString(),
+        id: updated.id,
+        username: updated.username,
+        email: updated.email,
+        phone: updated.phone_number,
+        bio: updated.bio,
+        location: updated.location,
+        dob: updated.dob ? updated.dob.toISOString().slice(0, 10) : null,
+        gender: updated.gender === "MALE" ? "Male" : updated.gender === "FEMALE" ? "Female" : null,
+        avatar_url: updated.avatar_url,
       },
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || "update failed" }, { status: 400 });
+  } catch (err) {
+    console.error("❌ Update profile failed:", err);
+    console.error("❌ Error details:", JSON.stringify(err, null, 2));
+    return NextResponse.json({ 
+      error: "Update failed", 
+      details: err instanceof Error ? err.message : "Unknown error" 
+    }, { status: 400 });
   }
 }

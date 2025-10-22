@@ -75,7 +75,7 @@ export default function EditProfileScreen() {
   const openCamera = async () => {
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'Images', // ✅ 更简单的写法
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -94,7 +94,7 @@ export default function EditProfileScreen() {
   const openImagePicker = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'Images', // ✅ 更简单的写法
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,

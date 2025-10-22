@@ -1,115 +1,131 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
 import { createSupabaseServer } from "@/lib/supabase";
+import { prisma } from "@/lib/db";
 
+/**
+ * 上传头像
+ */
 export async function POST(req: NextRequest) {
-  const sessionUser = await getSessionUser();
-  if (!sessionUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
-    const formData = await req.formData();
-    const avatarFile = formData.get('avatar') as File;
-    
-    if (!avatarFile) {
-      return NextResponse.json({ error: "No avatar file provided" }, { status: 400 });
-    }
-
-    // 验证文件类型
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(avatarFile.type)) {
-      return NextResponse.json({ 
-        error: "Invalid file type. Only JPEG, PNG, and WebP images are allowed." 
-      }, { status: 400 });
-    }
-
-    // 验证文件大小 (5MB limit)
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (avatarFile.size > maxSize) {
-      return NextResponse.json({ 
-        error: "File too large. Maximum size is 5MB." 
-      }, { status: 400 });
-    }
-
-    // 上传到 Supabase Storage
     const supabase = await createSupabaseServer();
     
-    // 生成唯一的文件名
-    const fileExtension = avatarFile.name.split('.').pop() || 'jpg';
-    const fileName = `avatar-${sessionUser.id}-${Date.now()}.${fileExtension}`;
+    // 验证用户身份
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : null;
+
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: { user } } = await supabase.auth.getUser(token);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // 获取数据库用户
+    const dbUser = await prisma.users.findUnique({
+      where: { supabase_user_id: user.id },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // 解析FormData
+    const formData = await req.formData();
+    const file = formData.get("avatar") as File;
     
-    // 上传文件到 Supabase Storage
-    console.log("📤 Uploading to Supabase Storage...");
-    console.log("📤 File name:", fileName);
-    console.log("📤 File size:", avatarFile.size);
-    console.log("📤 File type:", avatarFile.type);
-    
+    if (!file) {
+      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+
+    // 生成唯一文件名
+    const fileExt = file.name.split('.').pop();
+    const fileName = `avatar-${dbUser.id}-${Date.now()}.${fileExt}`;
+    const filePath = `avatars/${fileName}`;
+
+    // 上传到Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(fileName, avatarFile, {
+      .from('user-uploads')
+      .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false
       });
 
     if (uploadError) {
-      console.error("Supabase upload error:", uploadError);
-      console.error("Upload error details:", JSON.stringify(uploadError, null, 2));
-      return NextResponse.json({ 
-        error: "Failed to upload to storage",
-        details: uploadError.message
-      }, { status: 500 });
+      console.error("Upload error:", uploadError);
+      return NextResponse.json({ error: "Upload failed" }, { status: 500 });
     }
 
-    // 获取公开 URL
+    // 获取公开URL
     const { data: urlData } = supabase.storage
-      .from('avatars')
-      .getPublicUrl(fileName);
+      .from('user-uploads')
+      .getPublicUrl(filePath);
 
     const avatarUrl = urlData.publicUrl;
 
-    // 更新用户头像
+    // 更新数据库中的头像URL
     await prisma.users.update({
-      where: { id: Number(sessionUser.id) },
-      data: { avatar_url: avatarUrl }
+      where: { id: dbUser.id },
+      data: { avatar_url: avatarUrl },
     });
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       avatarUrl: avatarUrl,
-      message: "Avatar uploaded successfully" 
+      message: "Avatar uploaded successfully"
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error("Avatar upload error:", error);
-    return NextResponse.json({ 
-      error: error?.message || "Failed to upload avatar" 
-    }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
-export async function DELETE() {
-  const sessionUser = await getSessionUser();
-  if (!sessionUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+/**
+ * 删除头像
+ */
+export async function DELETE(req: NextRequest) {
   try {
-    // 删除用户头像
+    const supabase = await createSupabaseServer();
+    
+    // 验证用户身份
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : null;
+
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: { user } } = await supabase.auth.getUser(token);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // 获取数据库用户
+    const dbUser = await prisma.users.findUnique({
+      where: { supabase_user_id: user.id },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // 清除数据库中的头像URL
     await prisma.users.update({
-      where: { id: Number(sessionUser.id) },
-      data: { avatar_url: null }
+      where: { id: dbUser.id },
+      data: { avatar_url: null },
     });
 
-    return NextResponse.json({ 
-      message: "Avatar deleted successfully" 
+    return NextResponse.json({
+      message: "Avatar deleted successfully"
     });
 
-  } catch (error: any) {
-    console.error("Avatar deletion error:", error);
-    return NextResponse.json({ 
-      error: error?.message || "Failed to delete avatar" 
-    }, { status: 500 });
+  } catch (error) {
+    console.error("Avatar delete error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

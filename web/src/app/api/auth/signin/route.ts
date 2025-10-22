@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { createSupabaseServer } from "@/lib/supabase";
+import type { Session } from "@supabase/supabase-js";
 import { Gender, UserRole, UserStatus } from "@prisma/client";
 
 function hash(password: string) {
@@ -68,10 +69,12 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = await createSupabaseServer();
-  const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+  const { data: signInResult, error: signInError } = await supabase.auth.signInWithPassword({
     email: normalizedEmail,
     password: normalizedPassword,
   });
+
+  const signInData = signInResult ?? null;
 
   if (!signInError && signInData?.user) {
     const userId = await ensureLocalUser(signInData.user.id, normalizedEmail);
@@ -109,27 +112,45 @@ export async function POST(req: NextRequest) {
       premiumUntil: user.premium_until ?? null,
     };
 
-    const response = NextResponse.json({ user: responseUser, source: "supabase" });
-    
-    // 设置 Supabase session cookie
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (sessionData.session) {
-      response.cookies.set('sb-access-token', sessionData.session.access_token, {
+  let session: Session | null = signInData?.session ?? null;
+    if (!session) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      session = sessionData?.session ?? null;
+    }
+
+    const responsePayload: Record<string, unknown> = {
+      user: responseUser,
+      source: "supabase",
+    };
+
+    if (session?.access_token) {
+      responsePayload.access_token = session.access_token;
+    }
+
+    if (session?.refresh_token) {
+      responsePayload.refresh_token = session.refresh_token;
+    }
+
+    const response = NextResponse.json(responsePayload);
+
+    // 同时保留 cookie（给 web 用）
+    if (session) {
+      response.cookies.set("sb-access-token", session.access_token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7, // 7 days
-        path: '/'
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 7, // 7天
+        path: "/",
       });
-      response.cookies.set('sb-refresh-token', sessionData.session.refresh_token, {
+      response.cookies.set("sb-refresh-token", session.refresh_token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 30, // 30 days
-        path: '/'
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 30, // 30天
+        path: "/",
       });
     }
-    
+
     return response;
   }
 
