@@ -137,11 +137,21 @@ export class ListingsService {
   // 根据 ID 获取单个商品
   async getListingById(id: string): Promise<ListingItem | null> {
     try {
-      const response = await apiClient.get<ListingItem>(
+      console.log("📖 Fetching listing by ID:", id);
+      
+      const response = await apiClient.get<{ listing: ListingItem }>(
         `${API_CONFIG.ENDPOINTS.LISTINGS}/${id}`
       );
       
-      return response.data || null;
+      console.log("📖 Listing response:", response);
+      
+      if (response.data?.listing) {
+        console.log("✅ Listing found:", response.data.listing.title);
+        return response.data.listing;
+      }
+      
+      console.log("❌ No listing data received");
+      return null;
     } catch (error) {
       console.error('Error fetching listing by ID:', error);
       throw error;
@@ -161,6 +171,78 @@ export class ListingsService {
   // 按价格范围获取商品
   async getListingsByPriceRange(minPrice: number, maxPrice: number, params?: Omit<ListingsQueryParams, 'minPrice' | 'maxPrice'>): Promise<ListingItem[]> {
     return this.getListings({ ...params, minPrice, maxPrice });
+  }
+
+  // 获取用户自己的listings
+  async getUserListings(status?: 'active' | 'sold' | 'all'): Promise<ListingItem[]> {
+    try {
+      console.log("📖 Fetching user listings with status:", status);
+      
+      const params = status ? { status } : {};
+      const response = await apiClient.get<{ listings: ListingItem[] }>(
+        '/api/listings/my',
+        params
+      );
+      
+      console.log("📖 User listings response:", response);
+      
+      if (response.data?.listings) {
+        console.log(`✅ Found ${response.data.listings.length} user listings`);
+        return response.data.listings;
+      }
+      
+      throw new Error('No listings data received');
+    } catch (error) {
+      console.error('Error fetching user listings:', error);
+      throw error;
+    }
+  }
+
+  // 更新listing
+  async updateListing(id: string, updateData: Partial<CreateListingRequest>): Promise<ListingItem> {
+    try {
+      console.log("📝 Updating listing:", id, "with data:", JSON.stringify(updateData, null, 2));
+      
+      const response = await apiClient.patch<{ listing: ListingItem }>(
+        `/api/listings/${id}`,
+        updateData
+      );
+      
+      console.log("📝 Update listing response:", response);
+      
+      if (response.data?.listing) {
+        console.log("✅ Listing updated successfully:", response.data.listing.id);
+        return response.data.listing;
+      }
+      
+      throw new Error('No updated listing data received');
+    } catch (error) {
+      console.error('Error updating listing:', error);
+      throw error;
+    }
+  }
+
+  // 删除listing
+  async deleteListing(id: string): Promise<void> {
+    try {
+      console.log("🗑️ Deleting listing:", id);
+      
+      const response = await apiClient.delete<{ success: boolean }>(
+        `/api/listings/${id}`
+      );
+      
+      console.log("🗑️ Delete listing response:", response);
+      
+      if (response.data?.success) {
+        console.log("✅ Listing deleted successfully:", id);
+        return;
+      }
+      
+      throw new Error('Failed to delete listing');
+    } catch (error) {
+      console.error('Error deleting listing:', error);
+      throw error;
+    }
   }
 }
 

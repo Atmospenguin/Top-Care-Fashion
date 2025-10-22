@@ -42,9 +42,9 @@ export type MyTopStackParamList = {
   TermsPolicies: undefined;
   Report: undefined;
   OrderDetail: { id: string; source: "purchase" | "sold" };
-  ActiveListingDetail: undefined;
-  ManageListing: undefined;
-  EditListing: undefined;
+  ActiveListingDetail: { listingId: string };
+  ManageListing: { listingId: string };
+  EditListing: { listingId: string };
   PromotionPlans: undefined;
   MyBoostListings: undefined;
   BoostedListing: undefined;

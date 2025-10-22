@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dimensions,
   Image,
@@ -7,13 +7,17 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Alert,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
-import type { MyTopStackParamList } from "./index"; // 你的栈类型
+import type { MyTopStackParamList } from "./index";
+import { listingsService } from "../../../src/services/listingsService";
+import type { ListingItem } from "../../../src/types/shop";
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
@@ -21,32 +25,79 @@ const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
 export default function ActiveListingDetailScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
+  const route = useRoute<RouteProp<MyTopStackParamList, "ActiveListingDetail">>();
 
-  // 这条 Listing 的静态数据（按你的确认版）
-  const listing = {
-    id: "bm-corduroy-1",
-    title: "Brandy Melville Corduroy Jacket",
-    price: 35,
-    images: [
-      "https://th.bing.com/th/id/OIP.S07mGFGvwi2ldQARRcy0ngHaJ4?w=138&h=190&c=7&r=0&o=7&cb=12&dpr=2&pid=1.7&rm=3",
-      "https://media.karousell.com/media/photos/products/2019/01/06/brandy_melville_coat_1546784131_d0cba3ab_progressive.jpg",
-      "https://media.karousell.com/media/photos/products/2019/01/06/brandy_melville_coat_1546784131_a1ddefe8_progressive.jpg",
-    ],
-    size: "M",
-    condition: "Brand new",
-    material: "Corduroy",
-    brand: "Brandy Melville",
-    description:
-      "Brand new Brandy Melville Elisha Corduroy Jacket.\nFeatures a warm, sherpa lining and a corduroy exterior.\nClassic brown color, one-size fit, perfect for colder months.\nStill has original tags attached.",
-    seller: {
-      name: "ccc446981",
-      avatar:
-        "https://ui-avatars.com/api/?name=CCC&background=EEE&color=777&bold=true",
-      rating: 5.0,
-      sales: 0,
-      isMe: true, // 自己的 listing
-    },
+  const [listing, setListing] = useState<ListingItem | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // ✅ 获取listing数据
+  useEffect(() => {
+    const fetchListing = async () => {
+      try {
+        const listingId = route.params?.listingId;
+        if (!listingId) {
+          Alert.alert("Error", "No listing ID provided");
+          navigation.goBack();
+          return;
+        }
+
+        console.log("📖 Fetching listing:", listingId);
+        const listingData = await listingsService.getListingById(listingId);
+        
+        if (listingData) {
+          setListing(listingData);
+          console.log("✅ Listing loaded:", listingData.title);
+        } else {
+          Alert.alert("Error", "Listing not found");
+          navigation.goBack();
+        }
+      } catch (error) {
+        console.error("❌ Error fetching listing:", error);
+        Alert.alert("Error", "Failed to load listing");
+        navigation.goBack();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchListing();
+  }, [route.params?.listingId, navigation]);
+
+  // ✅ 处理Manage Listing点击
+  const handleManageListing = () => {
+    if (listing) {
+      navigation.navigate("ManageListing", { listingId: listing.id });
+    }
   };
+
+  // ✅ 处理Boost Listing点击
+  const handleBoostListing = () => {
+    if (listing) {
+      navigation.navigate("PromotionPlans", { listingId: listing.id });
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.screen}>
+        <Header title="" showBack />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!listing) {
+    return (
+      <View style={styles.screen}>
+        <Header title="" showBack />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Listing not found</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>
@@ -61,7 +112,7 @@ export default function ActiveListingDetailScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.imageCarousel}
         >
-          {listing.images.map((uri, idx) => (
+          {(listing.images || []).map((uri, idx) => (
             <Image
               key={`${listing.id}-${idx}`}
               source={{ uri }}
@@ -113,11 +164,14 @@ export default function ActiveListingDetailScreen() {
         <View style={styles.sectionCard}>
           <Text style={styles.sectionHeading}>Seller</Text>
           <View style={styles.sellerRow}>
-            <Image source={{ uri: listing.seller.avatar }} style={styles.sellerAvatar} />
+            <Image 
+              source={{ uri: listing.seller?.avatar || "" }} 
+              style={styles.sellerAvatar} 
+            />
             <View style={{ flex: 1 }}>
-              <Text style={styles.sellerName}>{listing.seller.name}</Text>
+              <Text style={styles.sellerName}>{listing.seller?.name || "Unknown"}</Text>
               <Text style={styles.sellerMeta}>
-                {listing.seller.rating.toFixed(1)} stars | {listing.seller.sales} sales
+                {(listing.seller?.rating || 0).toFixed(1)} stars | {listing.seller?.sales || 0} sales
               </Text>
             </View>
             {/* 自己的 Listing，不展示 message */}
@@ -138,7 +192,7 @@ export default function ActiveListingDetailScreen() {
       <View style={styles.bottomBar}>
         <TouchableOpacity
           style={styles.secondaryButton}
-          onPress={() => navigation.navigate("ManageListing")}
+          onPress={handleManageListing}
         >
           <Icon name="settings-outline" size={20} color="#111" />
           <Text style={styles.secondaryText}>Manage Listing</Text>
@@ -146,7 +200,7 @@ export default function ActiveListingDetailScreen() {
 
         <TouchableOpacity
           style={styles.primaryButton}
-          onPress={() => navigation.navigate("PromotionPlans")}
+          onPress={handleBoostListing}
         >
           <Text style={styles.primaryText}>Boost Listing</Text>
         </TouchableOpacity>
@@ -158,6 +212,15 @@ export default function ActiveListingDetailScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#fff" },
   container: { paddingBottom: 120, rowGap: 16 },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#666",
+  },
   imageCarousel: { columnGap: 12, paddingHorizontal: 16 },
   image: {
     width: IMAGE_SIZE,

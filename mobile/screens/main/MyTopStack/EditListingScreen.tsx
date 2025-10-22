@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,11 +11,17 @@ import {
   ScrollView as RNScrollView,
   FlatList,
   Image,
+  Alert,
 } from "react-native";
+import * as ImagePicker from 'expo-image-picker';
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RouteProp } from "@react-navigation/native";
 import type { MyTopStackParamList } from "./index";
+import { listingsService } from "../../../src/services/listingsService";
+import type { ListingItem } from "../../../src/types/shop";
 
 /** --- Options --- */
 const CATEGORY_OPTIONS = [
@@ -110,23 +116,105 @@ function OptionPicker({
   );
 }
 
-export default function EditListingScreen({
-  navigation,
-}: {
-  navigation: NativeStackNavigationProp<MyTopStackParamList>;
-}) {
-  // 默认值（Brandy Melville）
-  const [description, setDescription] = useState(
-    "Brand new Brandy Melville Elisha Corduroy Jacket. Features a warm, sherpa lining and a corduroy exterior. Classic brown color, one-size fit, perfect for colder months. Still has the original tags attached."
-  );
-  const [category, setCategory] = useState("Outerwear");
-  const [brand, setBrand] = useState("Brandy Melville");
-  const [condition, setCondition] = useState("Brand New");
-  const [size, setSize] = useState("M");
-  const [material, setMaterial] = useState("Corduroy");
-  const [price, setPrice] = useState("35");
-  const [shippingOption, setShippingOption] = useState("Buyer pays – based on distance");
-  const [location, setLocation] = useState("Singapore");
+export default function EditListingScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
+  const route = useRoute<RouteProp<MyTopStackParamList, "EditListing">>();
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [listing, setListing] = useState<ListingItem | null>(null);
+
+  // ✅ 表单状态
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
+  const [brand, setBrand] = useState("");
+  const [condition, setCondition] = useState("");
+  const [size, setSize] = useState("");
+  const [material, setMaterial] = useState("");
+  const [price, setPrice] = useState("");
+  const [shippingOption, setShippingOption] = useState("");
+  const [location, setLocation] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+
+  // ✅ 获取listing数据
+  useEffect(() => {
+    const fetchListing = async () => {
+      try {
+        const listingId = route.params?.listingId;
+        if (!listingId) {
+          Alert.alert("Error", "No listing ID provided");
+          navigation.goBack();
+          return;
+        }
+
+        console.log("📖 Fetching listing for editing:", listingId);
+        const listingData = await listingsService.getListingById(listingId);
+        
+        if (listingData) {
+          setListing(listingData);
+          // ✅ 填充表单数据
+          setDescription(listingData.description || "");
+          setCategory(listingData.category || "");
+          setBrand(listingData.brand || "");
+          setCondition(listingData.condition || "");
+          setSize(listingData.size || "");
+          setMaterial(listingData.material || "");
+          setPrice(listingData.price.toString());
+          setShippingOption("Free shipping"); // 默认值
+          setLocation("Singapore"); // 默认值
+          setImages(listingData.images || []);
+          console.log("✅ Listing loaded for editing:", listingData.title);
+        } else {
+          Alert.alert("Error", "Listing not found");
+          navigation.goBack();
+        }
+      } catch (error) {
+        console.error("❌ Error fetching listing:", error);
+        Alert.alert("Error", "Failed to load listing");
+        navigation.goBack();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchListing();
+  }, [route.params?.listingId, navigation]);
+
+  // ✅ 保存更改
+  const handleSave = async () => {
+    if (!listing) return;
+
+    try {
+      setSaving(true);
+      console.log("📝 Saving listing changes:", listing.id);
+
+      const updateData = {
+        title: listing.title, // 保持原标题
+        description: description.trim(),
+        price: parseFloat(price),
+        brand: brand.trim(),
+        size: size.trim(),
+        condition: condition,
+        material: material.trim(),
+        category: category,
+        images: images,
+        shippingOption: shippingOption,
+        location: location.trim(),
+      };
+
+      const updatedListing = await listingsService.updateListing(listing.id, updateData);
+      console.log("✅ Listing updated successfully:", updatedListing.id);
+
+      Alert.alert("Success", "Listing updated successfully!", [
+        { text: "OK", onPress: () => navigation.goBack() }
+      ]);
+    } catch (error) {
+      console.error("❌ Error updating listing:", error);
+      Alert.alert("Error", "Failed to update listing. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Picker visibility
   const [showCat, setShowCat] = useState(false);
@@ -135,15 +223,142 @@ export default function EditListingScreen({
   const [showMat, setShowMat] = useState(false);
   const [showShip, setShowShip] = useState(false);
 
-  const [images, setImages] = useState([
-    "https://th.bing.com/th/id/OIP.S07mGFGvwi2ldQARRcy0ngHaJ4?w=138&h=190&c=7&r=0&o=7&cb=12&dpr=2&pid=1.7&rm=3",
-    "https://media.karousell.com/media/photos/products/2019/01/06/brandy_melville_coat_1546784131_d0cba3ab_progressive.jpg",
-    "https://media.karousell.com/media/photos/products/2019/01/06/brandy_melville_coat_1546784131_a1ddefe8_progressive.jpg",
-  ]);
-
   const handleDelete = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
   };
+
+  // ✅ 添加图片上传功能
+  const handleAddImage = async () => {
+    try {
+      // 检查是否已达到最大图片数量
+      if (images.length >= 9) {
+        Alert.alert("Maximum Images", "You can only upload up to 9 images.");
+        return;
+      }
+
+      // 请求相册权限
+      const mediaPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (mediaPerm.status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please enable photo library permissions in your device settings to select photos.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Open Settings", onPress: () => {
+              console.log("User should manually open Settings");
+            }}
+          ]
+        );
+        return;
+      }
+
+      // 打开图片选择器
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        allowsMultipleSelection: true, // 允许选择多张图片
+      });
+
+      if (!result.canceled && result.assets) {
+        const newImages = result.assets.map(asset => asset.uri);
+        
+        // 检查添加新图片后是否超过9张
+        if (images.length + newImages.length > 9) {
+          Alert.alert("Too Many Images", `You can only upload up to 9 images total. You currently have ${images.length} images.`);
+          return;
+        }
+
+        setImages([...images, ...newImages]);
+        console.log("📸 Added images:", newImages);
+      }
+    } catch (error) {
+      console.error("Error adding images:", error);
+      Alert.alert("Error", "Failed to add images. Please try again.");
+    }
+  };
+
+  // ✅ 拍照功能
+  const handleTakePhoto = async () => {
+    try {
+      // 检查是否已达到最大图片数量
+      if (images.length >= 9) {
+        Alert.alert("Maximum Images", "You can only upload up to 9 images.");
+        return;
+      }
+
+      // 请求相机权限
+      const cameraPerm = await ImagePicker.requestCameraPermissionsAsync();
+
+      if (cameraPerm.status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please enable camera permissions in your device settings to take photos.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Open Settings", onPress: () => {
+              console.log("User should manually open Settings");
+            }}
+          ]
+        );
+        return;
+      }
+
+      // 打开相机
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const newImage = result.assets[0].uri;
+        setImages([...images, newImage]);
+        console.log("📸 Took photo:", newImage);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      Alert.alert("Error", "Failed to take photo. Please try again.");
+    }
+  };
+
+  // ✅ 显示图片选择选项
+  const showImageOptions = () => {
+    Alert.alert(
+      "Add Photos",
+      "Choose how you'd like to add photos",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Photo Library", onPress: handleAddImage },
+        { text: "Camera", onPress: handleTakePhoto },
+      ]
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <Header title="Edit Listing" showBack />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!listing) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <Header title="Edit Listing" showBack />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Listing not found</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -170,9 +385,12 @@ export default function EditListingScreen({
             </View>
           )}
           ListFooterComponent={
-            <TouchableOpacity style={styles.addPhotoBox}>
-              <Icon name="add" size={26} color="#999" />
-            </TouchableOpacity>
+            images.length < 9 ? (
+              <TouchableOpacity style={styles.addPhotoBox} onPress={showImageOptions}>
+                <Icon name="add" size={26} color="#999" />
+                <Text style={styles.addPhotoText}>Add Photo</Text>
+              </TouchableOpacity>
+            ) : null
           }
           style={{ marginBottom: 16 }}
         />
@@ -235,8 +453,14 @@ export default function EditListingScreen({
           <TouchableOpacity style={styles.draftBtn} onPress={() => navigation.goBack()}>
             <Text style={styles.draftText}>Cancel</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.postBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.postText}>Save Changes</Text>
+          <TouchableOpacity 
+            style={[styles.postBtn, saving && styles.postBtnDisabled]} 
+            onPress={handleSave}
+            disabled={saving}
+          >
+            <Text style={styles.postText}>
+              {saving ? "Saving..." : "Save Changes"}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -287,6 +511,15 @@ export default function EditListingScreen({
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#666",
+  },
   container: { flex: 1, backgroundColor: "#fff", padding: 16 },
 
   /** --- photo --- */
@@ -324,6 +557,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#fafafa",
+  },
+  addPhotoText: {
+    fontSize: 10,
+    color: "#999",
+    marginTop: 4,
+    textAlign: "center",
   },
 
   sectionTitle: { fontSize: 16, fontWeight: "600", marginTop: 12, marginBottom: 8 },
@@ -365,6 +604,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
     marginLeft: 8,
+  },
+  postBtnDisabled: {
+    backgroundColor: "#666",
   },
   postText: { color: "#fff", fontWeight: "600", fontSize: 16 },
   sheetMask: {

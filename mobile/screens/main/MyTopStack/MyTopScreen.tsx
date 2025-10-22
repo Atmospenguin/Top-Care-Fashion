@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   FlatList,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
@@ -19,6 +20,8 @@ import SoldTab from "./SoldTab";
 import PurchasesTab from "./PurchasesTab";
 import LikesTab from "./LikesTab";
 import { useAuth } from "../../../contexts/AuthContext";
+import { listingsService } from "../../../src/services/listingsService";
+import type { ListingItem } from "../../../src/types/shop";
 
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
 const SHOP_CATEGORIES = ["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories", "Dresses"] as const;
@@ -46,6 +49,12 @@ export default function MyTopScreen() {
   const [activeTab, setActiveTab] =
     useState<"Shop" | "Sold" | "Purchases" | "Likes">("Shop");
 
+  // ✅ 添加真实数据状态
+  const [activeListings, setActiveListings] = useState<ListingItem[]>([]);
+  const [soldListings, setSoldListings] = useState<ListingItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [minPrice, setMinPrice] = useState<string>("");
   const [maxPrice, setMaxPrice] = useState<string>("");
@@ -61,13 +70,59 @@ export default function MyTopScreen() {
   const [tempCategory, setTempCategory] = useState<string>("All");
   const [tempCondition, setTempCondition] = useState<string>("All");
 
+  // ✅ 获取用户listings
+  const fetchUserListings = async (status?: 'active' | 'sold' | 'all') => {
+    try {
+      console.log("📖 Fetching user listings with status:", status);
+      const listings = await listingsService.getUserListings(status);
+      
+      if (status === 'active' || status === undefined) {
+        setActiveListings(listings);
+      } else if (status === 'sold') {
+        setSoldListings(listings);
+      }
+      
+      console.log(`✅ Loaded ${listings.length} ${status || 'active'} listings`);
+    } catch (error) {
+      console.error("❌ Error fetching user listings:", error);
+      Alert.alert("Error", "Failed to load listings. Please try again.");
+    }
+  };
+
+  // ✅ 刷新数据
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchUserListings('active'),
+        fetchUserListings('sold'),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // ✅ 组件加载时获取数据
+  useEffect(() => {
+    if (user) {
+      fetchUserListings('active');
+      fetchUserListings('sold');
+    }
+  }, [user]);
+
+  // ✅ 当屏幕获得焦点时刷新数据
   useFocusEffect(
     useCallback(() => {
       if (route.params?.initialTab) {
         setActiveTab(route.params.initialTab);
         navigation.setParams({ initialTab: undefined });
       }
-    }, [route.params?.initialTab, navigation])
+      
+      // 刷新数据
+      if (user) {
+        onRefresh();
+      }
+    }, [route.params?.initialTab, navigation, user])
   );
 
   // ✅ 使用真实用户数据，提供默认值以防用户数据为空
@@ -78,13 +133,12 @@ export default function MyTopScreen() {
     reviews: 0,
     bio: user?.bio || "Welcome to my profile!",
     avatar: user?.avatar_url || DEFAULT_AVATAR,
-    activeListings: [
-      {
-        id: 1,
-        image:
-          "https://th.bing.com/th/id/OIP.S07mGFGvwi2ldQARRcy0ngHaJ4?w=138&h=190&c=7&r=0&o=7&cb=12&dpr=2&pid=1.7&rm=3",
-      },
-    ],
+    activeListings: activeListings, // ✅ 使用真实的active listings
+  };
+
+  // ✅ 处理listing点击
+  const handleListingPress = (listing: ListingItem) => {
+    navigation.navigate("ActiveListingDetail", { listingId: listing.id });
   };
 
   const tabs: Array<"Shop" | "Sold" | "Purchases" | "Likes"> = [
@@ -131,6 +185,8 @@ export default function MyTopScreen() {
             keyExtractor={(item) => String(item.id)}
             numColumns={3}
             showsVerticalScrollIndicator={false}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
             ListHeaderComponent={
               <View style={styles.headerContent}>
                 {/* Profile 区 */}
@@ -188,9 +244,16 @@ export default function MyTopScreen() {
               ) : (
                 <TouchableOpacity
                   style={styles.itemBox}
-                  onPress={() => navigation.navigate("ActiveListingDetail")}
+                  onPress={() => handleListingPress(item as ListingItem)}
                 >
-                  <Image source={{ uri: item.image }} style={styles.itemImage} />
+                  {/* ✅ 使用真实的listing数据 */}
+                  {(() => {
+                    const listing = item as ListingItem;
+                    const imageUri = listing.images && listing.images.length > 0 
+                      ? listing.images[0] 
+                      : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
+                    return <Image source={{ uri: imageUri }} style={styles.itemImage} />;
+                  })()}
                 </TouchableOpacity>
               )
             }
