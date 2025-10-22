@@ -1,6 +1,6 @@
 import { apiClient } from './api';
 import { API_CONFIG } from '../config/api';
-import type { ListingItem } from '../types/shop';
+import type { ListingItem } from '../../types/shop';
 
 // 商品列表查询参数
 export interface ListingsQueryParams {

@@ -2,7 +2,6 @@ import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { createSupabaseServer } from "@/lib/supabase";
-import type { Session } from "@supabase/supabase-js";
 import { Gender, UserRole, UserStatus } from "@prisma/client";
 
 function hash(password: string) {
@@ -69,25 +68,24 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = await createSupabaseServer();
-  const { data: signInResult, error: signInError } = await supabase.auth.signInWithPassword({
+
+  // 1) 先用 Supabase 登录
+  const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
     email: normalizedEmail,
     password: normalizedPassword,
   });
 
-  const signInData = signInResult ?? null;
-
-  if (!signInError && signInData?.user) {
-    const userId = await ensureLocalUser(signInData.user.id, normalizedEmail);
-    
-    // 获取用户完整信息
+  if (signInError || !signInData?.user) {
+    // 后备：走本地 users 表的密码哈希（你已有的逻辑，保持不变）
     const user = await prisma.users.findUnique({
-      where: { id: userId },
+      where: { email: normalizedEmail },
       select: {
         id: true,
         username: true,
         email: true,
         role: true,
         status: true,
+        password_hash: true,
         is_premium: true,
         premium_until: true,
         dob: true,
@@ -96,7 +94,13 @@ export async function POST(req: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json({ error: "invalid credentials" }, { status: 401 });
+    }
+    if (user.password_hash && user.password_hash !== hash(normalizedPassword)) {
+      return NextResponse.json({ error: "invalid credentials" }, { status: 401 });
+    }
+    if (user.status === "SUSPENDED") {
+      return NextResponse.json({ error: "account suspended" }, { status: 403 });
     }
 
     const dob = user.dob ? user.dob.toISOString().slice(0, 10) : null;
@@ -107,79 +111,35 @@ export async function POST(req: NextRequest) {
       role: mapRole(user.role),
       status: mapStatus(user.status),
       dob,
-      gender: mapGender(user.gender),
+      gender: user.gender === "MALE" ? "Male" : user.gender === "FEMALE" ? "Female" : null,
       isPremium: Boolean(user.is_premium),
       premiumUntil: user.premium_until ?? null,
     };
 
-  let session: Session | null = signInData?.session ?? null;
-    if (!session) {
-      const { data: sessionData } = await supabase.auth.getSession();
-      session = sessionData?.session ?? null;
-    }
-
-    const responsePayload: Record<string, unknown> = {
-      user: responseUser,
-      source: "supabase",
-    };
-
-    if (session?.access_token) {
-      responsePayload.access_token = session.access_token;
-    }
-
-    if (session?.refresh_token) {
-      responsePayload.refresh_token = session.refresh_token;
-    }
-
-    const response = NextResponse.json(responsePayload);
-
-    // 同时保留 cookie（给 web 用）
-    if (session) {
-      response.cookies.set("sb-access-token", session.access_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 7, // 7天
-        path: "/",
-      });
-      response.cookies.set("sb-refresh-token", session.refresh_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 30, // 30天
-        path: "/",
-      });
-    }
-
-    return response;
+    const resp = NextResponse.json({ user: responseUser, fallback: true });
+    resp.cookies.set("tc_session", String(user.id), { httpOnly: true, sameSite: "lax", path: "/" });
+    return resp;
   }
 
+  // 2) 绑定 / 同步本地 users 表
+  const userId = await ensureLocalUser(signInData.user.id, normalizedEmail);
+
   const user = await prisma.users.findUnique({
-    where: { email: normalizedEmail },
+    where: { id: userId },
     select: {
       id: true,
       username: true,
       email: true,
       role: true,
       status: true,
-      password_hash: true,
       is_premium: true,
       premium_until: true,
       dob: true,
       gender: true,
     },
   });
-
   if (!user) {
-    return NextResponse.json({ error: "invalid credentials" }, { status: 401 });
-  }
-
-  if (user.password_hash && user.password_hash !== hash(normalizedPassword)) {
-    return NextResponse.json({ error: "invalid credentials" }, { status: 401 });
-  }
-
-  if (mapStatus(user.status) === "suspended") {
-    return NextResponse.json({ error: "account suspended" }, { status: 403 });
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
   const dob = user.dob ? user.dob.toISOString().slice(0, 10) : null;
@@ -187,15 +147,51 @@ export async function POST(req: NextRequest) {
     id: user.id,
     username: user.username,
     email: user.email,
-    role: mapRole(user.role),
-    status: mapStatus(user.status),
+    role: user.role === "ADMIN" ? "Admin" : "User",
+    status: user.status === "SUSPENDED" ? "suspended" : "active",
     dob,
-    gender: mapGender(user.gender),
+    gender: user.gender === "MALE" ? "Male" : user.gender === "FEMALE" ? "Female" : null,
     isPremium: Boolean(user.is_premium),
     premiumUntil: user.premium_until ?? null,
   };
 
-  const response = NextResponse.json({ user: responseUser, fallback: true });
-  response.cookies.set("tc_session", String(user.id), { httpOnly: true, sameSite: "lax", path: "/" });
+  // 3) 关键：稳健获取 session（两步兜底）
+  //    A. 先从 signInData.session 拿
+  let session: any = signInData.session ?? null;
+
+  //    B. 还没有？再调用 getSession() 兜底
+  if (!session) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    session = sessionData?.session ?? null;
+  }
+
+  const accessToken = session?.access_token ?? null;
+  const refreshToken = session?.refresh_token ?? null;
+
+  const response = NextResponse.json({
+    user: responseUser,
+    source: "supabase",
+    access_token: accessToken,      // ← mobile 就靠这个
+    refresh_token: refreshToken,    // ← 可选
+  });
+
+  // 给 web（浏览器）留 cookie（保持你之前的逻辑）
+  if (session) {
+    response.cookies.set("sb-access-token", session.access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7,
+      path: "/",
+    });
+    response.cookies.set("sb-refresh-token", session.refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30,
+      path: "/",
+    });
+  }
+
   return response;
 }

@@ -137,7 +137,6 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.grid}>
-            {console.log('🔍 HomeScreen: Rendering items:', featuredItems.length)}
             {featuredItems.slice(0, 3).map((item) => (
               <TouchableOpacity
                 key={item.id}
