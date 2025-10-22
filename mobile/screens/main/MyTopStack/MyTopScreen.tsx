@@ -18,6 +18,7 @@ import type { MyTopStackParamList } from "./index";
 import SoldTab from "./SoldTab";
 import PurchasesTab from "./PurchasesTab";
 import LikesTab from "./LikesTab";
+import { useAuth } from "../../../contexts/AuthContext";
 
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
 const SHOP_CATEGORIES = ["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories", "Dresses"] as const;
@@ -38,6 +39,7 @@ function formatData(data: any[], numColumns: number) {
 }
 
 export default function MyTopScreen() {
+  const { user } = useAuth(); // ✅ 使用全局用户状态
   const navigation =
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
   const route = useRoute<RouteProp<MyTopStackParamList, "MyTopMain">>();
@@ -68,13 +70,14 @@ export default function MyTopScreen() {
     }, [route.params?.initialTab, navigation])
   );
 
-  const mockUser = {
-    username: "ccc446981",
+  // ✅ 使用真实用户数据，提供默认值以防用户数据为空
+  const displayUser = {
+    username: user?.username || "User",
     followers: 0,
     following: 0,
     reviews: 0,
-    bio: "My name is Pink, and I'm really glad to meet you",
-    avatar: DEFAULT_AVATAR,
+    bio: user?.bio || "Welcome to my profile!",
+    avatar: user?.avatar_url || DEFAULT_AVATAR,
     activeListings: [
       {
         id: 1,
@@ -96,7 +99,7 @@ export default function MyTopScreen() {
       {/* 顶部 Header */}
       <View style={styles.header}>
         <View style={{ width: 24 }} />
-        <Text style={styles.username}>{mockUser.username}</Text>
+        <Text style={styles.username}>{displayUser.username}</Text>
         <TouchableOpacity onPress={() => navigation.navigate("Settings")}>
           <Icon name="settings-sharp" size={24} color="#111" />
         </TouchableOpacity>
@@ -121,8 +124,8 @@ export default function MyTopScreen() {
         {activeTab === "Shop" && (
           <FlatList
             data={
-              mockUser.activeListings.length
-                ? formatData(mockUser.activeListings, 3)
+              displayUser.activeListings.length
+                ? formatData(displayUser.activeListings, 3)
                 : []
             }
             keyExtractor={(item) => String(item.id)}
@@ -132,17 +135,20 @@ export default function MyTopScreen() {
               <View style={styles.headerContent}>
                 {/* Profile 区 */}
                 <View style={styles.profileRow}>
-                  <Image source={mockUser.avatar} style={styles.avatar} />
+                  <Image 
+                    source={displayUser.avatar.startsWith('http') ? { uri: displayUser.avatar } : displayUser.avatar} 
+                    style={styles.avatar} 
+                  />
                   <View style={styles.statsRow}>
-                    <Text style={styles.stats}>{mockUser.followers} followers</Text>
-                    <Text style={styles.stats}>{mockUser.following} following</Text>
-                    <Text style={styles.stats}>{mockUser.reviews} reviews</Text>
+                    <Text style={styles.stats}>{displayUser.followers} followers</Text>
+                    <Text style={styles.stats}>{displayUser.following} following</Text>
+                    <Text style={styles.stats}>{displayUser.reviews} reviews</Text>
                   </View>
                 </View>
 
                 {/* Bio */}
                 <View style={styles.bioRow}>
-                  <Text style={styles.bio}>{mockUser.bio}</Text>
+                  <Text style={styles.bio}>{displayUser.bio}</Text>
                   <TouchableOpacity
                     style={styles.editBtn}
                     onPress={() => navigation.navigate("EditProfile")}
@@ -154,7 +160,7 @@ export default function MyTopScreen() {
                 {/* Active Title */}
                 <View style={styles.activeRow}>
                   <Text style={styles.activeTitle}>
-                    Active ({mockUser.activeListings.length} listings)
+                    Active ({displayUser.activeListings.length} listings)
                   </Text>
                   <TouchableOpacity 
                     onPress={() => setFilterModalVisible(true)}

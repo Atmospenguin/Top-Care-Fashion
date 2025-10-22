@@ -4,12 +4,24 @@ import { getSessionUser } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
-    const sessionUser = await getSessionUser();
+    console.log("📝 ===== LISTING CREATE REQUEST RECEIVED =====");
+    console.log("📝 Request URL:", req.url);
+    console.log("📝 Request method:", req.method);
+    console.log("📝 Request headers:", Object.fromEntries(req.headers.entries()));
+    
+    console.log("📝 Creating listing...");
+    console.log("📝 Authorization header:", req.headers.get('authorization'));
+    
+    const sessionUser = await getSessionUser(req);
     if (!sessionUser) {
+      console.log("❌ No session user found");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    
+    console.log("✅ Authenticated user:", sessionUser.username);
 
     const body = await req.json();
+    console.log("📝 Request body received:", JSON.stringify(body, null, 2));
     const {
       title,
       description,
@@ -28,11 +40,31 @@ export async function POST(req: Request) {
 
     // 验证必需字段
     if (!title || !description || !price || !brand || !size || !condition || !category) {
+      console.log("❌ Missing required fields:", { title: !!title, description: !!description, price: !!price, brand: !!brand, size: !!size, condition: !!condition, category: !!category });
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
+
+    // 转换condition字符串到ConditionType枚举
+    const mapConditionToEnum = (conditionStr: string) => {
+      const conditionMap: Record<string, "NEW" | "LIKE_NEW" | "GOOD" | "FAIR" | "POOR"> = {
+        "Brand New": "NEW",
+        "Like New": "LIKE_NEW", 
+        "Good": "GOOD",
+        "Fair": "FAIR",
+        "Poor": "POOR"
+      };
+      return conditionMap[conditionStr] || "GOOD";
+    };
+
+    console.log("📝 Creating listing with mapped data:", {
+      name: title,
+      condition_type: mapConditionToEnum(condition),
+      category_id: await getCategoryId(category),
+      seller_id: sessionUser.id
+    });
 
     // 创建 listing
     const listing = await prisma.listings.create({
@@ -42,7 +74,7 @@ export async function POST(req: Request) {
         price: parseFloat(price),
         brand,
         size,
-        condition_type: condition, // 使用 condition_type 字段
+        condition_type: mapConditionToEnum(condition), // 转换为枚举值
         material: material || null,
         tags: tags ? JSON.stringify(tags) : null,
         category_id: await getCategoryId(category),
@@ -96,9 +128,10 @@ export async function POST(req: Request) {
     });
 
   } catch (error) {
-    console.error("Error creating listing:", error);
+    console.error("❌ Error creating listing:", error);
+    console.error("📦 Error detail:", JSON.stringify(error, null, 2));
     return NextResponse.json(
-      { error: "Failed to create listing" },
+      { error: "Failed to create listing", details: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     );
   }

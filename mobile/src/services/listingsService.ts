@@ -75,9 +75,15 @@ export class ListingsService {
   // 创建商品
   async createListing(listingData: CreateListingRequest): Promise<ListingItem> {
     try {
+      console.log("📝 Creating listing with data:", JSON.stringify(listingData, null, 2));
+      console.log("📝 API endpoint:", '/api/listings/create');
+      
       const response = await apiClient.post<{ data: ListingItem }>('/api/listings/create', listingData);
       
+      console.log("📝 Create listing response:", response);
+      
       if (response.data?.data) {
+        console.log("✅ Listing created successfully:", response.data.data.id);
         return response.data.data;
       }
       

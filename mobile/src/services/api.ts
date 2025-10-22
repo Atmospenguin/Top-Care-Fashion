@@ -51,7 +51,7 @@ class ApiClient {
     try {
       // 首先尝试使用存储的 token
       if (this.authToken) {
-        console.log("🔍 API Client - Using stored token");
+        console.log("🔍 API Client - Using stored token:", this.authToken.substring(0, 20) + "...");
         return { Authorization: `Bearer ${this.authToken}` };
       }
 
