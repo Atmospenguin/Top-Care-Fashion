@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { Prisma } from "@prisma/client";
 
 export async function POST(req: Request) {
   try {
@@ -76,10 +77,10 @@ export async function POST(req: Request) {
         size,
         condition_type: mapConditionToEnum(condition), // 转换为枚举值
         material: material || null,
-        tags: tags ? JSON.stringify(tags) : null,
+        tags: tags ? JSON.stringify(tags) : Prisma.JsonNull,
         category_id: await getCategoryId(category),
         seller_id: sessionUser.id,
-        image_urls: images ? JSON.stringify(images) : null,
+        image_urls: images ? JSON.stringify(images) : Prisma.JsonNull,
         listed: true,
         sold: false,
       },
@@ -114,14 +115,14 @@ export async function POST(req: Request) {
         size: listing.size,
         condition: listing.condition_type,
         material: listing.material,
-        tags: listing.tags ? JSON.parse(listing.tags) : [],
+        tags: listing.tags ? JSON.parse(listing.tags as string) : [],
         category: listing.category?.name,
-        images: listing.image_urls ? JSON.parse(listing.image_urls) : [],
+        images: listing.image_urls ? JSON.parse(listing.image_urls as string) : [],
         seller: {
-          name: listing.seller.username,
-          avatar: listing.seller.avatar_url || "",
-          rating: listing.seller.average_rating || 0,
-          sales: listing.seller.total_reviews || 0,
+          name: listing.seller?.username || "Unknown",
+          avatar: listing.seller?.avatar_url || "",
+          rating: listing.seller?.average_rating || 0,
+          sales: listing.seller?.total_reviews || 0,
         },
         createdAt: listing.created_at,
       },
