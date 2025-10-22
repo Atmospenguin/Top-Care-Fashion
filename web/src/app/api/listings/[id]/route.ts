@@ -104,6 +104,17 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       return NextResponse.json({ error: "Listing not found" }, { status: 404 });
     }
 
+    const mapConditionToDisplay = (conditionEnum: string) => {
+      const conditionMap: Record<string, string> = {
+        "NEW": "Brand New",
+        "LIKE_NEW": "Like new",
+        "GOOD": "Good",
+        "FAIR": "Fair",
+        "POOR": "Poor"
+      };
+      return conditionMap[conditionEnum] || conditionEnum;
+    };
+
     const formattedListing = {
       id: listing.id.toString(),
       title: listing.name,
@@ -111,7 +122,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       price: Number(listing.price),
       brand: listing.brand,
       size: listing.size,
-      condition: listing.condition_type,
+      condition: mapConditionToDisplay(listing.condition_type),
       material: listing.material,
       tags: listing.tags ? JSON.parse(listing.tags) : [],
       category: listing.category?.name,

@@ -77,6 +77,17 @@ export async function GET(req: Request) {
       return [];
     };
 
+    const mapConditionToDisplay = (conditionEnum: string) => {
+      const conditionMap: Record<string, string> = {
+        "NEW": "Brand New",
+        "LIKE_NEW": "Like new",
+        "GOOD": "Good",
+        "FAIR": "Fair",
+        "POOR": "Poor"
+      };
+      return conditionMap[conditionEnum] || conditionEnum;
+    };
+
     const toNumber = (value: unknown): number => {
       if (value == null) return 0;
       if (typeof value === "number") return value;
@@ -115,7 +126,7 @@ export async function GET(req: Request) {
   price: toNumber(listing.price),
         brand: listing.brand,
         size: listing.size,
-        condition: listing.condition_type, // 使用 condition_type 字段
+        condition: mapConditionToDisplay(listing.condition_type), // 使用映射函数转换枚举值
         material: listing.material,
         tags: toArray(listing.tags),
         category: listing.category?.name ?? null,
