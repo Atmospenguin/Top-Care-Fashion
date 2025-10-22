@@ -38,11 +38,29 @@ export default function EditProfileScreen() {
   
   // 头像状态
   const [avatarUri, setAvatarUri] = useState<string | null>(user?.avatar_url || null);
+  const [avatarAsset, setAvatarAsset] = useState<any>(null);
 
   // 更新表单数据
   const updateFormData = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  // ✅ 检查当前权限状态（调试用）
+  const checkPermissions = async () => {
+    try {
+      const cameraStatus = await ImagePicker.getCameraPermissionsAsync();
+      const mediaStatus = await ImagePicker.getMediaLibraryPermissionsAsync();
+      console.log("🔍 Current camera permission:", cameraStatus);
+      console.log("🔍 Current media permission:", mediaStatus);
+    } catch (error) {
+      console.error("Error checking permissions:", error);
+    }
+  };
+
+  // ✅ 组件加载时检查权限状态
+  useEffect(() => {
+    checkPermissions();
+  }, []);
 
   // 选择头像
   const handleAvatarPress = async () => {
@@ -74,6 +92,30 @@ export default function EditProfileScreen() {
   // 打开相机
   const openCamera = async () => {
     try {
+      // ✅ 主动请求相机权限
+      console.log("🔍 Requesting camera permissions...");
+      const cameraPerm = await ImagePicker.requestCameraPermissionsAsync();
+      const mediaPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      console.log("🔍 Camera permission:", cameraPerm.status);
+      console.log("🔍 Media permission:", mediaPerm.status);
+
+      if (cameraPerm.status !== "granted" || mediaPerm.status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please enable camera and photo library permissions in your device settings to take photos.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Open Settings", onPress: () => {
+              // 在iOS上可以打开设置页面
+              console.log("User should manually open Settings");
+            }}
+          ]
+        );
+        return;
+      }
+
+      console.log("✅ Permissions granted, opening camera...");
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: 'Images', // ✅ 更简单的写法
         allowsEditing: true,
@@ -82,17 +124,41 @@ export default function EditProfileScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setAvatarUri(result.assets[0].uri);
+        const asset = result.assets[0];
+        setAvatarUri(asset.uri);
+        setAvatarAsset(asset);
+        console.log("📸 Camera asset info:", asset);
       }
     } catch (error) {
       console.error("Error opening camera:", error);
-      Alert.alert("Error", "Failed to open camera");
+      Alert.alert("Error", "Failed to open camera. Please check your camera permissions.");
     }
   };
 
   // 打开图片选择器
   const openImagePicker = async () => {
     try {
+      // ✅ 主动请求相册权限
+      console.log("🔍 Requesting media library permissions...");
+      const mediaPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      console.log("🔍 Media permission:", mediaPerm.status);
+
+      if (mediaPerm.status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please enable photo library permissions in your device settings to select photos.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Open Settings", onPress: () => {
+              console.log("User should manually open Settings");
+            }}
+          ]
+        );
+        return;
+      }
+
+      console.log("✅ Permissions granted, opening image picker...");
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: 'Images', // ✅ 更简单的写法
         allowsEditing: true,
@@ -101,11 +167,14 @@ export default function EditProfileScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setAvatarUri(result.assets[0].uri);
+        const asset = result.assets[0];
+        setAvatarUri(asset.uri);
+        setAvatarAsset(asset);
+        console.log("📸 Image picker asset info:", asset);
       }
     } catch (error) {
       console.error("Error opening image picker:", error);
-      Alert.alert("Error", "Failed to open image picker");
+      Alert.alert("Error", "Failed to open image picker. Please check your photo library permissions.");
     }
   };
 
@@ -128,7 +197,8 @@ export default function EditProfileScreen() {
       // 如果有新头像，先上传头像
       if (avatarUri && avatarUri !== user?.avatar_url) {
         try {
-          const uploadedAvatarUrl = await userService.uploadAvatar(avatarUri);
+          console.log("📸 Uploading avatar with asset info:", avatarAsset);
+          const uploadedAvatarUrl = await userService.uploadAvatar(avatarUri, avatarAsset);
           updateData.avatar_url = uploadedAvatarUrl;
         } catch (error) {
           console.error("Avatar upload failed:", error);

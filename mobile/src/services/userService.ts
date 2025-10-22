@@ -38,12 +38,43 @@ export class UserService {
     return res.data.user;
   }
 
-  // ✅ 修复后的头像上传：支持 FormData + base64 fallback
-  async uploadAvatar(imageUri: string): Promise<string> {
+  // ✅ 修复后的头像上传：统一处理拍照和图库，支持 FormData + base64 fallback
+  async uploadAvatar(imageUri: string, assetInfo?: any): Promise<string> {
     try {
       console.log("📸 Starting avatar upload...");
-      const fileName = imageUri.split("/").pop() || "avatar.jpg";
-      const fileType = fileName.endsWith(".png") ? "image/png" : "image/jpeg";
+      console.log("📸 Image URI:", imageUri);
+      console.log("📸 Asset info:", assetInfo);
+
+      // ✅ 统一处理文件名和类型（兼容拍照和图库）
+      let fileName: string;
+      let fileType: string;
+
+      if (assetInfo?.fileName) {
+        // 图库模式：使用原始文件名
+        fileName = assetInfo.fileName;
+        fileType = assetInfo.type || "image/jpeg";
+      } else {
+        // 拍照模式：动态生成文件名
+        const uriFileName = imageUri.split("/").pop() || "";
+        const hasExtension = uriFileName.includes(".");
+        
+        if (hasExtension) {
+          fileName = uriFileName;
+          fileType = uriFileName.endsWith(".png") ? "image/png" : "image/jpeg";
+        } else {
+          // 拍照模式可能没有扩展名，动态生成
+          fileName = `avatar_${Date.now()}.jpg`;
+          fileType = "image/jpeg";
+        }
+      }
+
+      // ✅ 确保文件类型正确（iOS拍照可能返回"image"）
+      if (fileType === "image") {
+        fileType = "image/jpeg";
+      }
+
+      console.log("📸 Final file name:", fileName);
+      console.log("📸 Final file type:", fileType);
 
       // --- 方法 1：正确的 FormData 格式 ---
       try {
@@ -55,9 +86,6 @@ export class UserService {
         } as any);
 
         console.log("👉 Trying FormData upload...");
-        console.log("📸 Image URI:", imageUri);
-        console.log("📸 File name:", fileName);
-        console.log("📸 File type:", fileType);
         console.log("📸 API endpoint:", `${API_CONFIG.ENDPOINTS.PROFILE}/avatar`);
         
         // ✅ 使用正确的API调用方式，不手动设置Content-Type
