@@ -174,6 +174,7 @@ export async function GET(req: Request) {
         size: mapSizeToDisplay(listing.size),
         condition: mapConditionToDisplay(listing.condition_type), // 使用映射函数转换枚举值
         material: listing.material,
+        gender: (listing as any).gender || "unisex",
         tags: toArray(listing.tags),
         category: listing.category?.name ?? null,
         images: toArray(listing.image_urls),

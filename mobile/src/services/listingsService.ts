@@ -23,6 +23,7 @@ export interface CreateListingRequest {
   material?: string;
   tags?: string[];
   category: string;
+  gender: string;
   images: string[];
   shippingOption?: string;
   shippingFee?: number;

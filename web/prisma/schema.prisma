@@ -68,6 +68,7 @@ model listings {
   brand           String?             @db.VarChar(100)
   size            String?             @db.VarChar(50)
   condition_type  ConditionType       @default(GOOD)
+  gender          String?             @db.VarChar(10) @default("unisex")
   tags            Json?               @db.Json
   created_at      DateTime            @default(now()) @db.Timestamptz(6)
   sold_at         DateTime?           @db.Timestamptz(6)

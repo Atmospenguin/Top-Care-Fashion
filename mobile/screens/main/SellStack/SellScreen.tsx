@@ -24,6 +24,7 @@ import { listingsService, type CreateListingRequest } from "../../../src/service
 const CATEGORY_OPTIONS = ["Tops", "Bottoms", "Shoes", "Bags", "Accessories", "Outerwear", "Dresses", "Others"];
 const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "Others"];
 const CONDITION_OPTIONS = ["Brand New", "Like new", "Good", "Fair", "Poor"];
+const GENDER_OPTIONS = ["Men", "Women", "Unisex"];
 const SIZE_OPTIONS_CLOTHES = [
   "XXS",
   "XS",
@@ -88,7 +89,13 @@ const MATERIAL_OPTIONS = [
   "Rayon / Viscose",
   "Other",
 ];
-const SHIPPING_OPTIONS = ["Free shipping", "Buyer pays – based on distance", "Buyer pays – fixed fee", "Meet-up"];
+const SHIPPING_OPTIONS = [
+  "Free shipping", 
+  "Buyer pays – $3 (within 10km)", 
+  "Buyer pays – $5 (island-wide)", 
+  "Buyer pays – fixed fee", 
+  "Meet-up"
+];
 const DEFAULT_TAGS = [
   "Vintage",
   "Y2K",
@@ -210,6 +217,9 @@ export default function SellScreen({
   const [aiDesc, setAiDesc] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Gender
+  const [gender, setGender] = useState("Select");
+  
   // Info
   const [category, setCategory] = useState("Select");
   const [condition, setCondition] = useState("Select");
@@ -229,6 +239,7 @@ export default function SellScreen({
   const [location, setLocation] = useState("");
 
   // Pickers
+  const [showGender, setShowGender] = useState(false);
   const [showCat, setShowCat] = useState(false);
   const [showCond, setShowCond] = useState(false);
   const [showSize, setShowSize] = useState(false);
@@ -360,10 +371,11 @@ export default function SellScreen({
         material: material === "Other" ? customMaterial : material,
         tags,
         category,
+        gender: gender.toLowerCase(),
         images: uploadedImages,
         shippingOption,
         shippingFee: shippingFee ? parseFloat(shippingFee) : undefined,
-        location: location.trim() || undefined,
+        location: shippingOption === "Meet-up" ? location.trim() : undefined,
       };
 
       const createdListing = await listingsService.createListing(listingData);
@@ -378,6 +390,7 @@ export default function SellScreen({
               // 重置表单
               setTitle("");
               setDescription("");
+              setGender("Select");
               setCategory("Select");
               setCondition("Select");
               setSize("Select");
@@ -505,6 +518,11 @@ export default function SellScreen({
 
         {/* Info */}
         <Text style={styles.sectionTitle}>Info</Text>
+        <Text style={styles.fieldLabel}>Gender</Text>
+        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowGender(true)}>
+          <Text style={styles.selectValue}>{gender}</Text>
+        </TouchableOpacity>
+
         <Text style={styles.fieldLabel}>Category</Text>
         <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCat(true)}>
           <Text style={styles.selectValue}>{category}</Text>
@@ -615,20 +633,26 @@ export default function SellScreen({
         {shippingOption === "Buyer pays – fixed fee" && (
           <TextInput
             style={styles.input}
-            placeholder="Enter fixed fee (e.g. $3.00)"
+            placeholder="Enter custom fee (e.g. $3.00)"
+            placeholderTextColor="#999"
             keyboardType="numeric"
             value={shippingFee}
             onChangeText={setShippingFee}
           />
         )}
 
-        <Text style={styles.fieldLabel}>Location</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Location (eg. Bugis, Singapore)"
-          value={location}
-          onChangeText={setLocation}
-        />
+        {shippingOption === "Meet-up" && (
+          <>
+            <Text style={styles.fieldLabel}>Meet-up Location</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="eg. Bugis MRT Station, Singapore"
+              placeholderTextColor="#999"
+              value={location}
+              onChangeText={setLocation}
+            />
+          </>
+        )}
 
         {/* Footer */}
         <View style={styles.footer}>
@@ -650,6 +674,7 @@ export default function SellScreen({
       </ScrollView>
 
       {/* Pickers */}
+      <OptionPicker title="Select gender" visible={showGender} options={GENDER_OPTIONS} value={gender} onClose={() => setShowGender(false)} onSelect={setGender} />
       <OptionPicker title="Select category" visible={showCat} options={CATEGORY_OPTIONS} value={category} onClose={() => setShowCat(false)} onSelect={setCategory} />
       <OptionPicker title="Select brand" visible={showBrand} options={BRAND_OPTIONS} value={brand} onClose={() => setShowBrand(false)} onSelect={setBrand} />
       <OptionPicker title="Select condition" visible={showCond} options={CONDITION_OPTIONS} value={condition} onClose={() => setShowCond(false)} onSelect={setCondition} />

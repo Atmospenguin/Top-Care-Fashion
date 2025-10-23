@@ -33,6 +33,7 @@ export async function POST(req: Request) {
       material,
       tags,
       category,
+      gender,
       images,
       shippingOption,
       shippingFee,
@@ -40,8 +41,8 @@ export async function POST(req: Request) {
     } = body;
 
     // 验证必需字段
-    if (!title || !description || !price || !brand || !size || !condition || !category) {
-      console.log("❌ Missing required fields:", { title: !!title, description: !!description, price: !!price, brand: !!brand, size: !!size, condition: !!condition, category: !!category });
+    if (!title || !description || !price || !brand || !size || !condition || !category || !gender) {
+      console.log("❌ Missing required fields:", { title: !!title, description: !!description, price: !!price, brand: !!brand, size: !!size, condition: !!condition, category: !!category, gender: !!gender });
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -79,11 +80,12 @@ export async function POST(req: Request) {
         material: material || null,
         tags: tags ? JSON.stringify(tags) : Prisma.JsonNull,
         category_id: await getCategoryId(category),
+        gender: gender.toLowerCase(),
         seller_id: sessionUser.id,
         image_urls: images ? JSON.stringify(images) : Prisma.JsonNull,
         listed: true,
         sold: false,
-      },
+      } as any,
       include: {
         seller: {
           select: {
@@ -161,6 +163,7 @@ export async function POST(req: Request) {
         size: mapSizeToDisplay(listing.size),
         condition: listing.condition_type,
         material: listing.material,
+        gender: (listing as any).gender || "unisex",
         tags: listing.tags ? JSON.parse(listing.tags as string) : [],
         category: listing.category?.name,
         images: listing.image_urls ? JSON.parse(listing.image_urls as string) : [],

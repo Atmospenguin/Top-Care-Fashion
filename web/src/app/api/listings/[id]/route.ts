@@ -174,6 +174,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       size: mapSizeToDisplay(listing.size),
       condition: mapConditionToDisplay(listing.condition_type),
       material: listing.material,
+      gender: (listing as any).gender || "unisex",
       tags: listing.tags ? JSON.parse(listing.tags as string) : [],
       category: listing.category?.name,
       images: listing.image_urls ? JSON.parse(listing.image_urls as string) : [],
@@ -295,6 +296,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       size: mapSizeToDisplay(updatedListing.size),
       condition: updatedListing.condition_type.toLowerCase(),
       material: updatedListing.material,
+      gender: (updatedListing as any).gender || "unisex",
       tags: updatedListing.tags ? JSON.parse(updatedListing.tags as string) : [],
       category: updatedListing.category?.name || "Unknown",
       images: updatedListing.image_urls ? JSON.parse(updatedListing.image_urls as string) : 
