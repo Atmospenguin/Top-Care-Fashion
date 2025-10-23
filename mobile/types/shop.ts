@@ -9,6 +9,7 @@ export type ListingItem = {
   size: string;
   condition: string;
   material?: string;
+  gender?: string;
   tags?: string[]; // 添加用户自定义标签
   images: string[];
   category?: ListingCategory;
