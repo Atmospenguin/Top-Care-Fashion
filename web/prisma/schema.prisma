@@ -42,6 +42,11 @@ model users {
   // Follow关系
   followers          user_follows[]         @relation("UserFollowing")
   following          user_follows[]         @relation("UserFollowers")
+  // Messages关系
+  conversations_initiated conversations[]  @relation("ConversationInitiator")
+  conversations_participated conversations[] @relation("ConversationParticipant")
+  messages_sent       messages[]            @relation("MessageSender")
+  messages_received   messages[]            @relation("MessageReceiver")
 
   @@map("users")
 }
@@ -88,6 +93,7 @@ model listings {
   category        listing_categories? @relation(fields: [category_id], references: [id])
   seller          users?              @relation("UserListings", fields: [seller_id], references: [id])
   order_items     order_items[]
+  conversations  conversations[]
   transactions    transactions?
 
   @@index([category_id])
@@ -383,4 +389,59 @@ model user_follows {
 
   @@unique([follower_id, following_id])
   @@map("user_follows")
+}
+
+model conversations {
+  id           Int      @id @default(autoincrement())
+  initiator_id Int
+  participant_id Int
+  listing_id   Int?
+  type         ConversationType @default(ORDER)
+  status       ConversationStatus @default(ACTIVE)
+  last_message_at DateTime? @db.Timestamptz(6)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  initiator   users @relation("ConversationInitiator", fields: [initiator_id], references: [id], onDelete: Cascade)
+  participant users @relation("ConversationParticipant", fields: [participant_id], references: [id], onDelete: Cascade)
+  listing     listings? @relation(fields: [listing_id], references: [id], onDelete: SetNull)
+  messages    messages[]
+
+  @@unique([initiator_id, participant_id, listing_id])
+  @@map("conversations")
+}
+
+model messages {
+  id              Int      @id @default(autoincrement())
+  conversation_id Int
+  sender_id       Int
+  receiver_id     Int
+  content         String   @db.Text
+  message_type    MessageType @default(TEXT)
+  is_read         Boolean  @default(false)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  conversation conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  sender      users @relation("MessageSender", fields: [sender_id], references: [id], onDelete: Cascade)
+  receiver    users @relation("MessageReceiver", fields: [receiver_id], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+enum ConversationType {
+  ORDER
+  SUPPORT
+  GENERAL
+}
+
+enum ConversationStatus {
+  ACTIVE
+  ARCHIVED
+  BLOCKED
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  SYSTEM
 }

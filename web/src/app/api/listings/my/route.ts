@@ -72,12 +72,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log("📖 Loading user listings for user:", user.id);
-
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status"); // 'active', 'sold', 'all'
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = parseInt(searchParams.get("offset") || "0");
+    
+    // Filter参数
+    const category = searchParams.get("category");
+    const condition = searchParams.get("condition");
+    const minPrice = searchParams.get("minPrice");
+    const maxPrice = searchParams.get("maxPrice");
+    const sortBy = searchParams.get("sortBy") || "latest";
+
+    console.log("📖 Loading user listings for user:", user.id);
+    console.log("📖 Filter params:", { status, category, condition, minPrice, maxPrice, sortBy });
 
     // 构建查询条件
     const where: any = {
@@ -91,6 +99,46 @@ export async function GET(req: NextRequest) {
       where.sold = true;
     }
     // 如果status是'all'或者没有指定，则获取所有listings
+
+    // 添加filter条件
+    if (category && category !== "All") {
+      // 直接使用分类名称查询，避免额外的数据库查询
+      where.category = {
+        name: category,
+      };
+    }
+
+    if (condition && condition !== "All") {
+      // 转换condition到数据库格式
+      let conditionType = condition.toUpperCase().replace(" ", "_");
+      if (conditionType === "NEW") conditionType = "NEW";
+      else if (conditionType === "LIKE_NEW") conditionType = "LIKE_NEW";
+      else if (conditionType === "GOOD") conditionType = "GOOD";
+      else if (conditionType === "FAIR") conditionType = "FAIR";
+      
+      where.condition_type = conditionType;
+    }
+
+    if (minPrice) {
+      where.price = { ...where.price, gte: parseFloat(minPrice) };
+    }
+
+    if (maxPrice) {
+      where.price = { ...where.price, lte: parseFloat(maxPrice) };
+    }
+
+    // 构建排序条件
+    let orderBy: any = { created_at: "desc" };
+    if (sortBy === "price_low_to_high") {
+      orderBy = { price: "asc" };
+    } else if (sortBy === "price_high_to_low") {
+      orderBy = { price: "desc" };
+    } else if (sortBy === "latest") {
+      orderBy = { created_at: "desc" };
+    }
+
+    console.log("📖 Final where clause:", JSON.stringify(where, null, 2));
+    console.log("📖 Order by:", orderBy);
 
     const listings = await prisma.listings.findMany({
       where,
@@ -112,7 +160,7 @@ export async function GET(req: NextRequest) {
           },
         },
       },
-      orderBy: { created_at: "desc" },
+      orderBy,
       take: limit,
       skip: offset,
     });

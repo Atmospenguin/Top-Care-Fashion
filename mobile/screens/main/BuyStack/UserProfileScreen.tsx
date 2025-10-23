@@ -517,22 +517,36 @@ export default function UserProfileScreen() {
               <Text style={styles.statLabel}>following</Text>
             </View>
 
-            {!isOwnProfile && (
-              <>
-                <TouchableOpacity
-                  style={[styles.followBtn, isFollowing && styles.followBtnActive]}
-                  onPress={handleFollowToggle}
-                >
-                  <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>
-                    {isFollowing ? "Following" : "Follow"}
-                  </Text>
-                </TouchableOpacity>
+            {/* Follow和Message按钮 - 始终显示，但自己的profile时禁用 */}
+            <TouchableOpacity
+              style={[
+                styles.followBtn, 
+                isFollowing && styles.followBtnActive,
+                isOwnProfile && styles.disabledBtn
+              ]}
+              onPress={isOwnProfile ? undefined : handleFollowToggle}
+              disabled={isOwnProfile}
+            >
+              <Text style={[
+                styles.followBtnText, 
+                isFollowing && styles.followBtnTextActive,
+                isOwnProfile && styles.disabledBtnText
+              ]}>
+                {isFollowing ? "Following" : "Follow"}
+              </Text>
+            </TouchableOpacity>
 
-                <TouchableOpacity style={styles.msgBtn} onPress={handleMessageUser}>
-                  <Icon name="mail-outline" size={24} color="#F54B3D" />
-                </TouchableOpacity>
-              </>
-            )}
+            <TouchableOpacity 
+              style={[styles.msgBtn, isOwnProfile && styles.disabledBtn]} 
+              onPress={isOwnProfile ? undefined : handleMessageUser}
+              disabled={isOwnProfile}
+            >
+              <Icon 
+                name="mail-outline" 
+                size={24} 
+                color={isOwnProfile ? "#999" : "#F54B3D"} 
+              />
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -1029,6 +1043,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "transparent",
+  },
+  disabledBtn: {
+    opacity: 0.5,
+  },
+  disabledBtnText: {
+    color: "#999",
   },
   tabs: {
     flexDirection: "row",

@@ -2,12 +2,14 @@ import { apiClient } from './api';
 import { API_CONFIG } from '../config/api';
 import type { ListingItem } from '../../types/shop';
 
-// 商品列表查询参数
-export interface ListingsQueryParams {
+// 用户listings查询参数
+export interface UserListingsQueryParams {
+  status?: 'active' | 'sold' | 'all';
   category?: string;
+  condition?: string;
   minPrice?: number;
   maxPrice?: number;
-  search?: string;
+  sortBy?: 'latest' | 'price_low_to_high' | 'price_high_to_low';
   limit?: number;
   offset?: number;
 }
@@ -174,15 +176,48 @@ export class ListingsService {
     return this.getListings({ ...params, minPrice, maxPrice });
   }
 
-  // 获取用户自己的listings
-  async getUserListings(status?: 'active' | 'sold' | 'all'): Promise<ListingItem[]> {
+  // 获取用户listings中实际使用的分类
+  async getUserCategories(): Promise<{ id: number; name: string; description: string; count: number }[]> {
     try {
-      console.log("📖 Fetching user listings with status:", status);
+      console.log("📖 Fetching user categories");
       
-      const params = status ? { status } : {};
+      const response = await apiClient.get<{ success: boolean; categories: { id: number; name: string; description: string; count: number }[] }>(
+        '/api/listings/my/categories'
+      );
+      
+      console.log("📖 User categories response:", response);
+      
+      if (response.data?.success && response.data.categories) {
+        console.log(`✅ Found ${response.data.categories.length} user categories`);
+        return response.data.categories;
+      }
+      
+      throw new Error('No categories data received');
+    } catch (error) {
+      console.error('Error fetching user categories:', error);
+      throw error;
+    }
+  }
+
+  // 获取用户自己的listings
+  async getUserListings(params?: UserListingsQueryParams): Promise<ListingItem[]> {
+    try {
+      console.log("📖 Fetching user listings with params:", params);
+      
+      // 构建查询参数，过滤掉undefined值
+      const queryParams: any = {};
+      if (params?.status) queryParams.status = params.status;
+      if (params?.category) queryParams.category = params.category;
+      if (params?.condition) queryParams.condition = params.condition;
+      if (params?.minPrice !== undefined) queryParams.minPrice = params.minPrice;
+      if (params?.maxPrice !== undefined) queryParams.maxPrice = params.maxPrice;
+      if (params?.sortBy) queryParams.sortBy = params.sortBy;
+      if (params?.limit) queryParams.limit = params.limit;
+      if (params?.offset) queryParams.offset = params.offset;
+      
       const response = await apiClient.get<{ listings: ListingItem[] }>(
         '/api/listings/my',
-        params
+        queryParams
       );
       
       console.log("📖 User listings response:", response);

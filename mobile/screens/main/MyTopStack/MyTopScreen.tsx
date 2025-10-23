@@ -21,10 +21,11 @@ import PurchasesTab from "./PurchasesTab";
 import LikesTab from "./LikesTab";
 import { useAuth } from "../../../contexts/AuthContext";
 import { listingsService } from "../../../src/services/listingsService";
-import type { ListingItem } from "../../../src/types/shop";
+import { userService } from "../../../src/services/userService";
+import type { ListingItem } from "../../../types/shop";
+import type { UserListingsQueryParams } from "../../../src/services/listingsService";
 
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
-const SHOP_CATEGORIES = ["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories", "Dresses"] as const;
 const SHOP_CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
 
 // --- 保证 3 列对齐 ---
@@ -54,6 +55,15 @@ export default function MyTopScreen() {
   const [soldListings, setSoldListings] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // ✅ 添加follow统计状态
+  const [followStats, setFollowStats] = useState({
+    followersCount: 0,
+    followingCount: 0,
+  });
+
+  // ✅ 添加用户分类状态
+  const [userCategories, setUserCategories] = useState<{ id: number; name: string; description: string; count: number }[]>([]);
 
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [minPrice, setMinPrice] = useState<string>("");
@@ -70,11 +80,45 @@ export default function MyTopScreen() {
   const [tempCategory, setTempCategory] = useState<string>("All");
   const [tempCondition, setTempCondition] = useState<string>("All");
 
-  // ✅ 获取用户listings
-  const fetchUserListings = async (status?: 'active' | 'sold' | 'all') => {
+  // ✅ 获取用户分类
+  const fetchUserCategories = async () => {
     try {
-      console.log("📖 Fetching user listings with status:", status);
-      const listings = await listingsService.getUserListings(status);
+      console.log("📖 Fetching user categories");
+      const categories = await listingsService.getUserCategories();
+      setUserCategories(categories);
+      console.log(`✅ Loaded ${categories.length} user categories`);
+    } catch (error) {
+      console.error("❌ Error fetching user categories:", error);
+      // 保持空数组，不显示错误
+    }
+  };
+
+  // ✅ 获取用户follow统计
+  const fetchFollowStats = async () => {
+    try {
+      console.log("👥 Fetching follow stats");
+      const stats = await userService.getMyFollowStats();
+      setFollowStats(stats);
+      console.log(`✅ Loaded follow stats: ${stats.followersCount} followers, ${stats.followingCount} following`);
+    } catch (error) {
+      console.error("❌ Error fetching follow stats:", error);
+      // 保持默认值0，不显示错误
+    }
+  };
+
+  // ✅ 获取用户listings
+  const fetchUserListings = async (status?: 'active' | 'sold' | 'all', filters?: Partial<UserListingsQueryParams>) => {
+    try {
+      console.log("📖 Fetching user listings with status:", status, "filters:", filters);
+      
+      const params: UserListingsQueryParams = {
+        status: status || 'active',
+        ...filters,
+      };
+      
+      console.log("📖 Final API params:", params);
+      
+      const listings = await listingsService.getUserListings(params);
       
       if (status === 'active' || status === undefined) {
         setActiveListings(listings);
@@ -83,9 +127,98 @@ export default function MyTopScreen() {
       }
       
       console.log(`✅ Loaded ${listings.length} ${status || 'active'} listings`);
+      console.log("📖 Sample listing:", listings[0]);
     } catch (error) {
       console.error("❌ Error fetching user listings:", error);
       Alert.alert("Error", "Failed to load listings. Please try again.");
+    }
+  };
+
+  // ✅ 使用指定值应用filter（避免状态更新延迟）
+  const applyFiltersWithValues = async (
+    category: string,
+    condition: string,
+    minPriceValue: string,
+    maxPriceValue: string,
+    sortByValue: string
+  ) => {
+    setLoading(true);
+    
+    try {
+      const filters: Partial<UserListingsQueryParams> = {};
+      
+      if (category !== "All") {
+        filters.category = category;
+      }
+      
+      if (condition !== "All") {
+        filters.condition = condition;
+      }
+      
+      if (minPriceValue) {
+        filters.minPrice = parseFloat(minPriceValue);
+      }
+      
+      if (maxPriceValue) {
+        filters.maxPrice = parseFloat(maxPriceValue);
+      }
+      
+      // 转换sortBy到API格式
+      if (sortByValue === "Latest") {
+        filters.sortBy = "latest";
+      } else if (sortByValue === "Price Low to High") {
+        filters.sortBy = "price_low_to_high";
+      } else if (sortByValue === "Price High to Low") {
+        filters.sortBy = "price_high_to_low";
+      }
+      
+      console.log("🔍 Applying filters with values:", filters);
+      
+      // 重新获取active listings
+      await fetchUserListings('active', filters);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ 应用filter并重新获取数据
+  const applyFilters = async () => {
+    setLoading(true);
+    
+    try {
+      const filters: Partial<UserListingsQueryParams> = {};
+      
+      if (selectedCategory !== "All") {
+        filters.category = selectedCategory;
+      }
+      
+      if (selectedCondition !== "All") {
+        filters.condition = selectedCondition;
+      }
+      
+      if (minPrice) {
+        filters.minPrice = parseFloat(minPrice);
+      }
+      
+      if (maxPrice) {
+        filters.maxPrice = parseFloat(maxPrice);
+      }
+      
+      // 转换sortBy到API格式
+      if (sortBy === "Latest") {
+        filters.sortBy = "latest";
+      } else if (sortBy === "Price Low to High") {
+        filters.sortBy = "price_low_to_high";
+      } else if (sortBy === "Price High to Low") {
+        filters.sortBy = "price_high_to_low";
+      }
+      
+      console.log("🔍 Applying filters:", filters);
+      
+      // 重新获取active listings
+      await fetchUserListings('active', filters);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -96,6 +229,8 @@ export default function MyTopScreen() {
       await Promise.all([
         fetchUserListings('active'),
         fetchUserListings('sold'),
+        fetchFollowStats(),
+        fetchUserCategories(),
       ]);
     } finally {
       setRefreshing(false);
@@ -107,6 +242,8 @@ export default function MyTopScreen() {
     if (user) {
       fetchUserListings('active');
       fetchUserListings('sold');
+      fetchFollowStats();
+      fetchUserCategories();
     }
   }, [user]);
 
@@ -128,8 +265,8 @@ export default function MyTopScreen() {
   // ✅ 使用真实用户数据，提供默认值以防用户数据为空
   const displayUser = {
     username: user?.username || "User",
-    followers: 0,
-    following: 0,
+    followers: followStats.followersCount, // ✅ 使用真实的follow统计
+    following: followStats.followingCount,  // ✅ 使用真实的follow统计
     reviews: 0,
     bio: user?.bio || "Welcome to my profile!",
     avatar: user?.avatar_url || DEFAULT_AVATAR,
@@ -258,11 +395,17 @@ export default function MyTopScreen() {
               )
             }
             ListEmptyComponent={
-              <View style={[styles.emptyBox]}>
-                <Text style={styles.emptyText}>
-                  You haven't listed anything for sale yet.{"\n"}Tap + below to get started.
-                </Text>
-              </View>
+              loading ? (
+                <View style={[styles.emptyBox]}>
+                  <Text style={styles.emptyText}>Loading...</Text>
+                </View>
+              ) : (
+                <View style={[styles.emptyBox]}>
+                  <Text style={styles.emptyText}>
+                    You haven't listed anything for sale yet.{"\n"}Tap + below to get started.
+                  </Text>
+                </View>
+              )
             }
           />
         )}
@@ -279,10 +422,13 @@ export default function MyTopScreen() {
           {
             key: "category",
             title: "Category",
-            options: SHOP_CATEGORIES.map((category) => ({
-              label: category,
-              value: category,
-            })),
+            options: [
+              { label: "All", value: "All" },
+              ...userCategories.map(category => ({
+                label: `${category.name} (${category.count})`,
+                value: category.name,
+              })),
+            ],
             selectedValue: tempCategory,
             onSelect: (value) => setTempCategory(String(value)),
           },
@@ -326,6 +472,9 @@ export default function MyTopScreen() {
           setMaxPrice(tempMaxPrice);
           setSortBy(tempSortBy);
           setFilterModalVisible(false);
+          
+          // 立即应用filter，使用临时值
+          applyFiltersWithValues(tempCategory, tempCondition, tempMinPrice, tempMaxPrice, tempSortBy);
         }}
         onClear={() => {
           setTempCategory("All");
@@ -333,6 +482,14 @@ export default function MyTopScreen() {
           setTempMinPrice("");
           setTempMaxPrice("");
           setTempSortBy("Latest");
+          
+          // 立即清除filter
+          setSelectedCategory("All");
+          setSelectedCondition("All");
+          setMinPrice("");
+          setMaxPrice("");
+          setSortBy("Latest");
+          applyFiltersWithValues("All", "All", "", "", "Latest");
         }}
         applyButtonLabel="Apply Filters"
       />

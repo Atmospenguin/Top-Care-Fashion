@@ -263,6 +263,32 @@ export class UserService {
       throw error;
     }
   }
+
+  // 获取当前用户的follow统计
+  async getMyFollowStats(): Promise<{ followersCount: number; followingCount: number }> {
+    try {
+      console.log("👥 Fetching my follow stats");
+      
+      const response = await apiClient.get<{ success: boolean; user: UserProfile }>(
+        API_CONFIG.ENDPOINTS.PROFILE
+      );
+      
+      console.log("👥 My follow stats response:", response);
+      
+      if (response.data?.success && response.data.user) {
+        console.log(`✅ My follow stats: ${response.data.user.followersCount} followers, ${response.data.user.followingCount} following`);
+        return {
+          followersCount: response.data.user.followersCount,
+          followingCount: response.data.user.followingCount,
+        };
+      }
+      
+      throw new Error('Failed to get follow stats');
+    } catch (error) {
+      console.error('Error getting follow stats:', error);
+      throw error;
+    }
+  }
 }
 
 export const userService = new UserService();
