@@ -25,28 +25,48 @@ const CATEGORY_OPTIONS = ["Tops", "Bottoms", "Shoes", "Bags", "Accessories", "Ou
 const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "Others"];
 const CONDITION_OPTIONS = ["Brand New", "Like new", "Good", "Fair", "Poor"];
 const SIZE_OPTIONS_CLOTHES = [
-  "XXS / EU 32 / UK 4 / US 0",
-  "XS / EU 34 / UK 6 / US 2",
-  "S / EU 36 / UK 8 / US 4",
-  "M / EU 38 / UK 10 / US 6",
-  "L / EU 40 / UK 12 / US 8",
-  "XL / EU 42 / UK 14 / US 10",
-  "XXL / EU 44 / UK 16 / US 12",
-  "XXXL / EU 46 / UK 18 / US 14",
+  "XXS",
+  "XS",
+  "S",
+  "M",
+  "L",
+  "XL",
+  "XXL",
+  "XXXL",
   "Free Size",
   "Other",
 ];
 
 const SIZE_OPTIONS_SHOES = [
-  "EU 35 / US 5 / UK 3",
-  "EU 36 / US 6 / UK 4",
-  "EU 37 / US 6.5 / UK 4.5",
-  "EU 38 / US 7 / UK 5",
-  "EU 39 / US 8 / UK 6",
-  "EU 40 / US 9 / UK 7",
-  "EU 41 / US 10 / UK 8",
-  "EU 42 / US 11 / UK 9",
-  "EU 43 / US 12 / UK 10",
+  "35",
+  "36",
+  "37",
+  "38",
+  "39",
+  "40",
+  "41",
+  "42",
+  "43",
+  "44",
+  "45",
+  "Other",
+];
+
+const SIZE_OPTIONS_ACCESSORIES = [
+  "N/A",
+  "One Size",
+  "Small",
+  "Medium", 
+  "Large",
+  "Other",
+];
+
+const SIZE_OPTIONS_BAGS = [
+  "N/A",
+  "Small",
+  "Medium",
+  "Large",
+  "Extra Large",
   "Other",
 ];
 const MATERIAL_OPTIONS = [
@@ -619,7 +639,15 @@ export default function SellScreen({
       <OptionPicker
         title="Select size"
         visible={showSize}
-        options={category === "Shoes" ? SIZE_OPTIONS_SHOES : SIZE_OPTIONS_CLOTHES}
+        options={
+          category === "Shoes" 
+            ? SIZE_OPTIONS_SHOES 
+            : category === "Accessories" 
+            ? SIZE_OPTIONS_ACCESSORIES 
+            : category === "Bags"
+            ? SIZE_OPTIONS_BAGS
+            : SIZE_OPTIONS_CLOTHES
+        }
         value={size}
         onClose={() => setShowSize(false)}
         onSelect={(val) => {

@@ -3,6 +3,55 @@ import { prisma } from "@/lib/db";
 import { createSupabaseServer } from "@/lib/supabase";
 
 /**
+ * 映射尺码显示值
+ */
+const mapSizeToDisplay = (sizeValue: string | null) => {
+  if (!sizeValue) return "N/A";
+  
+  // 处理复杂的尺码字符串（如 "M / EU 38 / UK 10 / US 6"）
+  if (sizeValue.includes("/")) {
+    const parts = sizeValue.split("/");
+    const firstPart = parts[0].trim();
+    
+    // 如果第一部分是字母尺码，直接返回
+    if (["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"].includes(firstPart)) {
+      return firstPart;
+    }
+    
+    // 如果包含数字，提取数字部分
+    const numberMatch = firstPart.match(/\d+/);
+    if (numberMatch) {
+      return numberMatch[0];
+    }
+    
+    return firstPart;
+  }
+  
+  // 处理简单的尺码值
+  const sizeMap: Record<string, string> = {
+    // 数字尺码（鞋子）
+    "28": "28", "29": "29", "30": "30", "31": "31", "32": "32", "33": "33", "34": "34",
+    "35": "35", "36": "36", "37": "37", "38": "38", "39": "39", "40": "40", "41": "41", "42": "42", "43": "43", "44": "44", "45": "45",
+    "46": "46", "47": "47", "48": "48", "49": "49", "50": "50",
+    
+    // 服装尺码
+    "XXS": "XXS", "XS": "XS", "S": "S", "M": "M", "L": "L", "XL": "XL", "XXL": "XXL", "XXXL": "XXXL",
+    "Free Size": "Free Size",
+    
+    // 配饰尺码
+    "One Size": "One Size", "Small": "Small", "Medium": "Medium", "Large": "Large",
+    
+    // 包类尺码
+    "Extra Large": "Extra Large",
+    
+    // 通用选项
+    "Other": "Other", "N/A": "N/A"
+  };
+  
+  return sizeMap[sizeValue] || sizeValue;
+};
+
+/**
  * 获取当前登录用户
  */
 async function getCurrentUser(req: NextRequest) {
@@ -115,13 +164,14 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       return conditionMap[conditionEnum] || conditionEnum;
     };
 
+
     const formattedListing = {
       id: listing.id.toString(),
       title: listing.name,
       description: listing.description,
       price: Number(listing.price),
       brand: listing.brand,
-      size: listing.size,
+      size: mapSizeToDisplay(listing.size),
       condition: mapConditionToDisplay(listing.condition_type),
       material: listing.material,
       tags: listing.tags ? JSON.parse(listing.tags as string) : [],
@@ -242,7 +292,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       description: updatedListing.description,
       price: Number(updatedListing.price),
       brand: updatedListing.brand,
-      size: updatedListing.size,
+      size: mapSizeToDisplay(updatedListing.size),
       condition: updatedListing.condition_type.toLowerCase(),
       material: updatedListing.material,
       tags: updatedListing.tags ? JSON.parse(updatedListing.tags as string) : [],

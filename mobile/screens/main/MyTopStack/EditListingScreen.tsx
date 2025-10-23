@@ -21,7 +21,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import type { MyTopStackParamList } from "./index";
 import { listingsService } from "../../../src/services/listingsService";
-import type { ListingItem } from "../../../src/types/shop";
+import type { ListingItem } from "../../../types/shop";
 
 /** --- Options --- */
 const CATEGORY_OPTIONS = [
@@ -36,13 +36,14 @@ const CATEGORY_OPTIONS = [
 ];
 const CONDITION_OPTIONS = ["Brand New", "Like new", "Good", "Fair", "Poor"];
 const SIZE_OPTIONS_CLOTHES = [
-  "XXS / EU 32 / UK 4 / US 0",
-  "XS / EU 34 / UK 6 / US 2",
-  "S / EU 36 / UK 8 / US 4",
-  "M / EU 38 / UK 10 / US 6",
-  "L / EU 40 / UK 12 / US 8",
-  "XL / EU 42 / UK 14 / US 10",
-  "XXL / EU 44 / UK 16 / US 12",
+  "XXS",
+  "XS",
+  "S",
+  "M",
+  "L",
+  "XL",
+  "XXL",
+  "XXXL",
   "Free Size",
   "Other",
 ];
