@@ -65,6 +65,7 @@ const SHIPPING_OPTIONS = [
   "Buyer pays – fixed fee",
   "Meet-up",
 ];
+const GENDER_OPTIONS = ["Men", "Women", "Unisex"];
 
 /** --- Picker modal --- */
 function OptionPicker({
@@ -137,6 +138,7 @@ export default function EditListingScreen() {
   const [shippingOption, setShippingOption] = useState("");
   const [location, setLocation] = useState("");
   const [images, setImages] = useState<string[]>([]);
+  const [gender, setGender] = useState("");
 
   // ✅ 获取listing数据
   useEffect(() => {
@@ -163,6 +165,7 @@ export default function EditListingScreen() {
           setSize(listingData.size || "");
           setMaterial(listingData.material || "");
           setPrice(listingData.price.toString());
+          setGender(listingData.gender || "Unisex");
           setShippingOption("Free shipping"); // 默认值
           setLocation("Singapore"); // 默认值
           setImages(listingData.images || []);
@@ -200,6 +203,7 @@ export default function EditListingScreen() {
         condition: condition,
         material: material.trim(),
         category: category,
+        gender: gender,
         images: images,
         shippingOption: shippingOption,
         location: location.trim(),
@@ -225,6 +229,7 @@ export default function EditListingScreen() {
   const [showSize, setShowSize] = useState(false);
   const [showMat, setShowMat] = useState(false);
   const [showShip, setShowShip] = useState(false);
+  const [showGender, setShowGender] = useState(false);
 
   const handleDelete = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
@@ -446,6 +451,11 @@ export default function EditListingScreen() {
           <Text style={styles.selectValue}>{material}</Text>
         </TouchableOpacity>
 
+        <Text style={styles.fieldLabel}>Gender</Text>
+        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowGender(true)}>
+          <Text style={styles.selectValue}>{gender}</Text>
+        </TouchableOpacity>
+
         {/* Price */}
         <Text style={styles.sectionTitle}>Price</Text>
         <TextInput
@@ -522,6 +532,14 @@ export default function EditListingScreen() {
         value={shippingOption}
         onClose={() => setShowShip(false)}
         onSelect={setShippingOption}
+      />
+      <OptionPicker
+        title="Select gender"
+        visible={showGender}
+        options={GENDER_OPTIONS}
+        value={gender}
+        onClose={() => setShowGender(false)}
+        onSelect={setGender}
       />
     </View>
   );

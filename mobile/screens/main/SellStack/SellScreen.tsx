@@ -518,11 +518,6 @@ export default function SellScreen({
 
         {/* Info */}
         <Text style={styles.sectionTitle}>Info</Text>
-        <Text style={styles.fieldLabel}>Gender</Text>
-        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowGender(true)}>
-          <Text style={styles.selectValue}>{gender}</Text>
-        </TouchableOpacity>
-
         <Text style={styles.fieldLabel}>Category</Text>
         <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCat(true)}>
           <Text style={styles.selectValue}>{category}</Text>
@@ -580,6 +575,11 @@ export default function SellScreen({
           <Text style={styles.selectValue}>
             {material === "Other" && customMaterial ? customMaterial : material}
           </Text>
+        </TouchableOpacity>
+
+        <Text style={styles.fieldLabel}>Gender</Text>
+        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowGender(true)}>
+          <Text style={styles.selectValue}>{gender}</Text>
         </TouchableOpacity>
 
         {/* Tags Section */}
