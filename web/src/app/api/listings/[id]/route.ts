@@ -253,6 +253,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (body.size !== undefined) updateData.size = body.size;
     if (body.condition !== undefined) updateData.condition_type = mapConditionToEnum(body.condition);
     if (body.material !== undefined) updateData.material = body.material;
+    if (body.gender !== undefined) updateData.gender = body.gender.toLowerCase();
     if (body.tags !== undefined) updateData.tags = JSON.stringify(body.tags);
     if (body.images !== undefined) updateData.image_urls = JSON.stringify(body.images);
     if (body.listed !== undefined) updateData.listed = body.listed;
