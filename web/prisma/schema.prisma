@@ -40,8 +40,8 @@ model users {
   addresses          user_addresses[]
   payment_methods    user_payment_methods[]
   // Follow关系
-  followers          user_follows[]         @relation("UserFollowers")
-  following          user_follows[]         @relation("UserFollowing")
+  followers          user_follows[]         @relation("UserFollowing")
+  following          user_follows[]         @relation("UserFollowers")
 
   @@map("users")
 }

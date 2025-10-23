@@ -33,6 +33,17 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
             sold: true,
           },
         },
+        // Follow统计
+        followers: {
+          select: {
+            id: true,
+          },
+        },
+        following: {
+          select: {
+            id: true,
+          },
+        },
       },
     });
 
@@ -45,9 +56,9 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
     const activeListings = user.listings_as_seller.filter(l => l.listed && !l.sold).length;
     const soldListings = user.listings_as_seller.filter(l => l.sold).length;
     
-    // 暂时使用0作为follow统计，后续可以通过单独查询获取
-    const followersCount = 0;
-    const followingCount = 0;
+    // 计算follow统计
+    const followersCount = user.followers.length;
+    const followingCount = user.following.length;
 
     // 检查当前用户是否关注了这个用户（如果有认证信息）
     let isFollowing = false;
