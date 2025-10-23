@@ -4,6 +4,23 @@ import { apiClient } from "./api";
 import { API_CONFIG } from "../config/api";
 import type { User } from "./authService";
 
+export interface UserProfile {
+  id: string;
+  username: string;
+  email: string;
+  bio?: string;
+  location?: string;
+  dob?: string;
+  gender?: "Male" | "Female" | null;
+  avatar_url?: string;
+  rating: number;
+  reviewsCount: number;
+  totalListings: number;
+  activeListings: number;
+  soldListings: number;
+  memberSince: string;
+}
+
 export interface UpdateProfileRequest {
   username?: string;
   email?: string;
@@ -128,6 +145,54 @@ export class UserService {
 
   async deleteAvatar(): Promise<void> {
     await apiClient.delete(`${API_CONFIG.ENDPOINTS.PROFILE}/avatar`);
+  }
+
+  // 获取其他用户信息
+  async getUserProfile(username: string): Promise<UserProfile | null> {
+    try {
+      console.log("📖 Fetching user profile for:", username);
+      
+      const response = await apiClient.get<{ success: boolean; user: UserProfile }>(
+        `/api/users/${username}`
+      );
+      
+      console.log("📖 User profile response:", response);
+      
+      if (response.data?.success && response.data.user) {
+        console.log("✅ User profile found:", response.data.user.username);
+        return response.data.user;
+      }
+      
+      console.log("❌ No user profile data received");
+      return null;
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      throw error;
+    }
+  }
+
+  // 获取用户的 listings
+  async getUserListings(username: string, status: 'active' | 'sold' | 'all' = 'active'): Promise<any[]> {
+    try {
+      console.log("📖 Fetching listings for user:", username, "status:", status);
+      
+      const response = await apiClient.get<{ success: boolean; listings: any[] }>(
+        `/api/users/${username}/listings`,
+        { status }
+      );
+      
+      console.log("📖 User listings response:", response);
+      
+      if (response.data?.success && response.data.listings) {
+        console.log(`✅ Found ${response.data.listings.length} listings for user`);
+        return response.data.listings;
+      }
+      
+      throw new Error('No listings data received');
+    } catch (error) {
+      console.error('Error fetching user listings:', error);
+      throw error;
+    }
   }
 }
 

@@ -56,15 +56,32 @@ class ApiClient {
       }
 
       // 然后尝试从 Supabase 获取 session
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error } = await supabase.auth.getSession();
       
       console.log("🔍 API Client - Session exists:", !!session);
       console.log("🔍 API Client - Access token exists:", !!session?.access_token);
+      console.log("🔍 API Client - Session error:", error);
       
       if (session?.access_token) {
         console.log("🔍 API Client - Got Supabase session, storing token");
         this.setAuthToken(session.access_token);
         return { Authorization: `Bearer ${session.access_token}` };
+      }
+      
+      // 如果 session 过期，尝试刷新
+      if (session?.refresh_token) {
+        console.log("🔍 API Client - Attempting to refresh session...");
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession({
+          refresh_token: session.refresh_token
+        });
+        
+        if (refreshData.session?.access_token) {
+          console.log("🔍 API Client - Session refreshed successfully");
+          this.setAuthToken(refreshData.session.access_token);
+          return { Authorization: `Bearer ${refreshData.session.access_token}` };
+        } else {
+          console.log("🔍 API Client - Session refresh failed:", refreshError);
+        }
       }
       
       console.log("🔍 API Client - No valid session found");
@@ -78,7 +95,8 @@ class ApiClient {
   // 基础请求方法
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    retryCount: number = 0
   ): Promise<ApiResponse<T>> {
     const url = this.buildUrl(endpoint);
     
@@ -102,10 +120,36 @@ class ApiClient {
     }
 
     try {
-      const response = await fetch(url, { ...defaultOptions, ...options });
+      console.log(`🔍 API Request -> ${options.method || 'GET'} ${url} (timeout: ${this.timeout}ms)`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+      
+      const response = await fetch(url, { 
+        ...defaultOptions, 
+        ...options,
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      console.log(`🔍 API Response <- ${options.method || 'GET'} ${url} status=${response.status} time=${Date.now()}`);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        
+        // 如果是 401 错误且还有重试次数，尝试刷新 session
+        if (response.status === 401 && retryCount < 2) {
+          console.log(`🔍 API Client - 401 error, attempting session refresh (retry ${retryCount + 1})`);
+          
+          // 清除当前 token 并尝试刷新
+          this.authToken = null;
+          await AsyncStorage.removeItem('supabase_access_token');
+          
+          // 递归重试
+          return this.request<T>(endpoint, options, retryCount + 1);
+        }
+        
         throw new ApiError(
           errorData.message || `HTTP ${response.status}`,
           response.status,

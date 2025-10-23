@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   FlatList,
   Image,
@@ -12,6 +12,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -23,6 +24,7 @@ import FilterModal from "../../../components/FilterModal";
 import { MOCK_LISTINGS } from "../../../mocks/shop";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
+import { userService, type UserProfile } from "../../../src/services/userService";
 
 type UserProfileParam = RouteProp<BuyStackParamList, "UserProfile">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
@@ -122,6 +124,13 @@ export default function UserProfileScreen() {
     params: { username, avatar, rating, sales },
   } = useRoute<UserProfileParam>();
 
+  // 状态管理
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userListings, setUserListings] = useState<ListingItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [listingsLoading, setListingsLoading] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+
   const [activeTab, setActiveTab] = useState<"Shop" | "Likes" | "Reviews">(
     "Shop"
   );
@@ -149,18 +158,64 @@ export default function UserProfileScreen() {
   const [reviewRole, setReviewRole] = useState<string>("All");
   const [reviewRating, setReviewRating] = useState<string>("All");
 
-  // Mock data for profile stats
-  const followers = 1234;
-  const following = 567;
-  const reviewsCount = mockReviews.length;
+  // 加载用户信息
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      try {
+        setLoading(true);
+        console.log("📖 Loading user profile for:", username);
+        
+        const profile = await userService.getUserProfile(username);
+        if (profile) {
+          setUserProfile(profile);
+          console.log("✅ User profile loaded:", profile.username);
+        } else {
+          Alert.alert("Error", "User not found");
+          navigation.goBack();
+        }
+      } catch (error) {
+        console.error("❌ Error loading user profile:", error);
+        Alert.alert("Error", "Failed to load user profile");
+        navigation.goBack();
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const userListings = useMemo(
-    () =>
-      MOCK_LISTINGS.filter(
-        (listing) => listing.seller.name.toLowerCase() === username.toLowerCase()
-      ),
-    [username]
-  );
+    loadUserProfile();
+  }, [username, navigation]);
+
+  // 加载用户 listings
+  useEffect(() => {
+    const loadUserListings = async () => {
+      if (!userProfile) return;
+      
+      try {
+        setListingsLoading(true);
+        console.log("📖 Loading listings for user:", userProfile.username);
+        
+        const listings = await userService.getUserListings(userProfile.username, 'active');
+        setUserListings(listings);
+        console.log(`✅ Loaded ${listings.length} listings`);
+      } catch (error) {
+        console.error("❌ Error loading user listings:", error);
+        // 使用 mock 数据作为 fallback
+        const mockListings = MOCK_LISTINGS.filter(
+          (listing) => listing.seller.name.toLowerCase() === username.toLowerCase()
+        );
+        setUserListings(mockListings);
+      } finally {
+        setListingsLoading(false);
+      }
+    };
+
+    loadUserListings();
+  }, [userProfile, username]);
+
+  // Mock data for profile stats (fallback)
+  const followers = userProfile?.activeListings || 1234;
+  const following = userProfile?.soldListings || 567;
+  const reviewsCount = userProfile?.reviewsCount || mockReviews.length;
 
   const filteredListings = useMemo(() => {
     let results = userListings;
@@ -293,6 +348,20 @@ export default function UserProfileScreen() {
     setReviewRating("All");
   };
 
+  // Follow/Unfollow 处理函数
+  const handleFollowToggle = () => {
+    setIsFollowing(!isFollowing);
+    // TODO: 实现实际的关注/取消关注 API 调用
+    console.log(isFollowing ? "Unfollowing user" : "Following user");
+  };
+
+  // Message 处理函数
+  const handleMessageUser = () => {
+    // TODO: 实现消息功能
+    console.log("Opening message to user");
+    Alert.alert("Message", "Message feature coming soon!");
+  };
+
   const shopActiveFiltersCount = useMemo(() => {
     let count = 0;
     if (shopCategory !== "All") count++;
@@ -311,10 +380,35 @@ export default function UserProfileScreen() {
     return count;
   }, [showLatest, showWithPhotos, reviewRole, reviewRating]);
 
+  // 如果正在加载，显示加载状态
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <Header title={username} showBack />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#F54B3D" />
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // 如果没有用户数据，显示错误
+  if (!userProfile) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <Header title={username} showBack />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.errorText}>User not found</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header 
-        title={username} 
+        title={userProfile.username} 
         showBack 
         rightAction={
           <TouchableOpacity onPress={handleReport} style={styles.reportButton}>
@@ -324,15 +418,24 @@ export default function UserProfileScreen() {
       />
 
       <View style={styles.profileSection}>
-        <Image source={{ uri: avatar }} style={styles.avatar} />
+        <Image source={{ uri: userProfile.avatar_url || avatar }} style={styles.avatar} />
         <View style={{ rowGap: 6, flex: 1 }}>
-          <Text style={styles.profileName}>{username}</Text>
+          <Text style={styles.profileName}>{userProfile.username}</Text>
           <View style={styles.profileMeta}>
             <Icon name="star" size={14} color="#f5a623" />
-            <Text style={styles.profileMetaText}>{rating.toFixed(1)}</Text>
+            <Text style={styles.profileMetaText}>{userProfile.rating.toFixed(1)}</Text>
             <Text style={styles.profileMetaText}>·</Text>
-            <Text style={styles.profileMetaText}>{sales} sales</Text>
+            <Text style={styles.profileMetaText}>{userProfile.reviewsCount} reviews</Text>
           </View>
+          {userProfile.bio && (
+            <Text style={styles.bioText}>{userProfile.bio}</Text>
+          )}
+          {userProfile.location && (
+            <View style={styles.locationRow}>
+              <Icon name="location-outline" size={14} color="#666" />
+              <Text style={styles.locationText}>{userProfile.location}</Text>
+            </View>
+          )}
         </View>
         <TouchableOpacity style={styles.messageBtn}>
           <Icon name="chatbubble-ellipses-outline" size={18} color="#000" />
@@ -342,19 +445,34 @@ export default function UserProfileScreen() {
 
       <View style={styles.statsContainer}>
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{followers}</Text>
-          <Text style={styles.statLabel}>Followers</Text>
+          <Text style={styles.statValue}>{userProfile.activeListings}</Text>
+          <Text style={styles.statLabel}>Active</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{following}</Text>
-          <Text style={styles.statLabel}>Following</Text>
+          <Text style={styles.statValue}>{userProfile.soldListings}</Text>
+          <Text style={styles.statLabel}>Sold</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{reviewsCount}</Text>
+          <Text style={styles.statValue}>{userProfile.reviewsCount}</Text>
           <Text style={styles.statLabel}>Reviews</Text>
         </View>
+      </View>
+
+      {/* Follow and Message Buttons */}
+      <View style={styles.actionButtonsContainer}>
+        <TouchableOpacity 
+          style={[styles.followButton, isFollowing && styles.followButtonFollowing]} 
+          onPress={handleFollowToggle}
+        >
+          <Text style={styles.followButtonText}>
+            {isFollowing ? "Following" : "Follow"}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.messageButton} onPress={handleMessageUser}>
+          <Icon name="mail-outline" size={24} color="#333" />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.tabs}>
@@ -388,9 +506,16 @@ export default function UserProfileScreen() {
                   </View>
                 )}
               </TouchableOpacity>
-              <Text style={styles.resultCount}>{filteredListings.length} items</Text>
+              <Text style={styles.resultCount}>
+                {listingsLoading ? "Loading..." : `${filteredListings.length} items`}
+              </Text>
             </View>
-            {filteredListings.length ? (
+            {listingsLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#F54B3D" />
+                <Text style={styles.loadingText}>Loading listings...</Text>
+              </View>
+            ) : filteredListings.length ? (
               <FlatList
                 data={listingsData}
                 keyExtractor={(item, index) =>
@@ -1125,5 +1250,76 @@ const styles = StyleSheet.create({
   keyboardAvoidingView: {
     flex: 1,
     justifyContent: "flex-end",
+  },
+
+  // 新增样式
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#666",
+    marginTop: 12,
+    textAlign: "center",
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#999",
+    textAlign: "center",
+  },
+  bioText: {
+    fontSize: 14,
+    color: "#333",
+    lineHeight: 20,
+    marginTop: 4,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 4,
+    marginTop: 2,
+  },
+  locationText: {
+    fontSize: 13,
+    color: "#666",
+  },
+
+  // Action Buttons
+  actionButtonsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  followButton: {
+    flex: 1,
+    backgroundColor: "#F54B3D",
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  followButtonFollowing: {
+    backgroundColor: "#666",
+  },
+  followButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  messageButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
   },
 });
