@@ -66,6 +66,23 @@ const SHIPPING_OPTIONS = [
   "Meet-up",
 ];
 const GENDER_OPTIONS = ["Men", "Women", "Unisex"];
+const DEFAULT_TAGS = [
+  "Vintage",
+  "Y2K",
+  "Streetwear",
+  "Preloved",
+  "Minimal",
+  "Sporty",
+  "Elegant",
+  "Retro",
+  "Casual",
+  "Outdoor",
+  "Grunge",
+  "Coquette",
+  "Cottagecore",
+  "Punk",
+  "Cyberpunk",
+];
 
 /** --- Picker modal --- */
 function OptionPicker({
@@ -139,6 +156,7 @@ export default function EditListingScreen() {
   const [location, setLocation] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [gender, setGender] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
 
   // ✅ 获取listing数据
   useEffect(() => {
@@ -169,6 +187,7 @@ export default function EditListingScreen() {
           setShippingOption("Free shipping"); // 默认值
           setLocation("Singapore"); // 默认值
           setImages(listingData.images || []);
+          setTags(listingData.tags || []);
           console.log("✅ Listing loaded for editing:", listingData.title);
         } else {
           Alert.alert("Error", "Listing not found");
@@ -205,6 +224,7 @@ export default function EditListingScreen() {
         category: category,
         gender: gender,
         images: images,
+        tags: tags,
         shippingOption: shippingOption,
         location: location.trim(),
       };
@@ -230,6 +250,7 @@ export default function EditListingScreen() {
   const [showMat, setShowMat] = useState(false);
   const [showShip, setShowShip] = useState(false);
   const [showGender, setShowGender] = useState(false);
+  const [showTagPicker, setShowTagPicker] = useState(false);
 
   const handleDelete = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
@@ -456,6 +477,39 @@ export default function EditListingScreen() {
           <Text style={styles.selectValue}>{gender}</Text>
         </TouchableOpacity>
 
+        {/* Tags Section */}
+        <Text style={styles.sectionTitle}>Tags</Text>
+        <Text style={{ color: "#555", marginBottom: 6 }}>
+          Add up to 5 tags to help buyers find your item
+        </Text>
+        {tags.length === 0 ? (
+          <TouchableOpacity style={styles.addStyleBtn} onPress={() => setShowTagPicker(true)}>
+            <Icon name="add-circle-outline" size={18} color="#F54B3D" />
+            <Text style={styles.addStyleText}>Style</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.selectedTagWrap}>
+            {tags.map((tag) => (
+              <View key={tag} style={styles.tagChip}>
+                <Text style={styles.tagChipText}>{tag}</Text>
+                <TouchableOpacity
+                  onPress={() => setTags(tags.filter((t) => t !== tag))}
+                >
+                  <Icon name="close" size={14} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            ))}
+            {tags.length < 5 && (
+              <TouchableOpacity
+                style={styles.addStyleBtnSmall}
+                onPress={() => setShowTagPicker(true)}
+              >
+                <Icon name="add" size={16} color="#F54B3D" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {/* Price */}
         <Text style={styles.sectionTitle}>Price</Text>
         <TextInput
@@ -541,7 +595,118 @@ export default function EditListingScreen() {
         onClose={() => setShowGender(false)}
         onSelect={setGender}
       />
+      {/* Tag Picker Modal */}
+      <TagPickerModal
+        visible={showTagPicker}
+        onClose={() => setShowTagPicker(false)}
+        tags={tags}
+        setTags={setTags}
+      />
     </View>
+  );
+}
+
+function TagPickerModal({
+  visible,
+  onClose,
+  tags,
+  setTags,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  tags: string[];
+  setTags: (tags: string[]) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [customTag, setCustomTag] = useState("");
+
+  const filtered = DEFAULT_TAGS.filter((t) =>
+    t.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const addTag = (tag: string) => {
+    if (tag && !tags.includes(tag) && tags.length < 5) {
+      setTags([...tags, tag]);
+    }
+  };
+
+  return (
+    <Modal transparent visible={visible} animationType="slide">
+      <Pressable style={styles.sheetMask} onPress={onClose} />
+      <View style={styles.tagSheet}>
+        {/* Header */}
+        <View style={styles.tagSheetHeader}>
+          <Text style={styles.tagSheetTitle}>Select tags</Text>
+          <TouchableOpacity onPress={onClose}>
+            <Icon name="close" size={24} color="#111" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Search bar */}
+        <TextInput
+          style={styles.tagSearch}
+          placeholder="Search tags..."
+          value={search}
+          onChangeText={setSearch}
+        />
+
+        {/* Tag grid */}
+        <ScrollView style={{ maxHeight: 360 }}>
+          <View style={styles.tagGrid}>
+            {filtered.map((t) => {
+              const selected = tags.includes(t);
+              return (
+                <TouchableOpacity
+                  key={t}
+                  style={[
+                    styles.tagOption,
+                    selected && styles.tagOptionSelected,
+                  ]}
+                  onPress={() =>
+                    selected
+                      ? setTags(tags.filter((x) => x !== t))
+                      : addTag(t)
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.tagOptionText,
+                      selected && { color: "#fff" },
+                    ]}
+                  >
+                    {t}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </ScrollView>
+
+        {/* Custom Tag */}
+        <View style={styles.customTagRow}>
+          <TextInput
+            style={styles.customTagInput}
+            placeholder="Other..."
+            value={customTag}
+            onChangeText={setCustomTag}
+          />
+          <TouchableOpacity
+            style={styles.customTagAddBtn}
+            onPress={() => {
+              addTag(customTag.trim());
+              setCustomTag("");
+            }}
+          >
+            <Text style={styles.customTagAddText}>Add</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Done */}
+        <TouchableOpacity style={styles.sheetDone} onPress={onClose}>
+          <Text style={{ fontWeight: "600" }}>Done</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
   );
 }
 
@@ -695,6 +860,136 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     backgroundColor: "#F6F6F6",
+    alignItems: "center",
+  },
+
+  // Tags
+  addStyleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#F54B3D",
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#fff",
+  },
+  addStyleText: {
+    color: "#F54B3D",
+    fontWeight: "600",
+    marginLeft: 6,
+  },
+  selectedTagWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  tagChip: {
+    backgroundColor: "#F54B3D",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  tagChipText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  addStyleBtnSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#F54B3D",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Tag Picker Modal
+  tagSheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 16,
+  },
+  tagSheetHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  tagSheetTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  tagSearch: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 15,
+    backgroundColor: "#fafafa",
+    marginBottom: 10,
+  },
+  tagGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  tagOption: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  tagOptionSelected: {
+    backgroundColor: "#111",
+    borderColor: "#111",
+  },
+  tagOptionText: {
+    fontSize: 14,
+    color: "#111",
+  },
+  customTagRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    gap: 8,
+  },
+  customTagInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 15,
+  },
+  customTagAddBtn: {
+    backgroundColor: "#F54B3D",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  customTagAddText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  sheetDone: {
+    marginTop: 10,
+    backgroundColor: "#F6F6F6",
+    borderRadius: 12,
+    paddingVertical: 12,
     alignItems: "center",
   },
 });

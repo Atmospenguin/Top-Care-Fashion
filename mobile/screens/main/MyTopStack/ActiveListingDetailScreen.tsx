@@ -17,7 +17,7 @@ import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { MyTopStackParamList } from "./index";
 import { listingsService } from "../../../src/services/listingsService";
-import type { ListingItem } from "../../../src/types/shop";
+import type { ListingItem } from "../../../types/shop";
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
@@ -73,7 +73,7 @@ export default function ActiveListingDetailScreen() {
   // ✅ 处理Boost Listing点击
   const handleBoostListing = () => {
     if (listing) {
-      navigation.navigate("PromotionPlans", { listingId: listing.id });
+      navigation.navigate("PromotionPlans");
     }
   };
 
@@ -112,7 +112,7 @@ export default function ActiveListingDetailScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.imageCarousel}
         >
-          {(listing.images || []).map((uri, idx) => (
+          {(listing.images || []).map((uri: string, idx: number) => (
             <Image
               key={`${listing.id}-${idx}`}
               source={{ uri }}
@@ -158,6 +158,20 @@ export default function ActiveListingDetailScreen() {
               </View>
             ) : null}
           </View>
+
+          {/* Tags Section */}
+          {listing.tags && listing.tags.length > 0 && (
+            <View style={styles.tagsSection}>
+              <Text style={styles.tagsLabel}>Tags</Text>
+              <View style={styles.tagsContainer}>
+                {listing.tags.map((tag: string, index: number) => (
+                  <View key={index} style={styles.tagChip}>
+                    <Text style={styles.tagText}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Seller（我自己的资料，不显示 Message 按钮） */}
@@ -274,6 +288,36 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   attributeValue: { fontSize: 15, fontWeight: "600", marginTop: 4 },
+
+  // Tags
+  tagsSection: {
+    marginTop: 16,
+  },
+  tagsLabel: {
+    fontSize: 12,
+    color: "#999",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  tagsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  tagChip: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  tagText: {
+    fontSize: 13,
+    color: "#666",
+    fontWeight: "500",
+  },
 
   sectionHeading: { fontSize: 16, fontWeight: "700" },
 
