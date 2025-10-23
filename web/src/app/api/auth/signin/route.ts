@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { createSupabaseServer } from "@/lib/supabase";
 import { Gender, UserRole, UserStatus } from "@prisma/client";
+import { signLegacyToken } from "@/lib/jwt";
 
 function hash(password: string) {
   return crypto.createHash("sha256").update(password).digest("hex");
@@ -116,7 +117,9 @@ export async function POST(req: NextRequest) {
       premiumUntil: user.premium_until ?? null,
     };
 
-    const resp = NextResponse.json({ user: responseUser, fallback: true });
+    // 为移动端返回一个可用于 Bearer 的本地签名 token
+    const legacyAccessToken = signLegacyToken({ uid: user.id, kind: "legacy" }, { expiresIn: 60 * 60 * 24 * 7 });
+    const resp = NextResponse.json({ user: responseUser, fallback: true, access_token: legacyAccessToken, token_type: 'legacy' });
     resp.cookies.set("tc_session", String(user.id), { httpOnly: true, sameSite: "lax", path: "/" });
     return resp;
   }

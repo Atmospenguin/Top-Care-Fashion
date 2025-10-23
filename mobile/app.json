@@ -8,9 +8,7 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "extra": {
-      "EXPO_PUBLIC_SUPABASE_URL": "https://ilykxrtilsbymlncunua.supabase.co",
-      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlseWt4cnRpbHNieW1sbmN1bnVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0OTY1MjEsImV4cCI6MjA3MzA3MjUyMX0.q78hAUkVNeeXxZlY75hQo6cah6m6iBm1_Yh3z_qx-6o",
-  "EXPO_PUBLIC_API_URL": "http://192.168.31.225:3000"
+      "EXPO_PUBLIC_API_URL": "http://192.168.31.225:3000"
     },
     "splash": {
       "image": "./assets/splash-icon.png",
