@@ -126,6 +126,7 @@ export default function EditListingScreen() {
   const [listing, setListing] = useState<ListingItem | null>(null);
 
   // ✅ 表单状态
+  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [brand, setBrand] = useState("");
@@ -154,6 +155,7 @@ export default function EditListingScreen() {
         if (listingData) {
           setListing(listingData);
           // ✅ 填充表单数据
+          setTitle(listingData.title || "");
           setDescription(listingData.description || "");
           setCategory(listingData.category || "");
           setBrand(listingData.brand || "");
@@ -190,7 +192,7 @@ export default function EditListingScreen() {
       console.log("📝 Saving listing changes:", listing.id);
 
       const updateData = {
-        title: listing.title, // 保持原标题
+        title: title.trim(),
         description: description.trim(),
         price: parseFloat(price),
         brand: brand.trim(),
@@ -396,6 +398,17 @@ export default function EditListingScreen() {
           style={{ marginBottom: 16 }}
         />
 
+        {/* Title */}
+        <Text style={styles.sectionTitle}>Title</Text>
+        <TextInput
+          style={styles.input}
+          value={title}
+          onChangeText={setTitle}
+          placeholder="Enter a catchy title for your item"
+          maxLength={60}
+        />
+        <Text style={styles.charCount}>{title.length}/60</Text>
+
         {/* Description */}
         <Text style={styles.sectionTitle}>Description</Text>
         <TextInput
@@ -403,7 +416,10 @@ export default function EditListingScreen() {
           multiline
           value={description}
           onChangeText={setDescription}
+          placeholder="Describe your item in detail..."
+          maxLength={500}
         />
+        <Text style={styles.charCount}>{description.length}/500</Text>
 
         {/* Info */}
         <Text style={styles.sectionTitle}>Info</Text>
@@ -568,6 +584,13 @@ const styles = StyleSheet.create({
 
   sectionTitle: { fontSize: 16, fontWeight: "600", marginTop: 12, marginBottom: 8 },
   fieldLabel: { fontSize: 14, fontWeight: "500", color: "#333", marginBottom: 6, marginTop: 8 },
+  charCount: { 
+    fontSize: 12, 
+    color: "#999", 
+    textAlign: "right", 
+    marginTop: -8, 
+    marginBottom: 8 
+  },
   input: {
     borderWidth: 1,
     borderColor: "#ddd",

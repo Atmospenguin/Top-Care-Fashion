@@ -204,6 +204,7 @@ export default function SellScreen({
 }: {
   navigation: SellScreenNavigationProp;
 }) {
+  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [aiDesc, setAiDesc] = useState<string | null>(null);
@@ -350,7 +351,7 @@ export default function SellScreen({
     setSaving(true);
     try {
       const listingData: CreateListingRequest = {
-        title: description.split(' ').slice(0, 5).join(' ') || "New Listing", // 从描述生成标题
+        title: title.trim() || "New Listing",
         description: description.trim(),
         price: priceValue,
         brand: brand === "Others" ? brandCustom : brand,
@@ -375,6 +376,7 @@ export default function SellScreen({
             text: "OK",
             onPress: () => {
               // 重置表单
+              setTitle("");
               setDescription("");
               setCategory("Select");
               setCondition("Select");
@@ -450,15 +452,30 @@ export default function SellScreen({
           <Text style={styles.photoTips}>Read our photo tips</Text>
         </TouchableOpacity>
 
+        {/* 标题 */}
+        <Text style={styles.sectionTitle}>Title</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter a catchy title for your item"
+          placeholderTextColor="#999"
+          value={title}
+          onChangeText={setTitle}
+          maxLength={60}
+        />
+        <Text style={styles.charCount}>{title.length}/60</Text>
+
         {/* 描述 */}
         <Text style={styles.sectionTitle}>Description</Text>
         <TextInput
           style={styles.input}
           placeholder="eg. small grey Nike t-shirt, only worn a few times"
+          placeholderTextColor="#999"
           multiline
           value={description}
           onChangeText={setDescription}
+          maxLength={500}
         />
+        <Text style={styles.charCount}>{description.length}/500</Text>
         <TouchableOpacity style={styles.aiGenBtn} onPress={generateDescription}>
           <Text style={{ color: "#5B21B6", fontWeight: "600" }}>Generate with AI ✨</Text>
         </TouchableOpacity>
@@ -913,6 +930,13 @@ const styles = StyleSheet.create({
 
   sectionTitle: { fontSize: 16, fontWeight: "600", marginTop: 12, marginBottom: 8 },
   fieldLabel: { fontSize: 14, fontWeight: "500", color: "#333", marginBottom: 6, marginTop: 8 },
+  charCount: { 
+    fontSize: 12, 
+    color: "#999", 
+    textAlign: "right", 
+    marginTop: -8, 
+    marginBottom: 8 
+  },
   input: { borderWidth: 1, borderColor: "#ddd", borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 15, backgroundColor: "#fafafa" },
 
   aiGenBtn: { alignSelf: "flex-start", paddingVertical: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: "#5B21B6", borderRadius: 20, marginBottom: 12 },
