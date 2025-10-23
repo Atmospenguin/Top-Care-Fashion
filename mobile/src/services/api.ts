@@ -1,5 +1,4 @@
 import { API_CONFIG, ApiResponse, ApiError } from '../config/api';
-import { supabase } from '../../constants/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // 基础 API 客户端类
@@ -17,7 +16,7 @@ class ApiClient {
   // 从 AsyncStorage 加载存储的 token
   private async loadStoredToken(): Promise<void> {
     try {
-      const storedToken = await AsyncStorage.getItem('supabase_access_token');
+      const storedToken = await AsyncStorage.getItem('auth_token');
       if (storedToken) {
         this.authToken = storedToken;
         console.log("🔍 API Client - Loaded stored token");
@@ -30,14 +29,14 @@ class ApiClient {
   // 设置认证 token
   public setAuthToken(token: string): void {
     this.authToken = token;
-    AsyncStorage.setItem('supabase_access_token', token);
+    AsyncStorage.setItem('auth_token', token);
     console.log("🔍 API Client - Token set and stored");
   }
 
   // 清除认证 token
   public clearAuthToken(): void {
     this.authToken = null;
-    AsyncStorage.removeItem('supabase_access_token');
+    AsyncStorage.removeItem('auth_token');
     console.log("🔍 API Client - Token cleared");
   }
 
@@ -48,47 +47,19 @@ class ApiClient {
 
   // 获取认证头
   private async getAuthHeaders(): Promise<Record<string, string>> {
-    try {
-      // 首先尝试使用存储的 token
-      if (this.authToken) {
-        console.log("🔍 API Client - Using stored token:", this.authToken.substring(0, 20) + "...");
-        return { Authorization: `Bearer ${this.authToken}` };
-      }
-
-      // 然后尝试从 Supabase 获取 session
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      console.log("🔍 API Client - Session exists:", !!session);
-      console.log("🔍 API Client - Access token exists:", !!session?.access_token);
-      console.log("🔍 API Client - Session error:", error);
-      
-      if (session?.access_token) {
-        console.log("🔍 API Client - Got Supabase session, storing token");
-        this.setAuthToken(session.access_token);
-        return { Authorization: `Bearer ${session.access_token}` };
-      }
-      
-      // 如果 session 过期，尝试刷新
-      if (session?.refresh_token) {
-        console.log("🔍 API Client - Attempting to refresh session...");
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession({
-          refresh_token: session.refresh_token
-        });
-        
-        if (refreshData.session?.access_token) {
-          console.log("🔍 API Client - Session refreshed successfully");
-          this.setAuthToken(refreshData.session.access_token);
-          return { Authorization: `Bearer ${refreshData.session.access_token}` };
-        } else {
-          console.log("🔍 API Client - Session refresh failed:", refreshError);
-        }
-      }
-      
-      console.log("🔍 API Client - No valid session found");
-    } catch (error) {
-      console.log('🔍 API Client - Failed to get auth token:', error);
+    // 仅使用本地存储的 token（来自 Web API 登录返回的 access_token）
+    if (this.authToken) {
+      return { Authorization: `Bearer ${this.authToken}` };
     }
-    
+    try {
+      const storedToken = await AsyncStorage.getItem('auth_token');
+      if (storedToken) {
+        this.authToken = storedToken;
+        return { Authorization: `Bearer ${storedToken}` };
+      }
+    } catch (e) {
+      console.log('🔍 API Client - No auth token available');
+    }
     return {};
   }
 
@@ -133,18 +104,22 @@ class ApiClient {
       
       clearTimeout(timeoutId);
       
+      const ct = response.headers.get('content-type') || '';
       console.log(`🔍 API Response <- ${options.method || 'GET'} ${url} status=${response.status} time=${Date.now()}`);
+      if (!ct.includes('application/json')) {
+        console.log(`🔍 API Response Content-Type: ${ct}`);
+      }
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         
         // 如果是 401 错误且还有重试次数，尝试刷新 session
-        if (response.status === 401 && retryCount < 2) {
+        if (response.status === 401 && retryCount < 1) {
           console.log(`🔍 API Client - 401 error, attempting session refresh (retry ${retryCount + 1})`);
           
-          // 清除当前 token 并尝试刷新
+          // 清除当前 token
           this.authToken = null;
-          await AsyncStorage.removeItem('supabase_access_token');
+          await AsyncStorage.removeItem('auth_token');
           
           // 递归重试
           return this.request<T>(endpoint, options, retryCount + 1);
@@ -157,8 +132,20 @@ class ApiClient {
         );
       }
 
-      const data = await response.json();
-      return { data };
+      // 优先按 JSON 解析，若非 JSON，抛出带正文摘要的错误，帮助定位错误服务端/URL
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
+        return { data };
+      } else {
+        const text = await response.text();
+        const snippet = text.slice(0, 200);
+        throw new ApiError(
+          `Non-JSON response (Content-Type: ${contentType})`,
+          response.status,
+          { preview: snippet }
+        );
+      }
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;

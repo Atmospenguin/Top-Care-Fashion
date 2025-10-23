@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { createSupabaseServer } from "@/lib/supabase";
+import { verifyLegacyToken } from "@/lib/jwt";
 
 /**
  * 获取当前登录用户
@@ -15,7 +16,7 @@ async function getCurrentUser(req: NextRequest) {
       ? authHeader.split(" ")[1]
       : null;
 
-    let userId: string | null = null;
+    let dbUser: any = null;
 
     if (token) {
       console.log("🔍 Auth header:", authHeader);
@@ -26,32 +27,20 @@ async function getCurrentUser(req: NextRequest) {
       console.log("🔍 Supabase error:", error);
       
       if (!error && data?.user) {
-        userId = data.user.id;
+        dbUser = await prisma.users.findUnique({ where: { supabase_user_id: data.user.id } });
+      }
+
+      // 如果 Supabase JWT 失败，尝试 legacy JWT
+      if (!dbUser) {
+        const v = verifyLegacyToken(token);
+        if (v.valid && v.payload?.uid) {
+          dbUser = await prisma.users.findUnique({ where: { id: Number(v.payload.uid) } });
+        }
       }
     }
 
-    if (!userId) {
-      console.log("❌ No valid user token found");
-      return null;
-    }
-
-    // 查找数据库用户
-    const dbUser = await prisma.users.findUnique({
-      where: { supabase_user_id: userId },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        role: true,
-        status: true,
-        is_premium: true,
-        dob: true,
-        gender: true,
-      },
-    });
-
     if (!dbUser) {
-      console.log("❌ User not found in database");
+      console.log("❌ No valid user token found");
       return null;
     }
 

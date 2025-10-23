@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signIn, signUp, signOut, getCurrentUser, forgotPassword, resetPassword } from '../api';
-import { supabase } from '../constants/supabase';
 
 // 用户类型定义 (匹配 Web API)
 export interface User {
@@ -56,34 +54,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // 清除错误
   const clearError = () => setError(null);
 
-  // 存储 token 到本地存储
-  const storeToken = async (token: string) => {
-    try {
-      await AsyncStorage.setItem('auth_token', token);
-    } catch (error) {
-      console.error('Error storing token:', error);
-    }
-  };
-
-  // 从本地存储获取 token
-  const getStoredToken = async (): Promise<string | null> => {
-    try {
-      return await AsyncStorage.getItem('auth_token');
-    } catch (error) {
-      console.error('Error getting stored token:', error);
-      return null;
-    }
-  };
-
-  // 清除存储的 token
-  const clearStoredToken = async () => {
-    try {
-      await AsyncStorage.removeItem('auth_token');
-    } catch (error) {
-      console.error('Error clearing stored token:', error);
-    }
-  };
-
   // 登录
   const login = async (email: string, password: string) => {
     try {
@@ -93,7 +63,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await signIn(email, password);
       
       if (response.data?.user) {
-        // Web API 使用 cookie，不需要存储 token
         setUser(response.data.user);
       } else {
         throw new Error('Invalid response from server');
@@ -115,7 +84,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await signUp(username, email, password);
       
       if (response.data?.user) {
-        // Web API 使用 cookie，不需要存储 token
         setUser(response.data.user);
       } else {
         throw new Error('Invalid response from server');
@@ -136,7 +104,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error during logout:', error);
     } finally {
-      await clearStoredToken();
       setUser(null);
       setLoading(false);
     }
@@ -169,68 +136,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(updatedUser);
   };
 
-  // 应用启动时检查用户登录状态
+  // 应用启动时检查用户登录状态（基于 Web API + Bearer token）
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
         setLoading(true);
-        
-        // 首先检查 Supabase session
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          console.log('🔍 AuthContext - Found Supabase session, checking user status');
-          
-          // 如果有 session，检查用户状态
-          try {
-            const response = await getCurrentUser();
-            if (response && response.user) {
-              console.log('🔍 AuthContext - User authenticated:', response.user.username);
-              setUser(response.user);
-            } else {
-              console.log('🔍 AuthContext - No user data from API, clearing session');
-              await supabase.auth.signOut();
-            }
-          } catch (apiError) {
-            console.log('🔍 AuthContext - API check failed, clearing session:', apiError);
-            await supabase.auth.signOut();
-          }
+        const response: any = await getCurrentUser();
+        if (response && response.data && response.data.user) {
+          setUser(response.data.user);
         } else {
-          console.log('🔍 AuthContext - No Supabase session found');
+          setUser(null);
         }
       } catch (error) {
         console.error('Error checking auth status:', error);
-        // 清除任何存储的 token（如果有的话）
-        await clearStoredToken();
       } finally {
         setLoading(false);
       }
     };
 
     checkAuthStatus();
-    
-    // 监听 Supabase 认证状态变化
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔍 AuthContext - Auth state changed:', event, !!session);
-      
-      if (event === 'SIGNED_IN' && session?.user) {
-        try {
-          const response = await getCurrentUser();
-          if (response && response.user) {
-            setUser(response.user);
-          }
-        } catch (error) {
-          console.error('Error getting user after sign in:', error);
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        await clearStoredToken();
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    // 移动端不订阅 Supabase 事件，完全依赖 Web API
+    return () => {};
   }, []);
 
   const value: AuthContextType = {

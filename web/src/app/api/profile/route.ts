@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { createSupabaseServer } from "@/lib/supabase";
+import { verifyLegacyToken } from "@/lib/jwt";
 
 /**
  * 获取当前登录用户
@@ -15,23 +16,27 @@ async function getCurrentUser(req: NextRequest) {
       ? authHeader.split(" ")[1]
       : null;
 
-    let userId: string | null = null;
+    let dbUser: any = null;
 
     if (token) {
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) {
-        userId = user.id;
+      // 尝试 Supabase JWT
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (user && !error) {
+        dbUser = await prisma.users.findUnique({ where: { supabase_user_id: user.id } });
+      }
+
+      // 如果 Supabase 校验失败，尝试本地 JWT（legacy）
+      if (!dbUser) {
+        const v = verifyLegacyToken(token);
+        if (v.valid && v.payload?.uid) {
+          dbUser = await prisma.users.findUnique({ where: { id: Number(v.payload.uid) } });
+        }
       }
     }
 
-    if (!userId) {
+    if (!dbUser) {
       return null;
     }
-
-    // 查询本地数据库用户
-    const dbUser = await prisma.users.findUnique({
-      where: { supabase_user_id: userId },
-    });
 
     return dbUser;
   } catch (err) {
