@@ -538,7 +538,21 @@ export default function UserProfileScreen() {
 
             <TouchableOpacity 
               style={[styles.msgBtn, isOwnProfile && styles.disabledBtn]} 
-              onPress={isOwnProfile ? undefined : handleMessageUser}
+              onPress={isOwnProfile ? undefined : () => {
+                // 导航到Inbox聊天框
+                const rootNavigation = navigation
+                  .getParent()
+                  ?.getParent() as any;
+                
+                rootNavigation?.navigate("Inbox", {
+                  screen: "Chat",
+                  params: {
+                    sender: userProfile?.username || "User",
+                    kind: "order",
+                    order: null // 没有特定订单，只是一般聊天
+                  }
+                });
+              }}
               disabled={isOwnProfile}
             >
               <Icon 

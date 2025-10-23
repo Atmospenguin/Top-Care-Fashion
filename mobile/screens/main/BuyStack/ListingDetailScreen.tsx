@@ -382,7 +382,37 @@ export default function ListingDetailScreen() {
                 </View>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.messageBtn}>
+            <TouchableOpacity 
+              style={styles.messageBtn}
+              onPress={() => {
+                // 导航到Inbox聊天框
+                const rootNavigation = navigation
+                  .getParent()
+                  ?.getParent() as any;
+                
+                rootNavigation?.navigate("Inbox", {
+                  screen: "Chat",
+                  params: {
+                    sender: safeItem?.seller?.name || "Seller",
+                    kind: "order",
+                    order: {
+                      id: safeItem?.id || "new-order",
+                      product: {
+                        title: safeItem?.title || "Item",
+                        price: safeItem?.price || 0,
+                        size: safeItem?.size,
+                        image: safeItem?.images?.[0] || ""
+                      },
+                      seller: {
+                        name: safeItem?.seller?.name || "Seller",
+                        avatar: safeItem?.seller?.avatar
+                      },
+                      status: "Inquiry"
+                    }
+                  }
+                });
+              }}
+            >
               <Icon name="chatbubble-ellipses-outline" size={18} color="#000" />
               <Text style={styles.messageText}>Message</Text>
             </TouchableOpacity>
