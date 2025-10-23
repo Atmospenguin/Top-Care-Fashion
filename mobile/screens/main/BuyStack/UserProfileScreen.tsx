@@ -25,6 +25,7 @@ import { MOCK_LISTINGS } from "../../../mocks/shop";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
 import { userService, type UserProfile } from "../../../src/services/userService";
+import { authService } from "../../../src/services/authService";
 
 type UserProfileParam = RouteProp<BuyStackParamList, "UserProfile">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
@@ -130,6 +131,8 @@ export default function UserProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [listingsLoading, setListingsLoading] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
 
   const [activeTab, setActiveTab] = useState<"Shop" | "Likes" | "Reviews">(
     "Shop"
@@ -158,6 +161,21 @@ export default function UserProfileScreen() {
   const [reviewRole, setReviewRole] = useState<string>("All");
   const [reviewRating, setReviewRating] = useState<string>("All");
 
+  // 获取当前用户信息
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const user = await authService.getCurrentUser();
+        setCurrentUser(user);
+        console.log("👤 Current user:", user?.username);
+      } catch (error) {
+        console.error("❌ Error loading current user:", error);
+      }
+    };
+
+    loadCurrentUser();
+  }, []);
+
   // 加载用户信息
   useEffect(() => {
     const loadUserProfile = async () => {
@@ -169,6 +187,11 @@ export default function UserProfileScreen() {
         if (profile) {
           setUserProfile(profile);
           console.log("✅ User profile loaded:", profile.username);
+          
+          // 判断是否在查看自己的profile
+          const isOwn = currentUser && currentUser.username === profile.username;
+          setIsOwnProfile(isOwn);
+          console.log("🔍 Is own profile:", isOwn);
         } else {
           Alert.alert("Error", "User not found");
           navigation.goBack();
@@ -183,7 +206,7 @@ export default function UserProfileScreen() {
     };
 
     loadUserProfile();
-  }, [username, navigation]);
+  }, [username, navigation, currentUser]);
 
   // 加载用户 listings
   useEffect(() => {
@@ -212,9 +235,29 @@ export default function UserProfileScreen() {
     loadUserListings();
   }, [userProfile, username]);
 
-  // Mock data for profile stats (fallback)
-  const followers = userProfile?.activeListings || 1234;
-  const following = userProfile?.soldListings || 567;
+  // 检查follow状态
+  useEffect(() => {
+    const checkFollowStatus = async () => {
+      if (!userProfile || !currentUser || isOwnProfile) return;
+      
+      try {
+        console.log("👥 Checking follow status for:", userProfile.username);
+        const followStatus = await userService.checkFollowStatus(userProfile.username);
+        setIsFollowing(followStatus);
+        console.log(`✅ Follow status: ${followStatus}`);
+      } catch (error) {
+        console.error("❌ Error checking follow status:", error);
+        // 如果检查失败，默认设为false
+        setIsFollowing(false);
+      }
+    };
+
+    checkFollowStatus();
+  }, [userProfile, currentUser, isOwnProfile]);
+
+  // 使用真实的follow统计数据
+  const followers = userProfile?.followersCount || 0;
+  const following = userProfile?.followingCount || 0;
   const reviewsCount = userProfile?.reviewsCount || mockReviews.length;
 
   const filteredListings = useMemo(() => {
@@ -349,10 +392,24 @@ export default function UserProfileScreen() {
   };
 
   // Follow/Unfollow 处理函数
-  const handleFollowToggle = () => {
-    setIsFollowing(!isFollowing);
-    // TODO: 实现实际的关注/取消关注 API 调用
-    console.log(isFollowing ? "Unfollowing user" : "Following user");
+  const handleFollowToggle = async () => {
+    if (!userProfile) return;
+    
+    try {
+      let newFollowStatus: boolean;
+      
+      if (isFollowing) {
+        newFollowStatus = await userService.unfollowUser(userProfile.username);
+      } else {
+        newFollowStatus = await userService.followUser(userProfile.username);
+      }
+      
+      setIsFollowing(newFollowStatus);
+      console.log(`✅ Follow status updated: ${newFollowStatus}`);
+    } catch (error) {
+      console.error("❌ Error toggling follow status:", error);
+      Alert.alert("Error", "Failed to update follow status");
+    }
   };
 
   // Message 处理函数
@@ -460,18 +517,22 @@ export default function UserProfileScreen() {
               <Text style={styles.statLabel}>following</Text>
             </View>
 
-            <TouchableOpacity
-              style={[styles.followBtn, isFollowing && styles.followBtnActive]}
-              onPress={handleFollowToggle}
-            >
-              <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>
-                {isFollowing ? "Following" : "Follow"}
-              </Text>
-            </TouchableOpacity>
+            {!isOwnProfile && (
+              <>
+                <TouchableOpacity
+                  style={[styles.followBtn, isFollowing && styles.followBtnActive]}
+                  onPress={handleFollowToggle}
+                >
+                  <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>
+                    {isFollowing ? "Following" : "Follow"}
+                  </Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity style={styles.msgBtn} onPress={handleMessageUser}>
-              <Icon name="mail-outline" size={24} color="#F54B3D" />
-            </TouchableOpacity>
+                <TouchableOpacity style={styles.msgBtn} onPress={handleMessageUser}>
+                  <Icon name="mail-outline" size={24} color="#F54B3D" />
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </View>

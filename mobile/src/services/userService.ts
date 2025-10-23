@@ -18,6 +18,8 @@ export interface UserProfile {
   totalListings: number;
   activeListings: number;
   soldListings: number;
+  followersCount: number;
+  followingCount: number;
   memberSince: string;
 }
 
@@ -191,6 +193,73 @@ export class UserService {
       throw new Error('No listings data received');
     } catch (error) {
       console.error('Error fetching user listings:', error);
+      throw error;
+    }
+  }
+
+  // Follow/Unfollow 用户
+  async followUser(username: string): Promise<boolean> {
+    try {
+      console.log("👥 Following user:", username);
+      
+      const response = await apiClient.post<{ success: boolean; isFollowing: boolean }>(
+        `/api/users/${username}/follow`
+      );
+      
+      console.log("👥 Follow response:", response);
+      
+      if (response.data?.success) {
+        console.log(`✅ Successfully followed ${username}`);
+        return response.data.isFollowing;
+      }
+      
+      throw new Error('Follow request failed');
+    } catch (error) {
+      console.error('Error following user:', error);
+      throw error;
+    }
+  }
+
+  async unfollowUser(username: string): Promise<boolean> {
+    try {
+      console.log("👥 Unfollowing user:", username);
+      
+      const response = await apiClient.delete<{ success: boolean; isFollowing: boolean }>(
+        `/api/users/${username}/follow`
+      );
+      
+      console.log("👥 Unfollow response:", response);
+      
+      if (response.data?.success) {
+        console.log(`✅ Successfully unfollowed ${username}`);
+        return response.data.isFollowing;
+      }
+      
+      throw new Error('Unfollow request failed');
+    } catch (error) {
+      console.error('Error unfollowing user:', error);
+      throw error;
+    }
+  }
+
+  async checkFollowStatus(username: string): Promise<boolean> {
+    try {
+      console.log("👥 Checking follow status for:", username);
+      
+      const response = await apiClient.get<{ success: boolean; isFollowing: boolean }>(
+        `/api/users/${username}/follow`
+      );
+      
+      console.log("👥 Follow status response:", response);
+      
+      if (response.data?.success) {
+        console.log(`✅ Follow status: ${response.data.isFollowing}`);
+        return response.data.isFollowing;
+      }
+      
+      throw new Error('Failed to check follow status');
+    } catch (error) {
+      console.error('Error checking follow status:', error);
       throw error;
     }
   }

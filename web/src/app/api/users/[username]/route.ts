@@ -44,6 +44,24 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
     const totalListings = user.listings_as_seller.length;
     const activeListings = user.listings_as_seller.filter(l => l.listed && !l.sold).length;
     const soldListings = user.listings_as_seller.filter(l => l.sold).length;
+    
+    // 暂时使用0作为follow统计，后续可以通过单独查询获取
+    const followersCount = 0;
+    const followingCount = 0;
+
+    // 检查当前用户是否关注了这个用户（如果有认证信息）
+    let isFollowing = false;
+    try {
+      const authHeader = req.headers.get("authorization");
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : null;
+      
+      if (token) {
+        // 这里可以添加获取当前用户的逻辑来检查follow状态
+        // 暂时设为false，后续可以在前端处理
+      }
+    } catch (error) {
+      // 忽略认证错误，继续返回用户信息
+    }
 
     const formattedUser = {
       id: user.id.toString(),
@@ -59,7 +77,10 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
       totalListings,
       activeListings,
       soldListings,
+      followersCount,
+      followingCount,
       memberSince: user.created_at.toISOString().slice(0, 10),
+      isFollowing,
     };
 
     return NextResponse.json({

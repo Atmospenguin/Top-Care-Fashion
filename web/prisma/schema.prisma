@@ -39,6 +39,9 @@ model users {
   transactions_sell  transactions[]         @relation("Seller")
   addresses          user_addresses[]
   payment_methods    user_payment_methods[]
+  // Follow关系
+  followers          user_follows[]         @relation("UserFollowers")
+  following          user_follows[]         @relation("UserFollowing")
 
   @@map("users")
 }
@@ -367,4 +370,17 @@ enum ReportStatus {
   OPEN
   RESOLVED
   DISMISSED
+}
+
+model user_follows {
+  id           Int      @id @default(autoincrement())
+  follower_id  Int
+  following_id Int
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  follower  users @relation("UserFollowers", fields: [follower_id], references: [id], onDelete: Cascade)
+  following users @relation("UserFollowing", fields: [following_id], references: [id], onDelete: Cascade)
+
+  @@unique([follower_id, following_id])
+  @@map("user_follows")
 }
