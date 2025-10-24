@@ -28,6 +28,11 @@ model users {
   bio                String?
   location           String?                @db.VarChar(100)
   updated_at         DateTime?              @default(now()) @db.Timestamp(6)
+  // User preference fields
+  preferred_styles    Json?
+  preferred_size_top  String?
+  preferred_size_bottom String?
+  preferred_size_shoe String?
   cart_items         cart_items[]
   faqs               faq[]
   feedbacks          feedback[]

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signIn, signUp, signOut, getCurrentUser, forgotPassword, resetPassword } from '../api';
 
 // 用户类型定义 (匹配 Web API)
@@ -136,17 +137,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(updatedUser);
   };
 
-  // 应用启动时检查用户登录状态（基于 Web API + Bearer token）
+  // 应用启动时检查用户登录状态（仅在存在本地 token 时触发服务器查询）
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
         setLoading(true);
-        const response: any = await getCurrentUser();
-        if (response && response.data && response.data.user) {
-          setUser(response.data.user);
-        } else {
+        const token = await AsyncStorage.getItem('auth_token');
+        if (!token) {
           setUser(null);
+          return;
         }
+        const response: any = await getCurrentUser();
+        if (response && response.data && response.data.user) setUser(response.data.user);
+        else setUser(null);
       } catch (error) {
         console.error('Error checking auth status:', error);
       } finally {

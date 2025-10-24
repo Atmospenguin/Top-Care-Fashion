@@ -10,6 +10,7 @@ import { fetchListings } from "../../../api";
 import AdaptiveImage from "../../../components/AdaptiveImage";
 import type { RootStackParamList } from "../../../App";
 import type { ListingItem } from "../../../types/shop";
+import { useAuth } from "../../../contexts/AuthContext";
 
 export default function HomeScreen() {
   const navigation =
@@ -19,7 +20,9 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 获取推荐商品数据
+  const { isAuthenticated } = useAuth();
+
+  // 获取推荐商品数据（仅登录后触发）
   useEffect(() => {
     const loadFeaturedItems = async () => {
       try {
@@ -38,8 +41,15 @@ export default function HomeScreen() {
       }
     };
 
-    loadFeaturedItems();
-  }, []);
+    if (isAuthenticated) {
+      loadFeaturedItems();
+    } else {
+      // 未登录时重置状态，避免界面显示旧数据
+      setFeaturedItems([]);
+      setLoading(false);
+      setError(null);
+    }
+  }, [isAuthenticated]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
