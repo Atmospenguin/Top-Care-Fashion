@@ -14,6 +14,16 @@ export interface UserListingsQueryParams {
   offset?: number;
 }
 
+export interface ListingsQueryParams {
+  category?: string;
+  search?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  limit?: number;
+  offset?: number;
+  gender?: string;
+}
+
 // 创建商品请求参数
 export interface CreateListingRequest {
   title: string;

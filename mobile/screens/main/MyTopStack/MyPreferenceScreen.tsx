@@ -135,9 +135,9 @@ export default function MyPreferenceScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.sizeLabel}>Shoes</Text>
+        <Text style={styles.sizeLabel}>Footwear</Text>
         <Text style={hasSizes && selectedSizes.shoe ? styles.sizeValue : styles.sizeEmpty}>
-          {selectedSizes.shoe ?? "No shoe sizes picked"}
+          {selectedSizes.shoe ?? "No footwear sizes picked"}
         </Text>
         <Text style={styles.sizeLabel}>Tops</Text>
         <Text style={hasSizes && selectedSizes.top ? styles.sizeValue : styles.sizeEmpty}>

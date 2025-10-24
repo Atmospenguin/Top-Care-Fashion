@@ -40,6 +40,23 @@ const REPORT_CATEGORIES = [
   { id: "other", label: "Something else" },
 ];
 
+const formatGenderLabel = (value?: string | null) => {
+  if (!value) return "Unisex";
+  const lower = value.toLowerCase();
+  if (lower === "men" || lower === "male") return "Men";
+  if (lower === "women" || lower === "female") return "Women";
+  if (lower === "unisex") return "Unisex";
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+};
+
+const formatDateString = (value?: string | null) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString();
+};
+
+
 export default function ListingDetailScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
@@ -89,6 +106,11 @@ export default function ListingDetailScreen() {
     [defaultBag],
   );
   const shippingFee = 8;
+
+  const genderLabel = useMemo(() => formatGenderLabel(safeItem?.gender), [safeItem?.gender]);
+  const likesCount = safeItem?.likesCount ?? 0;
+  const listedOn = useMemo(() => formatDateString(safeItem?.createdAt), [safeItem?.createdAt]);
+  const updatedOn = useMemo(() => formatDateString(safeItem?.updatedAt), [safeItem?.updatedAt]);
 
   // 检查是否是自己的商品
   const isOwnListing = useMemo(() => {
@@ -387,18 +409,27 @@ export default function ListingDetailScreen() {
               <Text style={styles.title}>{safeItem?.title || 'Loading...'}</Text>
               <Text style={styles.price}>${typeof safeItem?.price === 'number' ? safeItem.price.toFixed(2) : parseFloat(safeItem?.price || '0').toFixed(2)}</Text>
             </View>
-            <TouchableOpacity
-              accessibilityRole="button"
-              style={[styles.iconButton, isLiked && styles.iconButtonLiked, isOwnListing && styles.iconButtonDisabled]}
+            <View style={styles.likeButtonWrapper}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                style={[styles.iconButton, isLiked && styles.iconButtonLiked, isOwnListing && styles.iconButtonDisabled]}
               onPress={handleLikeToggle}
               disabled={isLoadingLike || isOwnListing}
-            >
-              <Icon 
+              >
+                <Icon 
                 name={isLiked ? "heart" : "heart-outline"} 
                 size={22} 
                 color={isOwnListing ? "#999" : (isLiked ? "#F54B3D" : "#111")} 
               />
-            </TouchableOpacity>
+              </TouchableOpacity>
+              {likesCount > 0 && (
+                <View style={styles.likeBadge}>
+                  <Text style={styles.likeBadgeText}>
+                    {likesCount > 99 ? "99+" : likesCount}
+                  </Text>
+                </View>
+              )}
+            </View>
             {/* Mix & Match chip aligned with like icon and same height */}
             <TouchableOpacity
               accessibilityRole="button"
@@ -426,6 +457,12 @@ export default function ListingDetailScreen() {
                   ? safeItem.condition 
                   : 'Not specified'}
               </Text>
+            </View>
+          </View>
+          <View style={styles.metaRow}>
+            <View style={styles.metaPill}>
+              <Text style={styles.metaLabel}>Gender</Text>
+              <Text style={styles.metaValue}>{genderLabel}</Text>
             </View>
           </View>
           <Text style={styles.description}>{safeItem?.description || 'No description available'}</Text>
@@ -468,6 +505,18 @@ export default function ListingDetailScreen() {
                   </View>
                 ))}
               </View>
+            </View>
+          )}
+
+          {(listedOn || updatedOn) && (
+            <View style={styles.infoSection}>
+              <Text style={styles.infoHeading}>Listing Info</Text>
+              {listedOn && (
+                <Text style={styles.infoText}>Listed on {listedOn}</Text>
+              )}
+              {updatedOn && (
+                <Text style={styles.infoText}>Last updated {updatedOn}</Text>
+              )}
             </View>
           )}
 
@@ -700,6 +749,26 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
     opacity: 0.6,
   },
+  likeButtonWrapper: {
+    position: "relative",
+  },
+  likeBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#111",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  likeBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
   mixChipBtn: {
     height: 40,
     borderRadius: 20,
@@ -784,6 +853,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#666",
     fontWeight: "500",
+  },
+  infoSection: {
+    rowGap: 4,
+  },
+  infoHeading: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#666",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  infoText: {
+    fontSize: 13,
+    color: "#444",
   },
   sectionHeading: {
     fontSize: 16,

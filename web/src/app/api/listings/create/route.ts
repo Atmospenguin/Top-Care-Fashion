@@ -191,6 +191,15 @@ export async function POST(req: Request) {
         shippingOption: (listing as any).shipping_option ?? null,
         shippingFee: (listing as any).shipping_fee ?? null,
         location: (listing as any).location ?? null,
+        likesCount: (listing as any).likes_count ?? 0,
+        createdAt: listing.created_at ? listing.created_at.toISOString() : null,
+        updatedAt: listing.updated_at ? listing.updated_at.toISOString() : null,
+        gender: (() => {
+          const value = (listing as any).gender;
+          if (!value || typeof value !== "string") return "Unisex";
+          const lower = value.toLowerCase();
+          return lower.charAt(0).toUpperCase() + lower.slice(1);
+        })(),
         seller: {
           name: listing.seller?.username || "Unknown",
           avatar: listing.seller?.avatar_url || "",
@@ -212,32 +221,54 @@ export async function POST(req: Request) {
 }
 
 // 辅助函数：根据分类名称获取分类ID
+const BASE_CATEGORY_NAMES = ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"] as const;
+
 async function getCategoryId(categoryName: string): Promise<number> {
-  // 首先尝试直接匹配
-  let category = await prisma.listing_categories.findFirst({
-    where: { name: categoryName },
+  const name = (categoryName || "").trim().toLowerCase();
+
+  const synonymMap: Record<string, typeof BASE_CATEGORY_NAMES[number]> = {
+    accessories: "Accessories",
+    accessory: "Accessories",
+    bags: "Accessories",
+    belts: "Accessories",
+    bottoms: "Bottoms",
+    pants: "Bottoms",
+    trousers: "Bottoms",
+    shorts: "Bottoms",
+    skirts: "Bottoms",
+    leggings: "Bottoms",
+    joggers: "Bottoms",
+    footwear: "Footwear",
+    shoes: "Footwear",
+    shoe: "Footwear",
+    boots: "Footwear",
+    sneakers: "Footwear",
+    outerwear: "Outerwear",
+    coats: "Outerwear",
+    jackets: "Outerwear",
+    blazers: "Outerwear",
+    tops: "Tops",
+    top: "Tops",
+    shirts: "Tops",
+    shirt: "Tops",
+    hoodies: "Tops",
+    sweaters: "Tops",
+    dress: "Tops",
+    dresses: "Tops",
+    activewear: "Tops",
+    others: "Accessories",
+    other: "Accessories",
+  };
+
+  const mappedName = synonymMap[name] ?? BASE_CATEGORY_NAMES.find((cat) => cat.toLowerCase() === name) ?? "Tops";
+
+  const category = await prisma.listing_categories.findFirst({
+    where: { name: mappedName },
   });
 
-  if (category) {
-    return category.id;
+  if (!category) {
+    throw new Error(`Base category '${mappedName}' is missing from the database.`);
   }
 
-  // 如果没找到，尝试匹配子分类（如 "men-tops-t-shirts"）
-  const subcategory = await prisma.listing_categories.findFirst({
-    where: { name: { contains: categoryName.toLowerCase() } },
-  });
-
-  if (subcategory) {
-    return subcategory.id;
-  }
-
-  // 如果还是没找到，创建一个默认分类
-  const defaultCategory = await prisma.listing_categories.create({
-    data: {
-      name: categoryName.toLowerCase(),
-      description: `Category for ${categoryName}`,
-    },
-  });
-
-  return defaultCategory.id;
+  return category.id;
 }

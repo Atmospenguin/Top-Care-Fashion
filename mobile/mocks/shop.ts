@@ -36,7 +36,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-green-dress",
     title: "Green Midi Dress",
-    category: "top",
+    category: "Tops",
     price: 20,
     description:
       "Relaxed-fit midi dress in emerald green with a subtle pleated skirt and adjustable straps for a flattering fit.",
@@ -59,7 +59,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-skinny-jeans",
     title: "American Eagle Super Stretch Jeans",
-    category: "bottom",
+    category: "Bottoms",
     price: 14.5,
     description:
       "High-rise skinny jeans in a soft, super-stretch denim that keeps its shape all day.",
@@ -81,7 +81,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-nerdy-hoodie",
     title: "Purple Nerdy Hoodie",
-    category: "top",
+    category: "Tops",
     price: 15,
     description:
       "Oversized hoodie from Nerdy with brushed fleece interior and embroidered chest logo.",
@@ -103,7 +103,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-red-jacket",
     title: "Vintage Red Jacket",
-    category: "top",
+    category: "Tops",
     price: 30,
     description:
       "Statement red wool jacket with structured shoulders and snap-button closure.",
@@ -124,7 +124,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-casual-hoodie",
     title: "Casual Beige Hoodie",
-    category: "top",
+    category: "Tops",
     price: 25,
     description:
       "Neutral-toned hoodie with kangaroo pocket and ribbed cuffs, perfect for everyday wear.",
@@ -145,7 +145,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-satin-slip-dress",
     title: "Rose Satin Slip Dress",
-    category: "top",
+    category: "Tops",
     price: 28,
     description:
       "Bias-cut satin slip dress with delicate shoulder straps and a soft drape that moves with you.",
@@ -167,7 +167,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-y2k-football-top",
     title: "Y2K Football Crop Top",
-    category: "top",
+    category: "Tops",
     price: 18,
     description:
       "Cropped jersey-style tee with varsity stripes and a bold front graphic for a nostalgic streetwear look.",
@@ -190,7 +190,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-pleated-tennis-skirt",
     title: "Pleated Tennis Skirt",
-    category: "bottom",
+    category: "Bottoms",
     price: 22,
     description:
       "High-waisted pleated skirt with built-in shorts and contrast piping inspired by classic tennis silhouettes.",
@@ -213,7 +213,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-wide-leg-trousers",
     title: "Wide-Leg Tailored Trousers",
-    category: "bottom",
+    category: "Bottoms",
     price: 26,
     description:
       "High-waisted trousers with soft pleats and a relaxed wide leg for effortless office-to-evening styling.",
@@ -235,7 +235,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-platform-sneakers",
     title: "Platform Canvas Sneakers",
-    category: "shoe",
+    category: "Footwear",
     price: 32,
     description:
       "Chunky platform sneakers in breathable canvas with a contrast gum sole and padded collar.",
@@ -257,7 +257,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-chunky-ankle-boots",
     title: "Chunky Ankle Boots",
-    category: "shoe",
+    category: "Footwear",
     price: 38,
     description:
       "Matte leather ankle boots with elastic side panels and a lug sole for rainy-day grip.",
@@ -279,7 +279,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-leather-crossbody",
     title: "Leather Crossbody Bag",
-    category: "accessory",
+    category: "Accessories",
     price: 24,
     description:
       "Structured crossbody bag with adjustable strap, interior zip pocket, and matte gold hardware.",
@@ -301,7 +301,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-gold-hoop-earrings",
     title: "Gold Hoop Earrings",
-    category: "accessory",
+    category: "Accessories",
     price: 16,
     description:
       "Lightweight gold-tone hoops with a click-closure backing and mirrored finish.",
@@ -323,7 +323,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-hello-kitty-jeans",
     title: "Hello Kitty Baggy Jeans",
-    category: "bottom",
+    category: "Bottoms",
     price: 25,
     description:
       "Playful baggy jeans featuring an all-over Hello Kitty print and relaxed straight-leg silhouette.",
