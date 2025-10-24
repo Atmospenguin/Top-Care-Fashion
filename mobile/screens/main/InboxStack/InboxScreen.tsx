@@ -16,7 +16,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
-import { messagesService, type Conversation } from "../../../src/services/messagesService";
+import { messagesService, type Conversation } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
 
 // 模拟多条对话（Support + Seller）

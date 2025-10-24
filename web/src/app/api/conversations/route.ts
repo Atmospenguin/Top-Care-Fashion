@@ -93,55 +93,57 @@ export async function GET(request: NextRequest) {
       orderBy: { last_message_at: "desc" }
     });
 
-    // 格式化对话数据
-    const formattedConversations = conversations.map(conv => {
-      const otherUser = conv.initiator_id === dbUser.id ? conv.participant : conv.initiator;
-      const lastMessage = conv.messages[0];
-      
-      // 确定对话类型
-      let kind = "general";
-      if (conv.type === "SUPPORT") {
-        kind = "support";
-      } else if (conv.type === "ORDER" && conv.listing) {
-        kind = "order";
-      }
-
-      // 确定最后消息来源
-      let lastFrom = "other";
-      if (lastMessage) {
-        if (lastMessage.sender_id === dbUser.id) {
-          lastFrom = "me";
-        } else if (conv.type === "SUPPORT") {
-          lastFrom = "support";
-        } else if (conv.initiator_id === dbUser.id) {
-          lastFrom = "buyer";
-        } else {
-          lastFrom = "seller";
+    // 格式化对话数据 - 只包含有消息的对话
+    const formattedConversations = conversations
+      .filter(conv => conv.messages.length > 0) // 🔥 关键：只返回有消息的对话
+      .map(conv => {
+        const otherUser = conv.initiator_id === dbUser.id ? conv.participant : conv.initiator;
+        const lastMessage = conv.messages[0];
+        
+        // 确定对话类型
+        let kind = "general";
+        if (conv.type === "SUPPORT") {
+          kind = "support";
+        } else if (conv.type === "ORDER" && conv.listing) {
+          kind = "order";
         }
-      }
 
-      return {
-        id: conv.id.toString(),
-        sender: otherUser.username,
-        message: lastMessage?.content || "No messages yet",
-        time: lastMessage?.created_at ? formatTime(lastMessage.created_at) : formatTime(conv.created_at),
-        avatar: otherUser.avatar_url ? { uri: otherUser.avatar_url } : null,
-        kind,
-        unread: lastMessage ? !lastMessage.is_read && lastMessage.sender_id !== dbUser.id : false,
-        lastFrom,
-        order: conv.listing ? {
-          id: conv.listing.id.toString(),
-          product: {
-            title: conv.listing.name,
-            price: Number(conv.listing.price),
-            size: conv.listing.size,
-            image: conv.listing.image_url || (conv.listing.image_urls as any)?.[0] || null
-          },
-          seller: { name: conv.initiator.username },
-          status: "Active" // 可以根据实际状态更新
-        } : null
-      };
-    });
+        // 确定最后消息来源
+        let lastFrom = "other";
+        if (lastMessage) {
+          if (lastMessage.sender_id === dbUser.id) {
+            lastFrom = "me";
+          } else if (conv.type === "SUPPORT") {
+            lastFrom = "support";
+          } else if (conv.initiator_id === dbUser.id) {
+            lastFrom = "buyer";
+          } else {
+            lastFrom = "seller";
+          }
+        }
+
+        return {
+          id: conv.id.toString(),
+          sender: otherUser.username,
+          message: lastMessage.content, // 🔥 关键：确保有消息内容
+          time: formatTime(lastMessage.created_at),
+          avatar: otherUser.avatar_url ? { uri: otherUser.avatar_url } : null,
+          kind,
+          unread: !lastMessage.is_read && lastMessage.sender_id !== dbUser.id,
+          lastFrom,
+          order: conv.listing ? {
+            id: conv.listing.id.toString(),
+            product: {
+              title: conv.listing.name,
+              price: Number(conv.listing.price),
+              size: conv.listing.size,
+              image: conv.listing.image_url || (conv.listing.image_urls as any)?.[0] || null
+            },
+            seller: { name: conv.initiator.username },
+            status: "Active" // 可以根据实际状态更新
+          } : null
+        };
+      });
 
     // 查找用户的 TOP Support 对话（双向匹配，避免重复创建）
     const supportConversation = await prisma.conversations.findFirst({
@@ -160,8 +162,8 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // 构建 TOP Support 对话显示
-    let topSupportConversation;
+    // 构建 TOP Support 对话显示 - 只显示有消息的对话
+    let topSupportConversation = null;
     if (supportConversation && supportConversation.messages.length > 0) {
       const lastMessage = supportConversation.messages[0];
       topSupportConversation = {
@@ -175,28 +177,19 @@ export async function GET(request: NextRequest) {
         lastFrom: lastMessage.sender_id === dbUser.id ? "me" : "support",
         order: null
       };
-    } else {
-      // 没有对话时显示欢迎消息
-      topSupportConversation = {
-        id: "support-1",
-        sender: "TOP Support",
-        message: `Hey @${dbUser.username}, Welcome to TOP! 👋`,
-        time: "1 month ago",
-        avatar: "https://via.placeholder.com/48/FF6B6B/FFFFFF?text=TOP", // TOP Support 头像
-        kind: "support",
-        unread: false,
-        lastFrom: "support",
-        order: null
-      };
     }
+    // 🔥 关键：如果没有消息，不显示 TOP Support 对话
 
     // 过滤掉其他对话中的 TOP Support 对话，避免重复
     const otherConversations = formattedConversations.filter(conv => 
       !(conv.sender === "TOP Support" || conv.kind === "support")
     );
     
-    // 将Support对话放在最前面
-    const allConversations = [topSupportConversation, ...otherConversations];
+    // 将Support对话放在最前面（如果有的话）
+    const allConversations = [
+      ...(topSupportConversation ? [topSupportConversation] : []),
+      ...otherConversations
+    ].filter(Boolean); // 🔥 关键：过滤掉 null/undefined 值
 
     return NextResponse.json({ conversations: allConversations });
 
@@ -256,35 +249,21 @@ export async function POST(request: NextRequest) {
 
     const { participant_id, listing_id, type = "ORDER" } = await request.json();
 
-    // 检查是否已存在对话
+    // 🔥 检查是否已存在对话（双向匹配 + 类型匹配）
     const existingConversation = await prisma.conversations.findFirst({
       where: {
         OR: [
           {
             initiator_id: dbUser.id,
             participant_id: participant_id,
-            listing_id: listing_id || null
+            type: type as "ORDER" | "SUPPORT" | "GENERAL"
           },
           {
             initiator_id: participant_id,
             participant_id: dbUser.id,
-            listing_id: listing_id || null
+            type: type as "ORDER" | "SUPPORT" | "GENERAL"
           }
         ]
-      }
-    });
-
-    if (existingConversation) {
-      return NextResponse.json({ conversation: existingConversation });
-    }
-
-    // 创建新对话
-    const conversation = await prisma.conversations.create({
-      data: {
-        initiator_id: dbUser.id,
-        participant_id: participant_id,
-        listing_id: listing_id || null,
-        type: type as "ORDER" | "SUPPORT" | "GENERAL"
       },
       include: {
         initiator: {
@@ -314,6 +293,50 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    if (existingConversation) {
+      console.debug(`✅ Found existing conversation: ${existingConversation.id}`);
+      return NextResponse.json({ conversation: existingConversation });
+    }
+
+    // 创建新对话
+    const conversation = await prisma.conversations.create({
+      data: {
+        initiator_id: dbUser.id,
+        participant_id: participant_id,
+        listing_id: listing_id || null,
+        type: type as "ORDER" | "SUPPORT" | "GENERAL",
+        status: "ACTIVE",
+        last_message_at: new Date()
+      },
+      include: {
+        initiator: {
+          select: {
+            id: true,
+            username: true,
+            avatar_url: true
+          }
+        },
+        participant: {
+          select: {
+            id: true,
+            username: true,
+            avatar_url: true
+          }
+        },
+        listing: {
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            image_url: true,
+            image_urls: true,
+            size: true
+          }
+        }
+      }
+    });
+
+    console.debug(`✅ Created new conversation: ${conversation.id} (${type})`);
     return NextResponse.json({ conversation });
 
   } catch (error) {

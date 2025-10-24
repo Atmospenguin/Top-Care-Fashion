@@ -23,7 +23,7 @@ import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { BagItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
-import { likesService, cartService } from "../../../src/services";
+import { likesService, cartService, messagesService } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
@@ -481,43 +481,111 @@ export default function ListingDetailScreen() {
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.messageBtn}
-              onPress={() => {
+              onPress={async () => {
                 console.log("🔍 Message button pressed!");
                 console.log("🔍 SafeItem:", safeItem);
                 console.log("🔍 Seller:", safeItem?.seller);
+                console.log("🔍 messagesService:", messagesService);
+                console.log("🔍 messagesService methods:", Object.getOwnPropertyNames(Object.getPrototypeOf(messagesService)));
                 
-                // 导航到Inbox聊天框
-                const rootNavigation = navigation
-                  .getParent()
-                  ?.getParent() as any;
+                if (!safeItem?.seller?.id) {
+                  console.log("❌ No seller ID found!");
+                  Alert.alert("Error", "Unable to find seller information");
+                  return;
+                }
                 
-                console.log("🔍 Root navigation:", rootNavigation);
-                
-                if (rootNavigation) {
+                try {
+                  // 创建或获取与卖家的对话
+                  console.log("🔍 Creating conversation with seller...");
+                  const conversation = await messagesService.getOrCreateSellerConversation(
+                    safeItem.seller.id,
+                    safeItem.id
+                  );
+                  
+                  console.log("✅ Conversation created/found:", conversation);
+                  
+                  // 导航到聊天界面
                   console.log("🔍 Navigating to ChatScreen...");
-                  rootNavigation.navigate("Inbox", {
-                    screen: "Chat",
-                    params: {
-                      sender: safeItem?.seller?.name || "Seller",
-                      kind: "order",
-                      order: {
-                        id: safeItem?.id || "new-order",
-                        product: {
-                          title: safeItem?.title || "Item",
-                          price: safeItem?.price || 0,
-                          size: safeItem?.size,
-                          image: safeItem?.images?.[0] || ""
-                        },
-                        seller: {
-                          name: safeItem?.seller?.name || "Seller",
-                          avatar: safeItem?.seller?.avatar
-                        },
-                        status: "Inquiry"
-                      }
-                    }
-                  });
-                } else {
-                  console.log("❌ Root navigation not found!");
+                  
+             // 🔥 正确的导航方式：Buy Stack → Root Stack → Main Tab → Inbox Stack → Chat
+             try {
+               // 方式1：通过根导航到 Main Tab，然后到 Inbox
+               const rootNavigation = (navigation as any).getParent?.();
+               if (rootNavigation) {
+                 rootNavigation.navigate("Main", {
+                   screen: "Inbox",
+                   params: {
+                     screen: "Chat",
+                     params: {
+                       sender: safeItem.seller.name || "Seller",
+                       kind: "order",
+                       conversationId: conversation.id,
+                       order: {
+                         id: safeItem.id || "new-order",
+                         product: {
+                           title: safeItem.title || "Item",
+                           price: Number(safeItem.price) || 0,
+                           size: safeItem.size,
+                           image: safeItem.images?.[0] || ""
+                         },
+                         seller: {
+                           name: safeItem.seller.name || "Seller",
+                           avatar: safeItem.seller.avatar
+                         },
+                         buyer: {
+                           name: "You",
+                           avatar: "https://i.pravatar.cc/100?img=32"
+                         },
+                         status: "Inquiry"
+                       }
+                     }
+                   }
+                 });
+                 console.log("✅ Navigation successful via Main Tab");
+               } else {
+                 throw new Error("Root navigation not available");
+               }
+             } catch (navError) {
+               console.log("❌ Main Tab navigation failed:", navError);
+               console.log("🔍 Trying alternative navigation...");
+               
+               // 方式2：尝试直接导航到 Inbox（可能不会工作，但作为 fallback）
+               try {
+                 (navigation as any).navigate("Inbox", {
+                   screen: "Chat",
+                   params: {
+                     sender: safeItem.seller.name || "Seller",
+                     kind: "order",
+                     conversationId: conversation.id,
+                     order: {
+                       id: safeItem.id || "new-order",
+                       product: {
+                         title: safeItem.title || "Item",
+                         price: safeItem.price || 0,
+                         size: safeItem.size,
+                         image: safeItem.images?.[0] || ""
+                       },
+                       seller: {
+                         name: safeItem.seller.name || "Seller",
+                         avatar: safeItem.seller.avatar
+                       },
+                       buyer: {
+                         name: "You",
+                         avatar: "https://i.pravatar.cc/100?img=32"
+                       },
+                       status: "Inquiry"
+                     }
+                   }
+                 });
+                 console.log("✅ Navigation successful via direct");
+               } catch (directError) {
+                 console.error("❌ Direct navigation also failed:", directError);
+                 Alert.alert("Navigation Error", "Unable to open chat. Please try again.");
+               }
+             }
+                } catch (error) {
+                  console.error("❌ Error creating conversation:", error);
+                  Alert.alert("Error", "Failed to start conversation. Please try again.");
                 }
               }}
             >

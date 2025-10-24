@@ -16,7 +16,7 @@ import type { InboxStackParamList } from "./InboxStackNavigator";
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
-import { messagesService, type Message, type ConversationDetail } from "../../../src/services/messagesService";
+import { messagesService, type Message, type ConversationDetail } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
 
 type Order = {
@@ -50,6 +50,11 @@ type ChatItem =
       sentByUser?: boolean;
       avatar?: string;
       orderId?: string;
+      senderInfo?: {
+        id: number;
+        username: string;
+        avatar: string | null;
+      };
     }
   | { 
       id: string; 
@@ -98,9 +103,9 @@ export default function ChatScreen() {
           { id: "card0", type: "orderCard", order: o },
           { id: "t1", type: "system", text: "Sep 20, 2025 18:32" },
           { id: "m1", type: "msg", sender: "me", text: "Hi! Is this jeans still available?" },
-          { id: "m2", type: "msg", sender: "other", text: "Yes! It’s in good condition and ready to ship 😊" },
+          { id: "m2", type: "msg", sender: "other", text: "Yes! It's in good condition and ready to ship 😊" },
           { id: "t2", type: "system", text: "Sep 20, 2025 18:36" },
-          { id: "m3", type: "msg", sender: "me", text: "Great! I’ll place the order now." },
+          { id: "m3", type: "msg", sender: "me", text: "Great! I'll place the order now." },
           {
             id: "sysPay",
             type: "system",
@@ -141,48 +146,40 @@ export default function ChatScreen() {
             sentByUser: false,
             avatar: o.buyer?.avatar,
           },
-          { id: "m1", type: "msg", sender: "me", text: "Ok, I’ll ship the hoodie in 3 days." },
-          {
-            id: "sys2",
-            type: "system",
-            text: "You’ve marked the order as shipped.",
-            time: "Sep 28, 2025 10:00",
-          },
+          { id: "m1", type: "msg", sender: "me", text: "Ok, I'll ship the hoodie in 3 days." },
+          { id: "m2", type: "msg", sender: "other", text: "Thank you! Looking forward to receiving it." },
+          { id: "t2", type: "system", text: "Sep 29, 2025 10:15" },
+          { id: "sys1", type: "system", text: "Seller has shipped your parcel.", time: "Sep 29, 2025 10:15" },
+          { id: "sys2", type: "system", text: "Parcel is in transit.", time: "Oct 1, 2025 14:20" },
           {
             id: "sys3",
             type: "system",
-            text: "Buyer has confirmed received. Transaction completed.",
-            time: "Sep 30, 2025 16:00",
+            text: "Parcel arrived. Waiting for buyer to confirm received.",
+            time: "Oct 3, 2025 09:30",
           },
           {
-            id: "cardReviewBuyer",
-            type: "system",
-            text: "I’ve completed my review\nWaiting for your review.",
-            sentByUser: false,
-            avatar: o.buyer?.avatar,
-          },
-          {
-            id: "cardReviewSeller",
-            type: "system",
-            text: "I’ve completed my review\nMutual reviews are done. You can view them now.",
-            sentByUser: true,
+            id: "cta1",
+            type: "reviewCta",
+            text: "How was your experience? Leave a review to help others discover great items.",
             orderId: o.id,
           },
         ];
       }
     }
 
-    // TOP Support 会话 - 只显示欢迎消息，不显示用户回复
-    return [
-      { id: "1", type: "msg", sender: "other", text: `Hey @${user?.username || 'user'}, Welcome to TOP! 👋`, time: "Jul 13, 2025 18:17" },
-      // 注意：不包含用户回复 "Thanks! Happy to join ~" - 这是模拟的，不应该显示
-    ];
-  }, [kind, order, sender]);
+    if (sender === "TOP Support") {
+      return [
+        { id: "t0", type: "system", text: "Sep 20, 2025 18:30" },
+        { id: "m1", type: "msg", sender: "other", text: "Hey @ccc446981, Welcome to TOP! 👋" },
+        { id: "m2", type: "msg", sender: "me", text: "Thanks! How do I start selling?" },
+        { id: "m3", type: "msg", sender: "other", text: "Great question! Here's how to get started:\n\n1. Take clear photos of your items\n2. Write detailed descriptions\n3. Set fair prices\n4. Respond quickly to buyers\n\nNeed help with anything specific?" },
+        { id: "m4", type: "msg", sender: "me", text: "Perfect! I'll start with some clothes I don't wear anymore." },
+        { id: "m5", type: "msg", sender: "other", text: "That's a great start! Remember to check our community guidelines and always be honest about item condition. Happy selling! 🎉" },
+      ];
+    }
 
-  // —— 真实 API 连接逻辑 —— //
-  useEffect(() => {
-    loadConversationData();
-  }, [conversationId, sender, kind]);
+    return [];
+  }, [kind, order, sender]);
 
   const loadConversationData = async () => {
     if (!conversationId) {
@@ -201,6 +198,11 @@ export default function ChatScreen() {
         setItems([]); // 其他情况显示空对话
       }
       return;
+    }
+
+    // 如果是普通聊天（general），不显示商品卡片
+    if (kind === "general") {
+      console.log("🔍 General chat, loading messages without order card");
     }
 
     try {
@@ -254,8 +256,63 @@ export default function ChatScreen() {
       console.log("🔍 转换后的消息数量:", apiItems.length);
       console.log("🔍 转换后的消息:", apiItems);
 
+      // 处理不同类型的聊天
+      let finalItems = apiItems;
+      
+      if (kind === "general") {
+        // 普通聊天：过滤掉商品卡片
+        finalItems = apiItems.filter(item => item.type !== "orderCard");
+        console.log("🔍 普通聊天，过滤后的消息数量:", finalItems.length);
+      } else if (kind === "order") {
+        // 订单聊天：在开头添加商品卡片
+        console.log("🔍 订单聊天，添加商品卡片");
+        
+        // 优先使用 route.params.order，如果没有则使用 conversation.order
+        const orderData = order || conversation?.order;
+        console.log("🔍 Order 数据来源:", order ? "route.params" : "conversation");
+        console.log("🔍 Order 数据:", JSON.stringify(orderData, null, 2));
+        
+        if (orderData) {
+          const orderCard: ChatItem = {
+            id: "order-card-" + orderData.id,
+            type: "orderCard",
+            order: {
+              id: orderData.id,
+              product: {
+                title: orderData.product.title,
+                price: orderData.product.price,
+                size: orderData.product.size,
+                image: orderData.product.image
+              },
+              seller: {
+                name: orderData.seller.name,
+                avatar: orderData.seller.avatar
+              },
+              buyer: orderData.buyer ? {
+                name: orderData.buyer.name,
+                avatar: orderData.buyer.avatar
+              } : undefined,
+              status: orderData.status || "Inquiry"
+            }
+          };
+          
+          console.log("🔍 创建的商品卡片:", JSON.stringify(orderCard, null, 2));
+          
+          // 检查是否已经有商品卡片，避免重复
+          const hasOrderCard = apiItems.some(item => item.type === "orderCard");
+          if (!hasOrderCard) {
+            finalItems = [orderCard, ...apiItems];
+            console.log("🔍 添加了商品卡片，总消息数量:", finalItems.length);
+          } else {
+            console.log("🔍 商品卡片已存在，不重复添加");
+          }
+        } else {
+          console.log("⚠️ 订单聊天但没有找到商品数据");
+        }
+      }
+
       // 如果是 TOP Support 对话且没有消息，添加欢迎消息
-      if (sender === "TOP Support" && apiItems.length === 0) {
+      if (sender === "TOP Support" && finalItems.length === 0) {
         const welcomeMessage: ChatItem = {
           id: "welcome-1",
           type: "msg",
@@ -266,8 +323,8 @@ export default function ChatScreen() {
         setItems([welcomeMessage]);
         console.log("🔍 Added welcome message for new user");
       } else {
-        setItems(apiItems);
-        console.log("🔍 Loaded", apiItems.length, "messages from API");
+        setItems(finalItems);
+        console.log("🔍 Loaded", finalItems.length, "messages from API");
       }
       
     } catch (error) {
@@ -276,7 +333,7 @@ export default function ChatScreen() {
       console.log("🔍 Falling back to welcome message only");
       if (sender === "TOP Support") {
         const welcomeMessage: ChatItem = {
-          id: "welcome-error",
+          id: "welcome-1",
           type: "msg",
           sender: "other",
           text: `Hey @${user?.username || 'user'}, Welcome to TOP! 👋`,
@@ -291,24 +348,15 @@ export default function ChatScreen() {
     }
   };
 
-  // 自动滚动到底部
   useEffect(() => {
-    const id = setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 0);
-    return () => clearTimeout(id);
-  }, []);
+    loadConversationData();
+  }, [conversationId, sender, kind, order]);
 
-  useEffect(() => {
-    if (!items.length) return;
-    const id = setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
-    return () => clearTimeout(id);
-  }, [items]);
-
-  // 发送消息
   const sendMessage = async () => {
     if (!input.trim()) return;
-    
+
+    // 如果没有 conversationId，只更新本地状态（不发送到后端）
     if (!conversationId) {
-      // 如果没有 conversationId，只更新本地状态（mock 模式）
       setItems((prev) => [
         ...prev,
         { id: String(Date.now()), type: "msg", sender: "me", text: input, time: "Now" },
@@ -340,7 +388,7 @@ export default function ChatScreen() {
       console.log("🔍 Message sent successfully");
     } catch (error) {
       console.error("❌ Error sending message:", error);
-      // 即使发送失败，也在本地显示（用户体验）
+      // 即使发送失败，也添加到本地状态
       setItems((prev) => [
         ...prev,
         { id: String(Date.now()), type: "msg", sender: "me", text: input, time: "Now" },
@@ -350,29 +398,88 @@ export default function ChatScreen() {
   };
 
   // —— UI 组件 —— //
-  const renderOrderCard = (o: Order) => (
-    <View style={styles.orderCard}>
-      <Image 
-        source={{ uri: o.product.image || "https://via.placeholder.com/64" }} 
-        style={styles.orderThumb} 
-      />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.orderTitle} numberOfLines={2}>
-          {o.product.title}
-        </Text>
-        <Text style={styles.orderPrice}>
-          ${o.product.price}
-          {o.product.size ? ` · Size ${o.product.size}` : ""}
-        </Text>
-        <Text style={styles.orderMeta}>
-          {sender === "buyer002"
-            ? `Purchased by ${o?.buyer?.name ?? "Buyer"}`
-            : `Sold by ${o?.seller?.name ?? "Seller"}`}
-        </Text>
-        <Text style={styles.orderStatus}>Status: {o.status}</Text>
+  const renderOrderCard = (o: Order) => {
+    const handleBuyNow = () => {
+      console.log("🛒 Buy Now button pressed for order:", o.id);
+      // 导航到购买页面
+      const rootNavigation = (navigation as any).getParent?.();
+      if (rootNavigation) {
+        // 构建符合 BagItem 格式的数据
+        const bagItem = {
+          item: {
+            id: o.id,
+            title: o.product.title,
+            price: o.product.price,
+            description: `Size: ${o.product.size || 'One Size'}`,
+            brand: "Brand", // 默认品牌
+            size: o.product.size || "One Size",
+            condition: "Good",
+            material: "Mixed",
+            gender: "unisex",
+            tags: [],
+            images: o.product.image ? [o.product.image] : [],
+            category: "top" as const,
+            seller: {
+              id: 0, // 默认卖家ID
+              name: o.seller.name,
+              avatar: o.seller.avatar || "",
+              rating: 5.0,
+              sales: 0
+            }
+          },
+          quantity: 1
+        };
+
+        rootNavigation.navigate("Buy", {
+          screen: "Checkout",
+          params: {
+            items: [bagItem],
+            subtotal: o.product.price,
+            shipping: 5.99 // 默认运费
+          }
+        });
+      }
+    };
+
+    return (
+      <View style={styles.orderCard}>
+        <Image 
+          source={{ uri: o.product.image || "https://via.placeholder.com/64" }} 
+          style={styles.orderThumb} 
+        />
+        <View style={styles.orderContent}>
+          <Text style={styles.orderTitle} numberOfLines={2}>
+            {o.product.title}
+          </Text>
+          <Text style={styles.orderPrice}>
+            ${o.product.price}
+            {o.product.size ? ` · Size ${o.product.size}` : ""}
+          </Text>
+          <Text style={styles.orderMeta}>
+            {sender === "buyer002"
+              ? `Purchased by ${o?.buyer?.name ?? "Buyer"}`
+              : `Sold by ${o?.seller?.name ?? "Seller"}`}
+          </Text>
+          <Text style={styles.orderStatus}>Status: {o.status}</Text>
+        </View>
+        <View style={styles.orderActions}>
+          {o.status !== "Delivered" && o.status !== "Completed" && o.status !== "Shipped" ? (
+            <TouchableOpacity 
+              style={styles.buyButton}
+              onPress={handleBuyNow}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.buyButtonText}>Buy Now</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusBadgeText}>{o.status}</Text>
+            </View>
+          )}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   type SystemItem = Extract<ChatItem, { type: "system" }>;
 
@@ -402,35 +509,22 @@ export default function ChatScreen() {
       return (
         <>
           {time ? <Text style={styles.time}>{time}</Text> : null}
-          <View style={[styles.messageRow, isMine ? { justifyContent: "flex-end" } : undefined]}>
-            {!isMine && <Image source={avatarSource} style={[styles.avatar, { marginRight: 6 }]} />}
-
+          <View style={styles.messageRow}>
+            {/* TOP Support 头像 */}
+            {senderInfo?.username === "TOP Support" && (
+              <Image
+                source={ASSETS.avatars.top}
+                style={[styles.avatar, { marginRight: 6 }]}
+              />
+            )}
             <View style={bubbleStyle}>
-              {title ? <Text style={styles.userCardTitle}>{title}</Text> : null}
+              <Text style={styles.userCardTitle}>{title}</Text>
               <View style={styles.userCardDivider} />
-              {subtitle ? <Text style={styles.userCardSubtitle}>{subtitle}</Text> : null}
-
-              {id === "cardReviewBuyer" && (
-                <TouchableOpacity style={styles.userCardBtn} disabled>
-                  <Text style={styles.userCardBtnText}>Reviewed</Text>
-                </TouchableOpacity>
-              )}
-
-              {id === "cardReviewSeller" && (
-                <TouchableOpacity
-                  style={styles.userCardBtn}
-                  onPress={() => {
-                    if (item.orderId) {
-                      (navigation as any).navigate("MutualReview", { orderId: item.orderId });
-                    }
-                  }}
-                >
-                  <Text style={styles.userCardBtnText}>View mutual review</Text>
-                </TouchableOpacity>
-              )}
+              <Text style={styles.userCardSubtitle}>{subtitle}</Text>
+              <TouchableOpacity style={styles.userCardBtn}>
+                <Text style={styles.userCardBtnText}>View Details</Text>
+              </TouchableOpacity>
             </View>
-
-            {isMine && <Image source={ASSETS.avatars.default} style={[styles.avatar, { marginLeft: 6 }]} />}
           </View>
         </>
       );
@@ -458,28 +552,16 @@ export default function ChatScreen() {
 
   const renderReviewCTA = (orderId: string, text: string) => (
     <View style={styles.reviewBox}>
-      {/* 只保留这段提示文字 */}
       <Text style={styles.reviewHint}>{text}</Text>
-      {/* 居中按钮 */}
-  <TouchableOpacity
-    style={styles.reviewBtnCenter}
-    onPress={() => (navigation as any).navigate("Review", { orderId })}
-  >
-    <Text style={styles.reviewBtnText}>Leave Review</Text>
-  </TouchableOpacity>
+      <TouchableOpacity style={styles.reviewBtnCenter}>
+        <Text style={styles.reviewBtnText}>Leave Review</Text>
+      </TouchableOpacity>
     </View>
   );
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
-      <Header
-        title={sender}
-        showBack
-        bgColor="#F54B3D"
-        textColor="#fff"
-        iconColor="#fff"
-        rightAction={<View style={{ width: 26 }} />}
-      />
+      <Header title={sender} showBack />
 
       <FlatList
         ref={listRef}
@@ -511,20 +593,21 @@ export default function ChatScreen() {
                     style={[styles.avatar, { marginRight: 6 }]}
                   />
                 )}
-
-                <View style={item.sender === "me" ? styles.bubbleRight : styles.bubbleLeft}>
-                  <Text style={item.sender === "me" ? styles.textRight : styles.textLeft}>{item.text}</Text>
+                <View
+                  style={[
+                    item.sender === "me" ? styles.bubbleRight : styles.bubbleLeft,
+                    item.sender === "me" && { marginLeft: "auto" },
+                  ]}
+                >
+                  <Text style={item.sender === "me" ? styles.textRight : styles.textLeft}>
+                    {item.text}
+                  </Text>
                 </View>
-
-                {/* 自己头像：使用 API 返回的头像，没有则用默认头像 */}
+                {/* 我的头像 */}
                 {item.sender === "me" && (
-                  <Image 
-                    source={
-                      item.senderInfo?.avatar 
-                        ? { uri: item.senderInfo.avatar } 
-                        : ASSETS.avatars.default
-                    } 
-                    style={[styles.avatar, { marginLeft: 6 }]} 
+                  <Image
+                    source={item.senderInfo?.avatar ? { uri: item.senderInfo.avatar } : ASSETS.avatars.default}
+                    style={[styles.avatar, { marginLeft: 6 }]}
                   />
                 )}
               </View>
@@ -656,12 +739,75 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 1,
+    alignItems: "center",
   },
-  orderThumb: { width: 64, height: 64, borderRadius: 8, marginRight: 12, backgroundColor: "#eee" },
-  orderTitle: { fontWeight: "700", fontSize: 16, marginBottom: 6 },
-  orderPrice: { color: "#e11d48", fontWeight: "800", marginBottom: 6 },
-  orderMeta: { color: "#555", marginBottom: 2 },
-  orderStatus: { color: "#666" },
+  orderThumb: { 
+    width: 64, 
+    height: 64, 
+    borderRadius: 8, 
+    marginRight: 12, 
+    backgroundColor: "#eee" 
+  },
+  orderContent: {
+    flex: 1,
+    marginRight: 12,
+  },
+  orderTitle: { 
+    fontWeight: "700", 
+    fontSize: 16, 
+    marginBottom: 6,
+    color: "#111"
+  },
+  orderPrice: { 
+    color: "#e11d48", 
+    fontWeight: "800", 
+    marginBottom: 6,
+    fontSize: 16
+  },
+  orderMeta: { 
+    color: "#555", 
+    marginBottom: 2,
+    fontSize: 13
+  },
+  orderStatus: { 
+    color: "#666",
+    fontSize: 13
+  },
+  orderActions: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buyButton: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 80,
+    borderWidth: 1,
+    borderColor: "#000",
+  },
+  buyButtonText: {
+    color: "#000",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  statusBadge: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    minWidth: 80,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statusBadgeText: {
+    color: "#666",
+    fontWeight: "600",
+    fontSize: 12,
+    textAlign: "center",
+  },
 
   // review CTA
   reviewBox: {

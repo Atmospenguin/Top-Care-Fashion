@@ -57,6 +57,24 @@ export interface ConversationDetail {
     };
   };
   messages: Message[];
+  order?: {
+    id: string;
+    product: {
+      title: string;
+      price: number;
+      size?: string;
+      image: string | null;
+    };
+    seller: { 
+      name: string;
+      avatar?: string;
+    };
+    buyer?: { 
+      name: string;
+      avatar?: string;
+    };
+    status: string;
+  };
 }
 
 export interface CreateConversationParams {
@@ -138,9 +156,47 @@ class MessagesService {
         type: 'ORDER'
       });
 
-      // 重新获取对话列表以获取完整格式
-      const updatedConversations = await this.getConversations();
-      return updatedConversations.find(conv => conv.id === newConversation.id.toString()) || existingConversation!;
+      console.log("✅ New conversation created:", newConversation);
+
+      // 🔥 直接使用创建返回的对话数据，构建前端需要的格式
+      const otherUser = newConversation.participant;
+      return {
+        id: newConversation.id.toString(),
+        sender: otherUser.username,
+        message: "No messages yet",
+        time: "Now",
+        avatar: otherUser.avatar_url ? { uri: otherUser.avatar_url } : null,
+        kind: "order",
+        unread: false,
+        lastFrom: "other",
+        order: newConversation.listing ? {
+          id: newConversation.listing.id.toString(),
+          product: {
+            title: newConversation.listing.name,
+            price: Number(newConversation.listing.price),
+            size: newConversation.listing.size,
+            image: newConversation.listing.image_url || (newConversation.listing.image_urls as any)?.[0] || null
+          },
+          seller: { 
+            name: otherUser.username,
+            avatar: otherUser.avatar_url 
+          },
+          status: "Inquiry"
+        } : {
+          id: listingId?.toString() || "unknown",
+          product: {
+            title: "Item",
+            price: 0,
+            size: "Unknown",
+            image: null
+          },
+          seller: { 
+            name: otherUser.username,
+            avatar: otherUser.avatar_url 
+          },
+          status: "Inquiry"
+        }
+      };
     } catch (error) {
       console.error('Error getting or creating seller conversation:', error);
       throw error;

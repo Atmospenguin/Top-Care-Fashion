@@ -283,7 +283,25 @@ export async function GET(
           avatar: otherUser.avatar_url
         }
       },
-      messages: orderCard ? [orderCard, ...formattedMessages] : formattedMessages
+      messages: orderCard ? [orderCard, ...formattedMessages] : formattedMessages,
+      order: conversation.listing ? {
+        id: conversation.listing.id.toString(),
+        product: {
+          title: conversation.listing.name,
+          price: Number(conversation.listing.price),
+          size: conversation.listing.size,
+          image: conversation.listing.image_url || (conversation.listing.image_urls as any)?.[0] || null
+        },
+        seller: { 
+          name: conversation.initiator.username,
+          avatar: conversation.initiator.avatar_url
+        },
+        buyer: {
+          name: otherUser.username,
+          avatar: otherUser.avatar_url
+        },
+        status: "Inquiry"
+      } : null
     });
 
   } catch (error) {

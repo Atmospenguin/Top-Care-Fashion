@@ -25,7 +25,7 @@ import { MOCK_LISTINGS } from "../../../mocks/shop";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
 import { userService, type UserProfile } from "../../../src/services/userService";
-import { likesService, type LikedListing } from "../../../src/services";
+import { likesService, messagesService, type LikedListing } from "../../../src/services";
 import { authService } from "../../../src/services/authService";
 
 type UserProfileParam = RouteProp<BuyStackParamList, "UserProfile">;
@@ -447,34 +447,80 @@ export default function UserProfileScreen() {
   };
 
   // Message 处理函数
-  const handleMessageUser = () => {
+  const handleMessageUser = async () => {
     console.log("🔍 UserProfile Message button pressed!");
     console.log("🔍 UserProfile:", userProfile);
     
     if (!userProfile) {
       console.log("❌ No userProfile found!");
+      Alert.alert("Error", "Unable to find user information");
       return;
     }
     
-    // 导航到Inbox聊天框
-    const rootNavigation = navigation
-      .getParent()
-      ?.getParent() as any;
+    if (!userProfile.id) {
+      console.log("❌ No user ID found!");
+      Alert.alert("Error", "Unable to find user ID");
+      return;
+    }
     
-    console.log("🔍 Root navigation:", rootNavigation);
-    
-    if (rootNavigation) {
-      console.log("🔍 Navigating to ChatScreen...");
-      rootNavigation.navigate("Inbox", {
-        screen: "Chat",
-        params: {
-          sender: userProfile.username,
-          kind: "support", // 用户之间的聊天
-          order: null
-        }
+    try {
+      // 创建与用户的对话
+      console.log("🔍 Creating conversation with user...");
+      const conversation = await messagesService.createConversation({
+        participant_id: parseInt(userProfile.id), // 🔥 修复：转换为数字
+        type: 'GENERAL'
       });
-    } else {
-      console.log("❌ Root navigation not found!");
+      
+      console.log("✅ Conversation created:", conversation);
+      
+      // 导航到聊天界面
+      console.log("🔍 Navigating to ChatScreen...");
+      
+      // 🔥 正确的导航方式：Buy Stack → Root Stack → Main Tab → Inbox Stack → Chat
+      try {
+        // 方式1：通过根导航到 Main Tab，然后到 Inbox
+        const rootNavigation = (navigation as any).getParent?.();
+        if (rootNavigation) {
+          rootNavigation.navigate("Main", {
+            screen: "Inbox",
+            params: {
+              screen: "Chat",
+              params: {
+                sender: userProfile.username,
+                kind: "general",
+                conversationId: conversation.id,
+                order: null
+              }
+            }
+          });
+          console.log("✅ Navigation successful via Main Tab");
+        } else {
+          throw new Error("Root navigation not available");
+        }
+      } catch (navError) {
+        console.log("❌ Main Tab navigation failed:", navError);
+        console.log("🔍 Trying alternative navigation...");
+        
+        // 方式2：尝试直接导航到 Inbox（可能不会工作，但作为 fallback）
+        try {
+          (navigation as any).navigate("Inbox", {
+            screen: "Chat",
+            params: {
+              sender: userProfile.username,
+              kind: "general",
+              conversationId: conversation.id,
+              order: null
+            }
+          });
+          console.log("✅ Navigation successful via direct");
+        } catch (directError) {
+          console.error("❌ Direct navigation also failed:", directError);
+          Alert.alert("Navigation Error", "Unable to open chat. Please try again.");
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error creating conversation:", error);
+      Alert.alert("Error", "Failed to start conversation. Please try again.");
     }
   };
 
