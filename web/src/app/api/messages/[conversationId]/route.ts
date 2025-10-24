@@ -87,13 +87,32 @@ export async function GET(
           }
         }));
 
+        // 检查是否有欢迎消息，如果没有则添加
+        const hasWelcomeMessage = formattedMessages.some(msg => 
+          msg.text.includes('Welcome to TOP') && msg.senderInfo.username === 'TOP Support'
+        );
+
+        let finalMessages = formattedMessages;
+        if (!hasWelcomeMessage) {
+          // 在消息列表开头添加欢迎消息
+          const welcomeMessage = {
+            id: "welcome-temp",
+            type: "SYSTEM",
+            sender: "support",
+            text: `Hey @${dbUser.username}, Welcome to TOP! 👋`,
+            time: "Just now",
+            senderInfo: { id: SUPPORT_USER_ID, username: "TOP Support", avatar: null }
+          };
+          finalMessages = [welcomeMessage, ...formattedMessages];
+        }
+
         return NextResponse.json({
           conversation: {
             id: "support-1",
             type: "SUPPORT",
             otherUser: { id: SUPPORT_USER_ID, username: "TOP Support", avatar: null }
           },
-          messages: formattedMessages
+          messages: finalMessages
         });
       } else {
         // 没有对话时返回欢迎消息
