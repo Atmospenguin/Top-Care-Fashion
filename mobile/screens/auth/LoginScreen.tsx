@@ -50,7 +50,7 @@ export default function LoginScreen({ navigation }: Props) {
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       {/* 返回按钮 */}

@@ -6,6 +6,7 @@ import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
 import { listingsService, type CategoryData } from "../../../src/services/listingsService";
+import type { BuyStackParamList } from "../BuyStack";
 import type { DiscoverStackParamList } from "./index";
 
 type DiscoverNavigation = NativeStackNavigationProp<DiscoverStackParamList>;
@@ -14,7 +15,7 @@ type DiscoverCategoryRoute = RouteProp<DiscoverStackParamList, "DiscoverCategory
 type Gender = "men" | "women" | "unisex";
 
 export default function DiscoverCategoryScreen() {
-  const navigation = useNavigation<DiscoverNavigation>();
+  const navigation = useNavigation<DiscoverNavigation & any>();
   const { params } = useRoute<DiscoverCategoryRoute>();
   const { gender } = params;
   
@@ -41,7 +42,7 @@ export default function DiscoverCategoryScreen() {
 
   const mainCategories = useMemo(() => {
     if (!categories || !categories[gender]) {
-      return [];
+      return [] as string[];
     }
     return Object.keys(categories[gender]);
   }, [categories, gender]);
@@ -95,20 +96,26 @@ export default function DiscoverCategoryScreen() {
         textColor="#000"
         iconColor="#111"
       />
-      {mainCategories.map((category) => (
-        <TouchableOpacity
-          key={category}
-          style={styles.item}
-          onPress={() =>
-            navigation.navigate("CategoryDetail", {
-              gender,
-              mainCategory: category,
-            })
-          }
-        >
-          <Text style={styles.text}>{category}</Text>
-        </TouchableOpacity>
-      ))}
+      {mainCategories.map((category) => {
+        const label = category.replace(/\b\w/g, (c) => c.toUpperCase());
+        return (
+          <TouchableOpacity
+            key={category}
+            style={styles.item}
+            onPress={() =>
+              navigation
+                .getParent()
+                ?.getParent()
+                ?.navigate('Buy', {
+                  screen: 'SearchResult',
+                  params: { query: category },
+                })
+            }
+          >
+            <Text style={styles.text}>{label}</Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }

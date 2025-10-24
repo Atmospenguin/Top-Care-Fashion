@@ -61,7 +61,18 @@ export default function SearchResultScreen() {
 
   useEffect(() => {
     let mounted = true;
-    fetchListings()
+    // 初次加载：携带查询词到后端，提升召回率
+    const params: any = { limit: 40 };
+    if (query && query.trim()) {
+      const q = query.trim();
+      const isMain = (MAIN_CATEGORIES as readonly string[]).some((c) => c.toLowerCase() === q.toLowerCase());
+      if (isMain) {
+        params.category = q;
+      } else {
+        params.search = q;
+      }
+    }
+    fetchListings(params)
       .then((items) => {
         if (!mounted) return;
         // items should be ListingItem[] shape; if not, map minimally
@@ -83,20 +94,24 @@ export default function SearchResultScreen() {
             ],
             seller: it.seller ?? { id: "api", name: "Seller" },
             location: it.location ?? "",
+            shippingOption: it.shippingOption ?? null,
+            shippingFee: typeof it.shippingFee === 'number' ? it.shippingFee : (it.shippingFee ? Number(it.shippingFee) : null),
           })) as ListingItem[]
         );
       })
       .catch(() => setApiListings([]));
-    return () => {
-      mounted = false;
-    };
-  }, []);
+      return () => {
+        mounted = false;
+      };
+  }, [query]);
 
   const sourceListings = apiListings;
 
   const filteredListings = useMemo(() => {
+    // 基础过滤：按标题与品牌匹配查询词
+    const q = (query || '').toLowerCase();
     let results = sourceListings.filter((item) =>
-      item.title.toLowerCase().includes(query.toLowerCase())
+      item.title.toLowerCase().includes(q) || (item.brand || '').toLowerCase().includes(q)
     );
 
     if (selectedCategory !== "All") {

@@ -413,26 +413,48 @@ export default function ListingDetailScreen() {
           <View style={styles.metaRow}>
             <View style={styles.metaPill}>
               <Text style={styles.metaLabel}>Size</Text>
-              <Text style={styles.metaValue}>{safeItem?.size || 'N/A'}</Text>
+              <Text style={styles.metaValue}>
+                {safeItem?.size && safeItem.size !== 'N/A' && safeItem.size !== 'Select' 
+                  ? safeItem.size 
+                  : 'Not specified'}
+              </Text>
             </View>
             <View style={styles.metaPill}>
               <Text style={styles.metaLabel}>Condition</Text>
-              <Text style={styles.metaValue}>{safeItem?.condition || 'N/A'}</Text>
+              <Text style={styles.metaValue}>
+                {safeItem?.condition && safeItem.condition !== 'Select' 
+                  ? safeItem.condition 
+                  : 'Not specified'}
+              </Text>
             </View>
           </View>
           <Text style={styles.description}>{safeItem?.description || 'No description available'}</Text>
 
           <View style={styles.attributeRow}>
-            <View style={styles.attributeBlock}>
-              <Text style={styles.attributeLabel}>Brand</Text>
-              <Text style={styles.attributeValue}>{safeItem?.brand || 'N/A'}</Text>
-            </View>
-            {safeItem?.material ? (
+            {/* 只在有值时显示 Brand */}
+            {safeItem?.brand && safeItem.brand !== '' && safeItem.brand !== 'Select' && (
+              <View style={styles.attributeBlock}>
+                <Text style={styles.attributeLabel}>Brand</Text>
+                <Text style={styles.attributeValue}>{safeItem.brand}</Text>
+              </View>
+            )}
+            {/* 只在有值时显示 Material */}
+            {safeItem?.material && safeItem.material !== 'Select' && safeItem.material !== 'Polyester' && (
               <View style={styles.attributeBlock}>
                 <Text style={styles.attributeLabel}>Material</Text>
                 <Text style={styles.attributeValue}>{safeItem.material}</Text>
               </View>
-            ) : null}
+            )}
+            {/* 如果 Brand 和 Material 都没有，显示占位信息 */}
+            {(!safeItem?.brand || safeItem.brand === '' || safeItem.brand === 'Select') && 
+             (!safeItem?.material || safeItem.material === 'Select' || safeItem.material === 'Polyester') && (
+              <View style={styles.attributeBlock}>
+                <Text style={styles.attributeLabel}>Additional Details</Text>
+                <Text style={[styles.attributeValue, { color: '#999', fontStyle: 'italic' }]}>
+                  Not provided by seller
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Tags Section */}
@@ -517,10 +539,28 @@ export default function ListingDetailScreen() {
         </View>
 
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeading}>Shipping & Returns</Text>
+          <Text style={styles.sectionHeading}>Shipping</Text>
           <Text style={styles.description}>
-            Ships within 2 business days from New York, USA. Trackable shipping is included.
-            Returns accepted within 7 days of delivery.
+            {safeItem?.shippingOption && safeItem.shippingOption !== 'Select' ? (
+              <>
+                {safeItem.shippingOption}
+                {safeItem.shippingFee && Number(safeItem.shippingFee) > 0 
+                  ? ` • Shipping fee: $${Number(safeItem.shippingFee).toFixed(2)}` 
+                  : ''}
+                {safeItem.shippingOption === "Meet-up" && safeItem?.location 
+                  ? `\n📍 Meet-up location: ${safeItem.location}` 
+                  : ''}
+              </>
+            ) : (
+              'Please contact seller for shipping options and rates.'
+            )}
+          </Text>
+        </View>
+
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionHeading}>Returns & Protection</Text>
+          <Text style={styles.description}>
+            All purchases are protected by TOP Care. Returns accepted within 7 days of delivery for items not as described. Please review item details carefully before purchase.
           </Text>
         </View>
       </ScrollView>

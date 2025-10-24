@@ -134,30 +134,48 @@ export default function ActiveListingDetailScreen() {
           <View style={styles.metaRow}>
             <View style={styles.metaPill}>
               <Text style={styles.metaLabel}>Size</Text>
-              <Text style={styles.metaValue}>{listing.size}</Text>
+              <Text style={styles.metaValue}>
+                {listing.size && listing.size !== 'N/A' ? listing.size : 'Not specified'}
+              </Text>
             </View>
             <View style={styles.metaPill}>
               <Text style={styles.metaLabel}>Condition</Text>
-              <Text style={styles.metaValue}>{listing.condition}</Text>
+              <Text style={styles.metaValue}>
+                {listing.condition || 'Not specified'}
+              </Text>
             </View>
           </View>
 
           {/* 描述 */}
           <Text style={styles.description}>{listing.description}</Text>
 
-          {/* brand / material */}
-          <View style={styles.attributeRow}>
-            <View style={styles.attributeBlock}>
-              <Text style={styles.attributeLabel}>Brand</Text>
-              <Text style={styles.attributeValue}>{listing.brand}</Text>
+          {/* 只在有值时显示 Brand */}
+          {listing.brand && listing.brand !== '' && listing.brand !== 'Select' && (
+            <View style={styles.attributeRow}>
+              <View style={styles.attributeBlock}>
+                <Text style={styles.attributeLabel}>Brand</Text>
+                <Text style={styles.attributeValue}>{listing.brand}</Text>
+              </View>
             </View>
-            {listing.material ? (
+          )}
+
+          {/* 只在有值时显示 Material */}
+          {listing.material && listing.material !== 'Select' && listing.material !== 'Polyester' && (
+            <View style={styles.attributeRow}>
               <View style={styles.attributeBlock}>
                 <Text style={styles.attributeLabel}>Material</Text>
                 <Text style={styles.attributeValue}>{listing.material}</Text>
               </View>
-            ) : null}
-          </View>
+            </View>
+          )}
+
+          {/* 如果 Brand 和 Material 都没有，显示占位信息 */}
+          {(!listing.brand || listing.brand === '' || listing.brand === 'Select') && 
+           (!listing.material || listing.material === 'Select' || listing.material === 'Polyester') && (
+            <View style={styles.attributeRow}>
+              <Text style={styles.placeholderText}>Brand and material not provided by seller</Text>
+            </View>
+          )}
 
           {/* Tags Section */}
           {listing.tags && listing.tags.length > 0 && (
@@ -192,12 +210,23 @@ export default function ActiveListingDetailScreen() {
           </View>
         </View>
 
-        {/* 物流与退货（与 buyer 版同款） */}
+        {/* Shipping 信息（连接后端数据） */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeading}>Shipping & Returns</Text>
+          <Text style={styles.sectionHeading}>Shipping</Text>
           <Text style={styles.description}>
-            Ships within 2 business days from New York, USA. Trackable shipping is included.
-            Returns accepted within 7 days of delivery.
+            {(listing as any)?.shippingOption && (listing as any).shippingOption !== 'Select' ? (
+              <>
+                {(listing as any).shippingOption}
+                {(listing as any).shippingFee && Number((listing as any).shippingFee) > 0 
+                  ? ` • Shipping fee: $${Number((listing as any).shippingFee).toFixed(2)}` 
+                  : ''}
+                {(listing as any).shippingOption === "Meet-up" && (listing as any)?.location 
+                  ? `\nLocation: ${(listing as any).location}` 
+                  : ''}
+              </>
+            ) : (
+              'Please contact seller for shipping options and rates.'
+            )}
           </Text>
         </View>
       </ScrollView>
@@ -288,6 +317,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   attributeValue: { fontSize: 15, fontWeight: "600", marginTop: 4 },
+  placeholderText: { 
+    fontSize: 14, 
+    color: "#999", 
+    fontStyle: "italic",
+    textAlign: "center",
+  },
 
   // Tags
   tagsSection: {

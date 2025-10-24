@@ -86,6 +86,9 @@ model listings {
   condition_type  ConditionType       @default(GOOD)
   gender          String?             @db.VarChar(10) @default("unisex")
   tags            Json?               @db.Json
+  shipping_option String?             @db.VarChar(50)
+  shipping_fee    Decimal?            @db.Decimal(10, 2)
+  location        String?             @db.VarChar(100)
   created_at      DateTime            @default(now()) @db.Timestamptz(6)
   sold_at         DateTime?           @db.Timestamptz(6)
   original_price  Decimal?            @db.Decimal(10, 2)
