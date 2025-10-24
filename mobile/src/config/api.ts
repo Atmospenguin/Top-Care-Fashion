@@ -12,6 +12,7 @@ export const API_CONFIG = {
     USERS: '/api/users',
     ORDERS: '/api/orders',
     LIKES: '/api/likes',
+    CART: '/api/cart',
     AUTH: {
       SIGNIN: '/api/auth/signin',
       SIGNUP: '/api/auth/register',
@@ -27,6 +28,13 @@ export const API_CONFIG = {
   // 请求配置
   TIMEOUT: 10000, // 10秒超时
   RETRY_ATTEMPTS: 3,
+  
+  // 获取认证头
+  getAuthHeaders: () => {
+    // 这里应该从你的认证存储中获取token
+    // 暂时返回空对象，你需要根据你的认证实现来修改
+    return {};
+  },
 } as const;
 
 // API 响应类型

@@ -55,9 +55,9 @@ export default function LikesTab() {
     
     // 处理图片数据 - 转换为ListingDetailScreen期望的格式
     let images = [];
-    if (likedListing.listing.image_url) {
+    if (likedListing.listing?.image_url) {
       images = [likedListing.listing.image_url];
-    } else if (likedListing.listing.image_urls) {
+    } else if (likedListing.listing?.image_urls) {
       try {
         const imageUrls = typeof likedListing.listing.image_urls === 'string' 
           ? JSON.parse(likedListing.listing.image_urls) 
@@ -71,7 +71,7 @@ export default function LikesTab() {
     
     // 处理tags数据
     let tags = [];
-    if (likedListing.listing.tags) {
+    if (likedListing.listing?.tags) {
       try {
         tags = typeof likedListing.listing.tags === 'string' 
           ? JSON.parse(likedListing.listing.tags) 
@@ -88,13 +88,13 @@ export default function LikesTab() {
     // 转换数据格式以匹配ListingDetailScreen的期望格式
     const listingData = {
       ...likedListing.listing,
-      title: likedListing.listing.name, // 将name转换为title
+      title: likedListing.listing?.name, // 将name转换为title
       images: images, // 添加images数组
       tags: tags, // 添加tags数组
       seller: {
-        ...likedListing.listing.seller,
-        name: likedListing.listing.seller.username, // 将username转换为name
-        avatar: likedListing.listing.seller.avatar_url, // 将avatar_url转换为avatar
+        ...likedListing.listing?.seller,
+        name: likedListing.listing?.seller?.username, // 将username转换为name
+        avatar: likedListing.listing?.seller?.avatar_url, // 将avatar_url转换为avatar
         // 保留id字段用于用户身份验证
       },
     };
@@ -126,8 +126,8 @@ export default function LikesTab() {
     const listing = likedListing.listing;
     
     // 处理图片URL - image_urls可能是JSON字符串
-    let firstImage = listing.image_url;
-    if (!firstImage && listing.image_urls) {
+    let firstImage = listing?.image_url;
+    if (!firstImage && listing?.image_urls) {
       try {
         const imageUrls = typeof listing.image_urls === 'string' 
           ? JSON.parse(listing.image_urls) 

@@ -6,6 +6,7 @@ export { userService, UserService } from './userService';
 export { feedbackService, FeedbackService } from './feedbackService';
 export { ordersService, OrdersService } from './ordersService';
 export { likesService, LikesService } from './likesService';
+export { cartService, CartService } from './cartService';
 
 // 导出类型
 export type { ApiResponse, ApiError } from '../config/api';
@@ -24,5 +25,11 @@ export type {
   CreateReviewRequest 
 } from './ordersService';
 export type { LikedListing, LikeStatus } from './likesService';
+export type { 
+  CartItem, 
+  CartResponse, 
+  AddToCartRequest, 
+  UpdateCartItemRequest 
+} from './cartService';
 
 

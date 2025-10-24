@@ -3,6 +3,20 @@ import { prisma } from "@/lib/db";
 import { createSupabaseServer } from "@/lib/supabase";
 
 /**
+ * 映射条件显示值
+ */
+const mapConditionToDisplay = (conditionEnum: string) => {
+  const conditionMap: Record<string, string> = {
+    "NEW": "Brand New",
+    "LIKE_NEW": "Like new",
+    "GOOD": "Good",
+    "FAIR": "Fair",
+    "POOR": "Poor"
+  };
+  return conditionMap[conditionEnum] || conditionEnum;
+};
+
+/**
  * 映射尺码显示值
  */
 const mapSizeToDisplay = (sizeValue: string | null) => {
@@ -153,18 +167,6 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       return NextResponse.json({ error: "Listing not found" }, { status: 404 });
     }
 
-    const mapConditionToDisplay = (conditionEnum: string) => {
-      const conditionMap: Record<string, string> = {
-        "NEW": "Brand New",
-        "LIKE_NEW": "Like new",
-        "GOOD": "Good",
-        "FAIR": "Fair",
-        "POOR": "Poor"
-      };
-      return conditionMap[conditionEnum] || conditionEnum;
-    };
-
-
     const formattedListing = {
       id: listing.id.toString(),
       title: listing.name,
@@ -233,14 +235,26 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
     // 转换condition字符串到ConditionType枚举
     const mapConditionToEnum = (conditionStr: string) => {
+      // 标准化输入字符串，处理大小写和空格
+      const normalizedStr = conditionStr.trim();
+      
       const conditionMap: Record<string, "NEW" | "LIKE_NEW" | "GOOD" | "FAIR" | "POOR"> = {
         "Brand New": "NEW",
+        "New": "NEW",
         "Like New": "LIKE_NEW", 
+        "Like new": "LIKE_NEW",
+        "like new": "LIKE_NEW",
         "Good": "GOOD",
+        "good": "GOOD",
         "Fair": "FAIR",
-        "Poor": "POOR"
+        "fair": "FAIR",
+        "Poor": "POOR",
+        "poor": "POOR"
       };
-      return conditionMap[conditionStr] || "GOOD";
+      
+      const result = conditionMap[normalizedStr];
+      console.log("📝 Condition mapping (update):", { input: conditionStr, normalized: normalizedStr, result });
+      return result || "GOOD";
     };
 
     // 准备更新数据
@@ -295,7 +309,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       price: Number(updatedListing.price),
       brand: updatedListing.brand,
       size: mapSizeToDisplay(updatedListing.size),
-      condition: updatedListing.condition_type.toLowerCase(),
+      condition: mapConditionToDisplay(updatedListing.condition_type),
       material: updatedListing.material,
       gender: (updatedListing as any).gender || "unisex",
       tags: updatedListing.tags ? JSON.parse(updatedListing.tags as string) : [],

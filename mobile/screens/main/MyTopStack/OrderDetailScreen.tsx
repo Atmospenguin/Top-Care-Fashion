@@ -228,7 +228,7 @@ export default function OrderDetailScreen() {
         {/* 商品信息 */}
         <View style={styles.card}>
           <Image
-            source={{ uri: order.listing.image_url || order.listing.image_urls?.[0] || "https://via.placeholder.com/100x120" }}
+            source={{ uri: order.listing?.image_url || order.listing?.image_urls?.[0] || "https://via.placeholder.com/100x120" }}
             style={styles.productImg}
           />
           <View style={{ flex: 1, marginLeft: 12 }}>

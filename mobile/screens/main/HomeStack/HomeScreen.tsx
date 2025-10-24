@@ -77,7 +77,8 @@ export default function HomeScreen() {
             style={{ marginLeft: 12 }}
             accessibilityRole="button"
             onPress={() =>
-              // Jump to root Buy stack
+              // Navigate to Bag screen without passing items parameter
+              // This will load cart items from API
               (navigation as any)
               .getParent()
               ?.getParent()

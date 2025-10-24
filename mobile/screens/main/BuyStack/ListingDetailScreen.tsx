@@ -23,7 +23,7 @@ import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { BagItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
-import { likesService } from "../../../src/services";
+import { likesService, cartService } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
@@ -53,6 +53,7 @@ export default function ListingDetailScreen() {
   const [reportDetails, setReportDetails] = useState("");
   const [isLiked, setIsLiked] = useState(false);
   const [isLoadingLike, setIsLoadingLike] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
 
   // 安全处理 item 数据，兼容 images 和 imageUrls 字段
   const safeItem = useMemo(() => {
@@ -140,6 +141,22 @@ export default function ListingDetailScreen() {
       Alert.alert('Error', 'Failed to update like status. Please try again.');
     } finally {
       setIsLoadingLike(false);
+    }
+  };
+
+  // 处理Add to Cart按钮点击
+  const handleAddToCart = async () => {
+    if (!safeItem?.id || isAddingToCart || isOwnListing) return;
+    
+    setIsAddingToCart(true);
+    try {
+      await cartService.addToCart(safeItem.id.toString(), 1);
+      Alert.alert('Success', 'Item added to cart successfully!');
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      Alert.alert('Error', 'Failed to add item to cart. Please try again.');
+    } finally {
+      setIsAddingToCart(false);
     }
   };
 
@@ -512,11 +529,14 @@ export default function ListingDetailScreen() {
         {!isOwnListing && (
           <>
             <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => navigation.navigate("Bag", { items: defaultBag })}
+              style={[styles.secondaryButton, isAddingToCart && styles.secondaryButtonDisabled]}
+              onPress={handleAddToCart}
+              disabled={isAddingToCart}
             >
-              <Icon name="bag-add-outline" size={20} color="#111" />
-              <Text style={styles.secondaryText}>Add to Bag</Text>
+              <Icon name="bag-add-outline" size={20} color={isAddingToCart ? "#999" : "#111"} />
+              <Text style={[styles.secondaryText, isAddingToCart && styles.secondaryTextDisabled]}>
+                {isAddingToCart ? 'Adding...' : 'Add to Bag'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.primaryButton}
@@ -804,6 +824,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#111",
+  },
+  secondaryButtonDisabled: {
+    backgroundColor: "#f5f5f5",
+    opacity: 0.6,
+  },
+  secondaryTextDisabled: {
+    color: "#999",
   },
   primaryButton: {
     flex: 1,

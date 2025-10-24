@@ -178,7 +178,18 @@ export async function GET(req: Request) {
         gender: (listing as any).gender || "unisex",
         tags: toArray(listing.tags),
         category: listing.category?.name ?? null,
-        images: toArray(listing.image_urls),
+        images: (() => {
+          // 优先使用 image_urls (JSON数组)，如果没有则使用 image_url (单个字符串)
+          const imageUrls = toArray(listing.image_urls);
+          if (imageUrls.length > 0) {
+            return imageUrls;
+          }
+          // 如果 image_urls 为空，尝试使用 image_url
+          if (listing.image_url && typeof listing.image_url === 'string' && listing.image_url.trim() !== '') {
+            return [listing.image_url];
+          }
+          return [];
+        })(),
         seller: sellerInfo,
         createdAt: listing.created_at,
       };

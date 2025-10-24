@@ -25,6 +25,7 @@ import { MOCK_LISTINGS } from "../../../mocks/shop";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
 import { userService, type UserProfile } from "../../../src/services/userService";
+import { likesService, type LikedListing } from "../../../src/services";
 import { authService } from "../../../src/services/authService";
 
 type UserProfileParam = RouteProp<BuyStackParamList, "UserProfile">;
@@ -128,8 +129,10 @@ export default function UserProfileScreen() {
   // 状态管理
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [userListings, setUserListings] = useState<ListingItem[]>([]);
+  const [likedListings, setLikedListings] = useState<LikedListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [listingsLoading, setListingsLoading] = useState(false);
+  const [likesLoading, setLikesLoading] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
@@ -234,6 +237,37 @@ export default function UserProfileScreen() {
 
     loadUserListings();
   }, [userProfile, username]);
+
+  // 加载用户喜欢的商品（查看自己的profile时加载自己的，查看别人的profile时加载公开的）
+  useEffect(() => {
+    const loadLikedListings = async () => {
+      if (!userProfile) return;
+      
+      try {
+        setLikesLoading(true);
+        console.log("❤️ Loading liked listings for user:", userProfile.username);
+        
+        let liked: LikedListing[] = [];
+        if (isOwnProfile) {
+          // 查看自己的profile，加载自己的喜欢商品
+          liked = await likesService.getLikedListings();
+        } else {
+          // 查看别人的profile，加载公开的喜欢商品
+          liked = await likesService.getPublicLikedListings(userProfile.username);
+        }
+        
+        setLikedListings(liked);
+        console.log(`✅ Loaded ${liked.length} liked listings`);
+      } catch (error) {
+        console.error('Error loading liked listings:', error);
+        setLikedListings([]); // 出错时设置为空数组
+      } finally {
+        setLikesLoading(false);
+      }
+    };
+
+    loadLikedListings();
+  }, [userProfile, username, isOwnProfile]);
 
   // 检查follow状态
   useEffect(() => {
@@ -646,27 +680,69 @@ export default function UserProfileScreen() {
         ) : null}
 
         {activeTab === "Likes" ? (
-          <FlatList
-            data={formatData(
-              likedGallery.map((uri, index) => ({ id: `like-${index}`, uri })),
-              3
-            )}
-            keyExtractor={(item) => item.id}
-            numColumns={3}
-            contentContainerStyle={styles.gridContent}
-            renderItem={({ item }) =>
-              item.empty ? (
-                <View style={[styles.gridItem, styles.gridItemInvisible]} />
-              ) : (
-                <View style={styles.gridItem}>
-                  <Image source={{ uri: item.uri }} style={styles.gridImage} />
-                  <View style={styles.likeBadge}>
-                    <Icon name="heart" size={16} color="#f54b3d" />
-                  </View>
-                </View>
-              )
-            }
-          />
+          likesLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#007AFF" />
+              <Text style={styles.loadingText}>Loading liked items...</Text>
+            </View>
+          ) : likedListings.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Icon name="heart-outline" size={48} color="#bbb" />
+              <Text style={styles.emptyTitle}>
+                {isOwnProfile ? "No liked items yet" : "No public liked items"}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {isOwnProfile 
+                  ? "Items you like will appear here" 
+                  : "This user hasn't liked any items yet"
+                }
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={formatData(
+                likedListings.map((likedListing) => ({
+                  id: likedListing.id.toString(),
+                  likedListing: likedListing,
+                })),
+                3
+              )}
+              keyExtractor={(item) => item.id}
+              numColumns={3}
+              contentContainerStyle={styles.gridContent}
+              renderItem={({ item }) =>
+                item.empty || !item.likedListing ? (
+                  <View style={[styles.gridItem, styles.gridItemInvisible]} />
+                ) : (
+                  <TouchableOpacity 
+                    style={styles.gridItem}
+                    onPress={() => {
+                      const listing = item.likedListing.item;
+                      
+                      // 转换数据格式以匹配ListingDetailScreen的期望格式
+                      const listingData = {
+                        ...listing,
+                        // seller数据已经是正确的格式，不需要转换
+                      };
+                      
+                      navigation.navigate("ListingDetail", { item: listingData });
+                    }}
+                  >
+                    <Image 
+                      source={{ 
+                        uri: item.likedListing?.item?.images?.[0] || 
+                             'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop'
+                      }} 
+                      style={styles.gridImage} 
+                    />
+                    <View style={styles.likeBadge}>
+                      <Icon name="heart" size={16} color="#f54b3d" />
+                    </View>
+                  </TouchableOpacity>
+                )
+              }
+            />
+          )
         ) : null}
 
         {activeTab === "Reviews" ? (

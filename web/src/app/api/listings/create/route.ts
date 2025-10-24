@@ -51,14 +51,26 @@ export async function POST(req: Request) {
 
     // 转换condition字符串到ConditionType枚举
     const mapConditionToEnum = (conditionStr: string) => {
+      // 标准化输入字符串，处理大小写和空格
+      const normalizedStr = conditionStr.trim();
+      
       const conditionMap: Record<string, "NEW" | "LIKE_NEW" | "GOOD" | "FAIR" | "POOR"> = {
         "Brand New": "NEW",
+        "New": "NEW",
         "Like New": "LIKE_NEW", 
+        "Like new": "LIKE_NEW",
+        "like new": "LIKE_NEW",
         "Good": "GOOD",
+        "good": "GOOD",
         "Fair": "FAIR",
-        "Poor": "POOR"
+        "fair": "FAIR",
+        "Poor": "POOR",
+        "poor": "POOR"
       };
-      return conditionMap[conditionStr] || "GOOD";
+      
+      const result = conditionMap[normalizedStr];
+      console.log("📝 Condition mapping:", { input: conditionStr, normalized: normalizedStr, result });
+      return result || "GOOD";
     };
 
     console.log("📝 Creating listing with mapped data:", {

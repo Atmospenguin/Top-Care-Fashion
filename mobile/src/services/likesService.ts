@@ -160,6 +160,32 @@ class LikesService {
       return await this.likeListing(listingId);
     }
   }
+
+  // Get public liked listings for a specific user
+  async getPublicLikedListings(username: string): Promise<LikedListing[]> {
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/users/${username}/likes`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return []; // 用户不存在或没有公开的喜欢商品
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      return result.items || [];
+    } catch (error) {
+      console.error('Error fetching public liked listings:', error);
+      throw error;
+    }
+  }
 }
 
 export const likesService = new LikesService();

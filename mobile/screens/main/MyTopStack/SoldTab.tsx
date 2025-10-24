@@ -214,7 +214,7 @@ export default function SoldTab() {
                 }}
               >
                 <Image 
-                  source={{ uri: item.listing.image_url || item.listing.image_urls?.[0] || "https://via.placeholder.com/100x100" }} 
+                  source={{ uri: item.listing?.image_url || item.listing?.image_urls?.[0] || "https://via.placeholder.com/100x100" }} 
                   style={styles.image} 
                 />
                 <View style={styles.overlay}>

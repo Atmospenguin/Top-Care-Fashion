@@ -70,8 +70,13 @@ export default function SearchResultScreen() {
             id: String(it.id ?? it._id ?? Math.random().toString(36).slice(2)),
             title: String(it.title ?? "Untitled"),
             price: Number(it.price ?? 0),
+            description: String(it.description ?? ""),
+            brand: String(it.brand ?? ""),
             size: String(it.size ?? "M"),
             condition: String(it.condition ?? "Good"),
+            material: String(it.material ?? ""),
+            gender: String(it.gender ?? "unisex"),
+            tags: Array.isArray(it.tags) ? it.tags : [],
             category: String(it.category ?? "top"),
             images: Array.isArray(it.images) && it.images.length > 0 ? it.images : [
               typeof it.image === "string" ? it.image : "https://via.placeholder.com/512"
@@ -270,26 +275,6 @@ export default function SearchResultScreen() {
                 {item.title}
               </Text>
               <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
-              <Text style={styles.itemSize} numberOfLines={1}>
-                Size {item.size}
-              </Text>
-              {item.material && (
-                <Text style={styles.itemMaterial} numberOfLines={1}>
-                  {item.material}
-                </Text>
-              )}
-              {item.tags && item.tags.length > 0 && (
-                <View style={styles.itemTags}>
-                  {item.tags.slice(0, 2).map((tag, index) => (
-                    <View key={index} style={styles.itemTagChip}>
-                      <Text style={styles.itemTagText}>{tag}</Text>
-                    </View>
-                  ))}
-                  {item.tags.length > 2 && (
-                    <Text style={styles.itemTagMore}>+{item.tags.length - 2}</Text>
-                  )}
-                </View>
-              )}
             </View>
           </TouchableOpacity>
         )}

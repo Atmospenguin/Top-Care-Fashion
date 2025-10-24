@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Image,
   ScrollView,
@@ -6,6 +6,8 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -16,13 +18,45 @@ import Icon from "../../../components/Icon";
 import type { BuyStackParamList } from "./index";
 import type { HomeStackParamList } from "../HomeStack";
 import { DEFAULT_BAG_ITEMS } from "../../../mocks/shop";
+import { cartService, CartItem } from "../../../src/services";
 
 export default function BagScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
   const route = useRoute<RouteProp<BuyStackParamList, "Bag">>();
 
-  const items = route.params?.items ?? DEFAULT_BAG_ITEMS;
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // 使用传入的items作为fallback，或者从API获取
+  const items = route.params?.items ?? cartItems;
+
+  // 加载购物车数据
+  useEffect(() => {
+    const loadCartItems = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const items = await cartService.getCartItems();
+        setCartItems(items);
+      } catch (err) {
+        console.error('Error loading cart items:', err);
+        setError('Failed to load cart items');
+        // 如果API失败，使用默认数据
+        setCartItems(DEFAULT_BAG_ITEMS);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // 如果没有传入items参数，则从API加载
+    if (!route.params?.items) {
+      loadCartItems();
+    } else {
+      setLoading(false);
+    }
+  }, [route.params?.items]);
 
   const { subtotal, shipping, total } = useMemo(() => {
     const computedSubtotal = items.reduce(
@@ -39,6 +73,75 @@ export default function BagScreen() {
       total: computedSubtotal + shippingFee,
     };
   }, [items]);
+
+  // 更新商品数量
+  const updateQuantity = async (cartItemId: number, newQuantity: number) => {
+    if (newQuantity < 1) {
+      await removeItem(cartItemId);
+      return;
+    }
+
+    try {
+      await cartService.updateCartItem(cartItemId, newQuantity);
+      // 更新本地状态
+      setCartItems(prev => prev.map(item => 
+        item.id === cartItemId 
+          ? { ...item, quantity: newQuantity }
+          : item
+      ));
+    } catch (err) {
+      console.error('Error updating quantity:', err);
+      Alert.alert('Error', 'Failed to update quantity');
+    }
+  };
+
+  // 删除商品
+  const removeItem = async (cartItemId: number) => {
+    try {
+      await cartService.removeCartItem(cartItemId);
+      // 更新本地状态
+      setCartItems(prev => prev.filter(item => item.id !== cartItemId));
+    } catch (err) {
+      console.error('Error removing item:', err);
+      Alert.alert('Error', 'Failed to remove item');
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.screen}>
+        <Header title="My Bag" showBack />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading cart...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (error && items.length === 0) {
+    return (
+      <View style={styles.screen}>
+        <Header title="My Bag" showBack />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              setError(null);
+              setLoading(true);
+              cartService.getCartItems()
+                .then(setCartItems)
+                .catch(() => setError('Failed to load cart items'))
+                .finally(() => setLoading(false));
+            }}
+          >
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>
@@ -71,21 +174,42 @@ export default function BagScreen() {
       ) : (
         <ScrollView contentContainerStyle={styles.container}>
           <View style={styles.itemsCard}>
-            {items.map(({ item, quantity }) => (
-              <View key={`${item.id}`} style={styles.itemRow}>
-                <Image source={{ uri: item.images[0] }} style={styles.itemImage} />
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemTitle}>{item.title}</Text>
-                  <Text style={styles.itemMeta}>
-                    Size {item.size} | {item.condition}
-                  </Text>
-                  <Text style={styles.itemPrice}>${typeof item.price === 'number' ? item.price.toFixed(2) : parseFloat(item.price || '0').toFixed(2)}</Text>
+            {items.map((cartItem) => {
+              const { item, quantity, id } = cartItem;
+              return (
+                <View key={`${item.id}`} style={styles.itemRow}>
+                  <Image source={{ uri: item.images[0] }} style={styles.itemImage} />
+                  <View style={styles.itemInfo}>
+                    <Text style={styles.itemTitle}>{item.title}</Text>
+                    <Text style={styles.itemMeta}>
+                      Size {item.size} | {item.condition}
+                    </Text>
+                    <Text style={styles.itemPrice}>${typeof item.price === 'number' ? item.price.toFixed(2) : parseFloat(item.price || '0').toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.quantityControls}>
+                    <TouchableOpacity
+                      style={styles.quantityBtn}
+                      onPress={() => updateQuantity(id, quantity - 1)}
+                    >
+                      <Icon name="remove" size={16} color="#666" />
+                    </TouchableOpacity>
+                    <Text style={styles.quantityText}>{quantity}</Text>
+                    <TouchableOpacity
+                      style={styles.quantityBtn}
+                      onPress={() => updateQuantity(id, quantity + 1)}
+                    >
+                      <Icon name="add" size={16} color="#666" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.removeBtn}
+                      onPress={() => removeItem(id)}
+                    >
+                      <Icon name="trash-outline" size={16} color="#F54B3D" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <View style={styles.quantityBadge}>
-                  <Text style={styles.quantityText}>x{quantity}</Text>
-                </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
 
           <View style={styles.summaryCard}>
@@ -183,6 +307,28 @@ const styles = StyleSheet.create({
     backgroundColor: "#f1f1f1",
   },
   quantityText: { fontSize: 13, fontWeight: "600" },
+  quantityControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 8,
+  },
+  quantityBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#f1f1f1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFF5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
   summaryCard: {
     borderRadius: 16,
     backgroundColor: "#fff",
@@ -252,4 +398,37 @@ const styles = StyleSheet.create({
     backgroundColor: "#111",
   },
   exploreText: { color: "#fff", fontWeight: "700" },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 12,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#F54B3D',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#111',
+  },
+  retryText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
 });
