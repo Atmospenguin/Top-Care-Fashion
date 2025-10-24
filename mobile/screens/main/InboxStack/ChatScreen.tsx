@@ -11,14 +11,15 @@ import {
   Platform,
   Alert,
 } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { InboxStackParamList } from "./InboxStackNavigator";
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
-import { messagesService, type Message, type ConversationDetail } from "../../../src/services";
+import { messagesService, ordersService, type Message, type ConversationDetail } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
+import { API_CONFIG } from "../../../src/config/api";
 
 type Order = {
   id: string;
@@ -69,6 +70,22 @@ type ChatItem =
       orderId: string;
     };
 
+// 🔥 状态转换函数 - 与OrderDetailScreen保持一致
+const getDisplayStatus = (status: string): string => {
+  switch (status) {
+    case "IN_PROGRESS": return "In Progress";
+    case "TO_SHIP": return "To Ship";
+    case "SHIPPED": return "Shipped";
+    case "DELIVERED": return "Delivered";
+    case "RECEIVED": return "Received";
+    case "COMPLETED": return "Completed";
+    case "REVIEWED": return "Reviewed";
+    case "CANCELLED": return "Cancelled";
+    case "Inquiry": return "Inquiry";
+    default: return status;
+  }
+    };
+
 export default function ChatScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<InboxStackParamList, "Chat">>();
   const route = useRoute<any>();
@@ -80,6 +97,7 @@ export default function ChatScreen() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [conversation, setConversation] = useState<ConversationDetail | null>(null);
+  const [lastOrderStatus, setLastOrderStatus] = useState<string | null>(null);
   const listRef = useRef<FlatList<ChatItem>>(null);
 
   // —— MOCK 数据：保留作为 UI 参考和学习 —— //
@@ -181,6 +199,142 @@ export default function ChatScreen() {
 
     return [];
   }, [kind, order, sender]);
+
+  // 🔥 Focus事件监听 - 当用户从OrderDetailScreen返回时同步状态
+  useFocusEffect(
+    React.useCallback(() => {
+      const syncOrderStatus = async () => {
+        if (!conversationId || kind !== "order") return;
+        
+        try {
+          console.log("🔄 Syncing order status on focus...");
+          
+          // 重新加载对话数据
+          const conversationData = await messagesService.getMessages(conversationId);
+          setConversation(conversationData);
+          
+          // 获取当前订单状态
+          const orderCard = conversationData.messages.find(item => item.type === "orderCard");
+          if (orderCard && orderCard.type === "orderCard" && orderCard.order) {
+            const currentStatus = orderCard.order.status;
+            console.log("🔍 Current order status:", currentStatus);
+            console.log("🔍 Last order status:", lastOrderStatus);
+            
+            // 如果状态发生变化，添加系统消息并更新订单卡片
+            if (lastOrderStatus && lastOrderStatus !== currentStatus) {
+              console.log("🔄 Order status changed from", lastOrderStatus, "to", currentStatus);
+              
+              const systemMessage = generateSystemMessage(lastOrderStatus, currentStatus, orderCard.order);
+              if (systemMessage) {
+                // 🔥 更新订单卡片状态
+                setItems(prev => prev.map(item => {
+                  if (item.type === "orderCard" && item.order.id === orderCard.order!.id) {
+                    return {
+                      ...item,
+                      order: {
+                        ...item.order,
+                        status: currentStatus
+                      }
+                    };
+                  }
+                  return item;
+                }));
+                
+                // 🔥 添加系统消息
+                setItems(prev => [...prev, systemMessage]);
+                setTimeout(() => {
+                  listRef.current?.scrollToEnd({ animated: true });
+                }, 100);
+              }
+            }
+            
+            setLastOrderStatus(currentStatus);
+          }
+        } catch (error) {
+          console.error("❌ Error syncing order status:", error);
+        }
+      };
+      
+      syncOrderStatus();
+    }, [conversationId, kind, lastOrderStatus])
+  );
+
+  // 生成系统消息的函数 - 与mock数据格式完全对齐
+  const generateSystemMessage = (oldStatus: string, newStatus: string, order: Order): ChatItem | null => {
+    const timestamp = new Date().toLocaleTimeString(); // 🔥 使用简单时间格式
+    
+    switch (newStatus) {
+      case "IN_PROGRESS":
+        // 🔥 添加支付确认消息，与mock数据一致
+        return {
+          id: `system-paid-${Date.now()}`,
+          type: "system",
+          text: `${user?.username || 'Buyer'} has paid for the order.\nPlease prepare the package and ship soon.`,
+          time: timestamp,
+          orderId: order.id,
+          sentByUser: false,
+          avatar: order.buyer?.avatar
+        };
+      
+      case "TO_SHIP":
+        // 🔥 添加准备发货消息
+        return {
+          id: `system-prepare-${Date.now()}`,
+          type: "system",
+          text: "Order confirmed. Please prepare the package and ship soon.",
+          time: timestamp,
+          orderId: order.id
+        };
+      
+      case "SHIPPED":
+        return {
+          id: `system-shipped-${Date.now()}`,
+          type: "system",
+          text: "Seller has shipped your parcel.",
+          time: timestamp,
+          orderId: order.id
+        };
+      
+      case "DELIVERED":
+        return {
+          id: `system-delivered-${Date.now()}`,
+          type: "system",
+          text: "Parcel arrived. Waiting for buyer to confirm received.",
+          time: timestamp,
+          orderId: order.id
+        };
+      
+      case "RECEIVED":
+        return {
+          id: `system-received-${Date.now()}`,
+          type: "system",
+          text: "Order confirmed received. Transaction completed.",
+          time: timestamp,
+          orderId: order.id
+        };
+      
+      case "CANCELLED":
+        return {
+          id: `system-cancelled-${Date.now()}`,
+          type: "system",
+          text: "Order has been cancelled.",
+          time: timestamp,
+          orderId: order.id
+        };
+      
+      case "COMPLETED":
+        return {
+          id: `system-completed-${Date.now()}`,
+          type: "system",
+          text: "Order completed successfully.",
+          time: timestamp,
+          orderId: order.id
+        };
+      
+      default:
+        return null;
+    }
+  };
 
   const loadConversationData = async () => {
     if (!conversationId) {
@@ -326,6 +480,13 @@ export default function ChatScreen() {
       } else {
         setItems(finalItems);
         console.log("🔍 Loaded", finalItems.length, "messages from API");
+        
+        // 🔥 记录当前订单状态
+        const orderCard = finalItems.find(item => item.type === "orderCard");
+        if (orderCard && orderCard.type === "orderCard") {
+          setLastOrderStatus(orderCard.order.status);
+          console.log("🔍 Recorded order status:", orderCard.order.status);
+        }
       }
       
     } catch (error) {
@@ -413,42 +574,233 @@ export default function ChatScreen() {
     console.log("🔍 Order card - order buyer:", o.buyer?.name);
 
     const handleBuyNow = () => {
-      console.log("🛒 Buy Now button pressed for order:", o.id);
-      // 导航到购买页面
+      console.log("🛒 Buy Now clicked for listing:", o.id);
+      
+      // 🔥 跳转到CheckoutScreen而不是直接创建订单
       const rootNavigation = (navigation as any).getParent?.();
       if (rootNavigation) {
-        // 构建符合 BagItem 格式的数据
-        const bagItem = {
+        // 构造单个商品的购物车项目格式
+        const singleItem = {
           item: {
             id: o.id,
-            title: o.product.title,
+            name: o.product.title,
             price: o.product.price,
-            description: `Size: ${o.product.size || 'One Size'}`,
-            brand: "Brand", // 默认品牌
-            size: o.product.size || "One Size",
-            condition: "Good",
-            material: "Mixed",
-            gender: "unisex",
-            tags: [],
-            images: o.product.image ? [o.product.image] : [],
-            category: "top" as const,
-            seller: {
-              id: 0, // 默认卖家ID
-              name: o.seller.name,
-              avatar: o.seller.avatar || "",
-              rating: 5.0,
-              sales: 0
-            }
+            image: o.product.image,
+            size: o.product.size,
+            seller: o.seller
           },
           quantity: 1
         };
-
+        
+        console.log("🔍 Navigating to Checkout with item:", singleItem);
+        
+        // 🔥 BuyStack在根级别，直接导航
         rootNavigation.navigate("Buy", {
           screen: "Checkout",
           params: {
-            items: [bagItem],
+            items: [singleItem],
             subtotal: o.product.price,
             shipping: 5.99 // 默认运费
+          }
+        });
+      } else {
+        console.error("❌ Root navigation not found");
+      }
+    };
+
+    // 🔥 买家操作函数
+    const handleCancelOrder = async () => {
+      console.log("🚫 Cancel Order button pressed for order:", o.id);
+      try {
+        Alert.alert(
+          "Cancel Order",
+          "Are you sure you want to cancel this order?",
+          [
+            { text: "No", style: "cancel" },
+            {
+              text: "Yes",
+              onPress: async () => {
+                try {
+                  await ordersService.updateOrderStatus(parseInt(o.id), { status: "CANCELLED" });
+                  
+                  // 更新聊天中的订单状态
+                  const updatedItems = items.map(item => {
+                    if (item.type === "orderCard" && item.order.id === o.id) {
+                      return {
+                        ...item,
+                        order: { ...item.order, status: "CANCELLED" }
+                      };
+                    }
+                    return item;
+                  });
+                  setItems(updatedItems);
+                  
+                  // 发送系统消息
+                  const systemMessage: ChatItem = {
+                    id: `system-cancel-${Date.now()}`,
+                    type: "system",
+                    text: `Order #${o.id} has been cancelled.`,
+                    time: new Date().toLocaleTimeString(),
+                    orderId: o.id
+                  };
+                  setItems(prev => [...prev, systemMessage]);
+                  
+                  Alert.alert("Success", "Order has been cancelled.");
+                } catch (error) {
+                  console.error("Error cancelling order:", error);
+                  Alert.alert("Error", "Failed to cancel order. Please try again.");
+                }
+              }
+            }
+          ]
+        );
+      } catch (error) {
+        console.error("Error in cancel order:", error);
+      }
+    };
+
+    const handleOrderReceived = async () => {
+      console.log("📦 Order Received button pressed for order:", o.id);
+      try {
+        await ordersService.updateOrderStatus(parseInt(o.id), { status: "RECEIVED" });
+        
+        // 更新聊天中的订单状态
+        const updatedItems = items.map(item => {
+          if (item.type === "orderCard" && item.order.id === o.id) {
+            return {
+              ...item,
+              order: { ...item.order, status: "RECEIVED" }
+            };
+          }
+          return item;
+        });
+        setItems(updatedItems);
+        
+        // 发送系统消息
+        const systemMessage: ChatItem = {
+          id: `system-received-${Date.now()}`,
+          type: "system",
+          text: `Order #${o.id} has been marked as received.`,
+          time: new Date().toLocaleTimeString(),
+          orderId: o.id
+        };
+        setItems(prev => [...prev, systemMessage]);
+        
+        Alert.alert("Success", "Order has been marked as received.");
+      } catch (error) {
+        console.error("Error marking order as received:", error);
+        Alert.alert("Error", "Failed to update order status. Please try again.");
+      }
+    };
+
+    const handleLeaveReview = () => {
+      console.log("⭐ Leave Review button pressed for order:", o.id);
+      const rootNavigation = (navigation as any).getParent?.();
+      if (rootNavigation) {
+        rootNavigation.navigate("Main", {
+          screen: "MyTop",
+          params: {
+            screen: "Review",
+            params: { orderId: o.id }
+          }
+        });
+      }
+    };
+
+    // 🔥 卖家操作函数
+    const handleMarkShipped = async () => {
+      console.log("📦 Mark as Shipped button pressed for order:", o.id);
+      try {
+        await ordersService.updateOrderStatus(parseInt(o.id), { status: "SHIPPED" });
+        
+        // 更新聊天中的订单状态
+        const updatedItems = items.map(item => {
+          if (item.type === "orderCard" && item.order.id === o.id) {
+            return {
+              ...item,
+              order: { ...item.order, status: "SHIPPED" }
+            };
+          }
+          return item;
+        });
+        setItems(updatedItems);
+        
+        // 发送系统消息
+        const systemMessage: ChatItem = {
+          id: `system-shipped-${Date.now()}`,
+          type: "system",
+          text: `Order #${o.id} has been marked as shipped.`,
+          time: new Date().toLocaleTimeString(),
+          orderId: o.id
+        };
+        setItems(prev => [...prev, systemMessage]);
+        
+        Alert.alert("Success", "Order has been marked as shipped.");
+      } catch (error) {
+        console.error("Error marking order as shipped:", error);
+        Alert.alert("Error", "Failed to update order status. Please try again.");
+      }
+    };
+
+    const handleCancelSold = async () => {
+      console.log("🚫 Cancel Sold Order button pressed for order:", o.id);
+      try {
+        Alert.alert(
+          "Cancel Order",
+          "Are you sure you want to cancel this order?",
+          [
+            { text: "No", style: "cancel" },
+            {
+              text: "Yes",
+              onPress: async () => {
+                try {
+                  await ordersService.updateOrderStatus(parseInt(o.id), { status: "CANCELLED" });
+                  
+                  // 更新聊天中的订单状态
+                  const updatedItems = items.map(item => {
+                    if (item.type === "orderCard" && item.order.id === o.id) {
+                      return {
+                        ...item,
+                        order: { ...item.order, status: "CANCELLED" }
+                      };
+                    }
+                    return item;
+                  });
+                  setItems(updatedItems);
+                  
+                  // 发送系统消息
+                  const systemMessage: ChatItem = {
+                    id: `system-cancel-sold-${Date.now()}`,
+                    type: "system",
+                    text: `Order #${o.id} has been cancelled by seller.`,
+                    time: new Date().toLocaleTimeString(),
+                    orderId: o.id
+                  };
+                  setItems(prev => [...prev, systemMessage]);
+                  
+                  Alert.alert("Success", "Order has been cancelled.");
+                } catch (error) {
+                  console.error("Error cancelling sold order:", error);
+                  Alert.alert("Error", "Failed to cancel order. Please try again.");
+                }
+              }
+            }
+          ]
+        );
+      } catch (error) {
+        console.error("Error in cancel sold order:", error);
+      }
+    };
+
+    const handleViewMutualReview = () => {
+      console.log("👀 View Mutual Review button pressed for order:", o.id);
+      const rootNavigation = (navigation as any).getParent?.();
+      if (rootNavigation) {
+        rootNavigation.navigate("Main", {
+          screen: "MyTop",
+          params: {
+            screen: "MutualReview",
+            params: { orderId: o.id }
           }
         });
       }
@@ -462,7 +814,7 @@ export default function ChatScreen() {
       
       try {
         // 🔥 获取完整的listing数据
-        const response = await fetch(`http://192.168.0.79:3000/api/listings/${o.id}`);
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/listings/${o.id}`);
         const listingData = await response.json();
         console.log("🔍 Fetched listing data:", listingData);
         
@@ -507,9 +859,9 @@ export default function ChatScreen() {
           if (isOwnListing) {
             // 🔥 自己的listing：跳转到ListingDetail页面但显示卖家视角（没有购买按钮）
             console.log("🔍 Navigating to own listing detail");
-            rootNavigation.navigate("Buy", {
+        rootNavigation.navigate("Buy", {
               screen: "ListingDetail",
-              params: {
+          params: {
                 item: listingItem,
                 isOwnListing: true // 🔥 传递标记表示这是自己的listing
               }
@@ -554,25 +906,128 @@ export default function ChatScreen() {
               ? `Inquiry from ${o?.buyer?.name ?? "Buyer"}`
               : `Sold by ${o?.seller?.name ?? "Seller"}`}
           </Text>
-          <Text style={styles.orderStatus}>Status: {o.status}</Text>
+          <Text style={styles.orderStatus}>Status: {getDisplayStatus(o.status)}</Text>
         </View>
         <View style={styles.orderActions}>
-          {/* 🔥 卖家不显示任何按钮或状态徽章 */}
+          {/* 🔥 买家按钮逻辑 - 与OrderDetailScreen一致 */}
           {!isSeller && (
-            /* 🔥 买家在Inquiry状态下显示 Buy Now 按钮 */
-            o.status === "Inquiry" ? (
-              <TouchableOpacity 
-                style={styles.buyButton}
-                onPress={handleBuyNow}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.buyButtonText}>Buy Now</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusBadgeText}>{o.status}</Text>
-              </View>
-            )
+            <>
+              {/* Inquiry状态 - Buy Now按钮 */}
+              {o.status === "Inquiry" && (
+            <TouchableOpacity 
+              style={styles.buyButton}
+              onPress={handleBuyNow}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.buyButtonText}>Buy Now</Text>
+            </TouchableOpacity>
+              )}
+              
+              {/* IN_PROGRESS状态 - Cancel Order按钮 */}
+              {o.status === "IN_PROGRESS" && (
+                <TouchableOpacity 
+                  style={[styles.actionButton, { backgroundColor: "#F54B3D" }]}
+                  onPress={handleCancelOrder}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.actionButtonText}>Cancel Order</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* DELIVERED状态 - Order Received按钮 */}
+              {o.status === "DELIVERED" && (
+                <TouchableOpacity 
+                  style={[styles.actionButton, { backgroundColor: "#000" }]}
+                  onPress={handleOrderReceived}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.actionButtonText}>Order Received</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* RECEIVED/COMPLETED状态 - Leave Review按钮 */}
+              {["RECEIVED", "COMPLETED"].includes(o.status) && (
+                <TouchableOpacity 
+                  style={styles.actionButton}
+                  onPress={handleLeaveReview}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.actionButtonText}>Leave Review</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* CANCELLED状态 - Buy Now按钮 */}
+              {o.status === "CANCELLED" && (
+                <TouchableOpacity
+                  style={styles.buyButton}
+                  onPress={handleBuyNow}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.buyButtonText}>Buy Now</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* 其他状态 - 显示状态徽章 */}
+              {!["Inquiry", "IN_PROGRESS", "DELIVERED", "RECEIVED", "COMPLETED", "CANCELLED"].includes(o.status) && (
+            <View style={styles.statusBadge}>
+                  <Text style={styles.statusBadgeText}>{getDisplayStatus(o.status)}</Text>
+            </View>
+          )}
+            </>
+          )}
+          
+          {/* 🔥 卖家按钮逻辑 - 与OrderDetailScreen一致 */}
+          {isSeller && (
+            <>
+              {/* TO_SHIP状态 - Mark as Shipped + Cancel Order按钮 */}
+              {o.status === "TO_SHIP" && (
+                <View style={styles.sellerActions}>
+                  <TouchableOpacity 
+                    style={[styles.actionButton, { backgroundColor: "#000" }]}
+                    onPress={handleMarkShipped}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.actionButtonText}>Mark as Shipped</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.actionButton, { backgroundColor: "#F54B3D", marginTop: 8 }]}
+                    onPress={handleCancelSold}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.actionButtonText}>Cancel Order</Text>
+                  </TouchableOpacity>
+        </View>
+              )}
+              
+              {/* COMPLETED状态 - Leave Review按钮 */}
+              {o.status === "COMPLETED" && (
+                <TouchableOpacity 
+                  style={styles.actionButton}
+                  onPress={handleLeaveReview}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.actionButtonText}>Leave Review</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* REVIEWED状态 - View Mutual Review按钮 */}
+              {o.status === "REVIEWED" && (
+                <TouchableOpacity 
+                  style={[styles.actionButton, { backgroundColor: "#2d7ef0" }]}
+                  onPress={handleViewMutualReview}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.actionButtonText}>View Mutual Review</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* 其他状态 - 显示状态徽章 */}
+              {!["TO_SHIP", "COMPLETED", "REVIEWED"].includes(o.status) && (
+                <View style={styles.statusBadge}>
+                  <Text style={styles.statusBadgeText}>{getDisplayStatus(o.status)}</Text>
+      </View>
+              )}
+            </>
           )}
         </View>
       </TouchableOpacity>
@@ -890,6 +1345,24 @@ const styles = StyleSheet.create({
     color: "#000",
     fontWeight: "700",
     fontSize: 13,
+  },
+  actionButton: {
+    backgroundColor: "#000",
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 80,
+  },
+  actionButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  sellerActions: {
+    alignItems: "center",
+    justifyContent: "center",
   },
   statusBadge: {
     backgroundColor: "#f0f0f0",

@@ -176,7 +176,9 @@ export async function POST(request: NextRequest) {
         buyer_id: currentUser.id,
         seller_id: listing.seller_id,
         listing_id: listing.id,
-        status: 'IN_PROGRESS'
+        order_number: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        status: 'IN_PROGRESS',
+        total_amount: listing.price
       },
       include: {
         buyer: {

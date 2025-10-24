@@ -1,5 +1,5 @@
-import React, { useMemo } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, TextInput, Alert } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
@@ -11,16 +11,8 @@ import {
   DEFAULT_PAYMENT_METHOD,
   DEFAULT_SHIPPING_ADDRESS,
 } from "../../../mocks/shop";
-
-function formatAddress() {
-  const parts = [DEFAULT_SHIPPING_ADDRESS.line1];
-  if (DEFAULT_SHIPPING_ADDRESS.line2) parts.push(DEFAULT_SHIPPING_ADDRESS.line2);
-  parts.push(
-    `${DEFAULT_SHIPPING_ADDRESS.city}, ${DEFAULT_SHIPPING_ADDRESS.state} ${DEFAULT_SHIPPING_ADDRESS.postalCode}`,
-  );
-  parts.push(DEFAULT_SHIPPING_ADDRESS.country);
-  return parts.join("\n");
-}
+import { ordersService } from "../../../src/services";
+import { useAuth } from "../../../contexts/AuthContext";
 
 function getDeliveryEstimate(): string {
   const today = new Date();
@@ -38,9 +30,130 @@ export default function CheckoutScreen() {
   const {
     params: { items, subtotal, shipping },
   } = useRoute<RouteProp<BuyStackParamList, "Checkout">>();
+  const { user } = useAuth();
+
+  // 🔥 状态管理 - 地址和付款方式
+  const [shippingAddress, setShippingAddress] = useState(DEFAULT_SHIPPING_ADDRESS);
+  const [paymentMethod, setPaymentMethod] = useState(DEFAULT_PAYMENT_METHOD);
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
 
   const total = useMemo(() => subtotal + shipping, [subtotal, shipping]);
   const deliveryEstimate = useMemo(() => getDeliveryEstimate(), []);
+
+  // 🔥 格式化地址函数
+  const formatCurrentAddress = () => {
+    const parts = [shippingAddress.line1];
+    if (shippingAddress.line2) parts.push(shippingAddress.line2);
+    parts.push(
+      `${shippingAddress.city}, ${shippingAddress.state} ${shippingAddress.postalCode}`,
+    );
+    parts.push(shippingAddress.country);
+    return parts.join("\n");
+  };
+
+  // 🔥 编辑地址功能
+  const handleChangeAddress = () => {
+    Alert.prompt(
+      "Edit Shipping Address",
+      "Enter your address:",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Save",
+          onPress: (address) => {
+            if (address) {
+              setShippingAddress({
+                ...shippingAddress,
+                line1: address
+              });
+            }
+          }
+        }
+      ],
+      "plain-text",
+      shippingAddress.line1
+    );
+  };
+
+  // 🔥 编辑付款方式功能
+  const handleChangePayment = () => {
+    Alert.prompt(
+      "Edit Payment Method",
+      "Enter card number (last 4 digits):",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Save",
+          onPress: (last4) => {
+            if (last4 && last4.length === 4) {
+              setPaymentMethod({
+                ...paymentMethod,
+                last4: last4
+              });
+            }
+          }
+        }
+      ],
+      "plain-text",
+      paymentMethod.last4
+    );
+  };
+
+  // 🔥 创建真实订单
+  const handlePlaceOrder = async () => {
+    if (!user) {
+      Alert.alert("Error", "Please log in to place an order");
+      return;
+    }
+
+    try {
+      setIsCreatingOrder(true);
+      
+      // 🔥 为每个商品创建订单
+      for (const bagItem of items) {
+        console.log("🔍 Creating order for item:", bagItem.item.id);
+        
+        const newOrder = await ordersService.createOrder({
+          listing_id: parseInt(bagItem.item.id)
+        });
+        
+        console.log("✅ Order created successfully:", newOrder);
+      }
+      
+      // 🔥 显示成功消息并导航
+      Alert.alert(
+        "Order Placed Successfully!",
+        `Your order has been confirmed. You will receive tracking details once it ships.`,
+        [
+          {
+            text: "View Orders",
+            onPress: () => {
+              const rootNavigation = (navigation as any).getParent?.();
+              if (rootNavigation) {
+                rootNavigation.navigate("Main", {
+                  screen: "MyTop",
+                  params: {
+                    screen: "PurchasesTab"
+                  }
+                });
+              }
+            }
+          },
+          { text: "Continue Shopping" }
+        ]
+      );
+      
+    } catch (error) {
+      console.error("❌ Error creating order:", error);
+      Alert.alert(
+        "Error", 
+        error instanceof Error ? error.message : "Failed to create order. Please try again.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setIsCreatingOrder(false);
+    }
+  };
 
   return (
     <View style={styles.screen}>
@@ -49,26 +162,26 @@ export default function CheckoutScreen() {
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Shipping Address</Text>
-            <TouchableOpacity accessibilityRole="button">
+            <TouchableOpacity accessibilityRole="button" onPress={handleChangeAddress}>
               <Text style={styles.sectionAction}>Change</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.addressName}>{DEFAULT_SHIPPING_ADDRESS.name}</Text>
-          <Text style={styles.addressPhone}>{DEFAULT_SHIPPING_ADDRESS.phone}</Text>
-          <Text style={styles.addressBody}>{formatAddress()}</Text>
+          <Text style={styles.addressName}>{shippingAddress.name}</Text>
+          <Text style={styles.addressPhone}>{shippingAddress.phone}</Text>
+          <Text style={styles.addressBody}>{formatCurrentAddress()}</Text>
         </View>
 
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Payment</Text>
-            <TouchableOpacity accessibilityRole="button">
+            <TouchableOpacity accessibilityRole="button" onPress={handleChangePayment}>
               <Text style={styles.sectionAction}>Change</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.paymentRow}>
             <Icon name="card" size={20} color="#111" />
             <Text style={styles.paymentText}>
-              {DEFAULT_PAYMENT_METHOD.brand} ending in {DEFAULT_PAYMENT_METHOD.last4}
+              {paymentMethod.brand} ending in {paymentMethod.last4}
             </Text>
           </View>
         </View>
@@ -100,17 +213,13 @@ export default function CheckoutScreen() {
 
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={() =>
-            navigation.navigate("Purchase", {
-              orderId: `TOP-${Math.floor(Math.random() * 9000 + 1000)}`,
-              total,
-              estimatedDelivery: deliveryEstimate,
-              items,
-            })
-          }
+          style={[styles.primaryButton, isCreatingOrder && styles.primaryButtonDisabled]}
+          onPress={handlePlaceOrder}
+          disabled={isCreatingOrder}
         >
-          <Text style={styles.primaryText}>Place order</Text>
+          <Text style={styles.primaryText}>
+            {isCreatingOrder ? "Creating Order..." : "Place order"}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -202,6 +311,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 28,
     alignItems: "center",
+  },
+  primaryButtonDisabled: {
+    backgroundColor: "#bbb",
   },
   primaryText: {
     color: "#fff",

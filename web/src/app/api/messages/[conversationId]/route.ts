@@ -292,12 +292,48 @@ export async function GET(
       current_user_username: dbUser.username
     });
     
+    // 🔥 查询真实订单状态（如果有订单的话）
+    let existingOrder = null;
+    if (conversation.listing) {
+      try {
+        existingOrder = await prisma.orders.findFirst({
+          where: {
+            listing_id: conversation.listing.id,
+            OR: [
+              { buyer_id: dbUser.id },
+              { seller_id: dbUser.id }
+            ]
+          },
+          include: {
+            buyer: {
+              select: {
+                id: true,
+                username: true,
+                avatar_url: true
+              }
+            },
+            seller: {
+              select: {
+                id: true,
+                username: true,
+                avatar_url: true
+              }
+            }
+          },
+          orderBy: { created_at: 'desc' }
+        });
+        console.log("🔍 Found existing order:", existingOrder?.id, "Status:", existingOrder?.status);
+      } catch (error) {
+        console.error("❌ Error querying order:", error);
+      }
+    }
+
     // 添加订单卡片（如果是订单对话）
     const orderCard = conversation.listing ? {
       id: "order-card",
       type: "orderCard",
       order: {
-        id: conversation.listing.id.toString(),
+        id: existingOrder ? existingOrder.id.toString() : conversation.listing.id.toString(),
         product: {
           title: conversation.listing.name,
           price: Number(conversation.listing.price),
@@ -325,14 +361,14 @@ image: (() => {
           })()
         },
         seller: { 
-          name: seller.username,
-          avatar: seller.avatar_url
+          name: existingOrder ? existingOrder.seller.username : seller.username,
+          avatar: existingOrder ? existingOrder.seller.avatar_url : seller.avatar_url
         },
         buyer: {
-          name: buyer.username,
-          avatar: buyer.avatar_url
+          name: existingOrder ? existingOrder.buyer.username : buyer.username,
+          avatar: existingOrder ? existingOrder.buyer.avatar_url : buyer.avatar_url
         },
-        status: "Inquiry"
+        status: existingOrder ? existingOrder.status : "Inquiry"
       }
     } : null;
 
@@ -350,7 +386,7 @@ image: (() => {
       },
       messages: orderCard ? [orderCard, ...formattedMessages] : formattedMessages,
       order: conversation.listing ? {
-        id: conversation.listing.id.toString(),
+        id: existingOrder ? existingOrder.id.toString() : conversation.listing.id.toString(),
         product: {
           title: conversation.listing.name,
           price: Number(conversation.listing.price),
@@ -378,14 +414,14 @@ image: (() => {
           })()
         },
         seller: { 
-          name: seller.username,
-          avatar: seller.avatar_url
+          name: existingOrder ? existingOrder.seller.username : seller.username,
+          avatar: existingOrder ? existingOrder.seller.avatar_url : seller.avatar_url
         },
         buyer: {
-          name: buyer.username,
-          avatar: buyer.avatar_url
+          name: existingOrder ? existingOrder.buyer.username : buyer.username,
+          avatar: existingOrder ? existingOrder.buyer.avatar_url : buyer.avatar_url
         },
-        status: "Inquiry"
+        status: existingOrder ? existingOrder.status : "Inquiry"
       } : null
     });
 
