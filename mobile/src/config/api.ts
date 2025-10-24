@@ -11,6 +11,7 @@ export const API_CONFIG = {
     LISTINGS: '/api/listings',
     USERS: '/api/users',
     ORDERS: '/api/orders',
+    LIKES: '/api/likes',
     AUTH: {
       SIGNIN: '/api/auth/signin',
       SIGNUP: '/api/auth/register',

@@ -5,6 +5,7 @@ export { authService, AuthService } from './authService';
 export { userService, UserService } from './userService';
 export { feedbackService, FeedbackService } from './feedbackService';
 export { ordersService, OrdersService } from './ordersService';
+export { likesService, LikesService } from './likesService';
 
 // 导出类型
 export type { ApiResponse, ApiError } from '../config/api';
@@ -22,5 +23,6 @@ export type {
   UpdateOrderRequest, 
   CreateReviewRequest 
 } from './ordersService';
+export type { LikedListing, LikeStatus } from './likesService';
 
 

@@ -532,7 +532,7 @@ function FrameCardContent({
         style={styles.frameImage}
         resizeMode={imageMode}
       />
-      <Text style={styles.priceTag}>${item.price.toFixed(0)}</Text>
+      <Text style={styles.priceTag}>${typeof item.price === 'number' ? item.price.toFixed(0) : parseFloat(item.price || '0').toFixed(0)}</Text>
       {selectable ? (
         <TouchableOpacity
           style={[

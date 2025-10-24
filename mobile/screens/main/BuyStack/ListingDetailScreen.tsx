@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Alert,
   Dimensions,
@@ -23,6 +23,7 @@ import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { BagItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
+import { likesService } from "../../../src/services";
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
@@ -48,6 +49,8 @@ export default function ListingDetailScreen() {
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [reportDetails, setReportDetails] = useState("");
+  const [isLiked, setIsLiked] = useState(false);
+  const [isLoadingLike, setIsLoadingLike] = useState(false);
 
   // 安全处理 item 数据，兼容 images 和 imageUrls 字段
   const safeItem = useMemo(() => {
@@ -66,10 +69,45 @@ export default function ListingDetailScreen() {
     [safeItem],
   );
   const subtotal = useMemo(
-    () => defaultBag.reduce((sum, current) => sum + current.item.price * current.quantity, 0),
+    () => defaultBag.reduce((sum, current) => {
+      const price = typeof current.item.price === 'number' ? current.item.price : parseFloat(current.item.price || '0');
+      return sum + price * current.quantity;
+    }, 0),
     [defaultBag],
   );
   const shippingFee = 8;
+
+  // 检查Like状态
+  useEffect(() => {
+    const checkLikeStatus = async () => {
+      if (!safeItem?.id) return;
+      
+      try {
+        const liked = await likesService.getLikeStatus(safeItem.id);
+        setIsLiked(liked);
+      } catch (error) {
+        console.error('Error checking like status:', error);
+      }
+    };
+
+    checkLikeStatus();
+  }, [safeItem?.id]);
+
+  // 处理Like按钮点击
+  const handleLikeToggle = async () => {
+    if (!safeItem?.id || isLoadingLike) return;
+    
+    setIsLoadingLike(true);
+    try {
+      const newLikedStatus = await likesService.toggleLike(safeItem.id, isLiked);
+      setIsLiked(newLikedStatus);
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      Alert.alert('Error', 'Failed to update like status. Please try again.');
+    } finally {
+      setIsLoadingLike(false);
+    }
+  };
 
   const handleReport = () => {
     setShowMenu(false);
@@ -114,9 +152,7 @@ export default function ListingDetailScreen() {
     try {
       if (safeItem) {
         await Share.share({
-          message: `Check out this find on TOP: ${safeItem.title} for $${safeItem.price.toFixed(
-            2
-          )}`,
+          message: `Check out this find on TOP: ${safeItem.title} for $${typeof safeItem.price === 'number' ? safeItem.price.toFixed(2) : parseFloat(safeItem.price || '0').toFixed(2)}`,
         });
       }
     } catch {
@@ -298,13 +334,19 @@ export default function ListingDetailScreen() {
           <View style={styles.titleRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>{safeItem?.title || 'Loading...'}</Text>
-              <Text style={styles.price}>${safeItem?.price?.toFixed(2) || '0.00'}</Text>
+              <Text style={styles.price}>${typeof safeItem?.price === 'number' ? safeItem.price.toFixed(2) : parseFloat(safeItem?.price || '0').toFixed(2)}</Text>
             </View>
             <TouchableOpacity
               accessibilityRole="button"
-              style={styles.iconButton}
+              style={[styles.iconButton, isLiked && styles.iconButtonLiked]}
+              onPress={handleLikeToggle}
+              disabled={isLoadingLike}
             >
-              <Icon name="heart-outline" size={22} color="#111" />
+              <Icon 
+                name={isLiked ? "heart" : "heart-outline"} 
+                size={22} 
+                color={isLiked ? "#F54B3D" : "#111"} 
+              />
             </TouchableOpacity>
             {/* Mix & Match chip aligned with like icon and same height */}
             <TouchableOpacity
@@ -342,7 +384,7 @@ export default function ListingDetailScreen() {
           </View>
 
           {/* Tags Section */}
-          {safeItem?.tags && safeItem.tags.length > 0 && (
+          {safeItem?.tags && Array.isArray(safeItem.tags) && safeItem.tags.length > 0 && (
             <View style={styles.tagsSection}>
               <Text style={styles.tagsLabel}>Tags</Text>
               <View style={styles.tagsContainer}>
@@ -371,7 +413,10 @@ export default function ListingDetailScreen() {
                 })
               }
             >
-              <Image source={{ uri: safeItem?.seller?.avatar || '' }} style={styles.sellerAvatar} />
+              <Image 
+                source={{ uri: safeItem?.seller?.avatar && safeItem.seller.avatar.trim() !== '' ? safeItem.seller.avatar : undefined }} 
+                style={styles.sellerAvatar} 
+              />
               <View style={{ flex: 1 }}>
                 <Text style={styles.sellerName}>{safeItem?.seller?.name || 'Unknown Seller'}</Text>
                 <View style={styles.sellerMeta}>
@@ -542,6 +587,10 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
     alignItems: "center",
     justifyContent: "center",
+  },
+  iconButtonLiked: {
+    borderColor: "#F54B3D",
+    backgroundColor: "#FFF5F5",
   },
   mixChipBtn: {
     height: 40,

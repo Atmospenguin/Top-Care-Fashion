@@ -26,7 +26,10 @@ export default function BagScreen() {
 
   const { subtotal, shipping, total } = useMemo(() => {
     const computedSubtotal = items.reduce(
-      (sum, current) => sum + current.item.price * current.quantity,
+      (sum, current) => {
+        const price = typeof current.item.price === 'number' ? current.item.price : parseFloat(current.item.price || '0');
+        return sum + price * current.quantity;
+      },
       0,
     );
     const shippingFee = items.length > 0 ? 8 : 0;
@@ -76,7 +79,7 @@ export default function BagScreen() {
                   <Text style={styles.itemMeta}>
                     Size {item.size} | {item.condition}
                   </Text>
-                  <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
+                  <Text style={styles.itemPrice}>${typeof item.price === 'number' ? item.price.toFixed(2) : parseFloat(item.price || '0').toFixed(2)}</Text>
                 </View>
                 <View style={styles.quantityBadge}>
                   <Text style={styles.quantityText}>x{quantity}</Text>

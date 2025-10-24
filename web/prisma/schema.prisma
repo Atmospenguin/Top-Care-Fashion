@@ -48,6 +48,8 @@ model users {
   conversations_participated conversations[] @relation("ConversationParticipant")
   messages_sent       messages[]            @relation("MessageSender")
   messages_received   messages[]            @relation("MessageReceiver")
+  // Likes关系
+  likes               user_likes[]           @relation("UserLikes")
 
   @@map("users")
 }
@@ -97,6 +99,7 @@ model listings {
   orders          orders[]
   conversations  conversations[]
   transactions    transactions?
+  likes           user_likes[]     @relation("ListingLikes")
 
   @@index([category_id])
   @@index([seller_id])
@@ -408,6 +411,19 @@ model user_follows {
 
   @@unique([follower_id, following_id])
   @@map("user_follows")
+}
+
+model user_likes {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  listing_id Int
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user    users    @relation("UserLikes", fields: [user_id], references: [id], onDelete: Cascade)
+  listing listings @relation("ListingLikes", fields: [listing_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, listing_id])
+  @@map("user_likes")
 }
 
 model conversations {
