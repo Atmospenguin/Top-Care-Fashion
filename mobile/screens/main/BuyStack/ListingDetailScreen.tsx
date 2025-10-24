@@ -482,32 +482,43 @@ export default function ListingDetailScreen() {
             <TouchableOpacity 
               style={styles.messageBtn}
               onPress={() => {
+                console.log("🔍 Message button pressed!");
+                console.log("🔍 SafeItem:", safeItem);
+                console.log("🔍 Seller:", safeItem?.seller);
+                
                 // 导航到Inbox聊天框
                 const rootNavigation = navigation
                   .getParent()
                   ?.getParent() as any;
                 
-                rootNavigation?.navigate("Inbox", {
-                  screen: "Chat",
-                  params: {
-                    sender: safeItem?.seller?.name || "Seller",
-                    kind: "order",
-                    order: {
-                      id: safeItem?.id || "new-order",
-                      product: {
-                        title: safeItem?.title || "Item",
-                        price: safeItem?.price || 0,
-                        size: safeItem?.size,
-                        image: safeItem?.images?.[0] || ""
-                      },
-                      seller: {
-                        name: safeItem?.seller?.name || "Seller",
-                        avatar: safeItem?.seller?.avatar
-                      },
-                      status: "Inquiry"
+                console.log("🔍 Root navigation:", rootNavigation);
+                
+                if (rootNavigation) {
+                  console.log("🔍 Navigating to ChatScreen...");
+                  rootNavigation.navigate("Inbox", {
+                    screen: "Chat",
+                    params: {
+                      sender: safeItem?.seller?.name || "Seller",
+                      kind: "order",
+                      order: {
+                        id: safeItem?.id || "new-order",
+                        product: {
+                          title: safeItem?.title || "Item",
+                          price: safeItem?.price || 0,
+                          size: safeItem?.size,
+                          image: safeItem?.images?.[0] || ""
+                        },
+                        seller: {
+                          name: safeItem?.seller?.name || "Seller",
+                          avatar: safeItem?.seller?.avatar
+                        },
+                        status: "Inquiry"
+                      }
                     }
-                  }
-                });
+                  });
+                } else {
+                  console.log("❌ Root navigation not found!");
+                }
               }}
             >
               <Icon name="chatbubble-ellipses-outline" size={18} color="#000" />

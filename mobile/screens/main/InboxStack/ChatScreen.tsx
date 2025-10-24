@@ -16,10 +16,12 @@ import type { InboxStackParamList } from "./InboxStackNavigator";
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
+import { messagesService, type Message, type ConversationDetail } from "../../../src/services/messagesService";
+import { useAuth } from "../../../contexts/AuthContext";
 
 type Order = {
   id: string;
-  product: { title: string; price: number; size?: string; image: string };
+  product: { title: string; price: number; size?: string; image: string | null };
   seller: { name: string; avatar?: string };
   buyer?: { name: string; avatar?: string };
   status: "Delivered" | "Shipped" | "Processing" | string;
@@ -28,7 +30,18 @@ type Order = {
 };
 
 type ChatItem =
-  | { id: string; type: "msg"; sender: "me" | "other"; text: string; time?: string }
+  | { 
+      id: string; 
+      type: "msg"; 
+      sender: "me" | "other"; 
+      text: string; 
+      time?: string;
+      senderInfo?: {
+        id: number;
+        username: string;
+        avatar: string | null;
+      };
+    }
   | {
       id: string;
       type: "system";
@@ -38,16 +51,33 @@ type ChatItem =
       avatar?: string;
       orderId?: string;
     }
-  | { id: string; type: "orderCard"; order: Order }
-  | { id: string; type: "reviewCta"; text: string; orderId: string };
+  | { 
+      id: string; 
+      type: "orderCard"; 
+      order: Order;
+    }
+  | { 
+      id: string; 
+      type: "reviewCta"; 
+      text: string; 
+      orderId: string;
+    };
 
 export default function ChatScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<InboxStackParamList, "Chat">>();
   const route = useRoute<any>();
-  const { sender = "TOP Support", kind = "support", order = null } = route.params || {};
+  const { sender = "TOP Support", kind = "support", order = null, conversationId = null } = route.params || {};
+  const { user } = useAuth();
 
-  // —— 初始消息：按会话类型分支 —— //
-  const itemsInit: ChatItem[] = useMemo(() => {
+  // 状态管理
+  const [items, setItems] = useState<ChatItem[]>([]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [conversation, setConversation] = useState<ConversationDetail | null>(null);
+  const listRef = useRef<FlatList<ChatItem>>(null);
+
+  // —— MOCK 数据：保留作为 UI 参考和学习 —— //
+  const mockItemsInit: ChatItem[] = useMemo(() => {
     if (kind === "order" && order) {
       const o: Order = {
         ...order,
@@ -142,17 +172,126 @@ export default function ChatScreen() {
       }
     }
 
-    // TOP Support 会话（保留原来两条）
+    // TOP Support 会话 - 只显示欢迎消息，不显示用户回复
     return [
-      { id: "1", type: "msg", sender: "other", text: "Hey @ccc446981, Welcome to TOP! 👋", time: "Jul 13, 2025 18:17" },
-      { id: "2", type: "msg", sender: "me", text: "Thanks! Happy to join ~", time: "Jul 13, 2025 18:20" },
+      { id: "1", type: "msg", sender: "other", text: `Hey @${user?.username || 'user'}, Welcome to TOP! 👋`, time: "Jul 13, 2025 18:17" },
+      // 注意：不包含用户回复 "Thanks! Happy to join ~" - 这是模拟的，不应该显示
     ];
   }, [kind, order, sender]);
 
-  const listRef = useRef<FlatList<ChatItem>>(null);
-  const [items, setItems] = useState<ChatItem[]>(itemsInit);
-  const [input, setInput] = useState("");
+  // —— 真实 API 连接逻辑 —— //
+  useEffect(() => {
+    loadConversationData();
+  }, [conversationId, sender, kind]);
 
+  const loadConversationData = async () => {
+    if (!conversationId) {
+      // 如果没有 conversationId，只显示欢迎消息（不显示完整的 mock 数据）
+      console.log("🔍 No conversationId, showing welcome message only");
+      if (sender === "TOP Support") {
+        const welcomeMessage: ChatItem = {
+          id: "welcome-1",
+          type: "msg",
+          sender: "other",
+          text: `Hey @${user?.username || 'user'}, Welcome to TOP! 👋`,
+          time: new Date().toLocaleString()
+        };
+        setItems([welcomeMessage]);
+      } else {
+        setItems([]); // 其他情况显示空对话
+      }
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      console.log("🔍 Loading conversation:", conversationId);
+      
+      const conversationData = await messagesService.getMessages(conversationId);
+      setConversation(conversationData);
+      
+      console.log("🔍 API 返回的对话数据:", conversationData);
+      console.log("🔍 API 返回的消息数量:", conversationData.messages?.length || 0);
+      
+      // 转换 API 数据为 ChatItem 格式
+      const apiItems: ChatItem[] = conversationData.messages.map((msg: Message) => {
+        if (msg.type === "msg") {
+          return {
+            id: msg.id,
+            type: "msg",
+            sender: msg.sender || "other",
+            text: msg.text,
+            time: msg.time,
+            senderInfo: msg.senderInfo
+          };
+        } else if (msg.type === "system") {
+          return {
+            id: msg.id,
+            type: "system",
+            text: msg.text,
+            time: msg.time,
+            senderInfo: msg.senderInfo
+          };
+        } else if (msg.type === "orderCard" && msg.order) {
+          return {
+            id: msg.id,
+            type: "orderCard",
+            order: msg.order
+          };
+        } else {
+          // Fallback for unknown types - 确保所有消息都显示
+          return {
+            id: msg.id,
+            type: "msg",
+            sender: msg.sender || "other",
+            text: msg.text,
+            time: msg.time,
+            senderInfo: msg.senderInfo
+          };
+        }
+      });
+
+      console.log("🔍 转换后的消息数量:", apiItems.length);
+      console.log("🔍 转换后的消息:", apiItems);
+
+      // 如果是 TOP Support 对话且没有消息，添加欢迎消息
+      if (sender === "TOP Support" && apiItems.length === 0) {
+        const welcomeMessage: ChatItem = {
+          id: "welcome-1",
+          type: "msg",
+          sender: "other",
+          text: `Hey @${user?.username || 'user'}, Welcome to TOP! 👋`,
+          time: new Date().toLocaleString()
+        };
+        setItems([welcomeMessage]);
+        console.log("🔍 Added welcome message for new user");
+      } else {
+        setItems(apiItems);
+        console.log("🔍 Loaded", apiItems.length, "messages from API");
+      }
+      
+    } catch (error) {
+      console.error("❌ Error loading conversation:", error);
+      // Fallback 到欢迎消息（不显示完整 mock 数据）
+      console.log("🔍 Falling back to welcome message only");
+      if (sender === "TOP Support") {
+        const welcomeMessage: ChatItem = {
+          id: "welcome-error",
+          type: "msg",
+          sender: "other",
+          text: `Hey @${user?.username || 'user'}, Welcome to TOP! 👋`,
+          time: new Date().toLocaleString()
+        };
+        setItems([welcomeMessage]);
+      } else {
+        setItems([]);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 自动滚动到底部
   useEffect(() => {
     const id = setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 0);
     return () => clearTimeout(id);
@@ -164,19 +303,59 @@ export default function ChatScreen() {
     return () => clearTimeout(id);
   }, [items]);
 
-  const sendMessage = () => {
+  // 发送消息
+  const sendMessage = async () => {
     if (!input.trim()) return;
-    setItems((prev) => [
-      ...prev,
-      { id: String(Date.now()), type: "msg", sender: "me", text: input, time: "Now" },
-    ]);
-    setInput("");
+    
+    if (!conversationId) {
+      // 如果没有 conversationId，只更新本地状态（mock 模式）
+      setItems((prev) => [
+        ...prev,
+        { id: String(Date.now()), type: "msg", sender: "me", text: input, time: "Now" },
+      ]);
+      setInput("");
+      return;
+    }
+
+    try {
+      // 发送到后端 API
+      const newMessage = await messagesService.sendMessage(conversationId, {
+        content: input.trim(),
+        message_type: "TEXT"
+      });
+
+      // 添加到本地状态
+      const chatItem: ChatItem = {
+        id: newMessage.id,
+        type: "msg",
+        sender: newMessage.sender || "me",
+        text: newMessage.text,
+        time: newMessage.time,
+        senderInfo: newMessage.senderInfo
+      };
+
+      setItems((prev) => [...prev, chatItem]);
+      setInput("");
+      
+      console.log("🔍 Message sent successfully");
+    } catch (error) {
+      console.error("❌ Error sending message:", error);
+      // 即使发送失败，也在本地显示（用户体验）
+      setItems((prev) => [
+        ...prev,
+        { id: String(Date.now()), type: "msg", sender: "me", text: input, time: "Now" },
+      ]);
+      setInput("");
+    }
   };
 
   // —— UI 组件 —— //
   const renderOrderCard = (o: Order) => (
     <View style={styles.orderCard}>
-      <Image source={{ uri: o.product.image }} style={styles.orderThumb} />
+      <Image 
+        source={{ uri: o.product.image || "https://via.placeholder.com/64" }} 
+        style={styles.orderThumb} 
+      />
       <View style={{ flex: 1 }}>
         <Text style={styles.orderTitle} numberOfLines={2}>
           {o.product.title}
@@ -198,7 +377,7 @@ export default function ChatScreen() {
   type SystemItem = Extract<ChatItem, { type: "system" }>;
 
   const renderSystem = (item: SystemItem) => {
-    const { id, text, time, sentByUser, avatar } = item;
+    const { id, text, time, sentByUser, avatar, senderInfo } = item;
     // 判断是不是时间格式（更严格）：匹配像 "Sep 20, 2025" 或 "Jul 13, 2025" 的开头
     const isDateLike = /^\w{3}\s\d{1,2},\s\d{4}/.test(text);
 
@@ -257,12 +436,21 @@ export default function ChatScreen() {
       );
     }
 
-    // 其他系统提示（物流状态等）维持灰框样式
+    // 其他系统提示（物流状态等）维持灰框样式，但添加头像
     return (
       <>
         {time ? <Text style={styles.time}>{time}</Text> : null}
-        <View style={styles.systemBox}>
-          <Text style={styles.systemText}>{text}</Text>
+        <View style={styles.messageRow}>
+          {/* TOP Support 头像 */}
+          {senderInfo?.username === "TOP Support" && (
+            <Image
+              source={ASSETS.avatars.top}
+              style={[styles.avatar, { marginRight: 6 }]}
+            />
+          )}
+          <View style={styles.systemBox}>
+            <Text style={styles.systemText}>{text}</Text>
+          </View>
         </View>
       </>
     );
@@ -328,9 +516,16 @@ export default function ChatScreen() {
                   <Text style={item.sender === "me" ? styles.textRight : styles.textLeft}>{item.text}</Text>
                 </View>
 
-                {/* 自己头像：始终用默认头像（修复右侧被换成 TOP 的问题） */}
+                {/* 自己头像：使用 API 返回的头像，没有则用默认头像 */}
                 {item.sender === "me" && (
-                  <Image source={ASSETS.avatars.default} style={[styles.avatar, { marginLeft: 6 }]} />
+                  <Image 
+                    source={
+                      item.senderInfo?.avatar 
+                        ? { uri: item.senderInfo.avatar } 
+                        : ASSETS.avatars.default
+                    } 
+                    style={[styles.avatar, { marginLeft: 6 }]} 
+                  />
                 )}
               </View>
             </View>

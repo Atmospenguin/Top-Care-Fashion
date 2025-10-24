@@ -448,9 +448,34 @@ export default function UserProfileScreen() {
 
   // Message 处理函数
   const handleMessageUser = () => {
-    // TODO: 实现消息功能
-    console.log("Opening message to user");
-    Alert.alert("Message", "Message feature coming soon!");
+    console.log("🔍 UserProfile Message button pressed!");
+    console.log("🔍 UserProfile:", userProfile);
+    
+    if (!userProfile) {
+      console.log("❌ No userProfile found!");
+      return;
+    }
+    
+    // 导航到Inbox聊天框
+    const rootNavigation = navigation
+      .getParent()
+      ?.getParent() as any;
+    
+    console.log("🔍 Root navigation:", rootNavigation);
+    
+    if (rootNavigation) {
+      console.log("🔍 Navigating to ChatScreen...");
+      rootNavigation.navigate("Inbox", {
+        screen: "Chat",
+        params: {
+          sender: userProfile.username,
+          kind: "support", // 用户之间的聊天
+          order: null
+        }
+      });
+    } else {
+      console.log("❌ Root navigation not found!");
+    }
   };
 
   const shopActiveFiltersCount = useMemo(() => {
@@ -572,21 +597,7 @@ export default function UserProfileScreen() {
 
             <TouchableOpacity 
               style={[styles.msgBtn, isOwnProfile && styles.disabledBtn]} 
-              onPress={isOwnProfile ? undefined : () => {
-                // 导航到Inbox聊天框
-                const rootNavigation = navigation
-                  .getParent()
-                  ?.getParent() as any;
-                
-                rootNavigation?.navigate("Inbox", {
-                  screen: "Chat",
-                  params: {
-                    sender: userProfile?.username || "User",
-                    kind: "order",
-                    order: null // 没有特定订单，只是一般聊天
-                  }
-                });
-              }}
+              onPress={isOwnProfile ? undefined : handleMessageUser}
               disabled={isOwnProfile}
             >
               <Icon 

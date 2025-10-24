@@ -2,10 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
 
+// 🔒 安全检查
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.error("❌ Missing SUPABASE_SERVICE_ROLE_KEY");
+}
+
+// 🔧 获取 TOP Support 用户 ID
+const SUPPORT_USER_ID = Number(process.env.SUPPORT_USER_ID) || 59;
+
 const prisma = new PrismaClient();
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 // GET /api/conversations - 获取当前用户的所有对话
@@ -35,57 +43,55 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // 检查conversations表是否存在
-    try {
-      // 获取用户的所有对话
-      const conversations = await prisma.conversations.findMany({
-        where: {
-          OR: [
-            { initiator_id: dbUser.id },
-            { participant_id: dbUser.id }
-          ],
-          status: "ACTIVE"
+    // 获取用户的所有对话
+    const conversations = await prisma.conversations.findMany({
+      where: {
+        OR: [
+          { initiator_id: dbUser.id },
+          { participant_id: dbUser.id }
+        ],
+        status: "ACTIVE"
+      },
+      include: {
+        initiator: {
+          select: {
+            id: true,
+            username: true,
+            avatar_url: true
+          }
         },
-        include: {
-          initiator: {
-            select: {
-              id: true,
-              username: true,
-              avatar_url: true
-            }
-          },
-          participant: {
-            select: {
-              id: true,
-              username: true,
-              avatar_url: true
-            }
-          },
-          listing: {
-            select: {
-              id: true,
-              name: true,
-              price: true,
-              image_url: true,
-              image_urls: true,
-              size: true
-            }
-          },
-          messages: {
-            orderBy: { created_at: "desc" },
-            take: 1,
-            include: {
-              sender: {
-                select: {
-                  id: true,
-                  username: true
-                }
+        participant: {
+          select: {
+            id: true,
+            username: true,
+            avatar_url: true
+          }
+        },
+        listing: {
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            image_url: true,
+            image_urls: true,
+            size: true
+          }
+        },
+        messages: {
+          orderBy: { created_at: "desc" },
+          take: 1,
+          include: {
+            sender: {
+              select: {
+                id: true,
+                username: true
               }
             }
           }
-        },
-        orderBy: { last_message_at: "desc" }
-      });
+        }
+      },
+      orderBy: { last_message_at: "desc" }
+    });
 
     // 格式化对话数据
     const formattedConversations = conversations.map(conv => {
@@ -137,35 +143,91 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // 添加固定的TOP Support对话
-    const supportConversation = {
-      id: "support-1",
-      sender: "TOP Support",
-      message: `Hey @${dbUser.username}, Welcome to TOP! 👋`,
-      time: "1 month ago",
-      avatar: null, // 使用默认TOP头像
-      kind: "support",
-      unread: false,
-      lastFrom: "support",
-      order: null
-    };
+    // 查找用户的 TOP Support 对话（双向匹配，避免重复创建）
+    const supportConversation = await prisma.conversations.findFirst({
+      where: {
+        OR: [
+          { initiator_id: dbUser.id, participant_id: SUPPORT_USER_ID },
+          { initiator_id: SUPPORT_USER_ID, participant_id: dbUser.id }
+        ],
+        type: "SUPPORT"
+      },
+      include: {
+        messages: {
+          orderBy: { created_at: "desc" },
+          take: 1
+        }
+      }
+    });
 
-      // 将Support对话放在最前面
-      const allConversations = [supportConversation, ...formattedConversations];
-
-      return NextResponse.json({ conversations: allConversations });
-
-    } catch (tableError) {
-      console.error("Conversations table not found, returning empty list:", tableError);
-      // 如果表不存在，返回只有Support对话的列表
-      return NextResponse.json({ 
-        conversations: [supportConversation] 
-      });
+    // 构建 TOP Support 对话显示
+    let topSupportConversation;
+    if (supportConversation && supportConversation.messages.length > 0) {
+      const lastMessage = supportConversation.messages[0];
+      topSupportConversation = {
+        id: "support-1",
+        sender: "TOP Support",
+        message: lastMessage.content,
+        time: formatTime(lastMessage.created_at),
+        avatar: "https://via.placeholder.com/48/FF6B6B/FFFFFF?text=TOP", // TOP Support 头像
+        kind: "support",
+        unread: false,
+        lastFrom: lastMessage.sender_id === dbUser.id ? "me" : "support",
+        order: null
+      };
+    } else {
+      // 没有对话时显示欢迎消息
+      topSupportConversation = {
+        id: "support-1",
+        sender: "TOP Support",
+        message: `Hey @${dbUser.username}, Welcome to TOP! 👋`,
+        time: "1 month ago",
+        avatar: "https://via.placeholder.com/48/FF6B6B/FFFFFF?text=TOP", // TOP Support 头像
+        kind: "support",
+        unread: false,
+        lastFrom: "support",
+        order: null
+      };
     }
+
+    // 过滤掉其他对话中的 TOP Support 对话，避免重复
+    const otherConversations = formattedConversations.filter(conv => 
+      !(conv.sender === "TOP Support" || conv.kind === "support")
+    );
+    
+    // 将Support对话放在最前面
+    const allConversations = [topSupportConversation, ...otherConversations];
+
+    return NextResponse.json({ conversations: allConversations });
 
   } catch (error) {
     console.error("Error fetching conversations:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// 格式化时间
+function formatTime(date: Date): string {
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const minutes = Math.floor(diff / (1000 * 60));
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  
+  if (minutes < 1) {
+    return "Now";
+  } else if (minutes < 60) {
+    return `${minutes}m ago`;
+  } else if (hours < 24) {
+    return `${hours}h ago`;
+  } else if (days < 7) {
+    return `${days}d ago`;
+  } else {
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
   }
 }
 
@@ -257,29 +319,5 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Error creating conversation:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  }
-}
-
-// 格式化时间
-function formatTime(date: Date): string {
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  
-  if (days === 0) {
-    return "Today";
-  } else if (days === 1) {
-    return "Yesterday";
-  } else if (days < 7) {
-    return `${days} days ago`;
-  } else if (days < 30) {
-    const weeks = Math.floor(days / 7);
-    return `${weeks} week${weeks > 1 ? 's' : ''} ago`;
-  } else {
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
-    });
   }
 }

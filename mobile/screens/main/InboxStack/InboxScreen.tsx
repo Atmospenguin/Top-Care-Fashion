@@ -16,6 +16,8 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
+import { messagesService, type Conversation } from "../../../src/services/messagesService";
+import { useAuth } from "../../../contexts/AuthContext";
 
 // 模拟多条对话（Support + Seller）
 // added `unread` and `lastFrom` to support filtering
@@ -78,13 +80,64 @@ const mockThreads = [
 
 export default function InboxScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const { user } = useAuth();
+  
   // filter UI state (simple modal + selectedFilter)
   const [filterVisible, setFilterVisible] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<string>("All");
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   const anim = useRef(new Animated.Value(0)).current;
   const filtersArr = ["All", "Unread", "From seller", "From buyer"];
-  // apply filters to the mockThreads
+
+  // 加载真实对话数据
+  useEffect(() => {
+    loadConversations();
+  }, []);
+
+  // 添加焦点监听，每次返回时刷新数据
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      console.log("🔍 InboxScreen focused, refreshing conversations...");
+      loadConversations();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  const loadConversations = async () => {
+    try {
+      setIsLoading(true);
+      console.log("🔍 Loading conversations from API...");
+      
+      const apiConversations = await messagesService.getConversations();
+      setConversations(apiConversations);
+      
+      console.log("🔍 Loaded", apiConversations.length, "conversations from API");
+      
+    } catch (error) {
+      console.error("❌ Error loading conversations:", error);
+      // Fallback: 只显示 TOP Support 欢迎对话
+      console.log("🔍 Falling back to TOP Support only");
+      const topSupportConversation: Conversation = {
+        id: "support-1",
+        sender: "TOP Support",
+        message: `Hey @${user?.username || 'user'}, Welcome to TOP! 👋`,
+        time: "Just now",
+        avatar: ASSETS.avatars.top,
+        kind: "support",
+        unread: false,
+        lastFrom: "support",
+        order: null
+      };
+      setConversations([topSupportConversation]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // apply filters to the conversations
   useEffect(() => {
     if (filterVisible) {
       Animated.timing(anim, { toValue: 1, duration: 180, useNativeDriver: true }).start();
@@ -94,12 +147,12 @@ export default function InboxScreen() {
   }, [filterVisible, anim]);
 
   const filteredThreads = useMemo(() => {
-    if (selectedFilter === "All") return mockThreads;
-    if (selectedFilter === "Unread") return mockThreads.filter((t) => (t as any).unread);
-    if (selectedFilter === "From seller") return mockThreads.filter((t) => (t as any).lastFrom === "seller");
-    if (selectedFilter === "From buyer") return mockThreads.filter((t) => (t as any).lastFrom === "buyer");
-    return mockThreads;
-  }, [selectedFilter]);
+    if (selectedFilter === "All") return conversations;
+    if (selectedFilter === "Unread") return conversations.filter((t) => t.unread);
+    if (selectedFilter === "From seller") return conversations.filter((t) => t.lastFrom === "seller");
+    if (selectedFilter === "From buyer") return conversations.filter((t) => t.lastFrom === "buyer");
+    return conversations;
+  }, [selectedFilter, conversations]);
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -166,11 +219,19 @@ export default function InboxScreen() {
                 sender: item.sender,
                 kind: item.kind,
                 order: item.order ?? null,
+                conversationId: item.id, // 传递 conversationId
               })
             }
           >
             {/* Avatar */}
-            <Image source={item.avatar} style={styles.avatar} />
+            <Image 
+              source={
+                item.sender === "TOP Support" 
+                  ? ASSETS.avatars.top 
+                  : (item.avatar || ASSETS.avatars.default)
+              } 
+              style={styles.avatar} 
+            />
 
             {/* Texts */}
             <View style={styles.messageText}>
