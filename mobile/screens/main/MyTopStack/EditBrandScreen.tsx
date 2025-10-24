@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { MyTopStackParamList } from "./index";
+import { userService } from "../../../src/services/userService";
 
 const ALL_BRANDS = [
   "Nike",
@@ -40,17 +41,88 @@ type EditBrandRoute = RouteProp<MyTopStackParamList, "EditBrand">;
 export default function EditBrandScreen() {
   const navigation = useNavigation<EditBrandNav>();
   const route = useRoute<EditBrandRoute>();
-  const initialBrands = useMemo(
-    () => route.params?.selectedBrands ?? ["Nike", "Adidas", "Zara"],
-    [route.params]
-  );
+  const [saving, setSaving] = useState(false);
+  const brandOptions = useMemo(() => {
+    const fromRoute = route.params?.availableBrands;
+    // Always start with ALL_BRANDS, then merge in backend brands
+    const backendBrands = Array.isArray(fromRoute)
+      ? fromRoute
+          .map((brand) => (typeof brand === "string" ? brand.trim() : ""))
+          .filter(Boolean)
+      : [];
+    
+    // Combine ALL_BRANDS + backend brands, keeping unique entries (case-insensitive)
+    const combined = [...ALL_BRANDS, ...backendBrands];
+    const seen = new Set<string>();
+    const unique = combined.filter((brand) => {
+      const lower = brand.toLowerCase();
+      if (seen.has(lower)) return false;
+      seen.add(lower);
+      return true;
+    });
+    
+    return unique;
+  }, [route.params?.availableBrands]);
+
+  const initialBrands = useMemo(() => {
+    const fromRoute = route.params?.selectedBrands;
+    if (Array.isArray(fromRoute) && fromRoute.length > 0) {
+      const filtered = fromRoute.filter((brand) =>
+        brandOptions.some((option) => option.toLowerCase() === brand.toLowerCase())
+      );
+      return filtered.length > 0 ? filtered : fromRoute;
+    }
+    if (brandOptions.length > 0) {
+      return brandOptions.slice(0, Math.min(brandOptions.length, 3));
+    }
+    return ["Nike", "Adidas", "Zara"];
+  }, [route.params?.selectedBrands, brandOptions]);
+
   const [selectedBrands, setSelectedBrands] = useState<string[]>(initialBrands);
+  const [searchText, setSearchText] = useState("");
+
+  useEffect(() => {
+    setSelectedBrands(initialBrands);
+  }, [initialBrands]);
+
+  const filteredBrands = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+    if (!query) {
+      return brandOptions;
+    }
+    return brandOptions.filter((brand) =>
+      brand.toLowerCase().includes(query)
+    );
+  }, [brandOptions, searchText]);
 
   const toggleBrand = (brand: string) => {
     if (selectedBrands.includes(brand)) {
       setSelectedBrands(selectedBrands.filter((b) => b !== brand));
     } else {
       setSelectedBrands([...selectedBrands, brand]);
+    }
+  };
+
+  const handleSave = async () => {
+    if (selectedBrands.length === 0 || saving) return;
+    const source = route.params?.source ?? "mytop";
+    if (source === "discover") {
+      try {
+        setSaving(true);
+        await userService.updateProfile({ preferredBrands: selectedBrands });
+        // Navigate back to Discover and trigger refresh
+        navigation
+          .getParent()
+          ?.navigate("Discover", { screen: "DiscoverMain", params: { refreshTS: Date.now() } });
+      } catch (e) {
+        // noop; could show a toast later
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      navigation.navigate("MyPreference", {
+        selectedBrands,
+      });
     }
   };
 
@@ -65,7 +137,7 @@ export default function EditBrandScreen() {
         {/* 选中计数 */}
         <View style={styles.selectedBox}>
           <Text style={styles.selectedText}>
-            You’ve selected {selectedBrands.length} brand
+            You've selected {selectedBrands.length} brand
             {selectedBrands.length !== 1 ? "s" : ""}
           </Text>
 
@@ -90,13 +162,17 @@ export default function EditBrandScreen() {
             placeholder="Search brands"
             placeholderTextColor="#999"
             style={styles.searchInput}
+            value={searchText}
+            onChangeText={setSearchText}
+            autoCorrect={false}
+            autoCapitalize="none"
           />
         </View>
 
         {/* 推荐品牌 */}
         <Text style={styles.sectionTitle}>SUGGESTED</Text>
         <View style={styles.brandGrid}>
-          {ALL_BRANDS.map((brand) => {
+          {filteredBrands.map((brand) => {
             const isSelected = selectedBrands.includes(brand);
             return (
               <TouchableOpacity
@@ -136,16 +212,13 @@ export default function EditBrandScreen() {
             styles.saveBtn,
             {
               backgroundColor:
-                selectedBrands.length > 0 ? "#000" : "#ccc",
+                selectedBrands.length > 0 && !saving ? "#000" : "#ccc",
             },
           ]}
-          onPress={() =>
-            navigation.navigate("MyPreference", {
-              selectedBrands,
-            })
-          }
+          disabled={selectedBrands.length === 0 || saving}
+          onPress={handleSave}
         >
-          <Text style={styles.saveText}>Save</Text>
+          <Text style={styles.saveText}>{saving ? "Saving..." : "Save"}</Text>
         </TouchableOpacity>
       </View>
     </View>

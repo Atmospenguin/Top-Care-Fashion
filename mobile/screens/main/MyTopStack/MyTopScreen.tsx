@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -47,6 +47,7 @@ export default function MyTopScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
   const route = useRoute<RouteProp<MyTopStackParamList, "MyTopMain">>();
+  const lastRefreshRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] =
     useState<"Shop" | "Sold" | "Purchases" | "Likes">("Shop");
 
@@ -246,6 +247,15 @@ export default function MyTopScreen() {
       fetchUserCategories();
     }
   }, [user]);
+
+  const refreshTrigger = route.params?.refreshTS;
+
+  useEffect(() => {
+    if (refreshTrigger && lastRefreshRef.current !== refreshTrigger) {
+      lastRefreshRef.current = refreshTrigger;
+      onRefresh();
+    }
+  }, [refreshTrigger, onRefresh]);
 
   // ✅ 当屏幕获得焦点时刷新数据
   useFocusEffect(

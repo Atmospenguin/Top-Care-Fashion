@@ -34,12 +34,29 @@ export interface UpdateProfileRequest {
   gender?: "Male" | "Female" | null;
   preferredStyles?: string[] | null;
   preferredSizes?: { top?: string | null; bottom?: string | null; shoe?: string | null } | null;
+  preferredBrands?: string[] | null;
 }
 
 export class UserService {
   async getProfile(): Promise<User | null> {
-    const res = await apiClient.get<User>(API_CONFIG.ENDPOINTS.PROFILE);
-    return res.data || null;
+    const res = await apiClient.get<{ success?: boolean; user?: User }>(
+      API_CONFIG.ENDPOINTS.PROFILE
+    );
+
+    const payload = res.data;
+    if (!payload) {
+      return null;
+    }
+
+    if (typeof payload === "object" && "user" in payload && payload.user) {
+      return payload.user as User;
+    }
+
+    if ((payload as unknown as User).id) {
+      return payload as unknown as User;
+    }
+
+    return null;
   }
 
   async updateProfile(profileData: UpdateProfileRequest): Promise<User> {

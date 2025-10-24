@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -6,12 +6,16 @@ import {
   StyleSheet,
   ScrollView,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import { listingsService } from "../../../src/services/listingsService";
+import { userService } from "../../../src/services/userService";
+import { useAuth } from "../../../contexts/AuthContext";
 import type { MyTopStackParamList, PreferenceSizes } from "./index";
 
 type PrefNav = NativeStackNavigationProp<MyTopStackParamList, "MyPreference">;
@@ -44,7 +48,7 @@ const STYLE_OPTIONS = [
   },
 ];
 
-const BRAND_OPTIONS = ["Alexander Wang", "Nike", "Adidas"];
+const FALLBACK_BRANDS = ["Alexander Wang", "Nike", "Adidas"];
 
 const STYLE_IMAGE_MAP = STYLE_OPTIONS.reduce<Record<string, string>>(
   (acc, style) => {
@@ -57,10 +61,88 @@ const STYLE_IMAGE_MAP = STYLE_OPTIONS.reduce<Record<string, string>>(
 export default function MyPreferenceScreen() {
   const navigation = useNavigation<PrefNav>();
   const route = useRoute<PrefRoute>();
+  const { updateUser } = useAuth();
   const [selectedGender, setSelectedGender] = useState("Womenswear");
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
-  const [selectedBrands, setSelectedBrands] = useState<string[]>(BRAND_OPTIONS);
+  const [selectedBrands, setSelectedBrands] = useState<string[]>(FALLBACK_BRANDS);
   const [selectedSizes, setSelectedSizes] = useState<PreferenceSizes>({});
+  const [availableBrands, setAvailableBrands] = useState<string[]>(FALLBACK_BRANDS);
+  const [loadingPreferences, setLoadingPreferences] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadPreferences = async () => {
+      try {
+        setLoadError(null);
+        const [profile, brandSummaries] = await Promise.all([
+          userService.getProfile(),
+          listingsService.getBrandSummaries({ limit: 60 }),
+        ]);
+
+        if (!isActive) return;
+
+        const brandNames = brandSummaries
+          .map((item) => item.name)
+          .filter((name): name is string => Boolean(name && name.trim()));
+
+        if (brandNames.length > 0) {
+          setAvailableBrands(brandNames);
+        }
+
+        if (profile) {
+          const rawBrands = Array.isArray((profile as any).preferred_brands)
+            ? (profile as any).preferred_brands
+            : null;
+          if (Array.isArray(rawBrands)) {
+            const normalizedBrands = rawBrands.filter(
+              (item: unknown): item is string => typeof item === "string",
+            );
+            setSelectedBrands(normalizedBrands);
+          } else if (brandNames.length > 0) {
+            setSelectedBrands(brandNames.slice(0, Math.min(brandNames.length, 3)));
+          }
+
+          const rawStyles = Array.isArray((profile as any).preferred_styles)
+            ? (profile as any).preferred_styles
+            : null;
+          if (Array.isArray(rawStyles)) {
+            const normalizedStyles = rawStyles.filter(
+              (item: unknown): item is string => typeof item === "string",
+            );
+            setSelectedStyles(normalizedStyles);
+          }
+
+          setSelectedSizes({
+            shoe: (profile as any).preferred_size_shoe ?? undefined,
+            top: (profile as any).preferred_size_top ?? undefined,
+            bottom: (profile as any).preferred_size_bottom ?? undefined,
+          });
+        } else if (brandNames.length > 0) {
+          setSelectedBrands(brandNames.slice(0, Math.min(brandNames.length, 3)));
+        }
+      } catch (error) {
+        console.error("Failed to load preferences:", error);
+        if (isActive) {
+          setLoadError("Failed to load preferences. Please try again later.");
+          setAvailableBrands(FALLBACK_BRANDS);
+        }
+      } finally {
+        if (isActive) {
+          setLoadingPreferences(false);
+        }
+      }
+    };
+
+    loadPreferences();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -84,6 +166,31 @@ export default function MyPreferenceScreen() {
     setSelectedBrands((prev) => prev.filter((item) => item !== name));
   }, []);
 
+  const handleSave = useCallback(async () => {
+    try {
+      setSaveError(null);
+      setSaving(true);
+
+      const updatedUser = await userService.updateProfile({
+        preferredStyles: selectedStyles,
+        preferredBrands: selectedBrands,
+        preferredSizes: {
+          shoe: selectedSizes.shoe ?? null,
+          top: selectedSizes.top ?? null,
+          bottom: selectedSizes.bottom ?? null,
+        },
+      });
+
+      updateUser(updatedUser);
+      navigation.goBack();
+    } catch (error) {
+      console.error("Failed to save preferences:", error);
+      setSaveError("Failed to save preferences. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }, [navigation, selectedBrands, selectedSizes, selectedStyles, updateUser]);
+
   const hasSizes = useMemo(
     () => Boolean(selectedSizes.shoe || selectedSizes.top || selectedSizes.bottom),
     [selectedSizes]
@@ -97,7 +204,13 @@ export default function MyPreferenceScreen() {
         contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        
+        {loadingPreferences && (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="small" color="#111" />
+            <Text style={styles.loadingText}>Loading your preferences...</Text>
+          </View>
+        )}
+        {loadError && <Text style={styles.errorText}>{loadError}</Text>}
 
         <Text style={styles.sectionTitle}>Gender Interest</Text>
         {["Menswear", "Mens & Womenswear", "Womenswear"].map((opt) => (
@@ -198,6 +311,7 @@ export default function MyPreferenceScreen() {
             onPress={() =>
               navigation.navigate("EditBrand", {
                 selectedBrands,
+                availableBrands,
               })
             }
           >
@@ -229,11 +343,23 @@ export default function MyPreferenceScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
+        {saveError && <Text style={styles.errorText}>{saveError}</Text>}
         <TouchableOpacity
-          style={styles.saveBtn}
-          onPress={() => navigation.goBack()}
+          style={[
+            styles.saveBtn,
+            (saving || loadingPreferences) && styles.saveBtnDisabled,
+          ]}
+          onPress={handleSave}
+          disabled={saving || loadingPreferences}
         >
-          <Text style={styles.saveText}>Save</Text>
+          {saving ? (
+            <View style={styles.saveLoadingRow}>
+              <ActivityIndicator size="small" color="#fff" />
+              <Text style={styles.saveLoadingText}>Saving...</Text>
+            </View>
+          ) : (
+            <Text style={styles.saveText}>Save</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -244,6 +370,13 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: "700", marginBottom: 8 },
   subHeading: { fontSize: 15, fontWeight: "600", marginTop: 8 },
   editRed: { color: "#F54B3D", fontWeight: "600" },
+  errorText: { color: "#B91C1C", fontSize: 13, marginBottom: 8 },
+  loadingBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  loadingText: { marginLeft: 8, color: "#555", fontSize: 13 },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -322,5 +455,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
   },
+  saveBtnDisabled: {
+    opacity: 0.6,
+  },
   saveText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  saveLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveLoadingText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+    marginLeft: 8,
+  },
 });

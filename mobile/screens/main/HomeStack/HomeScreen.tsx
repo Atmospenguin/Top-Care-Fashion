@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RouteProp } from "@react-navigation/native";
 
 import Icon from "../../../components/Icon";
 import type { HomeStackParamList } from "./index";
@@ -14,6 +15,8 @@ import { useAuth } from "../../../contexts/AuthContext";
 export default function HomeScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
+  const route = useRoute<RouteProp<HomeStackParamList, "HomeMain">>();
+  const lastRefreshRef = useRef<number | null>(null);
   const [searchText, setSearchText] = useState("");
   const [featuredItems, setFeaturedItems] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +26,7 @@ export default function HomeScreen() {
   const { isAuthenticated } = useAuth();
 
   // 获取推荐商品数据（仅登录后触发）
-  const loadFeaturedItems = async (opts?: { isRefresh?: boolean }) => {
+  const loadFeaturedItems = useCallback(async (opts?: { isRefresh?: boolean }) => {
     try {
       setError(null);
       if (opts?.isRefresh) {
@@ -47,7 +50,7 @@ export default function HomeScreen() {
         setLoading(false);
       }
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -58,7 +61,16 @@ export default function HomeScreen() {
       setLoading(false);
       setError(null);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loadFeaturedItems]);
+
+  const refreshTrigger = route.params?.refreshTS;
+
+  useEffect(() => {
+    if (refreshTrigger && lastRefreshRef.current !== refreshTrigger) {
+      lastRefreshRef.current = refreshTrigger;
+      loadFeaturedItems({ isRefresh: true });
+    }
+  }, [refreshTrigger, loadFeaturedItems]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>

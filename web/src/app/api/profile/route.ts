@@ -19,6 +19,7 @@ type UserProfile = {
   preferred_size_top: string | null;
   preferred_size_bottom: string | null;
   preferred_size_shoe: string | null;
+  preferred_brands: unknown;
   followers: FollowInfo[];
   following: FollowInfo[];
 };
@@ -29,6 +30,29 @@ const normalizePreferredStyles = (value: unknown): unknown[] => {
   }
   if (value) {
     return value as unknown[];
+  }
+  return [];
+};
+
+const normalizePreferredBrands = (value: unknown): string[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string");
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === "string")
+        : [];
+    } catch (err) {
+      console.warn("Failed to parse preferred_brands string", err);
+      return [];
+    }
+  }
+  if (typeof value === "object") {
+    const candidates = Object.values(value as Record<string, unknown>);
+    return candidates.filter((item): item is string => typeof item === "string");
   }
   return [];
 };
@@ -55,6 +79,7 @@ const formatUserResponse = (user: UserProfile) => ({
   preferred_size_top: user.preferred_size_top,
   preferred_size_bottom: user.preferred_size_bottom,
   preferred_size_shoe: user.preferred_size_shoe,
+  preferred_brands: normalizePreferredBrands(user.preferred_brands),
 });
 
 async function getCurrentUser(req: NextRequest) {
@@ -109,6 +134,7 @@ const selectUserProfile = {
   preferred_size_top: true,
   preferred_size_bottom: true,
   preferred_size_shoe: true,
+  preferred_brands: true,
   followers: {
     select: {
       id: true,
@@ -212,6 +238,14 @@ export async function PATCH(req: NextRequest) {
       }
       if (Object.prototype.hasOwnProperty.call(sizes, "shoe")) {
         updateData.preferred_size_shoe = sizes.shoe ?? null;
+      }
+    }
+
+    if (data.preferredBrands !== undefined) {
+      if (Array.isArray(data.preferredBrands)) {
+        updateData.preferred_brands = data.preferredBrands;
+      } else if (data.preferredBrands === null) {
+        updateData.preferred_brands = null;
       }
     }
 

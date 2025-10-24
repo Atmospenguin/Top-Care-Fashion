@@ -19,7 +19,6 @@ export async function GET(req: Request) {
     if (category) {
       where.category = {
         name: { contains: category, mode: "insensitive" },
-        name: { contains: category, mode: "insensitive" },
       };
     }
 
@@ -27,17 +26,22 @@ export async function GET(req: Request) {
       where.gender = genderParam.toLowerCase();
     }
 
-    if (genderParam) {
-      where.gender = genderParam.toLowerCase();
-    }
-
     if (search) {
-      where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
-        { brand: { contains: search, mode: "insensitive" } },
-        { tags: { contains: search, mode: "insensitive" } },
-      ];
+      const trimmed = search.trim();
+      if (trimmed.length > 0) {
+        const searchFilters: any[] = [
+          { name: { contains: trimmed, mode: "insensitive" } },
+          { description: { contains: trimmed, mode: "insensitive" } },
+          { brand: { contains: trimmed, mode: "insensitive" } },
+        ];
+
+        // NOTE: Prisma JSON filter on Postgres does not support `has` on Json at this version.
+        // If you need to search tags (stored as JSON array), consider migrating to a text[] column
+        // and use `hasSome`/`hasEvery`, or use `path` + `string_contains` with JSONPath when
+        // Prisma adds broader support. For now, we skip tags to avoid runtime errors.
+
+        where.OR = searchFilters;
+      }
     }
 
   // 获取 listings
@@ -210,8 +214,6 @@ export async function GET(req: Request) {
           return lower.charAt(0).toUpperCase() + lower.slice(1);
         })(),
         seller: sellerInfo,
-        createdAt: listing.created_at ? listing.created_at.toISOString() : null,
-        updatedAt: listing.updated_at ? listing.updated_at.toISOString() : null,
         createdAt: listing.created_at ? listing.created_at.toISOString() : null,
         updatedAt: listing.updated_at ? listing.updated_at.toISOString() : null,
       };

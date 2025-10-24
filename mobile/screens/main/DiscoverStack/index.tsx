@@ -5,7 +5,7 @@ import DiscoverMainScreen from "./DiscoverMainScreen";
 import DiscoverCategoryScreen from "./DiscoverCategoryScreen";
 
 export type DiscoverStackParamList = {
-  DiscoverMain: undefined;
+  DiscoverMain: { refreshTS?: number } | undefined;
   DiscoverCategory: { gender: "men" | "women" | "unisex" };
 };
 
@@ -14,7 +14,11 @@ const Stack = createNativeStackNavigator<DiscoverStackParamList>();
 export default function DiscoverStackNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="DiscoverMain" component={DiscoverMainScreen} />
+      <Stack.Screen
+        name="DiscoverMain"
+        component={DiscoverMainScreen}
+        options={{ gestureEnabled: false }}
+      />
       <Stack.Screen name="DiscoverCategory" component={DiscoverCategoryScreen} />
     </Stack.Navigator>
   );

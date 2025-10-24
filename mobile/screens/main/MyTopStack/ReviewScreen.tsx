@@ -9,16 +9,14 @@ import {
   ScrollView,
 } from "react-native";
 import Header from "../../../components/Header";
-import { useRoute, useNavigation } from "@react-navigation/native";
+import { useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../../../App";
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect } from "react";
 
 export default function ReviewScreen() {
   const route = useRoute<RouteProp<RootStackParamList, "Review">>();
   const { orderId } = route.params;
-  const navigation = useNavigation();
 
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState("");

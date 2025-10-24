@@ -33,6 +33,7 @@ model users {
   preferred_size_top  String?
   preferred_size_bottom String?
   preferred_size_shoe String?
+  preferred_brands    Json?
   cart_items         cart_items[]
   faqs               faq[]
   feedbacks          feedback[]
