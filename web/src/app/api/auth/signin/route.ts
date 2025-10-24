@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
       role: mapRole(user.role),
       status: mapStatus(user.status),
       dob,
-      gender: user.gender === "MALE" ? "Male" : user.gender === "FEMALE" ? "Female" : null,
+      gender: mapGender(user.gender),
       isPremium: Boolean(user.is_premium),
       premiumUntil: user.premium_until ?? null,
     };
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
     role: user.role === "ADMIN" ? "Admin" : "User",
     status: user.status === "SUSPENDED" ? "suspended" : "active",
     dob,
-    gender: user.gender === "MALE" ? "Male" : user.gender === "FEMALE" ? "Female" : null,
+    gender: mapGender(user.gender),
     isPremium: Boolean(user.is_premium),
     premiumUntil: user.premium_until ?? null,
   };

@@ -7,7 +7,6 @@ export async function GET(req: Request) {
     const category = searchParams.get("category");
     const search = searchParams.get("search");
     const genderParam = searchParams.get("gender");
-    const genderParam = searchParams.get("gender");
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = parseInt(searchParams.get("offset") || "0");
 

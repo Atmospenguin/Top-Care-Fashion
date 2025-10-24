@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -14,8 +14,10 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 // note: keep Header's SafeAreaView; remove outer SafeAreaView to avoid double padding
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header"; 
@@ -218,6 +220,10 @@ export default function SellScreen({
   const [category, setCategory] = useState("Select");
   const [condition, setCondition] = useState("Select");
   const [size, setSize] = useState("Select");
+  
+  // Image preview - 支持多图预览
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const scrollViewRef = useRef<RNScrollView>(null);
   const [customSize, setCustomSize] = useState("");
   const [material, setMaterial] = useState("Select");
   const [customMaterial, setCustomMaterial] = useState("");
@@ -264,46 +270,67 @@ export default function SellScreen({
     const allowed = await ensureMediaPermissions();
     if (!allowed) return;
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.85,
-      aspect: [4, 5],
-    });
-
-    if (result.canceled || !result.assets?.length) {
-      return;
-    }
-
-    const asset = result.assets[0];
-    const tempId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-    setPhotos((prev) => [
-      ...prev,
-      {
-        id: tempId,
-        localUri: asset.uri,
-        uploading: true,
-      },
-    ]);
-
     try {
-      const remoteUrl = await listingsService.uploadListingImage(asset.uri);
-      setPhotos((prev) =>
-        prev.map((photo) =>
-          photo.id === tempId
-            ? {
-                ...photo,
-                remoteUrl,
-                uploading: false,
-              }
-            : photo
-        )
+      // 使用 Expo ImagePicker，允许编辑
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.85,
+        // 不设置 aspect，让用户自由调整
+      });
+
+      if (result.canceled || !result.assets?.length) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      
+      // 使用 ImageManipulator 进行额外处理（如需要）
+      const manipulatedImage = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [
+          // 可以添加额外的变换，但保持用户裁剪的结果
+        ],
+        { 
+          compress: 0.85, 
+          format: ImageManipulator.SaveFormat.JPEG 
+        }
       );
+
+      const tempId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      setPhotos((prev) => [
+        ...prev,
+        {
+          id: tempId,
+          localUri: manipulatedImage.uri,
+          uploading: true,
+        },
+      ]);
+
+      try {
+        const remoteUrl = await listingsService.uploadListingImage(manipulatedImage.uri);
+        setPhotos((prev) =>
+          prev.map((photo) =>
+            photo.id === tempId
+              ? {
+                  ...photo,
+                  remoteUrl,
+                  uploading: false,
+                }
+              : photo
+          )
+        );
+      } catch (error) {
+        console.error("Photo upload failed:", error);
+        setPhotos((prev) => prev.filter((photo) => photo.id !== tempId));
+        Alert.alert("Upload failed", "We couldn't upload that photo. Please try again.");
+      }
     } catch (error) {
-      console.error("Photo upload failed:", error);
-      setPhotos((prev) => prev.filter((photo) => photo.id !== tempId));
-      Alert.alert("Upload failed", "We couldn't upload that photo. Please try again.");
+      // 用户取消选择或其他错误
+      if (error && typeof error === 'object' && 'message' in error) {
+        console.log("Image picker error:", error.message);
+      }
     }
   };
 
@@ -339,6 +366,11 @@ export default function SellScreen({
 
     if (category === "Select") {
       Alert.alert("Missing Information", "Please select a category");
+      return;
+    }
+
+    if (condition === "Select") {
+      Alert.alert("Missing Information", "Please select a condition");
       return;
     }
 
@@ -461,8 +493,12 @@ export default function SellScreen({
               <Text style={styles.photoAddHint}>Add photo</Text>
             </TouchableOpacity>
 
-            {photos.map((photo) => (
-              <View key={photo.id} style={styles.photoPreview}>
+            {photos.map((photo, index) => (
+              <TouchableOpacity 
+                key={photo.id} 
+                style={styles.photoPreview}
+                onPress={() => setPreviewIndex(index)}
+              >
                 <Image source={{ uri: photo.localUri }} style={styles.photoPreviewImage} />
                 {photo.uploading ? (
                   <View style={styles.photoUploadingOverlay}>
@@ -471,12 +507,15 @@ export default function SellScreen({
                 ) : (
                   <TouchableOpacity
                     style={styles.photoRemoveBtn}
-                    onPress={() => handleRemovePhoto(photo.id)}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleRemovePhoto(photo.id);
+                    }}
                   >
                     <Icon name="close" size={16} color="#fff" />
                   </TouchableOpacity>
                 )}
-              </View>
+              </TouchableOpacity>
             ))}
           </ScrollView>
 
@@ -541,6 +580,12 @@ export default function SellScreen({
           <Text style={styles.sectionTitle}>Category <Text style={styles.requiredMark}>*</Text></Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCat(true)}>
             <Text style={styles.selectValue}>{category}</Text>
+          </TouchableOpacity>
+
+          {/* Condition - 必填 */}
+          <Text style={styles.sectionTitle}>Condition <Text style={styles.requiredMark}>*</Text></Text>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCond(true)}>
+            <Text style={styles.selectValue}>{condition}</Text>
           </TouchableOpacity>
 
           {/* Price - 必填 */}
@@ -611,11 +656,6 @@ export default function SellScreen({
               </TouchableOpacity>
             </View>
           )}
-
-          <Text style={styles.fieldLabel}>Condition</Text>
-          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCond(true)}>
-            <Text style={styles.selectValue}>{condition}</Text>
-          </TouchableOpacity>
 
           <Text style={styles.fieldLabel}>Size</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowSize(true)}>
@@ -700,6 +740,84 @@ export default function SellScreen({
       <OptionPicker title="Select category" visible={showCat} options={CATEGORY_OPTIONS} value={category} onClose={() => setShowCat(false)} onSelect={setCategory} />
       <OptionPicker title="Select brand" visible={showBrand} options={BRAND_OPTIONS} value={brand} onClose={() => setShowBrand(false)} onSelect={setBrand} />
       <OptionPicker title="Select condition" visible={showCond} options={CONDITION_OPTIONS} value={condition} onClose={() => setShowCond(false)} onSelect={setCondition} />
+      
+      {/* Image Preview Modal - 支持滑动切换 */}
+      <Modal
+        visible={previewIndex !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewIndex(null)}
+      >
+        <View style={styles.previewModalOverlay}>
+          <ScrollView
+            ref={scrollViewRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            contentOffset={{ x: (previewIndex ?? 0) * Dimensions.get("window").width, y: 0 }}
+            style={styles.previewScrollView}
+          >
+            {photos.map((photo, index) => (
+              <View key={photo.id} style={styles.previewImageContainer}>
+                <Image 
+                  source={{ uri: photo.localUri }} 
+                  style={styles.previewModalImage}
+                  resizeMode="contain"
+                />
+              </View>
+            ))}
+          </ScrollView>
+          
+          {/* 顶部工具栏 */}
+          <View style={styles.previewTopBar}>
+            <View style={styles.previewIndicator}>
+              <Text style={styles.previewIndicatorText}>
+                {(previewIndex ?? 0) + 1} / {photos.length}
+              </Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.previewCloseBtn}
+              onPress={() => setPreviewIndex(null)}
+            >
+              <Icon name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {/* 底部缩略图导航 */}
+          {photos.length > 1 && (
+            <View style={styles.previewBottomBar}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.thumbnailContainer}
+              >
+                {photos.map((photo, index) => (
+                  <TouchableOpacity
+                    key={photo.id}
+                    style={[
+                      styles.thumbnail,
+                      index === previewIndex && styles.thumbnailActive
+                    ]}
+                    onPress={() => {
+                      setPreviewIndex(index);
+                      scrollViewRef.current?.scrollTo({
+                        x: index * Dimensions.get("window").width,
+                        animated: true
+                      });
+                    }}
+                  >
+                    <Image 
+                      source={{ uri: photo.localUri }} 
+                      style={styles.thumbnailImage}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      </Modal>
+
       <OptionPicker
         title="Select size"
         visible={showSize}
@@ -1187,5 +1305,80 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: "center",
+  },
+  previewModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+  },
+  previewScrollView: {
+    flex: 1,
+  },
+  previewImageContainer: {
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  previewModalImage: {
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height * 0.8,
+  },
+  previewTopBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  previewIndicator: {
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  previewIndicatorText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  previewCloseBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  previewBottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingVertical: 20,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  thumbnailContainer: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  thumbnail: {
+    width: 60,
+    height: 75,
+    borderRadius: 8,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  thumbnailActive: {
+    borderColor: "#fff",
+  },
+  thumbnailImage: {
+    width: "100%",
+    height: "100%",
   },
 });

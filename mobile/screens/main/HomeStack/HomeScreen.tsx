@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image } from "react-native";
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -17,29 +17,39 @@ export default function HomeScreen() {
   const [searchText, setSearchText] = useState("");
   const [featuredItems, setFeaturedItems] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { isAuthenticated } = useAuth();
 
   // 获取推荐商品数据（仅登录后触发）
-  useEffect(() => {
-    const loadFeaturedItems = async () => {
-      try {
+  const loadFeaturedItems = async (opts?: { isRefresh?: boolean }) => {
+    try {
+      setError(null);
+      if (opts?.isRefresh) {
+        setRefreshing(true);
+      } else {
         setLoading(true);
-        setError(null);
-        console.log('🔍 HomeScreen: Loading featured items...');
-        const items = await fetchListings({ limit: 20 });
-        console.log('🔍 HomeScreen: Received items:', items?.length || 0);
-        console.log('🔍 HomeScreen: Items data:', items);
-        setFeaturedItems(items);
-      } catch (err) {
-        console.error('Error loading featured items:', err);
-        setError('Failed to load items');
-      } finally {
+      }
+
+      console.log('🔍 HomeScreen: Loading featured items...');
+      const items = await fetchListings({ limit: 20 });
+      console.log('🔍 HomeScreen: Received items:', items?.length || 0);
+      console.log('🔍 HomeScreen: Items data:', items);
+      setFeaturedItems(items);
+    } catch (err) {
+      console.error('Error loading featured items:', err);
+      setError('Failed to load items');
+    } finally {
+      if (opts?.isRefresh) {
+        setRefreshing(false);
+      } else {
         setLoading(false);
       }
-    };
+    }
+  };
 
+  useEffect(() => {
     if (isAuthenticated) {
       loadFeaturedItems();
     } else {
@@ -52,7 +62,16 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: 60 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadFeaturedItems({ isRefresh: true })}
+          />
+        }
+      >
         {/* 🔍 搜索栏 */}
         <View style={styles.searchRow}>
           <TextInput
@@ -134,16 +153,15 @@ export default function HomeScreen() {
         ) : error ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => {
-                setError(null);
-                setLoading(true);
-                fetchListings({ limit: 20 }).then(setFeaturedItems).catch(() => setError('Failed to load items')).finally(() => setLoading(false));
-              }}
-            >
-              <Text style={styles.retryText}>Retry</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => {
+                  // reuse the same loader for retry
+                  loadFeaturedItems();
+                }}
+              >
+                <Text style={styles.retryText}>Retry</Text>
+              </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.gridWrapper}>

@@ -3,55 +3,123 @@ import { prisma } from "@/lib/db";
 import { createSupabaseServer } from "@/lib/supabase";
 import { verifyLegacyToken } from "@/lib/jwt";
 
-/**
- * 获取当前登录用户
- */
+type FollowInfo = { id: number };
+
+type UserProfile = {
+  id: number;
+  username: string | null;
+  email: string | null;
+  phone_number: string | null;
+  bio: string | null;
+  location: string | null;
+  dob: Date | null;
+  gender: string | null;
+  avatar_url: string | null;
+  preferred_styles: unknown;
+  preferred_size_top: string | null;
+  preferred_size_bottom: string | null;
+  preferred_size_shoe: string | null;
+  followers: FollowInfo[];
+  following: FollowInfo[];
+};
+
+const normalizePreferredStyles = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (value) {
+    return value as unknown[];
+  }
+  return [];
+};
+
+const mapGender = (value: string | null) => {
+  if (value === "MALE") return "Male";
+  if (value === "FEMALE") return "Female";
+  return null;
+};
+
+const formatUserResponse = (user: UserProfile) => ({
+  id: user.id.toString(),
+  username: user.username,
+  email: user.email,
+  phone: user.phone_number,
+  bio: user.bio,
+  location: user.location,
+  dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
+  gender: mapGender(user.gender),
+  avatar_url: user.avatar_url,
+  followersCount: user.followers.length,
+  followingCount: user.following.length,
+  preferred_styles: normalizePreferredStyles(user.preferred_styles),
+  preferred_size_top: user.preferred_size_top,
+  preferred_size_bottom: user.preferred_size_bottom,
+  preferred_size_shoe: user.preferred_size_shoe,
+});
+
 async function getCurrentUser(req: NextRequest) {
   try {
-    const supabase = await createSupabaseServer();
-
-    // 从 Authorization 头读取 token
     const authHeader = req.headers.get("authorization");
     const token = authHeader?.startsWith("Bearer ")
       ? authHeader.split(" ")[1]
       : null;
 
-    let dbUser: any = null;
-
-    if (token) {
-      // 优先尝试本地 JWT（legacy），避免对 Supabase 发起无效请求
-      const v = verifyLegacyToken(token);
-      if (v.valid && v.payload?.uid) {
-        dbUser = await prisma.users.findUnique({ where: { id: Number(v.payload.uid) } });
-      // 优先尝试本地 JWT（legacy），避免对 Supabase 发起无效请求
-      const v = verifyLegacyToken(token);
-      if (v.valid && v.payload?.uid) {
-        dbUser = await prisma.users.findUnique({ where: { id: Number(v.payload.uid) } });
-      }
-
-      // 如果不是本地 JWT，再尝试 Supabase JWT
-      // 如果不是本地 JWT，再尝试 Supabase JWT
-      if (!dbUser) {
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        if (user && !error) {
-          dbUser = await prisma.users.findUnique({ where: { supabase_user_id: user.id } });
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        if (user && !error) {
-          dbUser = await prisma.users.findUnique({ where: { supabase_user_id: user.id } });
-        }
-      }
-    }
-
-    if (!dbUser) {
+    if (!token) {
       return null;
     }
 
-    return dbUser;
+    const legacy = verifyLegacyToken(token);
+    if (legacy.valid && legacy.payload?.uid) {
+      const legacyUser = await prisma.users.findUnique({
+        where: { id: Number(legacy.payload.uid) },
+      });
+      if (legacyUser) {
+        return legacyUser;
+      }
+    }
+
+    const supabase = await createSupabaseServer();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser(token);
+
+    if (!error && user) {
+      return prisma.users.findUnique({ where: { supabase_user_id: user.id } });
+    }
+
+    return null;
   } catch (err) {
     console.error("❌ getCurrentUser failed:", err);
     return null;
   }
 }
+
+const selectUserProfile = {
+  id: true,
+  username: true,
+  email: true,
+  phone_number: true,
+  bio: true,
+  location: true,
+  dob: true,
+  gender: true,
+  avatar_url: true,
+  preferred_styles: true,
+  preferred_size_top: true,
+  preferred_size_bottom: true,
+  preferred_size_shoe: true,
+  followers: {
+    select: {
+      id: true,
+    },
+  },
+  following: {
+    select: {
+      id: true,
+    },
+  },
+} satisfies Record<string, unknown>;
 
 /**
  * 获取用户资料
@@ -63,32 +131,10 @@ export async function GET(req: NextRequest) {
   }
 
   console.log("📖 Loading profile for user:", dbUser.id);
-  console.log("📖 Avatar URL:", dbUser.avatar_url);
 
-  // 获取follow统计
   const userWithFollows = await prisma.users.findUnique({
     where: { id: dbUser.id },
-    select: {
-      id: true,
-      username: true,
-      email: true,
-      phone_number: true,
-      bio: true,
-      location: true,
-      dob: true,
-      gender: true,
-      avatar_url: true,
-      followers: {
-        select: {
-          id: true,
-        },
-      },
-      following: {
-        select: {
-          id: true,
-        },
-      },
-    },
+    select: selectUserProfile,
   });
 
   if (!userWithFollows) {
@@ -97,29 +143,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    user: {
-      id: userWithFollows.id.toString(),
-      username: userWithFollows.username,
-      email: userWithFollows.email,
-      phone: userWithFollows.phone_number,
-      bio: userWithFollows.bio,
-      location: userWithFollows.location,
-      dob: userWithFollows.dob ? userWithFollows.dob.toISOString().slice(0, 10) : null,
-      gender: userWithFollows.gender === "MALE" ? "Male" : userWithFollows.gender === "FEMALE" ? "Female" : null,
-      avatar_url: userWithFollows.avatar_url,
-      followersCount: userWithFollows.followers.length,
-      followingCount: userWithFollows.following.length,
-      preferred_styles: Array.isArray((dbUser as any)?.preferred_styles)
-        ? (dbUser as any).preferred_styles
-        : (dbUser as any)?.preferred_styles
-        ? ((dbUser as any).preferred_styles as any)
-        : [],
-      preferred_size_top: (dbUser as any)?.preferred_size_top ?? null,
-      preferred_size_bottom: (dbUser as any)?.preferred_size_bottom ?? null,
-      preferred_size_shoe: (dbUser as any)?.preferred_size_shoe ?? null,
-      followersCount: userWithFollows.followers.length,
-      followingCount: userWithFollows.following.length,
-    },
+    user: formatUserResponse(userWithFollows as UserProfile),
   });
 }
 
@@ -137,10 +161,8 @@ export async function PATCH(req: NextRequest) {
     console.log("📝 Profile update request data:", JSON.stringify(data, null, 2));
     console.log("📝 Current user ID:", dbUser.id);
 
-    // ✅ 防覆盖更新：只更新有值的字段
-    const updateData: any = {};
-    
-    // 过滤掉 undefined 和 null 值，只更新实际有值的字段
+    const updateData: Record<string, unknown> = {};
+
     if (data.username !== undefined && data.username !== null) {
       updateData.username = data.username;
     }
@@ -160,7 +182,6 @@ export async function PATCH(req: NextRequest) {
       updateData.dob = new Date(data.dob);
     }
     if (data.gender !== undefined && data.gender !== null) {
-      // 转换移动端的性别格式到数据库格式
       if (data.gender === "Male") {
         updateData.gender = "MALE";
       } else if (data.gender === "Female") {
@@ -173,7 +194,6 @@ export async function PATCH(req: NextRequest) {
       updateData.avatar_url = data.avatar_url;
     }
 
-    // 偏好：样式（数组）
     if (data.preferredStyles !== undefined) {
       if (Array.isArray(data.preferredStyles)) {
         updateData.preferred_styles = data.preferredStyles;
@@ -182,107 +202,56 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    // 偏好：尺寸（对象）
     if (data.preferredSizes !== undefined && data.preferredSizes !== null) {
-      const sizes = data.preferredSizes as any;
-      if (Object.prototype.hasOwnProperty.call(sizes, 'top')) {
+      const sizes = data.preferredSizes as Record<string, unknown>;
+      if (Object.prototype.hasOwnProperty.call(sizes, "top")) {
         updateData.preferred_size_top = sizes.top ?? null;
       }
-      if (Object.prototype.hasOwnProperty.call(sizes, 'bottom')) {
+      if (Object.prototype.hasOwnProperty.call(sizes, "bottom")) {
         updateData.preferred_size_bottom = sizes.bottom ?? null;
       }
-      if (Object.prototype.hasOwnProperty.call(sizes, 'shoe')) {
+      if (Object.prototype.hasOwnProperty.call(sizes, "shoe")) {
         updateData.preferred_size_shoe = sizes.shoe ?? null;
       }
     }
 
-    // 偏好：样式（数组）
-    if (data.preferredStyles !== undefined) {
-      if (Array.isArray(data.preferredStyles)) {
-        updateData.preferred_styles = data.preferredStyles;
-      } else if (data.preferredStyles === null) {
-        updateData.preferred_styles = null;
-      }
-    }
-
-    // 偏好：尺寸（对象）
-    if (data.preferredSizes !== undefined && data.preferredSizes !== null) {
-      const sizes = data.preferredSizes as any;
-      if (Object.prototype.hasOwnProperty.call(sizes, 'top')) {
-        updateData.preferred_size_top = sizes.top ?? null;
-      }
-      if (Object.prototype.hasOwnProperty.call(sizes, 'bottom')) {
-        updateData.preferred_size_bottom = sizes.bottom ?? null;
-      }
-      if (Object.prototype.hasOwnProperty.call(sizes, 'shoe')) {
-        updateData.preferred_size_shoe = sizes.shoe ?? null;
-      }
-    }
-
-    console.log("📝 Update data prepared:", JSON.stringify(updateData, null, 2));
-
-    // ✅ 检查是否有实际要更新的字段
     if (Object.keys(updateData).length === 0) {
       console.log("📝 No fields to update, returning current user data");
+      const current = await prisma.users.findUnique({
+        where: { id: dbUser.id },
+        select: selectUserProfile,
+      });
+
+      if (!current) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+
       return NextResponse.json({
         ok: true,
-        user: {
-          id: dbUser.id,
-          username: dbUser.username,
-          email: dbUser.email,
-          phone: dbUser.phone_number,
-          bio: dbUser.bio,
-          location: dbUser.location,
-          dob: dbUser.dob ? dbUser.dob.toISOString().slice(0, 10) : null,
-          gender: dbUser.gender === "MALE" ? "Male" : dbUser.gender === "FEMALE" ? "Female" : null,
-          avatar_url: dbUser.avatar_url,
-        },
+        user: formatUserResponse(current as UserProfile),
       });
     }
 
     const updated = await prisma.users.update({
       where: { id: dbUser.id },
       data: updateData,
+      select: selectUserProfile,
     });
 
     console.log("✅ Profile updated successfully");
 
     return NextResponse.json({
       ok: true,
-      user: {
-        id: updated.id,
-        username: updated.username,
-        email: updated.email,
-        phone: updated.phone_number,
-        bio: updated.bio,
-        location: updated.location,
-        dob: updated.dob ? updated.dob.toISOString().slice(0, 10) : null,
-        gender: updated.gender === "MALE" ? "Male" : updated.gender === "FEMALE" ? "Female" : null,
-        avatar_url: updated.avatar_url,
-        preferred_styles: Array.isArray((updated as any)?.preferred_styles)
-          ? (updated as any).preferred_styles
-          : (updated as any)?.preferred_styles
-          ? ((updated as any).preferred_styles as any)
-          : [],
-        preferred_size_top: (updated as any)?.preferred_size_top ?? null,
-        preferred_size_bottom: (updated as any)?.preferred_size_bottom ?? null,
-        preferred_size_shoe: (updated as any)?.preferred_size_shoe ?? null,
-        preferred_styles: Array.isArray((updated as any)?.preferred_styles)
-          ? (updated as any).preferred_styles
-          : (updated as any)?.preferred_styles
-          ? ((updated as any).preferred_styles as any)
-          : [],
-        preferred_size_top: (updated as any)?.preferred_size_top ?? null,
-        preferred_size_bottom: (updated as any)?.preferred_size_bottom ?? null,
-        preferred_size_shoe: (updated as any)?.preferred_size_shoe ?? null,
-      },
+      user: formatUserResponse(updated as UserProfile),
     });
   } catch (err) {
     console.error("❌ Update profile failed:", err);
-    console.error("❌ Error details:", JSON.stringify(err, null, 2));
-    return NextResponse.json({ 
-      error: "Update failed", 
-      details: err instanceof Error ? err.message : "Unknown error" 
-    }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: "Update failed",
+        details: err instanceof Error ? err.message : "Unknown error",
+      },
+      { status: 400 },
+    );
   }
 }

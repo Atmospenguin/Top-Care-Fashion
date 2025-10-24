@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     const fileExt = file.name.split(".").pop() || "jpg";
     const fileName = `avatar-${dbUser.id}-${Date.now()}.${fileExt}`;
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("avatars") // ✅ 改为统一 avatars bucket
       .upload(fileName, buffer, {
         contentType: file.type || "image/jpeg",

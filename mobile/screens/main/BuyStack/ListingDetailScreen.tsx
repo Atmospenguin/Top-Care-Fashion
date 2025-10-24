@@ -57,23 +57,6 @@ const formatDateString = (value?: string | null) => {
 };
 
 
-const formatGenderLabel = (value?: string | null) => {
-  if (!value) return "Unisex";
-  const lower = value.toLowerCase();
-  if (lower === "men" || lower === "male") return "Men";
-  if (lower === "women" || lower === "female") return "Women";
-  if (lower === "unisex") return "Unisex";
-  return lower.charAt(0).toUpperCase() + lower.slice(1);
-};
-
-const formatDateString = (value?: string | null) => {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString();
-};
-
-
 export default function ListingDetailScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
@@ -97,11 +80,15 @@ export default function ListingDetailScreen() {
     console.log('🔍 Debug - Original item:', item);
     console.log('🔍 Debug - Original item.seller:', item.seller);
     
+    const legacyImagesField = (item as { imageUrls?: unknown }).imageUrls;
+    const legacyImages = Array.isArray(legacyImagesField)
+      ? legacyImagesField.filter((img): img is string => typeof img === "string")
+      : [];
+
     const result = {
       ...item,
       // 兼容处理：优先使用 images，如果没有则使用 imageUrls
-      images: Array.isArray(item.images) ? item.images : 
-              Array.isArray(item.imageUrls) ? item.imageUrls : [],
+      images: Array.isArray(item.images) && item.images.length > 0 ? item.images : legacyImages,
     };
     
     // 调试：查看转换后的safeItem
@@ -128,6 +115,36 @@ export default function ListingDetailScreen() {
   const likesCount = safeItem?.likesCount ?? 0;
   const listedOn = useMemo(() => formatDateString(safeItem?.createdAt), [safeItem?.createdAt]);
   const updatedOn = useMemo(() => formatDateString(safeItem?.updatedAt), [safeItem?.updatedAt]);
+  const shippingDescription = useMemo(() => {
+    if (!safeItem?.shippingOption || safeItem.shippingOption === "Select") {
+      return "Please contact seller for shipping options and rates.";
+    }
+
+    const feeValue =
+      typeof safeItem.shippingFee === "number"
+        ? safeItem.shippingFee
+        : safeItem.shippingFee
+        ? Number(safeItem.shippingFee)
+        : 0;
+
+    let description = safeItem.shippingOption;
+
+    if (feeValue > 0) {
+      description += ` • Shipping fee: $${feeValue.toFixed(2)}`;
+    }
+
+    if (safeItem.shippingOption === "Meet-up" && safeItem.location) {
+      description += `\n📍 Meet-up location: ${safeItem.location}`;
+    }
+
+    return description;
+  }, [safeItem?.shippingOption, safeItem?.shippingFee, safeItem?.location]);
+  const imageUris = useMemo(() => {
+    if (!Array.isArray(safeItem?.images)) return [];
+    return safeItem.images.filter(
+      (uri): uri is string => typeof uri === "string" && uri.length > 0,
+    );
+  }, [safeItem?.images]);
 
   // 检查是否是自己的商品
   const isOwnListing = useMemo(() => {
@@ -157,7 +174,9 @@ export default function ListingDetailScreen() {
       if (!safeItem?.id || isOwnListing) return;
       
       try {
-        const liked = await likesService.getLikeStatus(safeItem.id);
+        const listingId = Number(safeItem.id);
+        if (Number.isNaN(listingId)) return;
+        const liked = await likesService.getLikeStatus(listingId);
         setIsLiked(liked);
       } catch (error) {
         console.error('Error checking like status:', error);
@@ -173,7 +192,9 @@ export default function ListingDetailScreen() {
     
     setIsLoadingLike(true);
     try {
-      const newLikedStatus = await likesService.toggleLike(safeItem.id, isLiked);
+      const listingId = Number(safeItem.id);
+      if (Number.isNaN(listingId)) return;
+      const newLikedStatus = await likesService.toggleLike(listingId, isLiked);
       setIsLiked(newLikedStatus);
     } catch (error) {
       console.error('Error toggling like:', error);
@@ -323,7 +344,7 @@ export default function ListingDetailScreen() {
                       key={category.id}
                       style={[
                         styles.categoryItem,
-                        selectedCategory === category.id && styles.categoryItemSelected,
+                        selectedCategory === category.id ? styles.categoryItemSelected : undefined,
                       ]}
                       onPress={() => setSelectedCategory(category.id)}
                     >
@@ -335,7 +356,7 @@ export default function ListingDetailScreen() {
                       <Text
                         style={[
                           styles.categoryLabel,
-                          selectedCategory === category.id && styles.categoryLabelSelected,
+                          selectedCategory === category.id ? styles.categoryLabelSelected : undefined,
                         ]}
                       >
                         {category.label}
@@ -403,16 +424,15 @@ export default function ListingDetailScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.imageCarousel}
         >
-          {(safeItem?.images?.filter(img => img && typeof img === 'string') || []).map((uri: string, index: number) => (
+          {imageUris.map((uri, index) => (
             <Image
-              key={`${safeItem.id}-${index}`}
+              key={`${safeItem?.id ?? "listing"}-${index}`}
               source={{ uri }}
               style={styles.image}
               onError={() => console.warn(`Failed to load image: ${uri}`)}
             />
           ))}
-          {/* 如果没有有效图片，显示默认图片 */}
-          {(!safeItem?.images || safeItem.images.length === 0 || !safeItem.images.some(img => img && typeof img === 'string')) && (
+          {imageUris.length === 0 && (
             <Image
               source={{ uri: "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image" }}
               style={styles.image}
@@ -429,9 +449,13 @@ export default function ListingDetailScreen() {
             <View style={styles.likeButtonWrapper}>
               <TouchableOpacity
                 accessibilityRole="button"
-                style={[styles.iconButton, isLiked && styles.iconButtonLiked, isOwnListing && styles.iconButtonDisabled]}
-              onPress={handleLikeToggle}
-              disabled={isLoadingLike || isOwnListing}
+                style={[
+                  styles.iconButton,
+                  isLiked ? styles.iconButtonLiked : undefined,
+                  isOwnListing ? styles.iconButtonDisabled : undefined,
+                ]}
+                onPress={handleLikeToggle}
+                disabled={!!(isLoadingLike || isOwnListing)}
               >
                 <Icon 
                 name={isLiked ? "heart" : "heart-outline"} 
@@ -450,11 +474,21 @@ export default function ListingDetailScreen() {
             {/* Mix & Match chip aligned with like icon and same height */}
             <TouchableOpacity
               accessibilityRole="button"
-              style={[styles.mixChipBtn, isOwnListing && styles.mixChipBtnDisabled]}
+              style={[
+                styles.mixChipBtn,
+                isOwnListing ? styles.mixChipBtnDisabled : undefined,
+              ]}
               onPress={() => !isOwnListing && safeItem && navigation.navigate("MixMatch", { baseItem: safeItem })}
-              disabled={isOwnListing}
+              disabled={!!isOwnListing}
             >
-              <Text style={[styles.mixChipText, isOwnListing && styles.mixChipTextDisabled]}>Mix & Match</Text>
+              <Text
+                style={[
+                  styles.mixChipText,
+                  isOwnListing ? styles.mixChipTextDisabled : undefined,
+                ]}
+              >
+                Mix & Match
+              </Text>
             </TouchableOpacity>
 
           </View>
@@ -462,33 +496,17 @@ export default function ListingDetailScreen() {
             <View style={styles.metaPill}>
               <Text style={styles.metaLabel}>Size</Text>
               <Text style={styles.metaValue}>
-                {safeItem?.size && safeItem.size !== 'N/A' && safeItem.size !== 'Select' 
-                  ? safeItem.size 
-                  : 'Not specified'}
-              </Text>
-              <Text style={styles.metaValue}>
-                {safeItem?.size && safeItem.size !== 'N/A' && safeItem.size !== 'Select' 
-                  ? safeItem.size 
-                  : 'Not specified'}
+                {safeItem?.size && safeItem.size !== "N/A" && safeItem.size !== "Select"
+                  ? safeItem.size
+                  : "Not specified"}
               </Text>
             </View>
             <View style={styles.metaPill}>
               <Text style={styles.metaLabel}>Condition</Text>
               <Text style={styles.metaValue}>
-                {safeItem?.condition && safeItem.condition !== 'Select' 
-                  ? safeItem.condition 
-                  : 'Not specified'}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.metaRow}>
-            <View style={styles.metaPill}>
-              <Text style={styles.metaLabel}>Gender</Text>
-              <Text style={styles.metaValue}>{genderLabel}</Text>
-              <Text style={styles.metaValue}>
-                {safeItem?.condition && safeItem.condition !== 'Select' 
-                  ? safeItem.condition 
-                  : 'Not specified'}
+                {safeItem?.condition && safeItem.condition !== "Select"
+                  ? safeItem.condition
+                  : "Not specified"}
               </Text>
             </View>
           </View>
@@ -501,15 +519,6 @@ export default function ListingDetailScreen() {
           <Text style={styles.description}>{safeItem?.description || 'No description available'}</Text>
 
           <View style={styles.attributeRow}>
-            {/* 只在有值时显示 Brand */}
-            {safeItem?.brand && safeItem.brand !== '' && safeItem.brand !== 'Select' && (
-              <View style={styles.attributeBlock}>
-                <Text style={styles.attributeLabel}>Brand</Text>
-                <Text style={styles.attributeValue}>{safeItem.brand}</Text>
-              </View>
-            )}
-            {/* 只在有值时显示 Material */}
-            {safeItem?.material && safeItem.material !== 'Select' && safeItem.material !== 'Polyester' && (
             {/* 只在有值时显示 Brand */}
             {safeItem?.brand && safeItem.brand !== '' && safeItem.brand !== 'Select' && (
               <View style={styles.attributeBlock}>
@@ -534,17 +543,6 @@ export default function ListingDetailScreen() {
                 </Text>
               </View>
             )}
-            )}
-            {/* 如果 Brand 和 Material 都没有，显示占位信息 */}
-            {(!safeItem?.brand || safeItem.brand === '' || safeItem.brand === 'Select') && 
-             (!safeItem?.material || safeItem.material === 'Select' || safeItem.material === 'Polyester') && (
-              <View style={styles.attributeBlock}>
-                <Text style={styles.attributeLabel}>Additional Details</Text>
-                <Text style={[styles.attributeValue, { color: '#999', fontStyle: 'italic' }]}>
-                  Not provided by seller
-                </Text>
-              </View>
-            )}
           </View>
 
           {/* Tags Section */}
@@ -558,18 +556,6 @@ export default function ListingDetailScreen() {
                   </View>
                 ))}
               </View>
-            </View>
-          )}
-
-          {(listedOn || updatedOn) && (
-            <View style={styles.infoSection}>
-              <Text style={styles.infoHeading}>Listing Info</Text>
-              {listedOn && (
-                <Text style={styles.infoText}>Listed on {listedOn}</Text>
-              )}
-              {updatedOn && (
-                <Text style={styles.infoText}>Last updated {updatedOn}</Text>
-              )}
             </View>
           )}
 
@@ -654,62 +640,29 @@ export default function ListingDetailScreen() {
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionHeading}>Shipping</Text>
-          <Text style={styles.sectionHeading}>Shipping</Text>
-          <Text style={styles.description}>
-            {safeItem?.shippingOption && safeItem.shippingOption !== 'Select' ? (
-              <>
-                {safeItem.shippingOption}
-                {safeItem.shippingFee && Number(safeItem.shippingFee) > 0 
-                  ? ` • Shipping fee: $${Number(safeItem.shippingFee).toFixed(2)}` 
-                  : ''}
-                {safeItem.shippingOption === "Meet-up" && safeItem?.location 
-                  ? `\n📍 Meet-up location: ${safeItem.location}` 
-                  : ''}
-              </>
-            ) : (
-              'Please contact seller for shipping options and rates.'
-            )}
-          </Text>
+          <Text style={styles.description}>{shippingDescription}</Text>
         </View>
 
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeading}>Returns & Protection</Text>
-          <Text style={styles.description}>
-            All purchases are protected by TOP Care. Returns accepted within 7 days of delivery for items not as described. Please review item details carefully before purchase.
-            {safeItem?.shippingOption && safeItem.shippingOption !== 'Select' ? (
-              <>
-                {safeItem.shippingOption}
-                {safeItem.shippingFee && Number(safeItem.shippingFee) > 0 
-                  ? ` • Shipping fee: $${Number(safeItem.shippingFee).toFixed(2)}` 
-                  : ''}
-                {safeItem.shippingOption === "Meet-up" && safeItem?.location 
-                  ? `\n📍 Meet-up location: ${safeItem.location}` 
-                  : ''}
-              </>
-            ) : (
-              'Please contact seller for shipping options and rates.'
-            )}
-          </Text>
-        </View>
-
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeading}>Returns & Protection</Text>
-          <Text style={styles.description}>
-            All purchases are protected by TOP Care. Returns accepted within 7 days of delivery for items not as described. Please review item details carefully before purchase.
-          </Text>
-        </View>
       </ScrollView>
 
       <View style={styles.bottomBar}>
         {!isOwnListing && (
           <>
             <TouchableOpacity
-              style={[styles.secondaryButton, isAddingToCart && styles.secondaryButtonDisabled]}
+              style={[
+                styles.secondaryButton,
+                isAddingToCart ? styles.secondaryButtonDisabled : undefined,
+              ]}
               onPress={handleAddToCart}
               disabled={isAddingToCart}
             >
               <Icon name="bag-add-outline" size={20} color={isAddingToCart ? "#999" : "#111"} />
-              <Text style={[styles.secondaryText, isAddingToCart && styles.secondaryTextDisabled]}>
+              <Text
+                style={[
+                  styles.secondaryText,
+                  isAddingToCart ? styles.secondaryTextDisabled : undefined,
+                ]}
+              >
                 {isAddingToCart ? 'Adding...' : 'Add to Bag'}
               </Text>
             </TouchableOpacity>
@@ -939,20 +892,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#666",
     fontWeight: "500",
-  },
-  infoSection: {
-    rowGap: 4,
-  },
-  infoHeading: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#666",
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  infoText: {
-    fontSize: 13,
-    color: "#444",
   },
   infoSection: {
     rowGap: 4,
