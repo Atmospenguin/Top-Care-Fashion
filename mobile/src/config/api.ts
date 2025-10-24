@@ -10,6 +10,7 @@ export const API_CONFIG = {
   ENDPOINTS: {
     LISTINGS: '/api/listings',
     USERS: '/api/users',
+    ORDERS: '/api/orders',
     AUTH: {
       SIGNIN: '/api/auth/signin',
       SIGNUP: '/api/auth/register',

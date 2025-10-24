@@ -58,8 +58,11 @@ async function ensureLocalUser(supabaseUserId: string, email: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
-  const { email, password } = body as Record<string, unknown>;
+  try {
+    console.log("🔍 Signin API - Starting request");
+    const body = await req.json().catch(() => ({}));
+    const { email, password } = body as Record<string, unknown>;
+    console.log("🔍 Signin API - Email:", typeof email === "string" ? email.substring(0, 5) + "..." : "invalid");
 
   const normalizedEmail = typeof email === "string" ? email.trim() : "";
   const normalizedPassword = typeof password === "string" ? password : "";
@@ -197,4 +200,12 @@ export async function POST(req: NextRequest) {
   }
 
   return response;
+} catch (error) {
+  console.error('❌ Signin API - Error details:', error);
+  console.error('❌ Signin API - Error stack:', error instanceof Error ? error.stack : 'No stack');
+  return NextResponse.json(
+    { error: 'Failed to sign in', details: error instanceof Error ? error.message : 'Unknown error' },
+    { status: 500 }
+  );
+}
 }

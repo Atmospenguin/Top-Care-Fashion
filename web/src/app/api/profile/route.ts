@@ -57,18 +57,50 @@ export async function GET(req: NextRequest) {
   console.log("📖 Loading profile for user:", dbUser.id);
   console.log("📖 Avatar URL:", dbUser.avatar_url);
 
+  // 获取follow统计
+  const userWithFollows = await prisma.users.findUnique({
+    where: { id: dbUser.id },
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      phone_number: true,
+      bio: true,
+      location: true,
+      dob: true,
+      gender: true,
+      avatar_url: true,
+      followers: {
+        select: {
+          id: true,
+        },
+      },
+      following: {
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  if (!userWithFollows) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
   return NextResponse.json({
-    ok: true,
+    success: true,
     user: {
-      id: dbUser.id,
-      username: dbUser.username,
-      email: dbUser.email,
-      phone: dbUser.phone_number,
-      bio: dbUser.bio,
-      location: dbUser.location,
-      dob: dbUser.dob ? dbUser.dob.toISOString().slice(0, 10) : null,
-      gender: dbUser.gender === "MALE" ? "Male" : dbUser.gender === "FEMALE" ? "Female" : null,
-      avatar_url: dbUser.avatar_url,
+      id: userWithFollows.id.toString(),
+      username: userWithFollows.username,
+      email: userWithFollows.email,
+      phone: userWithFollows.phone_number,
+      bio: userWithFollows.bio,
+      location: userWithFollows.location,
+      dob: userWithFollows.dob ? userWithFollows.dob.toISOString().slice(0, 10) : null,
+      gender: userWithFollows.gender === "MALE" ? "Male" : userWithFollows.gender === "FEMALE" ? "Female" : null,
+      avatar_url: userWithFollows.avatar_url,
+      followersCount: userWithFollows.followers.length,
+      followingCount: userWithFollows.following.length,
       preferred_styles: Array.isArray(dbUser as any?.preferred_styles)
         ? (dbUser as any).preferred_styles
         : (dbUser as any)?.preferred_styles

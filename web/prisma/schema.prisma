@@ -37,13 +37,22 @@ model users {
   faqs               faq[]
   feedbacks          feedback[]
   listings_as_seller listings[]             @relation("UserListings")
-  orders             orders[]
+  orders_bought      orders[]                @relation("OrderBuyer")
+  orders_sold        orders[]                @relation("OrderSeller")
   reviews_received   reviews[]              @relation("Reviewee")
   reviews_written    reviews[]              @relation("Reviewer")
   transactions_buy   transactions[]         @relation("Buyer")
   transactions_sell  transactions[]         @relation("Seller")
   addresses          user_addresses[]
   payment_methods    user_payment_methods[]
+  // Follow关系
+  followers          user_follows[]         @relation("UserFollowing")
+  following          user_follows[]         @relation("UserFollowers")
+  // Messages关系
+  conversations_initiated conversations[]  @relation("ConversationInitiator")
+  conversations_participated conversations[] @relation("ConversationParticipant")
+  messages_sent       messages[]            @relation("MessageSender")
+  messages_received   messages[]            @relation("MessageReceiver")
 
   @@map("users")
 }
@@ -90,6 +99,8 @@ model listings {
   category        listing_categories? @relation(fields: [category_id], references: [id])
   seller          users?              @relation("UserListings", fields: [seller_id], references: [id])
   order_items     order_items[]
+  orders          orders[]
+  conversations  conversations[]
   transactions    transactions?
 
   @@index([category_id])
@@ -150,16 +161,23 @@ model cart_items {
 
 model orders {
   id              Int           @id @default(autoincrement())
-  user_id         Int?
+  buyer_id        Int
+  seller_id       Int
+  listing_id      Int
   order_number    String        @unique @db.VarChar(50)
-  status          String?       @default("pending") @db.VarChar(50)
+  status          OrderStatus   @default(IN_PROGRESS)
   total_amount    Decimal       @db.Decimal(10, 2)
   shipping_method String?       @db.VarChar(100)
   notes           String?
-  created_at      DateTime?     @default(now()) @db.Timestamp(6)
-  updated_at      DateTime?     @default(now()) @db.Timestamp(6)
+  created_at      DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime      @default(now()) @db.Timestamptz(6)
+  
+  // 关联关系
+  buyer           users         @relation("OrderBuyer", fields: [buyer_id], references: [id], onDelete: Cascade)
+  seller          users         @relation("OrderSeller", fields: [seller_id], references: [id], onDelete: Cascade)
+  listing         listings      @relation(fields: [listing_id], references: [id], onDelete: Cascade)
   order_items     order_items[]
-  users           users?        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  reviews         reviews[]
 
   @@map("orders")
 }
@@ -186,7 +204,6 @@ model transactions {
   price_each Decimal   @db.Decimal(10, 2)
   status     TxStatus  @default(PENDING)
   created_at DateTime  @default(now()) @db.Timestamptz(6)
-  reviews    reviews[]
   buyer      users     @relation("Buyer", fields: [buyer_id], references: [id])
   listing    listings  @relation(fields: [listing_id], references: [id])
   seller     users     @relation("Seller", fields: [seller_id], references: [id])
@@ -199,7 +216,7 @@ model transactions {
 
 model reviews {
   id             Int          @id @default(autoincrement())
-  transaction_id Int
+  order_id       Int
   reviewer_id    Int
   reviewee_id    Int
   rating         Int
@@ -208,10 +225,10 @@ model reviews {
   created_at     DateTime     @default(now()) @db.Timestamptz(6)
   reviewee       users        @relation("Reviewee", fields: [reviewee_id], references: [id], onDelete: Cascade)
   reviewer       users        @relation("Reviewer", fields: [reviewer_id], references: [id], onDelete: Cascade)
-  transaction    transactions @relation(fields: [transaction_id], references: [id], onDelete: Cascade)
+  order          orders       @relation(fields: [order_id], references: [id], onDelete: Cascade)
 
-  @@unique([transaction_id, reviewer_id], name: "unique_transaction_reviewer")
-  @@unique([transaction_id, reviewer_type], name: "unique_transaction_reviewer_type")
+  @@unique([order_id, reviewer_id], name: "unique_order_reviewer")
+  @@unique([order_id, reviewer_type], name: "unique_order_reviewer_type")
   @@index([reviewer_id])
   @@index([reviewee_id])
   @@map("reviews")
@@ -353,6 +370,17 @@ enum TxStatus {
   CANCELLED
 }
 
+enum OrderStatus {
+  IN_PROGRESS
+  TO_SHIP
+  SHIPPED
+  DELIVERED
+  RECEIVED
+  COMPLETED
+  REVIEWED
+  CANCELLED
+}
+
 enum ReviewerType {
   BUYER
   SELLER
@@ -372,4 +400,72 @@ enum ReportStatus {
   OPEN
   RESOLVED
   DISMISSED
+}
+
+model user_follows {
+  id           Int      @id @default(autoincrement())
+  follower_id  Int
+  following_id Int
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  follower  users @relation("UserFollowers", fields: [follower_id], references: [id], onDelete: Cascade)
+  following users @relation("UserFollowing", fields: [following_id], references: [id], onDelete: Cascade)
+
+  @@unique([follower_id, following_id])
+  @@map("user_follows")
+}
+
+model conversations {
+  id           Int      @id @default(autoincrement())
+  initiator_id Int
+  participant_id Int
+  listing_id   Int?
+  type         ConversationType @default(ORDER)
+  status       ConversationStatus @default(ACTIVE)
+  last_message_at DateTime? @db.Timestamptz(6)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  initiator   users @relation("ConversationInitiator", fields: [initiator_id], references: [id], onDelete: Cascade)
+  participant users @relation("ConversationParticipant", fields: [participant_id], references: [id], onDelete: Cascade)
+  listing     listings? @relation(fields: [listing_id], references: [id], onDelete: SetNull)
+  messages    messages[]
+
+  @@unique([initiator_id, participant_id, listing_id])
+  @@map("conversations")
+}
+
+model messages {
+  id              Int      @id @default(autoincrement())
+  conversation_id Int
+  sender_id       Int
+  receiver_id     Int
+  content         String   @db.Text
+  message_type    MessageType @default(TEXT)
+  is_read         Boolean  @default(false)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  conversation conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  sender      users @relation("MessageSender", fields: [sender_id], references: [id], onDelete: Cascade)
+  receiver    users @relation("MessageReceiver", fields: [receiver_id], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+enum ConversationType {
+  ORDER
+  SUPPORT
+  GENERAL
+}
+
+enum ConversationStatus {
+  ACTIVE
+  ARCHIVED
+  BLOCKED
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  SYSTEM
 }

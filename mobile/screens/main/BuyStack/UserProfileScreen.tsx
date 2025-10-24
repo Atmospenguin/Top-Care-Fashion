@@ -25,6 +25,7 @@ import { MOCK_LISTINGS } from "../../../mocks/shop";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
 import { userService, type UserProfile } from "../../../src/services/userService";
+import { authService } from "../../../src/services/authService";
 
 type UserProfileParam = RouteProp<BuyStackParamList, "UserProfile">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
@@ -130,6 +131,8 @@ export default function UserProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [listingsLoading, setListingsLoading] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
 
   const [activeTab, setActiveTab] = useState<"Shop" | "Likes" | "Reviews">(
     "Shop"
@@ -158,6 +161,21 @@ export default function UserProfileScreen() {
   const [reviewRole, setReviewRole] = useState<string>("All");
   const [reviewRating, setReviewRating] = useState<string>("All");
 
+  // 获取当前用户信息
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const user = await authService.getCurrentUser();
+        setCurrentUser(user);
+        console.log("👤 Current user:", user?.username);
+      } catch (error) {
+        console.error("❌ Error loading current user:", error);
+      }
+    };
+
+    loadCurrentUser();
+  }, []);
+
   // 加载用户信息
   useEffect(() => {
     const loadUserProfile = async () => {
@@ -169,6 +187,11 @@ export default function UserProfileScreen() {
         if (profile) {
           setUserProfile(profile);
           console.log("✅ User profile loaded:", profile.username);
+          
+          // 判断是否在查看自己的profile
+          const isOwn = currentUser && currentUser.username === profile.username;
+          setIsOwnProfile(isOwn);
+          console.log("🔍 Is own profile:", isOwn);
         } else {
           Alert.alert("Error", "User not found");
           navigation.goBack();
@@ -183,7 +206,7 @@ export default function UserProfileScreen() {
     };
 
     loadUserProfile();
-  }, [username, navigation]);
+  }, [username, navigation, currentUser]);
 
   // 加载用户 listings
   useEffect(() => {
@@ -212,9 +235,29 @@ export default function UserProfileScreen() {
     loadUserListings();
   }, [userProfile, username]);
 
-  // Mock data for profile stats (fallback)
-  const followers = userProfile?.activeListings || 1234;
-  const following = userProfile?.soldListings || 567;
+  // 检查follow状态
+  useEffect(() => {
+    const checkFollowStatus = async () => {
+      if (!userProfile || !currentUser || isOwnProfile) return;
+      
+      try {
+        console.log("👥 Checking follow status for:", userProfile.username);
+        const followStatus = await userService.checkFollowStatus(userProfile.username);
+        setIsFollowing(followStatus);
+        console.log(`✅ Follow status: ${followStatus}`);
+      } catch (error) {
+        console.error("❌ Error checking follow status:", error);
+        // 如果检查失败，默认设为false
+        setIsFollowing(false);
+      }
+    };
+
+    checkFollowStatus();
+  }, [userProfile, currentUser, isOwnProfile]);
+
+  // 使用真实的follow统计数据
+  const followers = userProfile?.followersCount || 0;
+  const following = userProfile?.followingCount || 0;
   const reviewsCount = userProfile?.reviewsCount || mockReviews.length;
 
   const filteredListings = useMemo(() => {
@@ -349,10 +392,24 @@ export default function UserProfileScreen() {
   };
 
   // Follow/Unfollow 处理函数
-  const handleFollowToggle = () => {
-    setIsFollowing(!isFollowing);
-    // TODO: 实现实际的关注/取消关注 API 调用
-    console.log(isFollowing ? "Unfollowing user" : "Following user");
+  const handleFollowToggle = async () => {
+    if (!userProfile) return;
+    
+    try {
+      let newFollowStatus: boolean;
+      
+      if (isFollowing) {
+        newFollowStatus = await userService.unfollowUser(userProfile.username);
+      } else {
+        newFollowStatus = await userService.followUser(userProfile.username);
+      }
+      
+      setIsFollowing(newFollowStatus);
+      console.log(`✅ Follow status updated: ${newFollowStatus}`);
+    } catch (error) {
+      console.error("❌ Error toggling follow status:", error);
+      Alert.alert("Error", "Failed to update follow status");
+    }
   };
 
   // Message 处理函数
@@ -399,7 +456,7 @@ export default function UserProfileScreen() {
       <View style={{ flex: 1, backgroundColor: "#fff" }}>
         <Header title={username} showBack />
         <View style={styles.loadingContainer}>
-          <Text style={styles.errorText}>User not found</Text>
+          <Text style={styles.loadingText}>User not found</Text>
         </View>
       </View>
     );
@@ -417,62 +474,95 @@ export default function UserProfileScreen() {
         }
       />
 
+      {/* Profile Section - Depop Style */}
       <View style={styles.profileSection}>
-        <Image source={{ uri: userProfile.avatar_url || avatar }} style={styles.avatar} />
-        <View style={{ rowGap: 6, flex: 1 }}>
-          <Text style={styles.profileName}>{userProfile.username}</Text>
-          <View style={styles.profileMeta}>
-            <Icon name="star" size={14} color="#f5a623" />
-            <Text style={styles.profileMetaText}>{userProfile.rating.toFixed(1)}</Text>
-            <Text style={styles.profileMetaText}>·</Text>
-            <Text style={styles.profileMetaText}>{userProfile.reviewsCount} reviews</Text>
-          </View>
-          {userProfile.bio && (
-            <Text style={styles.bioText}>{userProfile.bio}</Text>
-          )}
-          {userProfile.location && (
+        {/* 头部：头像 + 右侧(名字/星星) */}
+        <View style={styles.headerRow}>
+          <Image source={{ uri: userProfile.avatar_url || avatar }} style={styles.avatar} />
+          <View style={styles.nameCol}>
+            <Text style={styles.shopName}>{userProfile.username}</Text>
             <View style={styles.locationRow}>
-              <Icon name="location-outline" size={14} color="#666" />
-              <Text style={styles.locationText}>{userProfile.location}</Text>
+              <Icon name="location-outline" size={12} color="#666" />
+              <Text style={styles.locationText}>Singapore</Text>
             </View>
-          )}
+            <View style={styles.starsRow}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Icon key={i} name="star" size={14} color="#FFB800" />
+              ))}
+            </View>
+          </View>
         </View>
-        <TouchableOpacity style={styles.messageBtn}>
-          <Icon name="chatbubble-ellipses-outline" size={18} color="#000" />
-          <Text style={styles.messageText}>Message</Text>
-        </TouchableOpacity>
-      </View>
 
-      <View style={styles.statsContainer}>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{userProfile.activeListings}</Text>
-          <Text style={styles.statLabel}>Active</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{userProfile.soldListings}</Text>
-          <Text style={styles.statLabel}>Sold</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{userProfile.reviewsCount}</Text>
-          <Text style={styles.statLabel}>Reviews</Text>
-        </View>
-      </View>
+        {/* ↓↓↓ 这整块独立放在 headerRow 外面，才能和头像左边对齐 ↓↓↓ */}
+        <View style={styles.belowBlock}>
+          <View style={styles.activityItem}>
+            <Icon name="flash" size={14} color="#007AFF" />
+            <Text style={styles.activityText}>ACTIVE THIS WEEK</Text>
+          </View>
 
-      {/* Follow and Message Buttons */}
-      <View style={styles.actionButtonsContainer}>
-        <TouchableOpacity 
-          style={[styles.followButton, isFollowing && styles.followButtonFollowing]} 
-          onPress={handleFollowToggle}
-        >
-          <Text style={styles.followButtonText}>
-            {isFollowing ? "Following" : "Follow"}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.messageButton} onPress={handleMessageUser}>
-          <Icon name="mail-outline" size={24} color="#333" />
-        </TouchableOpacity>
+          <View style={styles.activityItem}>
+            <Icon name="diamond" size={14} color="#007AFF" />
+            <Text style={styles.activityText}>{userProfile.soldListings} SOLD</Text>
+          </View>
+
+          {userProfile.bio && <Text style={styles.bioText}>{userProfile.bio}</Text>}
+
+          <View style={styles.socialRow}>
+            <View style={styles.statBlock}>
+              <Text style={styles.statNumber}>{followers}</Text>
+              <Text style={styles.statLabel}>followers</Text>
+            </View>
+            <View style={styles.statBlock}>
+              <Text style={styles.statNumber}>{following}</Text>
+              <Text style={styles.statLabel}>following</Text>
+            </View>
+
+            {/* Follow和Message按钮 - 始终显示，但自己的profile时禁用 */}
+            <TouchableOpacity
+              style={[
+                styles.followBtn, 
+                isFollowing && styles.followBtnActive,
+                isOwnProfile && styles.disabledBtn
+              ]}
+              onPress={isOwnProfile ? undefined : handleFollowToggle}
+              disabled={isOwnProfile}
+            >
+              <Text style={[
+                styles.followBtnText, 
+                isFollowing && styles.followBtnTextActive,
+                isOwnProfile && styles.disabledBtnText
+              ]}>
+                {isFollowing ? "Following" : "Follow"}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.msgBtn, isOwnProfile && styles.disabledBtn]} 
+              onPress={isOwnProfile ? undefined : () => {
+                // 导航到Inbox聊天框
+                const rootNavigation = navigation
+                  .getParent()
+                  ?.getParent() as any;
+                
+                rootNavigation?.navigate("Inbox", {
+                  screen: "Chat",
+                  params: {
+                    sender: userProfile?.username || "User",
+                    kind: "order",
+                    order: null // 没有特定订单，只是一般聊天
+                  }
+                });
+              }}
+              disabled={isOwnProfile}
+            >
+              <Icon 
+                name="mail-outline" 
+                size={24} 
+                color={isOwnProfile ? "#999" : "#F54B3D"} 
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
       <View style={styles.tabs}>
@@ -857,74 +947,122 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   profileSection: {
-    flexDirection: "row",
-    alignItems: "center",
     paddingHorizontal: 16,
     paddingTop: 20,
-    paddingBottom: 12,
-    columnGap: 16,
+    paddingBottom: 16,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 8,
   },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: "#eee",
+    marginRight: 12,
   },
-  profileName: { fontSize: 18, fontWeight: "700", color: "#111" },
-  profileMeta: {
+  nameCol: {
+    height: 70,
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingVertical: 2,
+    flexShrink: 1,
+  },
+  shopName: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111",
+    maxWidth: "100%",
+  },
+  locationRow: {
     flexDirection: "row",
     alignItems: "center",
     columnGap: 4,
   },
-  profileMetaText: {
-    fontSize: 14,
+  locationText: {
+    fontSize: 12,
     color: "#666",
   },
-  messageBtn: {
+  starsRow: {
+    flexDirection: "row",
+    columnGap: 2,
+  },
+  belowBlock: {
+    marginTop: 6,
+  },
+  activityItem: {
     flexDirection: "row",
     alignItems: "center",
     columnGap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#dcdcdc",
+    marginBottom: 6,
   },
-  messageText: {
-    fontSize: 13,
+  activityText: {
+    fontSize: 12,
+    color: "#007AFF",
     fontWeight: "600",
-    color: "#000",
+    letterSpacing: 0.3,
   },
-  statsContainer: {
+  bioText: {
+    fontSize: 14,
+    color: "#333",
+    lineHeight: 20,
+    marginTop: 2,
+    marginBottom: 10,
+  },
+  // Social Row (Depop-style)
+  socialRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
     alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    backgroundColor: "#f9f9f9",
-    borderRadius: 12,
+    justifyContent: "space-between",
+    columnGap: 18,
   },
-  statItem: {
-    flex: 1,
+  statBlock: {
     alignItems: "center",
-    rowGap: 4,
+    justifyContent: "center",
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: "700",
+  statNumber: {
+    fontSize: 15,
+    fontWeight: "600",
     color: "#111",
   },
   statLabel: {
-    fontSize: 12,
-    color: "#777",
-    fontWeight: "500",
+    fontSize: 13,
+    color: "#555",
   },
-  statDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: "#ddd",
+  followBtn: {
+    backgroundColor: "#F54B3D",
+    paddingVertical: 8,
+    paddingHorizontal: 40,
+    borderRadius: 6,
+    minWidth: 140,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  followBtnActive: {
+    backgroundColor: "#999",
+  },
+  followBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  followBtnTextActive: {
+    color: "#fff",
+  },
+  msgBtn: {
+    width: 44,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+  },
+  disabledBtn: {
+    opacity: 0.5,
+  },
+  disabledBtnText: {
+    color: "#999",
   },
   tabs: {
     flexDirection: "row",
@@ -1265,61 +1403,5 @@ const styles = StyleSheet.create({
     marginTop: 12,
     textAlign: "center",
   },
-  errorText: {
-    fontSize: 16,
-    color: "#999",
-    textAlign: "center",
-  },
-  bioText: {
-    fontSize: 14,
-    color: "#333",
-    lineHeight: 20,
-    marginTop: 4,
-  },
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    columnGap: 4,
-    marginTop: 2,
-  },
-  locationText: {
-    fontSize: 13,
-    color: "#666",
-  },
 
-  // Action Buttons
-  actionButtonsContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  followButton: {
-    flex: 1,
-    backgroundColor: "#F54B3D",
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  followButtonFollowing: {
-    backgroundColor: "#666",
-  },
-  followButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  messageButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fff",
-  },
 });
