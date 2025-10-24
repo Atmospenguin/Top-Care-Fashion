@@ -44,6 +44,10 @@ export default function LikesTab() {
   };
 
   const handleItemPress = (likedListing: LikedListing) => {
+    // 调试：查看原始数据
+    console.log('🔍 Debug - Original likedListing:', likedListing);
+    console.log('🔍 Debug - Original seller:', likedListing.listing.seller);
+    
     // 导航到ListingDetailScreen
     const rootNavigation = navigation
       .getParent()
@@ -91,8 +95,13 @@ export default function LikesTab() {
         ...likedListing.listing.seller,
         name: likedListing.listing.seller.username, // 将username转换为name
         avatar: likedListing.listing.seller.avatar_url, // 将avatar_url转换为avatar
+        // 保留id字段用于用户身份验证
       },
     };
+    
+    // 调试：查看转换后的数据
+    console.log('🔍 Debug - Converted listingData:', listingData);
+    console.log('🔍 Debug - Converted seller:', listingData.seller);
     
     rootNavigation?.navigate("Buy", {
       screen: "ListingDetail",

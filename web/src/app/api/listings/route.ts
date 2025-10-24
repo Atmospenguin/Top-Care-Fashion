@@ -158,12 +158,13 @@ export async function GET(req: Request) {
     const formattedListings = listings.map((listing) => {
       const sellerInfo = listing.seller
         ? {
+            id: listing.seller.id,
             name: listing.seller.username,
             avatar: listing.seller.avatar_url ?? "",
             rating: toNumber(listing.seller.average_rating),
             sales: listing.seller.total_reviews ?? 0,
           }
-        : { name: "", avatar: "", rating: 0, sales: 0 };
+        : { id: 0, name: "", avatar: "", rating: 0, sales: 0 };
 
       return {
         id: listing.id.toString(),

@@ -24,6 +24,7 @@ import Icon from "../../../components/Icon";
 import type { BagItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
 import { likesService } from "../../../src/services";
+import { useAuth } from "../../../contexts/AuthContext";
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
@@ -45,6 +46,7 @@ export default function ListingDetailScreen() {
   const {
     params: { item },
   } = useRoute<RouteProp<BuyStackParamList, "ListingDetail">>();
+  const { user } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -56,12 +58,22 @@ export default function ListingDetailScreen() {
   const safeItem = useMemo(() => {
     if (!item) return null;
     
-    return {
+    // 调试：查看原始item数据
+    console.log('🔍 Debug - Original item:', item);
+    console.log('🔍 Debug - Original item.seller:', item.seller);
+    
+    const result = {
       ...item,
       // 兼容处理：优先使用 images，如果没有则使用 imageUrls
       images: Array.isArray(item.images) ? item.images : 
               Array.isArray(item.imageUrls) ? item.imageUrls : [],
     };
+    
+    // 调试：查看转换后的safeItem
+    console.log('🔍 Debug - Converted safeItem:', result);
+    console.log('🔍 Debug - Converted safeItem.seller:', result.seller);
+    
+    return result;
   }, [item]);
 
   const defaultBag = useMemo<BagItem[]>(
@@ -77,10 +89,32 @@ export default function ListingDetailScreen() {
   );
   const shippingFee = 8;
 
+  // 检查是否是自己的商品
+  const isOwnListing = useMemo(() => {
+    console.log('🔍 Debug - Current user:', user);
+    console.log('🔍 Debug - SafeItem seller:', safeItem?.seller);
+    console.log('🔍 Debug - User ID:', user?.id);
+    console.log('🔍 Debug - Seller ID:', safeItem?.seller?.id);
+    console.log('🔍 Debug - User ID type:', typeof user?.id);
+    console.log('🔍 Debug - Seller ID type:', typeof safeItem?.seller?.id);
+    
+    // 确保类型一致进行比较
+    const userId = user?.id ? Number(user.id) : null;
+    const sellerId = safeItem?.seller?.id ? Number(safeItem.seller.id) : null;
+    
+    console.log('🔍 Debug - Converted User ID:', userId);
+    console.log('🔍 Debug - Converted Seller ID:', sellerId);
+    console.log('🔍 Debug - IDs match:', userId && sellerId && userId === sellerId);
+    
+    const result = userId && sellerId && userId === sellerId;
+    console.log('🔍 Debug - isOwnListing result:', result);
+    return result;
+  }, [user, safeItem]);
+
   // 检查Like状态
   useEffect(() => {
     const checkLikeStatus = async () => {
-      if (!safeItem?.id) return;
+      if (!safeItem?.id || isOwnListing) return;
       
       try {
         const liked = await likesService.getLikeStatus(safeItem.id);
@@ -91,11 +125,11 @@ export default function ListingDetailScreen() {
     };
 
     checkLikeStatus();
-  }, [safeItem?.id]);
+  }, [safeItem?.id, isOwnListing]);
 
   // 处理Like按钮点击
   const handleLikeToggle = async () => {
-    if (!safeItem?.id || isLoadingLike) return;
+    if (!safeItem?.id || isLoadingLike || isOwnListing) return;
     
     setIsLoadingLike(true);
     try {
@@ -338,23 +372,24 @@ export default function ListingDetailScreen() {
             </View>
             <TouchableOpacity
               accessibilityRole="button"
-              style={[styles.iconButton, isLiked && styles.iconButtonLiked]}
+              style={[styles.iconButton, isLiked && styles.iconButtonLiked, isOwnListing && styles.iconButtonDisabled]}
               onPress={handleLikeToggle}
-              disabled={isLoadingLike}
+              disabled={isLoadingLike || isOwnListing}
             >
               <Icon 
                 name={isLiked ? "heart" : "heart-outline"} 
                 size={22} 
-                color={isLiked ? "#F54B3D" : "#111"} 
+                color={isOwnListing ? "#999" : (isLiked ? "#F54B3D" : "#111")} 
               />
             </TouchableOpacity>
             {/* Mix & Match chip aligned with like icon and same height */}
             <TouchableOpacity
               accessibilityRole="button"
-              style={styles.mixChipBtn}
-              onPress={() => safeItem && navigation.navigate("MixMatch", { baseItem: safeItem })}
+              style={[styles.mixChipBtn, isOwnListing && styles.mixChipBtnDisabled]}
+              onPress={() => !isOwnListing && safeItem && navigation.navigate("MixMatch", { baseItem: safeItem })}
+              disabled={isOwnListing}
             >
-              <Text style={styles.mixChipText}>Mix & Match</Text>
+              <Text style={[styles.mixChipText, isOwnListing && styles.mixChipTextDisabled]}>Mix & Match</Text>
             </TouchableOpacity>
 
           </View>
@@ -474,25 +509,34 @@ export default function ListingDetailScreen() {
       </ScrollView>
 
       <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={styles.secondaryButton}
-          onPress={() => navigation.navigate("Bag", { items: defaultBag })}
-        >
-          <Icon name="bag-add-outline" size={20} color="#111" />
-          <Text style={styles.secondaryText}>Add to Bag</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={() =>
-            navigation.navigate("Checkout", {
-              items: defaultBag,
-              subtotal,
-              shipping: shippingFee,
-            })
-          }
-        >
-          <Text style={styles.primaryText}>Buy Now</Text>
-        </TouchableOpacity>
+        {!isOwnListing && (
+          <>
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => navigation.navigate("Bag", { items: defaultBag })}
+            >
+              <Icon name="bag-add-outline" size={20} color="#111" />
+              <Text style={styles.secondaryText}>Add to Bag</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() =>
+                navigation.navigate("Checkout", {
+                  items: defaultBag,
+                  subtotal,
+                  shipping: shippingFee,
+                })
+              }
+            >
+              <Text style={styles.primaryText}>Buy Now</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        {isOwnListing && (
+          <View style={styles.ownListingMessage}>
+            <Text style={styles.ownListingText}>This is your own listing</Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -592,6 +636,10 @@ const styles = StyleSheet.create({
     borderColor: "#F54B3D",
     backgroundColor: "#FFF5F5",
   },
+  iconButtonDisabled: {
+    backgroundColor: "#f5f5f5",
+    opacity: 0.6,
+  },
   mixChipBtn: {
     height: 40,
     borderRadius: 20,
@@ -603,6 +651,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   mixChipText: { fontSize: 13, fontWeight: "700", color: "#111" },
+  mixChipBtnDisabled: {
+    backgroundColor: "#f5f5f5",
+    opacity: 0.6,
+  },
+  mixChipTextDisabled: {
+    color: "#999",
+  },
   metaRow: {
     flexDirection: "row",
     columnGap: 12,
@@ -899,5 +954,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     textAlign: "center",
+  },
+  ownListingMessage: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 16,
+  },
+  ownListingText: {
+    fontSize: 16,
+    color: "#666",
+    fontStyle: "italic",
   },
 });

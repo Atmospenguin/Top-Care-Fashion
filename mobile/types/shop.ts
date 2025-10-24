@@ -14,6 +14,7 @@ export type ListingItem = {
   images: string[];
   category?: ListingCategory;
   seller: {
+    id: number;
     name: string;
     avatar: string;
     rating: number;
