@@ -35,6 +35,7 @@ export type {
 export type { 
   Conversation, 
   Message, 
+  ConversationDetail,
   CreateConversationParams, 
   SendMessageParams 
 } from './messagesService';

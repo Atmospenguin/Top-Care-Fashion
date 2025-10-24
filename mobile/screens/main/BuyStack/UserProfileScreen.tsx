@@ -19,6 +19,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
+import ASSETS from "../../../constants/assetUrls";
 import Icon from "../../../components/Icon";
 import FilterModal from "../../../components/FilterModal";
 import { MOCK_LISTINGS } from "../../../mocks/shop";
@@ -583,7 +584,16 @@ export default function UserProfileScreen() {
       <View style={styles.profileSection}>
         {/* 头部：头像 + 右侧(名字/星星) */}
         <View style={styles.headerRow}>
-          <Image source={{ uri: userProfile.avatar_url || avatar }} style={styles.avatar} />
+          <Image 
+            source={
+              userProfile.avatar_url && typeof userProfile.avatar_url === 'string' && userProfile.avatar_url.startsWith('http')
+                ? { uri: userProfile.avatar_url }
+                : avatar && typeof avatar === 'string' && avatar.startsWith('http')
+                ? { uri: avatar }
+                : ASSETS.avatars.default
+            } 
+            style={styles.avatar} 
+          />
           <View style={styles.nameCol}>
             <Text style={styles.shopName}>{userProfile.username}</Text>
             <View style={styles.locationRow}>

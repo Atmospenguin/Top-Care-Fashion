@@ -13,7 +13,7 @@ import HomeScreen from "../HomeStack/HomeScreen";
 import UserProfileScreen from "./UserProfileScreen";
   
 export type BuyStackParamList = {
-  ListingDetail: { item: ListingItem };
+  ListingDetail: { item: ListingItem; isOwnListing?: boolean };
   MixMatch: { baseItem: ListingItem };
   ViewOutfit: {
     baseItem: ListingItem;

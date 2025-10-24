@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { signIn, signUp, signOut, getCurrentUser, forgotPassword, resetPassword } from '../api';
+import { authService } from '../src/services';
 
 // 用户类型定义 (匹配 Web API)
 export interface User {
@@ -60,10 +60,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      const response = await signIn(email, password);
+      const response = await authService.signIn({ email, password });
       
-      if (response.data?.user) {
-        setUser(response.data.user);
+      if (response.user) {
+        setUser(response.user);
       } else {
         throw new Error('Invalid response from server');
       }
@@ -81,10 +81,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      const response = await signUp(username, email, password);
+      const response = await authService.signUp({ username, email, password });
       
-      if (response.data?.user) {
-        setUser(response.data.user);
+      if (response.user) {
+        setUser(response.user);
       } else {
         throw new Error('Invalid response from server');
       }
@@ -100,7 +100,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async () => {
     try {
       setLoading(true);
-      await signOut();
+      await authService.signOut();
     } catch (error) {
       console.error('Error during logout:', error);
     } finally {
@@ -113,7 +113,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const requestPasswordReset = async (email: string) => {
     try {
       setError(null);
-      await forgotPassword(email);
+      await authService.forgotPassword(email);
     } catch (error: any) {
       setError(error.message || 'Failed to send reset email');
       throw error;
@@ -124,7 +124,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const resetPasswordHandler = async (token: string, newPassword: string) => {
     try {
       setError(null);
-      await resetPassword(token, newPassword);
+      await authService.resetPassword(token, newPassword);
     } catch (error: any) {
       setError(error.message || 'Failed to reset password');
       throw error;
@@ -141,14 +141,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const checkAuthStatus = async () => {
       try {
         setLoading(true);
-        const response: any = await getCurrentUser();
-        if (response && response.data && response.data.user) {
-          setUser(response.data.user);
+        const user = await authService.getCurrentUser();
+        if (user) {
+          setUser(user);
         } else {
           setUser(null);
         }
       } catch (error) {
         console.error('Error checking auth status:', error);
+        setUser(null);
       } finally {
         setLoading(false);
       }

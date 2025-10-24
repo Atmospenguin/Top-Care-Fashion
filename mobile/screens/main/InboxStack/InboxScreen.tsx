@@ -9,9 +9,11 @@ import {
   Modal,
   Pressable,
   Animated,
+  Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Swipeable } from "react-native-gesture-handler";
 // Keep SafeAreaView inside Header; avoid double SafeArea padding here
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
@@ -137,6 +139,37 @@ export default function InboxScreen() {
     }
   };
 
+  // 删除对话处理函数
+  const handleDeleteConversation = async (conversationId: string, senderName: string) => {
+    Alert.alert(
+      "Delete Conversation",
+      `Are you sure you want to delete this conversation with ${senderName}?`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              console.log("🗑️ Deleting conversation:", conversationId);
+              await messagesService.deleteConversation(conversationId);
+              console.log("✅ Conversation deleted successfully");
+              
+              // 重新加载对话列表
+              await loadConversations();
+            } catch (error) {
+              console.error("❌ Error deleting conversation:", error);
+              Alert.alert("Error", "Failed to delete conversation. Please try again.");
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // apply filters to the conversations
   useEffect(() => {
     if (filterVisible) {
@@ -211,36 +244,63 @@ export default function InboxScreen() {
         contentContainerStyle={{ padding: 16 }}
         data={filteredThreads}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.messageRow}
-            onPress={() =>
-              navigation.navigate("Chat", {
-                sender: item.sender,
-                kind: item.kind,
-                order: item.order ?? null,
-                conversationId: item.id, // 传递 conversationId
-              })
-            }
-          >
-            {/* Avatar */}
-            <Image 
-              source={
-                item.sender === "TOP Support" 
-                  ? ASSETS.avatars.top 
-                  : (item.avatar || ASSETS.avatars.default)
-              } 
-              style={styles.avatar} 
-            />
-
-            {/* Texts */}
-            <View style={styles.messageText}>
-              <Text style={styles.sender}>{item.sender}</Text>
-              <Text style={styles.message}>{item.message}</Text>
-              <Text style={styles.time}>{item.time}</Text>
+        renderItem={({ item }) => {
+          // 渲染右滑删除按钮
+          const renderRightActions = () => (
+            <View style={styles.rightActions}>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeleteConversation(item.id, item.sender)}
+              >
+                <Icon name="trash" size={20} color="#fff" />
+                <Text style={styles.deleteButtonText}>Delete</Text>
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
-        )}
+          );
+
+          return (
+            <Swipeable renderRightActions={renderRightActions}>
+              <TouchableOpacity
+                style={styles.messageRow}
+                onPress={() =>
+                  navigation.navigate("Chat", {
+                    sender: item.sender,
+                    kind: item.kind,
+                    order: item.order ?? null,
+                    conversationId: item.id, // 传递 conversationId
+                  })
+                }
+              >
+                {/* Avatar with unread indicator */}
+                <View style={styles.avatarContainer}>
+                  <Image 
+                    source={
+                      item.sender === "TOP Support" 
+                        ? ASSETS.avatars.top 
+                        : (item.avatar || ASSETS.avatars.default)
+                    } 
+                    style={styles.avatar} 
+                  />
+                  {/* Unread indicator */}
+                  {item.unread && (
+                    <View style={styles.unreadDot} />
+                  )}
+                </View>
+
+                {/* Texts */}
+                <View style={styles.messageText}>
+                  <Text style={[styles.sender, item.unread && styles.unreadSender]}>
+                    {item.sender}
+                  </Text>
+                  <Text style={[styles.message, item.unread && styles.unreadMessage]}>
+                    {item.message}
+                  </Text>
+                  <Text style={styles.time}>{item.time}</Text>
+                </View>
+              </TouchableOpacity>
+            </Swipeable>
+          );
+        }}
       />
     </View>
   );
@@ -252,16 +312,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 12,
   },
+  avatarContainer: {
+    position: "relative",
+    marginRight: 12,
+  },
   avatar: {
     width: 48,
     height: 48,
     borderRadius: 24, // ✅ 圆形头像
-    marginRight: 12,
+  },
+  unreadDot: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#ff4444",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
   messageText: { flex: 1 },
   sender: { fontWeight: "700", fontSize: 16, marginBottom: 2 },
   message: { fontSize: 14, color: "#333" },
   time: { fontSize: 12, color: "#888", marginTop: 2 },
+  unreadSender: { fontWeight: "800" },
+  unreadMessage: { fontWeight: "600" },
   // modal filter styles
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.12)", justifyContent: "flex-start", alignItems: "flex-end" },
   filterMenu: { backgroundColor: "#fff", borderRadius: 12, marginTop: 56, marginRight: 12, paddingVertical: 8, width: 160, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 },
@@ -269,4 +345,29 @@ const styles = StyleSheet.create({
   filterItemActive: { backgroundColor: "#F2F2F2" },
   filterText: { fontSize: 15, color: "#111" },
   filterTextActive: { color: "#F54B3D", fontWeight: "700" },
+  rightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    backgroundColor: "#ff4444",
+    borderRadius: 10,
+    marginVertical: 4,
+    marginRight: 16,
+  },
+  deleteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: "#ff4444",
+    borderRadius: 10,
+    minWidth: 80,
+  },
+  deleteButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 4,
+  },
 });

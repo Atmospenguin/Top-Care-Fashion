@@ -142,6 +142,10 @@ export async function POST(req: NextRequest) {
       premium_until: true,
       dob: true,
       gender: true,
+      avatar_url: true, // 🔥 添加头像字段
+      bio: true,        // 🔥 添加bio字段
+      phone_number: true, // 🔥 添加电话字段
+      location: true,   // 🔥 添加位置字段
     },
   });
   if (!user) {
@@ -159,6 +163,10 @@ export async function POST(req: NextRequest) {
     gender: user.gender === "MALE" ? "Male" : user.gender === "FEMALE" ? "Female" : null,
     isPremium: Boolean(user.is_premium),
     premiumUntil: user.premium_until ?? null,
+    avatar_url: user.avatar_url,     // 🔥 添加头像字段
+    bio: user.bio,                   // 🔥 添加bio字段
+    phone: user.phone_number,        // 🔥 添加电话字段
+    location: user.location,         // 🔥 添加位置字段
   };
 
   // 3) 关键：稳健获取 session（两步兜底）

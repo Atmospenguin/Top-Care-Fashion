@@ -181,6 +181,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       category: listing.category?.name,
       images: listing.image_urls ? JSON.parse(listing.image_urls as string) : [],
       seller: {
+        id: listing.seller?.id || 0, // 🔥 添加seller ID字段
         name: listing.seller?.username || "Unknown",
         avatar: listing.seller?.avatar_url || "",
         rating: Number(listing.seller?.average_rating) || 0,
@@ -317,6 +318,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       images: updatedListing.image_urls ? JSON.parse(updatedListing.image_urls as string) : 
               (updatedListing.image_url ? [updatedListing.image_url] : []),
       seller: {
+        id: updatedListing.seller?.id || 0, // 🔥 添加seller ID字段
         name: updatedListing.seller?.username || "Unknown",
         avatar: updatedListing.seller?.avatar_url || "",
         rating: Number(updatedListing.seller?.average_rating) || 0,

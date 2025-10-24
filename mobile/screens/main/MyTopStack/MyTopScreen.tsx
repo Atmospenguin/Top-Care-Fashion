@@ -329,7 +329,11 @@ export default function MyTopScreen() {
                 {/* Profile 区 */}
                 <View style={styles.profileRow}>
                   <Image 
-                    source={typeof displayUser.avatar === 'string' && displayUser.avatar.startsWith('http') ? { uri: displayUser.avatar } : displayUser.avatar} 
+                    source={
+                      user?.avatar_url && typeof user.avatar_url === 'string' && user.avatar_url.startsWith('http') 
+                        ? { uri: user.avatar_url } 
+                        : DEFAULT_AVATAR
+                    } 
                     style={styles.avatar} 
                   />
                   <View style={styles.statsRow}>

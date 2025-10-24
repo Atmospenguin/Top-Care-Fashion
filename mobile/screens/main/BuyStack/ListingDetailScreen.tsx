@@ -21,6 +21,7 @@ import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import ASSETS from "../../../constants/assetUrls";
 import type { BagItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
 import { likesService, cartService, messagesService } from "../../../src/services";
@@ -44,7 +45,7 @@ export default function ListingDetailScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
   const {
-    params: { item },
+    params: { item, isOwnListing: isOwnListingParam = false },
   } = useRoute<RouteProp<BuyStackParamList, "ListingDetail">>();
   const { user } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
@@ -67,7 +68,7 @@ export default function ListingDetailScreen() {
       ...item,
       // 兼容处理：优先使用 images，如果没有则使用 imageUrls
       images: Array.isArray(item.images) ? item.images : 
-              Array.isArray(item.imageUrls) ? item.imageUrls : [],
+              Array.isArray((item as any).imageUrls) ? (item as any).imageUrls : [],
     };
     
     // 调试：查看转换后的safeItem
@@ -91,7 +92,7 @@ export default function ListingDetailScreen() {
   const shippingFee = 8;
 
   // 检查是否是自己的商品
-  const isOwnListing = useMemo(() => {
+  const isOwnListingFinalComputed = useMemo(() => {
     console.log('🔍 Debug - Current user:', user);
     console.log('🔍 Debug - SafeItem seller:', safeItem?.seller);
     console.log('🔍 Debug - User ID:', user?.id);
@@ -108,17 +109,20 @@ export default function ListingDetailScreen() {
     console.log('🔍 Debug - IDs match:', userId && sellerId && userId === sellerId);
     
     const result = userId && sellerId && userId === sellerId;
-    console.log('🔍 Debug - isOwnListing result:', result);
+    console.log('🔍 Debug - isOwnListingFinal result:', result);
     return result;
   }, [user, safeItem]);
+  
+  // 🔥 优先使用传入的isOwnListing参数，否则使用计算的结果
+  const isOwnListingFinal = isOwnListingParam || isOwnListingFinalComputed;
 
   // 检查Like状态
   useEffect(() => {
     const checkLikeStatus = async () => {
-      if (!safeItem?.id || isOwnListing) return;
+      if (!safeItem?.id || isOwnListingFinal) return;
       
       try {
-        const liked = await likesService.getLikeStatus(safeItem.id);
+        const liked = await likesService.getLikeStatus(parseInt(safeItem.id));
         setIsLiked(liked);
       } catch (error) {
         console.error('Error checking like status:', error);
@@ -126,15 +130,15 @@ export default function ListingDetailScreen() {
     };
 
     checkLikeStatus();
-  }, [safeItem?.id, isOwnListing]);
+  }, [safeItem?.id, isOwnListingFinal]);
 
   // 处理Like按钮点击
   const handleLikeToggle = async () => {
-    if (!safeItem?.id || isLoadingLike || isOwnListing) return;
+    if (!safeItem?.id || isLoadingLike || isOwnListingFinal) return;
     
     setIsLoadingLike(true);
     try {
-      const newLikedStatus = await likesService.toggleLike(safeItem.id, isLiked);
+      const newLikedStatus = await likesService.toggleLike(parseInt(safeItem.id), isLiked);
       setIsLiked(newLikedStatus);
     } catch (error) {
       console.error('Error toggling like:', error);
@@ -146,7 +150,7 @@ export default function ListingDetailScreen() {
 
   // 处理Add to Cart按钮点击
   const handleAddToCart = async () => {
-    if (!safeItem?.id || isAddingToCart || isOwnListing) return;
+    if (!safeItem?.id || isAddingToCart || isOwnListingFinal) return;
     
     setIsAddingToCart(true);
     try {
@@ -364,7 +368,7 @@ export default function ListingDetailScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.imageCarousel}
         >
-          {(safeItem?.images?.filter(img => img && typeof img === 'string') || []).map((uri: string, index: number) => (
+          {(safeItem?.images?.filter((img: any) => img && typeof img === 'string') || []).map((uri: string, index: number) => (
             <Image
               key={`${safeItem.id}-${index}`}
               source={{ uri }}
@@ -373,7 +377,7 @@ export default function ListingDetailScreen() {
             />
           ))}
           {/* 如果没有有效图片，显示默认图片 */}
-          {(!safeItem?.images || safeItem.images.length === 0 || !safeItem.images.some(img => img && typeof img === 'string')) && (
+          {(!safeItem?.images || safeItem.images.length === 0 || !safeItem.images.some((img: any) => img && typeof img === 'string')) && (
             <Image
               source={{ uri: "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image" }}
               style={styles.image}
@@ -389,24 +393,28 @@ export default function ListingDetailScreen() {
             </View>
             <TouchableOpacity
               accessibilityRole="button"
-              style={[styles.iconButton, isLiked && styles.iconButtonLiked, isOwnListing && styles.iconButtonDisabled]}
+              style={[
+                styles.iconButton, 
+                isLiked ? styles.iconButtonLiked : null, 
+                isOwnListingFinal ? styles.iconButtonDisabled : null
+              ]}
               onPress={handleLikeToggle}
-              disabled={isLoadingLike || isOwnListing}
+              disabled={Boolean(isLoadingLike || isOwnListingFinal)}
             >
               <Icon 
                 name={isLiked ? "heart" : "heart-outline"} 
                 size={22} 
-                color={isOwnListing ? "#999" : (isLiked ? "#F54B3D" : "#111")} 
+                color={isOwnListingFinal ? "#999" : (isLiked ? "#F54B3D" : "#111")} 
               />
             </TouchableOpacity>
             {/* Mix & Match chip aligned with like icon and same height */}
             <TouchableOpacity
               accessibilityRole="button"
-              style={[styles.mixChipBtn, isOwnListing && styles.mixChipBtnDisabled]}
-              onPress={() => !isOwnListing && safeItem && navigation.navigate("MixMatch", { baseItem: safeItem })}
-              disabled={isOwnListing}
+              style={[styles.mixChipBtn, isOwnListingFinal ? styles.mixChipBtnDisabled : null]}
+              onPress={() => !isOwnListingFinal && safeItem && navigation.navigate("MixMatch", { baseItem: safeItem })}
+              disabled={Boolean(isOwnListingFinal)}
             >
-              <Text style={[styles.mixChipText, isOwnListing && styles.mixChipTextDisabled]}>Mix & Match</Text>
+              <Text style={[styles.mixChipText, isOwnListingFinal ? styles.mixChipTextDisabled : null]}>Mix & Match</Text>
             </TouchableOpacity>
 
           </View>
@@ -466,7 +474,11 @@ export default function ListingDetailScreen() {
               }
             >
               <Image 
-                source={{ uri: safeItem?.seller?.avatar && safeItem.seller.avatar.trim() !== '' ? safeItem.seller.avatar : undefined }} 
+                source={
+                  safeItem?.seller?.avatar && typeof safeItem.seller.avatar === 'string' && safeItem.seller.avatar.trim() !== '' && safeItem.seller.avatar.startsWith('http')
+                    ? { uri: safeItem.seller.avatar }
+                    : ASSETS.avatars.default
+                } 
                 style={styles.sellerAvatar} 
               />
               <View style={{ flex: 1 }}>
@@ -488,18 +500,36 @@ export default function ListingDetailScreen() {
                 console.log("🔍 messagesService:", messagesService);
                 console.log("🔍 messagesService methods:", Object.getOwnPropertyNames(Object.getPrototypeOf(messagesService)));
                 
-                if (!safeItem?.seller?.id) {
-                  console.log("❌ No seller ID found!");
-                  Alert.alert("Error", "Unable to find seller information");
+                // 🔥 确保seller ID和listing ID都是有效的数字
+                const sellerId = safeItem?.seller?.id ? Number(safeItem.seller.id) : null;
+                const listingId = safeItem?.id ? parseInt(safeItem.id) : null;
+                
+                console.log("🔍 Seller ID:", sellerId, "Type:", typeof sellerId);
+                console.log("🔍 Listing ID:", listingId, "Type:", typeof listingId);
+                
+                if (!sellerId || isNaN(sellerId) || !listingId || isNaN(listingId)) {
+                  console.log("❌ Invalid seller ID or listing ID!");
+                  console.log("❌ Seller ID:", sellerId, "Listing ID:", listingId);
+                  Alert.alert("Error", "Unable to find seller or listing information");
                   return;
                 }
                 
                 try {
                   // 创建或获取与卖家的对话
                   console.log("🔍 Creating conversation with seller...");
+                  console.log("🔍 SafeItem details:", {
+                    id: safeItem.id,
+                    title: safeItem.title,
+                    seller: safeItem.seller
+                  });
+                  console.log("🔍 Final parameters:", {
+                    sellerId,
+                    listingId
+                  });
+                  
                   const conversation = await messagesService.getOrCreateSellerConversation(
-                    safeItem.seller.id,
-                    safeItem.id
+                    sellerId,
+                    listingId
                   );
                   
                   console.log("✅ Conversation created/found:", conversation);
@@ -605,7 +635,7 @@ export default function ListingDetailScreen() {
       </ScrollView>
 
       <View style={styles.bottomBar}>
-        {!isOwnListing && (
+        {!isOwnListingFinal && (
           <>
             <TouchableOpacity
               style={[styles.secondaryButton, isAddingToCart && styles.secondaryButtonDisabled]}
@@ -631,7 +661,7 @@ export default function ListingDetailScreen() {
             </TouchableOpacity>
           </>
         )}
-        {isOwnListing && (
+        {isOwnListingFinal && (
           <View style={styles.ownListingMessage}>
             <Text style={styles.ownListingText}>This is your own listing</Text>
           </View>

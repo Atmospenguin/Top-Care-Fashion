@@ -197,7 +197,13 @@ export async function GET(
             price: true,
             image_url: true,
             image_urls: true,
-            size: true
+            size: true,
+            description: true,
+            brand: true,
+            condition_type: true,
+            material: true,
+            gender: true,
+            tags: true
           }
         }
       }
@@ -254,6 +260,38 @@ export async function GET(
       }
     }));
 
+    const otherUser = conversation.initiator_id === dbUser.id ? conversation.participant : conversation.initiator;
+    
+    // 🔥 修复：正确判断买家卖家身份
+    // 在订单对话中，initiator 是买家（发起聊天的人），participant 是卖家（被联系的人）
+    const buyer = conversation.initiator;
+    const seller = conversation.participant;
+    
+    // 🔍 调试：查看listing数据
+    console.log("🔍 Listing data:", {
+      id: conversation.listing?.id,
+      name: conversation.listing?.name,
+      image_url: conversation.listing?.image_url,
+      image_urls: conversation.listing?.image_urls,
+      image_urls_type: typeof conversation.listing?.image_urls,
+      image_urls_length: Array.isArray(conversation.listing?.image_urls) ? conversation.listing.image_urls.length : "not array",
+      final_image: conversation.listing ? ((conversation.listing.image_urls as any)?.[0] || conversation.listing.image_url || "https://via.placeholder.com/64x64/f0f0f0/999999?text=No+Image") : "No listing"
+    });
+    
+    // 🔍 调试：检查conversation是否有listing
+    console.log("🔍 Conversation has listing:", !!conversation.listing);
+    console.log("🔍 Conversation listing_id:", conversation.listing_id);
+    
+    // 🔍 调试：查看conversation数据
+    console.log("🔍 Conversation data:", {
+      initiator_id: conversation.initiator_id,
+      participant_id: conversation.participant_id,
+      initiator_username: conversation.initiator.username,
+      participant_username: conversation.participant.username,
+      current_user_id: dbUser.id,
+      current_user_username: dbUser.username
+    });
+    
     // 添加订单卡片（如果是订单对话）
     const orderCard = conversation.listing ? {
       id: "order-card",
@@ -264,19 +302,46 @@ export async function GET(
           title: conversation.listing.name,
           price: Number(conversation.listing.price),
           size: conversation.listing.size,
-          image: conversation.listing.image_url || (conversation.listing.image_urls as any)?.[0] || null
+image: (() => {
+            // 🔥 处理image_urls字段 - 可能是JSON字符串或数组
+            let imageUrls = conversation.listing.image_urls;
+            if (typeof imageUrls === 'string') {
+              try {
+                imageUrls = JSON.parse(imageUrls);
+              } catch (e) {
+                imageUrls = null;
+              }
+            }
+            
+            if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+              return imageUrls[0];
+            }
+            
+            if (conversation.listing.image_url) {
+              return conversation.listing.image_url;
+            }
+            
+            return "https://via.placeholder.com/64x64/f0f0f0/999999?text=No+Image";
+          })()
         },
-        seller: { name: conversation.initiator.username },
-        status: "Active"
+        seller: { 
+          name: seller.username,
+          avatar: seller.avatar_url
+        },
+        buyer: {
+          name: buyer.username,
+          avatar: buyer.avatar_url
+        },
+        status: "Inquiry"
       }
     } : null;
-
-    const otherUser = conversation.initiator_id === dbUser.id ? conversation.participant : conversation.initiator;
 
     return NextResponse.json({
       conversation: {
         id: conversation.id,
         type: conversation.type,
+        initiator_id: conversation.initiator_id, // 🔥 添加initiator_id字段
+        participant_id: conversation.participant_id, // 🔥 添加participant_id字段
         otherUser: {
           id: otherUser.id,
           username: otherUser.username,
@@ -290,15 +355,35 @@ export async function GET(
           title: conversation.listing.name,
           price: Number(conversation.listing.price),
           size: conversation.listing.size,
-          image: conversation.listing.image_url || (conversation.listing.image_urls as any)?.[0] || null
+image: (() => {
+            // 🔥 处理image_urls字段 - 可能是JSON字符串或数组
+            let imageUrls = conversation.listing.image_urls;
+            if (typeof imageUrls === 'string') {
+              try {
+                imageUrls = JSON.parse(imageUrls);
+              } catch (e) {
+                imageUrls = null;
+              }
+            }
+            
+            if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+              return imageUrls[0];
+            }
+            
+            if (conversation.listing.image_url) {
+              return conversation.listing.image_url;
+            }
+            
+            return "https://via.placeholder.com/64x64/f0f0f0/999999?text=No+Image";
+          })()
         },
         seller: { 
-          name: conversation.initiator.username,
-          avatar: conversation.initiator.avatar_url
+          name: seller.username,
+          avatar: seller.avatar_url
         },
         buyer: {
-          name: otherUser.username,
-          avatar: otherUser.avatar_url
+          name: buyer.username,
+          avatar: buyer.avatar_url
         },
         status: "Inquiry"
       } : null

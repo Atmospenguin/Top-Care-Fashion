@@ -43,14 +43,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // 获取用户的所有对话
+    // 获取用户的所有对话（只显示ACTIVE状态的对话）
     const conversations = await prisma.conversations.findMany({
       where: {
         OR: [
           { initiator_id: dbUser.id },
           { participant_id: dbUser.id }
         ],
-        status: "ACTIVE"
+        status: "ACTIVE" // 🔥 只显示活跃的对话，已归档的不显示
       },
       include: {
         initiator: {
@@ -247,20 +247,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const { participant_id, listing_id, type = "ORDER" } = await request.json();
+    const requestBody = await request.json();
+    console.log("🔍 Request body:", requestBody);
+    
+    const { participant_id, listing_id, type = "ORDER" } = requestBody;
 
-    // 🔥 检查是否已存在对话（双向匹配 + 类型匹配）
+    // 🔥 详细的参数验证
+    if (!participant_id) {
+      console.error("❌ Missing participant_id:", participant_id);
+      return NextResponse.json({ error: "Missing participant_id" }, { status: 400 });
+    }
+    
+    // 🔥 对于ORDER类型的对话，listing_id是必需的；对于GENERAL类型，listing_id是可选的
+    if (type === 'ORDER' && !listing_id) {
+      console.error("❌ Missing listing_id for ORDER conversation:", listing_id);
+      return NextResponse.json({ error: "Missing listing_id for ORDER conversation" }, { status: 400 });
+    }
+
+    console.log("🔍 Creating conversation with params:", {
+      participant_id,
+      listing_id,
+      type,
+      current_user_id: dbUser.id
+    });
+
+    // 🔥 检查是否已存在对话（双向匹配 + 类型匹配 + listing_id 匹配）
     const existingConversation = await prisma.conversations.findFirst({
       where: {
         OR: [
           {
             initiator_id: dbUser.id,
             participant_id: participant_id,
+            listing_id: listing_id || null,
             type: type as "ORDER" | "SUPPORT" | "GENERAL"
           },
           {
             initiator_id: participant_id,
             participant_id: dbUser.id,
+            listing_id: listing_id || null,
             type: type as "ORDER" | "SUPPORT" | "GENERAL"
           }
         ]
@@ -341,6 +365,125 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error("Error creating conversation:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// DELETE /api/conversations - 删除对话
+export async function DELETE(request: NextRequest) {
+  console.log("🔥 DELETE endpoint called - this should appear in server logs");
+  
+  try {
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.log("❌ No auth header");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const token = authHeader.substring(7);
+    console.log("🔍 Token received:", token.substring(0, 10) + "...");
+    
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      console.log("❌ Auth error:", authError);
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
+
+    console.log("🔍 User authenticated:", user.id);
+
+    const dbUser = await prisma.users.findUnique({
+      where: { supabase_user_id: user.id },
+      select: { id: true }
+    });
+
+    if (!dbUser) {
+      console.log("❌ DB user not found");
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    console.log("🔍 DB user found:", dbUser.id);
+
+    const requestBody = await request.json();
+    console.log("🔍 Request body:", requestBody);
+    
+    const { conversationId } = requestBody;
+    
+    if (!conversationId) {
+      console.error("❌ Missing conversationId:", conversationId);
+      return NextResponse.json({ error: "Missing conversationId" }, { status: 400 });
+    }
+
+    console.log("🗑️ Deleting conversation:", conversationId, "for user:", dbUser.id);
+    console.log("🔍 ConversationId type:", typeof conversationId);
+    console.log("🔍 Parsed conversationId:", parseInt(conversationId));
+
+    // 验证对话是否属于当前用户
+    const conversation = await prisma.conversations.findFirst({
+      where: {
+        id: parseInt(conversationId),
+        OR: [
+          { initiator_id: dbUser.id },
+          { participant_id: dbUser.id }
+        ]
+      },
+      include: {
+        messages: {
+          select: { id: true }
+        }
+      }
+    });
+
+    if (!conversation) {
+      console.log("❌ Conversation not found or not owned by user");
+      return NextResponse.json({ error: "Conversation not found or not owned by user" }, { status: 404 });
+    }
+
+    console.log("🔍 Found conversation with", conversation.messages.length, "messages");
+
+    try {
+      // 🔥 使用硬删除：真正删除对话和消息
+      console.log("🗑️ Hard deleting conversation and messages");
+      
+      // 使用事务来确保数据一致性
+      await prisma.$transaction(async (tx) => {
+        // 先删除所有相关消息
+        console.log("🗑️ Deleting all messages for conversation:", conversationId);
+        await tx.messages.deleteMany({
+          where: { conversation_id: parseInt(conversationId) }
+        });
+
+        // 然后删除对话
+        console.log("🗑️ Deleting conversation:", conversationId);
+        await tx.conversations.delete({
+          where: { id: parseInt(conversationId) }
+        });
+      });
+
+      console.log("✅ Conversation and messages hard deleted successfully:", conversationId);
+    } catch (dbError) {
+      console.error("❌ Database error during hard deletion:", dbError);
+      console.error("❌ Error details:", {
+        message: dbError instanceof Error ? dbError.message : 'Unknown error',
+        stack: dbError instanceof Error ? dbError.stack : undefined,
+        conversationId: conversationId,
+        parsedId: parseInt(conversationId)
+      });
+      
+      // 🔥 返回更详细的错误信息
+      return NextResponse.json({ 
+        error: "Database deletion failed", 
+        details: dbError instanceof Error ? dbError.message : 'Unknown error',
+        conversationId: conversationId
+      }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Conversation deleted successfully"
+    });
+
+  } catch (error) {
+    console.error("Error deleting conversation:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

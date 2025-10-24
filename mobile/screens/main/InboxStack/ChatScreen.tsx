@@ -9,6 +9,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -399,6 +400,18 @@ export default function ChatScreen() {
 
   // —— UI 组件 —— //
   const renderOrderCard = (o: Order) => {
+    // 🔥 修复：正确判断当前用户是否为卖家
+    // 在订单对话中，initiator 是买家，participant 是卖家
+    // 如果当前用户ID等于participant_id，则当前用户是卖家
+    const isSeller = (conversation?.conversation as any)?.participant_id === user?.id;
+    
+    console.log("🔍 Order card - isSeller:", isSeller);
+    console.log("🔍 Order card - conversation participant_id:", (conversation?.conversation as any)?.participant_id);
+    console.log("🔍 Order card - current user id:", user?.id);
+    console.log("🔍 Order card - current user username:", user?.username);
+    console.log("🔍 Order card - order seller:", o.seller.name);
+    console.log("🔍 Order card - order buyer:", o.buyer?.name);
+
     const handleBuyNow = () => {
       console.log("🛒 Buy Now button pressed for order:", o.id);
       // 导航到购买页面
@@ -441,10 +454,91 @@ export default function ChatScreen() {
       }
     };
 
+    const handleCardPress = async () => {
+      console.log("🔍 Order card pressed, navigating to ListingDetail");
+      console.log("🔍 Order ID:", o.id);
+      console.log("🔍 Product image:", o.product.image);
+      console.log("🔍 Current user is seller:", isSeller);
+      
+      try {
+        // 🔥 获取完整的listing数据
+        const response = await fetch(`http://192.168.0.79:3000/api/listings/${o.id}`);
+        const listingData = await response.json();
+        console.log("🔍 Fetched listing data:", listingData);
+        
+        // 🔥 转换数据格式以匹配ListingItem
+        const listingItem = {
+          id: listingData.listing?.id?.toString() || o.id,
+          title: listingData.listing?.title || o.product.title,
+          price: Number(listingData.listing?.price) || o.product.price,
+          description: listingData.listing?.description || `Size: ${o.product.size || 'One Size'}`,
+          brand: listingData.listing?.brand || "Brand",
+          size: listingData.listing?.size || o.product.size || "One Size",
+          condition: listingData.listing?.condition || "Good",
+          material: listingData.listing?.material || "Mixed",
+          gender: listingData.listing?.gender || "unisex",
+          tags: listingData.listing?.tags || [],
+          images: Array.isArray(listingData.listing?.images) ? listingData.listing.images : 
+                 listingData.listing?.image_url ? [listingData.listing.image_url] : 
+                 o.product.image ? [o.product.image] : [],
+          category: listingData.listing?.category?.toLowerCase() || "top",
+          seller: {
+            id: listingData.listing?.seller?.id || 0,
+            name: listingData.listing?.seller?.name || o.seller.name,
+            avatar: listingData.listing?.seller?.avatar || o.seller.avatar || "",
+            rating: listingData.listing?.seller?.rating || 5.0,
+            sales: listingData.listing?.seller?.sales || 0
+          }
+        };
+        
+        console.log("🔍 Converted listingItem:", listingItem);
+        
+        // 🔥 根据是否是自己的listing决定跳转逻辑
+        const rootNavigation = (navigation as any).getParent?.();
+        if (rootNavigation) {
+          // 🔥 判断是否是自己的listing：比较当前用户ID和listing的seller ID
+          const isOwnListing = user?.id && listingData.listing?.seller?.id && 
+                               Number(user.id) === Number(listingData.listing.seller.id);
+          
+          console.log("🔍 Is own listing:", isOwnListing);
+          console.log("🔍 Current user ID:", user?.id);
+          console.log("🔍 Listing seller ID:", listingData.listing?.seller?.id);
+          
+          if (isOwnListing) {
+            // 🔥 自己的listing：跳转到ListingDetail页面但显示卖家视角（没有购买按钮）
+            console.log("🔍 Navigating to own listing detail");
+            rootNavigation.navigate("Buy", {
+              screen: "ListingDetail",
+              params: {
+                item: listingItem,
+                isOwnListing: true // 🔥 传递标记表示这是自己的listing
+              }
+            });
+          } else {
+            // 🔥 别人的listing：跳转到购买页面
+            console.log("🔍 Navigating to purchase listing");
+            rootNavigation.navigate("Buy", {
+              screen: "ListingDetail",
+              params: {
+                item: listingItem
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error("❌ Error fetching listing:", error);
+        Alert.alert("Error", "Failed to load listing details");
+      }
+    };
+
     return (
-      <View style={styles.orderCard}>
+      <TouchableOpacity 
+        style={styles.orderCard}
+        onPress={handleCardPress}
+        activeOpacity={0.8}
+      >
         <Image 
-          source={{ uri: o.product.image || "https://via.placeholder.com/64" }} 
+          source={{ uri: o.product.image || "https://via.placeholder.com/64x64/f0f0f0/999999?text=No+Image" }} 
           style={styles.orderThumb} 
         />
         <View style={styles.orderContent}>
@@ -456,28 +550,32 @@ export default function ChatScreen() {
             {o.product.size ? ` · Size ${o.product.size}` : ""}
           </Text>
           <Text style={styles.orderMeta}>
-            {sender === "buyer002"
-              ? `Purchased by ${o?.buyer?.name ?? "Buyer"}`
+            {isSeller
+              ? `Inquiry from ${o?.buyer?.name ?? "Buyer"}`
               : `Sold by ${o?.seller?.name ?? "Seller"}`}
           </Text>
           <Text style={styles.orderStatus}>Status: {o.status}</Text>
         </View>
         <View style={styles.orderActions}>
-          {o.status !== "Delivered" && o.status !== "Completed" && o.status !== "Shipped" ? (
-            <TouchableOpacity 
-              style={styles.buyButton}
-              onPress={handleBuyNow}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.buyButtonText}>Buy Now</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.statusBadge}>
-              <Text style={styles.statusBadgeText}>{o.status}</Text>
-            </View>
+          {/* 🔥 卖家不显示任何按钮或状态徽章 */}
+          {!isSeller && (
+            /* 🔥 买家在Inquiry状态下显示 Buy Now 按钮 */
+            o.status === "Inquiry" ? (
+              <TouchableOpacity 
+                style={styles.buyButton}
+                onPress={handleBuyNow}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.buyButtonText}>Buy Now</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.statusBadge}>
+                <Text style={styles.statusBadgeText}>{o.status}</Text>
+              </View>
+            )
           )}
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -580,14 +678,14 @@ export default function ChatScreen() {
             <View style={{ marginBottom: 12 }}>
               {item.time ? <Text style={styles.time}>{item.time}</Text> : null}
               <View style={[styles.messageRow, item.sender === "me" && { justifyContent: "flex-end" }]}>
-                {/* 对方头像：TOP Support 用 TOP 头像；否则用默认 */}
+                {/* 🔥 对方头像：优先使用 senderInfo.avatar，否则使用默认头像 */}
                 {item.sender !== "me" && (
                   <Image
                     source={
                       sender === "TOP Support"
                         ? ASSETS.avatars.top
-                        : sender === "seller111"
-                        ? { uri: "https://i.pravatar.cc/100?img=12" }
+                        : item.senderInfo?.avatar 
+                        ? { uri: item.senderInfo.avatar }
                         : ASSETS.avatars.default
                     }
                     style={[styles.avatar, { marginRight: 6 }]}

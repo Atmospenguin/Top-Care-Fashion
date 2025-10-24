@@ -50,6 +50,8 @@ export interface ConversationDetail {
   conversation: {
     id: number;
     type: string;
+    initiator_id?: number; // 🔥 添加initiator_id字段
+    participant_id?: number; // 🔥 添加participant_id字段
     otherUser: {
       id: number;
       username: string;
@@ -129,6 +131,23 @@ class MessagesService {
       return response.data.message;
     } catch (error) {
       console.error('Error sending message:', error);
+      throw error;
+    }
+  }
+
+  // 删除对话
+  async deleteConversation(conversationId: string): Promise<void> {
+    try {
+      console.log('🗑️ Frontend: Deleting conversation:', conversationId);
+      console.log('🗑️ Frontend: ConversationId type:', typeof conversationId);
+      
+      const response = await apiClient.delete('/api/conversations', {
+        data: { conversationId }
+      });
+      
+      console.log('✅ Frontend: Delete response:', response);
+    } catch (error) {
+      console.error('❌ Frontend: Error deleting conversation:', error);
       throw error;
     }
   }

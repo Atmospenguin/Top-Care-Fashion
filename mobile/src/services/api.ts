@@ -209,10 +209,17 @@ class ApiClient {
   }
 
   // DELETE 请求
-  async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, {
+  async delete<T>(endpoint: string, options?: { data?: any }): Promise<ApiResponse<T>> {
+    const requestOptions: RequestInit = {
       method: 'DELETE',
-    });
+    };
+
+    // 如果有数据，添加到请求体中
+    if (options?.data) {
+      requestOptions.body = JSON.stringify(options.data);
+    }
+
+    return this.request<T>(endpoint, requestOptions);
   }
 }
 
