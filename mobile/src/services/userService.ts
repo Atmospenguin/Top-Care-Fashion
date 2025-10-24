@@ -32,6 +32,8 @@ export interface UpdateProfileRequest {
   location?: string | null;
   dob?: string | null;
   gender?: "Male" | "Female" | null;
+  preferredStyles?: string[] | null;
+  preferredSizes?: { top?: string | null; bottom?: string | null; shoe?: string | null } | null;
 }
 
 export class UserService {
