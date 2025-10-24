@@ -26,16 +26,7 @@ import { listingsService } from "../../../src/services/listingsService";
 import type { ListingItem } from "../../../types/shop";
 
 /** --- Options --- */
-const CATEGORY_OPTIONS = [
-  "Tops",
-  "Bottoms",
-  "Shoes",
-  "Bags",
-  "Accessories",
-  "Outerwear",
-  "Dresses",
-  "Others",
-];
+const CATEGORY_OPTIONS = ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"];
 const CONDITION_OPTIONS = ["Brand New", "Like new", "Good", "Fair", "Poor"];
 const SIZE_OPTIONS_CLOTHES = [
   "XXS",

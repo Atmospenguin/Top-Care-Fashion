@@ -22,7 +22,15 @@ import type { BuyStackParamList } from "./index";
 type SearchResultRoute = RouteProp<BuyStackParamList, "SearchResult">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
 
-const MAIN_CATEGORIES = ["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"] as const;
+// App-wide main categories (match Sell screen and backend categories)
+const MAIN_CATEGORIES = [
+  "All",
+  "Accessories",
+  "Bottoms",
+  "Footwear",
+  "Outerwear",
+  "Tops",
+] as const;
 const SIZES = ["All", "My Size", "XS", "S", "M", "L", "XL", "XXL"] as const;
 const CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
@@ -30,7 +38,7 @@ const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as con
 export default function SearchResultScreen() {
   const navigation = useNavigation<BuyNavigation>();
   const {
-    params: { query },
+    params: { query, gender },
   } = useRoute<SearchResultRoute>();
 
   const [filterModalVisible, setFilterModalVisible] = useState(false);
@@ -59,18 +67,29 @@ export default function SearchResultScreen() {
 
   const [apiListings, setApiListings] = useState<ListingItem[]>([]);
 
+  const normalizedQuery = (query ?? "").trim();
+  const lowerQuery = normalizedQuery.toLowerCase();
+  const normalizedGender = gender ? gender.toLowerCase() : undefined;
+  const isMainCategoryQuery = useMemo(() => {
+    if (!normalizedQuery) return false;
+    return (MAIN_CATEGORIES as readonly string[]).some(
+      (cat) => cat.toLowerCase() === lowerQuery && cat.toLowerCase() !== "all"
+    );
+  }, [lowerQuery, normalizedQuery]);
+
   useEffect(() => {
     let mounted = true;
     // 初次加载：携带查询词到后端，提升召回率
     const params: any = { limit: 40 };
-    if (query && query.trim()) {
-      const q = query.trim();
-      const isMain = (MAIN_CATEGORIES as readonly string[]).some((c) => c.toLowerCase() === q.toLowerCase());
-      if (isMain) {
-        params.category = q;
+    if (normalizedQuery) {
+      if (isMainCategoryQuery) {
+        params.category = normalizedQuery;
       } else {
-        params.search = q;
+        params.search = normalizedQuery;
       }
+    }
+    if (normalizedGender) {
+      params.gender = normalizedGender;
     }
     fetchListings(params)
       .then((items) => {
@@ -83,41 +102,87 @@ export default function SearchResultScreen() {
             price: Number(it.price ?? 0),
             size: String(it.size ?? "M"),
             condition: String(it.condition ?? "Good"),
-            category: String(it.category ?? "top"),
+            description: String(it.description ?? ""),
+            brand: String(it.brand ?? ""),
+            category: String(it.category ?? "Tops"),
+            material: it.material ? String(it.material) : undefined,
+            gender:
+              typeof it.gender === "string"
+                ? it.gender
+                : typeof it.gender === "object" && typeof it.gender?.value === "string"
+                ? it.gender.value
+                : undefined,
+            tags: Array.isArray(it.tags)
+              ? it.tags
+              : typeof it.tags === "string"
+              ? (() => {
+                  try {
+                    const parsed = JSON.parse(it.tags);
+                    if (Array.isArray(parsed)) {
+                      return parsed;
+                    }
+                  } catch {
+                    // fall through to comma split
+                  }
+                  return it.tags
+                    .split(",")
+                    .map((tag: string) => tag.trim())
+                    .filter(Boolean);
+                })()
+              : [],
             images: Array.isArray(it.images) && it.images.length > 0 ? it.images : [
               typeof it.image === "string" ? it.image : "https://via.placeholder.com/512"
             ],
-            seller: it.seller ?? { id: "api", name: "Seller" },
+            seller: {
+              name: it.seller?.name ?? "Seller",
+              avatar: it.seller?.avatar ?? "",
+              rating: Number(it.seller?.rating ?? 0),
+              sales: Number(it.seller?.sales ?? 0),
+            },
             location: it.location ?? "",
             shippingOption: it.shippingOption ?? null,
             shippingFee: typeof it.shippingFee === 'number' ? it.shippingFee : (it.shippingFee ? Number(it.shippingFee) : null),
+            likesCount:
+              typeof it.likesCount === "number"
+                ? it.likesCount
+                : typeof it.likes === "number"
+                ? it.likes
+                : Number(it.likes ?? 0),
+            createdAt: typeof it.createdAt === "string" ? it.createdAt : undefined,
+            updatedAt: typeof it.updatedAt === "string" ? it.updatedAt : undefined,
           })) as ListingItem[]
         );
       })
       .catch(() => setApiListings([]));
-      return () => {
-        mounted = false;
-      };
-  }, [query]);
+
+    return () => {
+      mounted = false;
+    };
+  }, [isMainCategoryQuery, normalizedGender, normalizedQuery]);
 
   const sourceListings = apiListings;
 
   const filteredListings = useMemo(() => {
-    // 基础过滤：按标题与品牌匹配查询词
-    const q = (query || '').toLowerCase();
-    let results = sourceListings.filter((item) =>
-      item.title.toLowerCase().includes(q) || (item.brand || '').toLowerCase().includes(q)
-    );
+    let results = sourceListings;
+
+    if (normalizedQuery && !isMainCategoryQuery) {
+      results = results.filter((item) =>
+        item.title.toLowerCase().includes(lowerQuery) ||
+        (item.brand || "").toLowerCase().includes(lowerQuery)
+      );
+    }
+
+    if (normalizedGender) {
+      results = results.filter(
+        (item) => (item.gender || "").toLowerCase() === normalizedGender
+      );
+    }
 
     if (selectedCategory !== "All") {
-      results = results.filter((item) => {
-        const categoryLower = selectedCategory.toLowerCase();
-        if (categoryLower === "tops") return item.category === "top";
-        if (categoryLower === "bottoms") return item.category === "bottom";
-        if (categoryLower === "footwear") return item.category === "shoe";
-        if (categoryLower === "accessories") return item.category === "accessory";
-        return true;
-      });
+      const categoryLower = selectedCategory.toLowerCase();
+      results = results.filter(
+        (item) => (item.category || "").toLowerCase() === categoryLower
+      );
     }
 
     if (selectedSize !== "All") {
@@ -150,7 +215,7 @@ export default function SearchResultScreen() {
     // Latest is the default order
 
     return results;
-  }, [query, selectedCategory, selectedSize, selectedCondition, minPrice, maxPrice, sortBy, sourceListings]);
+  }, [isMainCategoryQuery, lowerQuery, normalizedGender, normalizedQuery, selectedCategory, selectedSize, selectedCondition, minPrice, maxPrice, sortBy, sourceListings]);
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;

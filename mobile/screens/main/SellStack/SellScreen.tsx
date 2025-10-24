@@ -23,7 +23,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { SellStackParamList } from "./SellStackNavigator";
 import { listingsService, type CreateListingRequest } from "../../../src/services/listingsService";
 /** --- Options --- */
-const CATEGORY_OPTIONS = ["Tops", "Bottoms", "Shoes", "Bags", "Accessories", "Outerwear", "Dresses", "Others"];
+const CATEGORY_OPTIONS = ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"];
 const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "Others"];
 const CONDITION_OPTIONS = ["Brand New", "Like new", "Good", "Fair", "Poor"];
 const GENDER_OPTIONS = ["Men", "Women", "Unisex"];
@@ -64,14 +64,6 @@ const SIZE_OPTIONS_ACCESSORIES = [
   "Other",
 ];
 
-const SIZE_OPTIONS_BAGS = [
-  "N/A",
-  "Small",
-  "Medium",
-  "Large",
-  "Extra Large",
-  "Other",
-];
 const MATERIAL_OPTIONS = [
   "Cotton",
   "Polyester",
@@ -712,12 +704,10 @@ export default function SellScreen({
         title="Select size"
         visible={showSize}
         options={
-          category === "Shoes" 
-            ? SIZE_OPTIONS_SHOES 
-            : category === "Accessories" 
-            ? SIZE_OPTIONS_ACCESSORIES 
-            : category === "Bags"
-            ? SIZE_OPTIONS_BAGS
+          category === "Footwear"
+            ? SIZE_OPTIONS_SHOES
+            : category === "Accessories"
+            ? SIZE_OPTIONS_ACCESSORIES
             : SIZE_OPTIONS_CLOTHES
         }
         value={size}

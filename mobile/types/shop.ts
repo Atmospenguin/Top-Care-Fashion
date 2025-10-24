@@ -1,4 +1,4 @@
-export type ListingCategory = "top" | "bottom" | "shoe" | "accessory";
+export type ListingCategory = "Accessories" | "Bottoms" | "Footwear" | "Outerwear" | "Tops";
 
 export type ListingItem = {
   id: string;
@@ -16,6 +16,9 @@ export type ListingItem = {
   shippingOption?: string | null;
   shippingFee?: number | null;
   location?: string | null;
+  likesCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
   seller: {
     name: string;
     avatar: string;

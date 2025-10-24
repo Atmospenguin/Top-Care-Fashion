@@ -29,7 +29,7 @@ export type BuyStackParamList = {
     rating: number;
     sales: number;
   };
-  SearchResult: { query: string };
+  SearchResult: { query: string; gender?: "men" | "women" | "unisex" };
   Bag: { items: BagItem[] } | undefined;
   Checkout: { items: BagItem[]; subtotal: number; shipping: number };
   Purchase: {

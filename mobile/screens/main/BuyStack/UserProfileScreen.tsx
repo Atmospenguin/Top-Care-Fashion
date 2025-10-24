@@ -41,7 +41,7 @@ const REPORT_CATEGORIES = [
   { id: "other", label: "Something else" },
 ];
 
-const SHOP_CATEGORIES = ["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories", "Dresses"] as const;
+const SHOP_CATEGORIES = ["All", "Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"] as const;
 const SHOP_SIZES = ["All", "My Size", "XS", "S", "M", "L", "XL", "XXL"] as const;
 const SHOP_CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;

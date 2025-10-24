@@ -6,6 +6,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
     const search = searchParams.get("search");
+    const genderParam = searchParams.get("gender");
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = parseInt(searchParams.get("offset") || "0");
 
@@ -19,6 +20,10 @@ export async function GET(req: Request) {
       where.category = {
         name: { contains: category, mode: "insensitive" },
       };
+    }
+
+    if (genderParam) {
+      where.gender = genderParam.toLowerCase();
     }
 
     if (search) {
@@ -174,15 +179,22 @@ export async function GET(req: Request) {
         size: mapSizeToDisplay(listing.size),
         condition: mapConditionToDisplay(listing.condition_type), // 使用映射函数转换枚举值
         material: listing.material,
-        gender: (listing as any).gender || "unisex",
         tags: toArray(listing.tags),
         category: listing.category?.name ?? null,
         images: toArray(listing.image_urls),
         shippingOption: (listing as any).shipping_option ?? null,
         shippingFee: toNumber((listing as any).shipping_fee ?? null),
         location: (listing as any).location ?? null,
+        likesCount: toNumber((listing as any).likes_count ?? 0),
+        gender: (() => {
+          const value = (listing as any).gender;
+          if (!value || typeof value !== "string") return "Unisex";
+          const lower = value.toLowerCase();
+          return lower.charAt(0).toUpperCase() + lower.slice(1);
+        })(),
         seller: sellerInfo,
-        createdAt: listing.created_at,
+        createdAt: listing.created_at ? listing.created_at.toISOString() : null,
+        updatedAt: listing.updated_at ? listing.updated_at.toISOString() : null,
       };
     });
 

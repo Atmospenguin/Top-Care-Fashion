@@ -50,27 +50,36 @@ const ACC_W = Math.floor(
 const ACC_H = Math.floor(ACC_W * 1.08);
 
 const CATEGORY_KEYWORDS: Record<ListingCategory, RegExp> = {
-  top: /dress|jacket|coat|top|shirt|tee|sweater|hoodie|blouse|cardigan/i,
-  bottom: /skirt|pant|trouser|jean|legging|short/i,
-  shoe: /shoe|sneaker|boot|heel|loafer|flat/i,
-  accessory: /bag|belt|bracelet|earring|necklace|ring|scarf|hat/i,
+  Accessories: /bag|belt|bracelet|earring|necklace|ring|scarf|hat|watch/i,
+  Bottoms: /skirt|pant|trouser|jean|legging|short|bottom/i,
+  Footwear: /shoe|sneaker|boot|heel|loafer|flat|footwear|sandal/i,
+  Outerwear: /coat|jacket|blazer|outerwear|vest/i,
+  Tops: /dress|top|shirt|tee|sweater|hoodie|blouse|cardigan|turtleneck/i,
 };
 
 type MatchResult = {
   baseCategory: ListingCategory | "other";
-  top: ListingItem[];
-  bottom: ListingItem[];
-  shoe: ListingItem[];
-  accessory: ListingItem[];
+  tops: ListingItem[];
+  bottoms: ListingItem[];
+  footwear: ListingItem[];
+  accessories: ListingItem[];
   fallback: ListingItem[];
 };
 
 function categorizeItem(item: ListingItem): ListingCategory | "other" {
-  if (item.category) return item.category;
+  if (item.category) {
+    if (item.category === "Outerwear") {
+      return "Tops";
+    }
+    return item.category;
+  }
   const entry = Object.entries(CATEGORY_KEYWORDS).find(([, regex]) =>
     regex.test(item.title)
   );
-  if (entry) return entry[0] as ListingCategory;
+  if (entry) {
+    const [category] = entry;
+    return category === "Outerwear" ? "Tops" : (category as ListingCategory);
+  }
   return "other";
 }
 
@@ -82,10 +91,10 @@ function findMatches(base: ListingItem): MatchResult {
   const fallback = others.length ? others : [base];
   return {
     baseCategory,
-    top: byCategory("top"),
-    bottom: byCategory("bottom"),
-    shoe: byCategory("shoe"),
-    accessory: byCategory("accessory"),
+    tops: byCategory("Tops"),
+    bottoms: byCategory("Bottoms"),
+    footwear: byCategory("Footwear"),
+    accessories: byCategory("Accessories"),
     fallback,
   };
 }
@@ -99,7 +108,7 @@ export default function MixMatchScreen() {
   const insets = useSafeAreaInsets();
 
   const matches = useMemo(() => findMatches(baseItem), [baseItem]);
-  const { baseCategory, top, bottom, shoe, accessory, fallback } = matches;
+  const { baseCategory, tops, bottoms, footwear, accessories, fallback } = matches;
 
   const [topIndex, setTopIndex] = useState(0);
   const [bottomIndex, setBottomIndex] = useState(0);
@@ -197,21 +206,21 @@ export default function MixMatchScreen() {
   }, [baseItem.id, tipTranslateY, tipOpacity]);
 
   const ensurePool = (pool: ListingItem[]) => (pool.length ? pool : fallback);
-  const topPool = ensurePool(top);
-  const bottomPool = ensurePool(bottom);
-  const shoePool = ensurePool(shoe);
+  const topPool = ensurePool(tops);
+  const bottomPool = ensurePool(bottoms);
+  const shoePool = ensurePool(footwear);
 
   const pickFromPool = (pool: ListingItem[], index: number) =>
     pool.length ? pool[index % pool.length] : undefined;
 
   const pickedTop =
-    baseCategory === "top" ? baseItem : pickFromPool(topPool, topIndex);
+    baseCategory === "Tops" ? baseItem : pickFromPool(topPool, topIndex);
   const pickedBottom =
-    baseCategory === "bottom"
+    baseCategory === "Bottoms"
       ? baseItem
       : pickFromPool(bottomPool, bottomIndex);
   const pickedShoe =
-    baseCategory === "shoe" ? baseItem : pickFromPool(shoePool, shoeIndex);
+    baseCategory === "Footwear" ? baseItem : pickFromPool(shoePool, shoeIndex);
 
   const baseOutfitItems = useMemo<ListingItem[]>(() => {
     const ordered = [pickedTop, pickedBottom, pickedShoe];
@@ -227,13 +236,13 @@ export default function MixMatchScreen() {
 
   const accessoryOptions = useMemo(() => {
     const selectedSet = new Set(baseOutfitItems.map((item) => item.id));
-    const filtered = accessory.filter((item) => !selectedSet.has(item.id));
+    const filtered = accessories.filter((item) => !selectedSet.has(item.id));
     if (filtered.length) return filtered;
     const fallbackFiltered = fallback.filter(
       (item) => !selectedSet.has(item.id)
     );
-    return fallbackFiltered.length ? fallbackFiltered : accessory;
-  }, [accessory, fallback, baseOutfitItems]);
+    return fallbackFiltered.length ? fallbackFiltered : accessories;
+  }, [accessories, fallback, baseOutfitItems]);
 
   useEffect(() => {
     setSelectedAccessoryIds((prev) => {
@@ -298,9 +307,9 @@ export default function MixMatchScreen() {
     dismissTip();
   };
 
-  const viewTop = pickedTop ?? (baseCategory === "top" ? baseItem : null);
-  const viewBottom = pickedBottom ?? (baseCategory === "bottom" ? baseItem : null);
-  const viewShoe = pickedShoe ?? (baseCategory === "shoe" ? baseItem : null);
+  const viewTop = pickedTop ?? (baseCategory === "Tops" ? baseItem : null);
+  const viewBottom = pickedBottom ?? (baseCategory === "Bottoms" ? baseItem : null);
+  const viewShoe = pickedShoe ?? (baseCategory === "Footwear" ? baseItem : null);
 
   const navigateToViewOutfit = useCallback(() => {
     navigation.navigate("ViewOutfit", {
@@ -315,9 +324,9 @@ export default function MixMatchScreen() {
 
   const slotConfigs = [
     {
-      key: "top" as const,
+      key: "tops" as const,
       label: "TOP",
-      isBase: baseCategory === "top",
+      isBase: baseCategory === "Tops",
       pool: topPool,
       index: topIndex,
       setIndex: setTopIndex,
@@ -327,9 +336,9 @@ export default function MixMatchScreen() {
       imageMode: "contain" as const,
     },
     {
-      key: "bottom" as const,
+      key: "bottoms" as const,
       label: "BOTTOM",
-      isBase: baseCategory === "bottom",
+      isBase: baseCategory === "Bottoms",
       pool: bottomPool,
       index: bottomIndex,
       setIndex: setBottomIndex,
@@ -339,9 +348,9 @@ export default function MixMatchScreen() {
       imageMode: "contain" as const,
     },
     {
-      key: "shoe" as const,
+      key: "footwear" as const,
       label: "SHOES",
-      isBase: baseCategory === "shoe",
+      isBase: baseCategory === "Footwear",
       pool: shoePool,
       index: shoeIndex,
       setIndex: setShoeIndex,
