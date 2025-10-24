@@ -19,17 +19,17 @@ async function getCurrentUser(req: NextRequest) {
     let dbUser: any = null;
 
     if (token) {
-      // 尝试 Supabase JWT
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-      if (user && !error) {
-        dbUser = await prisma.users.findUnique({ where: { supabase_user_id: user.id } });
+      // 优先尝试本地 JWT（legacy），避免对 Supabase 发起无效请求
+      const v = verifyLegacyToken(token);
+      if (v.valid && v.payload?.uid) {
+        dbUser = await prisma.users.findUnique({ where: { id: Number(v.payload.uid) } });
       }
 
-      // 如果 Supabase 校验失败，尝试本地 JWT（legacy）
+      // 如果不是本地 JWT，再尝试 Supabase JWT
       if (!dbUser) {
-        const v = verifyLegacyToken(token);
-        if (v.valid && v.payload?.uid) {
-          dbUser = await prisma.users.findUnique({ where: { id: Number(v.payload.uid) } });
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        if (user && !error) {
+          dbUser = await prisma.users.findUnique({ where: { supabase_user_id: user.id } });
         }
       }
     }
@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
       avatar_url: userWithFollows.avatar_url,
       followersCount: userWithFollows.followers.length,
       followingCount: userWithFollows.following.length,
-      preferred_styles: Array.isArray(dbUser as any?.preferred_styles)
+      preferred_styles: Array.isArray((dbUser as any)?.preferred_styles)
         ? (dbUser as any).preferred_styles
         : (dbUser as any)?.preferred_styles
         ? ((dbUser as any).preferred_styles as any)

@@ -1,6 +1,7 @@
 import React, { useMemo, useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
-import { useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
@@ -12,6 +13,7 @@ type CategoryDetailRoute = RouteProp<DiscoverStackParamList, "CategoryDetail">;
 type GenderKey = "men" | "women" | "unisex";
 
 export default function CategoryDetailScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<DiscoverStackParamList>>();
   const { params } = useRoute<CategoryDetailRoute>();
   const { gender, mainCategory } = params;
   
@@ -91,7 +93,19 @@ export default function CategoryDetailScreen() {
         iconColor="#111"
       />
       {subcategories.map((item) => (
-        <TouchableOpacity key={item} style={styles.item}>
+        <TouchableOpacity
+          key={item}
+          style={styles.item}
+          onPress={() =>
+            navigation
+              .getParent()
+              ?.getParent()
+              ?.navigate('Buy', {
+                screen: 'SearchResult',
+                params: { query: item },
+              })
+          }
+        >
           <Text style={styles.text}>{item}</Text>
         </TouchableOpacity>
       ))}

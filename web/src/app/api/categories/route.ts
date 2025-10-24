@@ -11,7 +11,7 @@ export async function GET() {
     });
 
     // 组织分类结构
-    const organizedCategories = {
+    const organizedCategories: Record<'men'|'women'|'unisex', Record<string, string[]>> = {
       men: {},
       women: {},
       unisex: {}
@@ -43,6 +43,40 @@ export async function GET() {
         }
       }
     });
+
+    // 如果数据库没有按照 men-xxx 方式编码分类名，提供一个合理的默认分类映射
+    const isEmpty =
+      Object.keys(organizedCategories.men).length === 0 &&
+      Object.keys(organizedCategories.women).length === 0 &&
+      Object.keys(organizedCategories.unisex).length === 0;
+
+    if (isEmpty) {
+      const defaultMap: Record<'men'|'women'|'unisex', Record<string, string[]>> = {
+        men: {
+          Tops: ['t-shirts', 'shirts', 'sweaters', 'hoodies', 'polos', 'other'],
+          Bottoms: ['jeans', 'trousers', 'shorts', 'joggers', 'other'],
+          Outerwear: ['jackets', 'coats', 'blazers', 'vests', 'other'],
+          Shoes: ['sneakers', 'boots', 'loafers', 'sandals', 'other'],
+          Accessories: ['belts', 'hats', 'sunglasses', 'bags', 'other'],
+        },
+        women: {
+          Dresses: ['casual', 'evening', 'party', 'other'],
+          Tops: ['t-shirts', 'blouses', 'knitwear', 'hoodies', 'other'],
+          Bottoms: ['jeans', 'leggings', 'skirts', 'shorts', 'other'],
+          Outerwear: ['jackets', 'coats', 'blazers', 'other'],
+          Shoes: ['sneakers', 'boots', 'heels', 'sandals', 'other'],
+          Accessories: ['belts', 'hats', 'sunglasses', 'bags', 'other'],
+        },
+        unisex: {
+          Tops: ['t-shirts', 'sweatshirts', 'hoodies', 'other'],
+          Bottoms: ['jeans', 'pants', 'shorts', 'other'],
+          Outerwear: ['jackets', 'coats', 'other'],
+          Shoes: ['sneakers', 'boots', 'sandals', 'other'],
+          Accessories: ['hats', 'sunglasses', 'bags', 'other'],
+        },
+      };
+      return NextResponse.json({ success: true, data: defaultMap });
+    }
 
     return NextResponse.json({
       success: true,

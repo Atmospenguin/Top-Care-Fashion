@@ -178,7 +178,11 @@ export default function App() {
             component={OnboardingPreferenceScreen}
             options={{ gestureEnabled: false }}
           />
-          <Stack.Screen name="Main" component={MainTabs} />
+          <Stack.Screen
+            name="Main"
+            component={MainTabs}
+            options={{ gestureEnabled: false }}
+          />
           <Stack.Screen name="Review" component={ReviewScreen} />
           <Stack.Screen name="MutualReview" component={MutualReviewScreen} />
           <Stack.Screen name="Notification" component={NotificationScreen} />

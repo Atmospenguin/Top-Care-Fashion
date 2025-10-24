@@ -61,7 +61,7 @@ export default function DiscoverMainScreen() {
       {/* 搜索栏 */}
       <TextInput
         style={styles.searchBar}
-        placeholder="Search for anything"
+        placeholder="Search for Anything"
         placeholderTextColor="#666"
         value={searchText}
         onChangeText={setSearchText}
@@ -75,7 +75,7 @@ export default function DiscoverMainScreen() {
       />
 
       {/* 分类 */}
-      <Text style={styles.sectionTitle}>Shop by category</Text>
+      <Text style={styles.sectionTitle}>Shop by Category</Text>
       {CATEGORY_OPTIONS.map(({ label, value }) => (
         <TouchableOpacity
           key={value}
@@ -103,7 +103,7 @@ export default function DiscoverMainScreen() {
               })
           }
         >
-          <Text style={styles.selectBrands}>Select brands</Text>
+          <Text style={styles.selectBrands}>Select Brands</Text>
         </TouchableOpacity>
       </View>
 

@@ -17,7 +17,7 @@ export async function GET(req: Request) {
 
     if (category) {
       where.category = {
-        name: { contains: category.toLowerCase() },
+        name: { contains: category, mode: "insensitive" },
       };
     }
 
@@ -178,6 +178,9 @@ export async function GET(req: Request) {
         tags: toArray(listing.tags),
         category: listing.category?.name ?? null,
         images: toArray(listing.image_urls),
+        shippingOption: (listing as any).shipping_option ?? null,
+        shippingFee: toNumber((listing as any).shipping_fee ?? null),
+        location: (listing as any).location ?? null,
         seller: sellerInfo,
         createdAt: listing.created_at,
       };

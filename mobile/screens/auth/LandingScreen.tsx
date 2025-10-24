@@ -30,7 +30,7 @@ export default function LandingScreen({ navigation }: Props) {
       {/* 按钮 */}
       <TouchableOpacity
         style={styles.btn}
-        onPress={() => navigation.navigate("Login")}
+        onPress={() => navigation.replace("Login")}
       >
         <Text style={styles.btnText}>Get started</Text>
       </TouchableOpacity>
