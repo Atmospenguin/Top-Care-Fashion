@@ -29,7 +29,11 @@ function LeaveReviewScreen({ route }: any) {
 export default function InboxStackNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="InboxMain" component={InboxScreen} />
+      <Stack.Screen
+        name="InboxMain"
+        component={InboxScreen}
+        options={{ gestureEnabled: false }}
+      />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="LeaveReview" component={LeaveReviewScreen} />
     </Stack.Navigator>

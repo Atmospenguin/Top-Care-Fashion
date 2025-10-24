@@ -11,10 +11,8 @@ import type { DiscoverStackParamList } from "./index";
 type DiscoverNavigation = NativeStackNavigationProp<DiscoverStackParamList>;
 type DiscoverCategoryRoute = RouteProp<DiscoverStackParamList, "DiscoverCategory">;
 
-type Gender = "men" | "women" | "unisex";
-
 export default function DiscoverCategoryScreen() {
-  const navigation = useNavigation<DiscoverNavigation>();
+  const navigation = useNavigation<DiscoverNavigation & any>();
   const { params } = useRoute<DiscoverCategoryRoute>();
   const { gender } = params;
   
@@ -39,11 +37,15 @@ export default function DiscoverCategoryScreen() {
     }
   };
 
+  const CATEGORY_ORDER: string[] = ["Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"];
+
   const mainCategories = useMemo(() => {
-    if (!categories || !categories[gender]) {
-      return [];
+    const genderCategories = categories?.[gender];
+    if (!genderCategories) {
+      return [] as string[];
     }
-    return Object.keys(categories[gender]);
+    const available = Object.keys(genderCategories);
+    return CATEGORY_ORDER.filter((category) => available.includes(category));
   }, [categories, gender]);
 
   const headerTitle = gender === "men" ? "Men" : gender === "women" ? "Women" : "Unisex";
@@ -95,20 +97,26 @@ export default function DiscoverCategoryScreen() {
         textColor="#000"
         iconColor="#111"
       />
-      {mainCategories.map((category) => (
-        <TouchableOpacity
-          key={category}
-          style={styles.item}
-          onPress={() =>
-            navigation.navigate("CategoryDetail", {
-              gender,
-              mainCategory: category,
-            })
-          }
-        >
-          <Text style={styles.text}>{category}</Text>
-        </TouchableOpacity>
-      ))}
+      {mainCategories.map((category) => {
+        const label = category.replace(/\b\w/g, (c) => c.toUpperCase());
+        return (
+          <TouchableOpacity
+            key={category}
+            style={styles.item}
+            onPress={() =>
+              navigation
+                .getParent()
+                ?.getParent()
+                ?.navigate('Buy', {
+                  screen: 'SearchResult',
+                  params: { query: category, gender },
+                })
+            }
+          >
+            <Text style={styles.text}>{label}</Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }

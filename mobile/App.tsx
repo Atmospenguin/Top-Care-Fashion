@@ -2,6 +2,7 @@ import 'react-native-gesture-handler';
 import { enableScreens } from 'react-native-screens';
 import { NavigationContainer, getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import type { NavigatorScreenParams } from "@react-navigation/native";
+import React from "react";
 import { Text } from "react-native";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from "./contexts/AuthContext";
@@ -58,6 +59,7 @@ const Tab = createBottomTabNavigator();
 
 function MainTabs() {
   const HIDDEN_TAB_SCREENS: string[] = [];
+  const lastTabPressRef = React.useRef<Record<string, number>>({});
 
   return (
     <Tab.Navigator
@@ -129,6 +131,18 @@ function MainTabs() {
       <Tab.Screen
         name="Home"
         component={HomeStackNavigator}
+        listeners={({ navigation }) => ({
+          tabPress: (event) => {
+            if (navigation.isFocused?.()) {
+              event.preventDefault();
+              const ts = Date.now();
+              navigation.navigate("Home", {
+                screen: "HomeMain",
+                params: { refreshTS: ts },
+              });
+            }
+          },
+        })}
         options={({ route }) => {
           const routeName = getFocusedRouteNameFromRoute(route);
           const shouldHide = routeName
@@ -142,12 +156,38 @@ function MainTabs() {
           };
         }}
       />
-  <Tab.Screen name="Discover" component={DiscoverStackNavigator} />
+      <Tab.Screen
+        name="Discover"
+        component={DiscoverStackNavigator}
+        listeners={({ navigation, route }) => ({
+          tabPress: () => {
+            const now = Date.now();
+            const last = lastTabPressRef.current[route.name] || 0;
+            lastTabPressRef.current[route.name] = now;
+            const delta = now - last;
+            if (navigation.isFocused && navigation.isFocused() && delta < 600) {
+              navigation.navigate('Discover', { screen: 'DiscoverMain', params: { refreshTS: now } });
+            }
+          },
+        })}
+      />
       <Tab.Screen name="Sell" component={SellStackNavigator} />
       <Tab.Screen name="Inbox" component={InboxStackNavigator} />
       <Tab.Screen
         name="My TOP"
         component={MyTopStackNavigator}
+        listeners={({ navigation }) => ({
+          tabPress: (event) => {
+            if (navigation.isFocused?.()) {
+              event.preventDefault();
+              const ts = Date.now();
+              navigation.navigate("My TOP", {
+                screen: "MyTopMain",
+                params: { refreshTS: ts },
+              });
+            }
+          },
+        })}
         options={({ route }) => {
           const routeName = getFocusedRouteNameFromRoute(route);
           const shouldHide = routeName
@@ -180,7 +220,11 @@ export default function App() {
               component={OnboardingPreferenceScreen}
               options={{ gestureEnabled: false }}
             />
-            <Stack.Screen name="Main" component={MainTabs} />
+            <Stack.Screen
+              name="Main"
+              component={MainTabs}
+              options={{ gestureEnabled: false }}
+            />
             <Stack.Screen name="Review" component={ReviewScreen} />
             <Stack.Screen name="MutualReview" component={MutualReviewScreen} />
             <Stack.Screen name="Notification" component={NotificationScreen} />

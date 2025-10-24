@@ -12,6 +12,8 @@ import {
   FlatList,
   Image,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import * as ImagePicker from 'expo-image-picker';
 import Icon from "../../../components/Icon";
@@ -24,16 +26,7 @@ import { listingsService } from "../../../src/services/listingsService";
 import type { ListingItem } from "../../../types/shop";
 
 /** --- Options --- */
-const CATEGORY_OPTIONS = [
-  "Tops",
-  "Bottoms",
-  "Shoes",
-  "Bags",
-  "Accessories",
-  "Outerwear",
-  "Dresses",
-  "Others",
-];
+const CATEGORY_OPTIONS = ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"];
 const CONDITION_OPTIONS = ["Brand New", "Like new", "Good", "Fair", "Poor"];
 const SIZE_OPTIONS_CLOTHES = [
   "XXS",
@@ -60,10 +53,11 @@ const MATERIAL_OPTIONS = [
   "Other",
 ];
 const SHIPPING_OPTIONS = [
-  "Free shipping",
-  "Buyer pays – based on distance",
-  "Buyer pays – fixed fee",
-  "Meet-up",
+  "Free shipping", 
+  "Buyer pays – $3 (within 10km)", 
+  "Buyer pays – $5 (island-wide)", 
+  "Buyer pays – fixed fee", 
+  "Meet-up"
 ];
 const GENDER_OPTIONS = ["Men", "Women", "Unisex"];
 const DEFAULT_TAGS = [
@@ -153,6 +147,7 @@ export default function EditListingScreen() {
   const [material, setMaterial] = useState("");
   const [price, setPrice] = useState("");
   const [shippingOption, setShippingOption] = useState("");
+  const [shippingFee, setShippingFee] = useState("");
   const [location, setLocation] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [gender, setGender] = useState("");
@@ -184,8 +179,9 @@ export default function EditListingScreen() {
           setMaterial(listingData.material || "");
           setPrice(listingData.price.toString());
           setGender(listingData.gender || "Unisex");
-          setShippingOption("Free shipping"); // 默认值
-          setLocation("Singapore"); // 默认值
+          setShippingOption(listingData.shippingOption || "Select");
+          setShippingFee(listingData.shippingFee ? listingData.shippingFee.toString() : "");
+          setLocation(listingData.location || "");
           setImages(listingData.images || []);
           setTags(listingData.tags || []);
           console.log("✅ Listing loaded for editing:", listingData.title);
@@ -217,16 +213,17 @@ export default function EditListingScreen() {
         title: title.trim(),
         description: description.trim(),
         price: parseFloat(price),
-        brand: brand.trim(),
-        size: size.trim(),
-        condition: condition,
-        material: material.trim(),
+        brand: brand.trim() || "",
+        size: size.trim() || "N/A",
+        condition: condition || "Good",
+        material: material.trim() || "Polyester",
         category: category,
-        gender: gender,
+        gender: gender || "unisex",
         images: images,
         tags: tags,
         shippingOption: shippingOption,
-        location: location.trim(),
+        shippingFee: shippingFee ? parseFloat(shippingFee) : undefined,
+        location: shippingOption === "Meet-up" ? location.trim() : undefined,
       };
 
       const updatedListing = await listingsService.updateListing(listing.id, updateData);
@@ -394,157 +391,195 @@ export default function EditListingScreen() {
       {/* Header */}
       <Header title="Edit Listing" showBack />
 
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={{ paddingBottom: 120 }}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
-        {/* Photos */}
-        <FlatList
-          data={images}
-          keyExtractor={(_, i) => i.toString()}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          renderItem={({ item, index }) => (
-            <View style={styles.photoItem}>
-              <Image source={{ uri: item }} style={styles.photoImage} />
-              <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(index)}>
-                <Text style={styles.deleteText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          ListFooterComponent={
-            images.length < 9 ? (
-              <TouchableOpacity style={styles.addPhotoBox} onPress={showImageOptions}>
-                <Icon name="add" size={26} color="#999" />
-                <Text style={styles.addPhotoText}>Add Photo</Text>
-              </TouchableOpacity>
-            ) : null
-          }
-          style={{ marginBottom: 16 }}
-        />
-
-        {/* Title */}
-        <Text style={styles.sectionTitle}>Title</Text>
-        <TextInput
-          style={styles.input}
-          value={title}
-          onChangeText={setTitle}
-          placeholder="Enter a catchy title for your item"
-          maxLength={60}
-        />
-        <Text style={styles.charCount}>{title.length}/60</Text>
-
-        {/* Description */}
-        <Text style={styles.sectionTitle}>Description</Text>
-        <TextInput
-          style={[styles.input, { height: 100, textAlignVertical: "top" }]}
-          multiline
-          value={description}
-          onChangeText={setDescription}
-          placeholder="Describe your item in detail..."
-          maxLength={500}
-        />
-        <Text style={styles.charCount}>{description.length}/500</Text>
-
-        {/* Info */}
-        <Text style={styles.sectionTitle}>Info</Text>
-        <Text style={styles.fieldLabel}>Category</Text>
-        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCat(true)}>
-          <Text style={styles.selectValue}>{category}</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.fieldLabel}>Brand</Text>
-        <TextInput style={styles.input} value={brand} onChangeText={setBrand} />
-
-        <Text style={styles.fieldLabel}>Condition</Text>
-        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCond(true)}>
-          <Text style={styles.selectValue}>{condition}</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.fieldLabel}>Size</Text>
-        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowSize(true)}>
-          <Text style={styles.selectValue}>{size}</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.fieldLabel}>Material</Text>
-        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowMat(true)}>
-          <Text style={styles.selectValue}>{material}</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.fieldLabel}>Gender</Text>
-        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowGender(true)}>
-          <Text style={styles.selectValue}>{gender}</Text>
-        </TouchableOpacity>
-
-        {/* Tags Section */}
-        <Text style={styles.sectionTitle}>Tags</Text>
-        <Text style={{ color: "#555", marginBottom: 6 }}>
-          Add up to 5 tags to help buyers find your item
-        </Text>
-        {tags.length === 0 ? (
-          <TouchableOpacity style={styles.addStyleBtn} onPress={() => setShowTagPicker(true)}>
-            <Icon name="add-circle-outline" size={18} color="#F54B3D" />
-            <Text style={styles.addStyleText}>Style</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.selectedTagWrap}>
-            {tags.map((tag) => (
-              <View key={tag} style={styles.tagChip}>
-                <Text style={styles.tagChipText}>{tag}</Text>
-                <TouchableOpacity
-                  onPress={() => setTags(tags.filter((t) => t !== tag))}
-                >
-                  <Icon name="close" size={14} color="#fff" />
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={{ paddingBottom: 120 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Photos */}
+          <FlatList
+            data={images}
+            keyExtractor={(_, i) => i.toString()}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            renderItem={({ item, index }) => (
+              <View style={styles.photoItem}>
+                <Image source={{ uri: item }} style={styles.photoImage} />
+                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(index)}>
+                  <Text style={styles.deleteText}>✕</Text>
                 </TouchableOpacity>
               </View>
-            ))}
-            {tags.length < 5 && (
-              <TouchableOpacity
-                style={styles.addStyleBtnSmall}
-                onPress={() => setShowTagPicker(true)}
-              >
-                <Icon name="add" size={16} color="#F54B3D" />
-              </TouchableOpacity>
             )}
+            ListFooterComponent={
+              images.length < 9 ? (
+                <TouchableOpacity style={styles.addPhotoBox} onPress={showImageOptions}>
+                  <Icon name="add" size={26} color="#999" />
+                  <Text style={styles.addPhotoText}>Add Photo</Text>
+                </TouchableOpacity>
+              ) : null
+            }
+            style={{ marginBottom: 16 }}
+          />
+
+          {/* === 必填字段区域 === */}
+
+          {/* Title - 必填 */}
+          <Text style={styles.sectionTitle}>Title <Text style={styles.requiredMark}>*</Text></Text>
+          <TextInput
+            style={styles.input}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="Enter a catchy title for your item"
+            maxLength={60}
+          />
+          <Text style={styles.charCount}>{title.length}/60</Text>
+
+          {/* Description - 必填 */}
+          <Text style={styles.sectionTitle}>Description <Text style={styles.requiredMark}>*</Text></Text>
+          <TextInput
+            style={[styles.input, { height: 100, textAlignVertical: "top" }]}
+            multiline
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Describe your item in detail..."
+            maxLength={500}
+          />
+          <Text style={styles.charCount}>{description.length}/500</Text>
+
+          {/* Category - 必填 */}
+          <Text style={styles.sectionTitle}>Category <Text style={styles.requiredMark}>*</Text></Text>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCat(true)}>
+            <Text style={styles.selectValue}>{category}</Text>
+          </TouchableOpacity>
+
+          {/* Price - 必填 */}
+          <Text style={styles.sectionTitle}>Price <Text style={styles.requiredMark}>*</Text></Text>
+          <TextInput
+            style={styles.input}
+            value={price}
+            onChangeText={setPrice}
+            keyboardType="numeric"
+            placeholder="Enter price (e.g. 25.00)"
+          />
+
+          {/* Shipping - 必填 */}
+          <Text style={styles.sectionTitle}>Shipping <Text style={styles.requiredMark}>*</Text></Text>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowShip(true)}>
+            <Text style={styles.selectValue}>{shippingOption}</Text>
+          </TouchableOpacity>
+
+          {shippingOption === "Buyer pays – fixed fee" && (
+            <TextInput
+              style={styles.input}
+              placeholder="Enter custom fee (e.g. $3.00)"
+              placeholderTextColor="#999"
+              keyboardType="numeric"
+              value={shippingFee}
+              onChangeText={setShippingFee}
+            />
+          )}
+
+          {shippingOption === "Meet-up" && (
+            <>
+              <Text style={styles.fieldLabel}>Meet-up Location</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="eg. Bugis MRT Station, Singapore"
+                placeholderTextColor="#999"
+                value={location}
+                onChangeText={setLocation}
+              />
+            </>
+          )}
+
+          {/* === 可选字段区域 === */}
+          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Additional Details (Optional)</Text>
+
+          <Text style={styles.fieldLabel}>Brand</Text>
+          <TextInput 
+            style={styles.input} 
+            value={brand} 
+            onChangeText={setBrand}
+            placeholder="Enter brand (e.g. Nike, Zara)"
+            placeholderTextColor="#999"
+          />
+
+          <Text style={styles.fieldLabel}>Condition</Text>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCond(true)}>
+            <Text style={styles.selectValue}>{condition}</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.fieldLabel}>Size</Text>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowSize(true)}>
+            <Text style={styles.selectValue}>{size}</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.fieldLabel}>Material</Text>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowMat(true)}>
+            <Text style={styles.selectValue}>{material}</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.fieldLabel}>Gender</Text>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowGender(true)}>
+            <Text style={styles.selectValue}>{gender}</Text>
+          </TouchableOpacity>
+
+          {/* Tags Section */}
+          <Text style={styles.fieldLabel}>Tags</Text>
+          <Text style={{ color: "#555", marginBottom: 6, fontSize: 13 }}>
+            Add up to 5 tags to help buyers find your item
+          </Text>
+          {tags.length === 0 ? (
+            <TouchableOpacity style={styles.addStyleBtn} onPress={() => setShowTagPicker(true)}>
+              <Icon name="add-circle-outline" size={18} color="#F54B3D" />
+              <Text style={styles.addStyleText}>Style</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.selectedTagWrap}>
+              {tags.map((tag) => (
+                <View key={tag} style={styles.tagChip}>
+                  <Text style={styles.tagChipText}>{tag}</Text>
+                  <TouchableOpacity
+                    onPress={() => setTags(tags.filter((t) => t !== tag))}
+                  >
+                    <Icon name="close" size={14} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {tags.length < 5 && (
+                <TouchableOpacity
+                  style={styles.addStyleBtnSmall}
+                  onPress={() => setShowTagPicker(true)}
+                >
+                  <Icon name="add" size={16} color="#F54B3D" />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <TouchableOpacity style={styles.draftBtn} onPress={() => navigation.goBack()}>
+              <Text style={styles.draftText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.postBtn, saving && styles.postBtnDisabled]} 
+              onPress={handleSave}
+              disabled={saving}
+            >
+              <Text style={styles.postText}>
+                {saving ? "Saving..." : "Save Changes"}
+              </Text>
+            </TouchableOpacity>
           </View>
-        )}
-
-        {/* Price */}
-        <Text style={styles.sectionTitle}>Price</Text>
-        <TextInput
-          style={styles.input}
-          value={price}
-          onChangeText={setPrice}
-          keyboardType="numeric"
-        />
-
-        {/* Shipping */}
-        <Text style={styles.sectionTitle}>Shipping</Text>
-        <Text style={styles.fieldLabel}>Shipping option</Text>
-        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowShip(true)}>
-          <Text style={styles.selectValue}>{shippingOption}</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.fieldLabel}>Location</Text>
-        <TextInput style={styles.input} value={location} onChangeText={setLocation} />
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.draftBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.draftText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.postBtn, saving && styles.postBtnDisabled]} 
-            onPress={handleSave}
-            disabled={saving}
-          >
-            <Text style={styles.postText}>
-              {saving ? "Saving..." : "Save Changes"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Pickers */}
       <OptionPicker
@@ -766,6 +801,7 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: { fontSize: 16, fontWeight: "600", marginTop: 12, marginBottom: 8 },
+  requiredMark: { color: "#F54B3D", fontWeight: "700" },
   fieldLabel: { fontSize: 14, fontWeight: "500", color: "#333", marginBottom: 6, marginTop: 8 },
   charCount: { 
     fontSize: 12, 

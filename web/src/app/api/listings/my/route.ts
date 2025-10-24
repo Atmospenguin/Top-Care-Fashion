@@ -21,20 +21,20 @@ async function getCurrentUser(req: NextRequest) {
     if (token) {
       console.log("🔍 Auth header:", authHeader);
       console.log("🔍 Bearer token:", token?.substring(0, 20) + "...");
-      
-      const { data, error } = await supabase.auth.getUser(token);
-      console.log("🔍 Supabase user:", data?.user?.id);
-      console.log("🔍 Supabase error:", error);
-      
-      if (!error && data?.user) {
-        dbUser = await prisma.users.findUnique({ where: { supabase_user_id: data.user.id } });
+
+      // 优先尝试 legacy JWT，避免向 Supabase 发送无效请求
+      const v = verifyLegacyToken(token);
+      if (v.valid && v.payload?.uid) {
+        dbUser = await prisma.users.findUnique({ where: { id: Number(v.payload.uid) } });
       }
 
-      // 如果 Supabase JWT 失败，尝试 legacy JWT
+      // 若不是 legacy，则尝试 Supabase JWT
       if (!dbUser) {
-        const v = verifyLegacyToken(token);
-        if (v.valid && v.payload?.uid) {
-          dbUser = await prisma.users.findUnique({ where: { id: Number(v.payload.uid) } });
+        const { data, error } = await supabase.auth.getUser(token);
+        console.log("🔍 Supabase user:", data?.user?.id);
+        console.log("🔍 Supabase error:", error);
+        if (!error && data?.user) {
+          dbUser = await prisma.users.findUnique({ where: { supabase_user_id: data.user.id } });
         }
       }
     }

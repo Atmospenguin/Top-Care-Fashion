@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -12,8 +12,12 @@ import {
   ScrollView as RNScrollView,
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Platform,
+  Dimensions,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 // note: keep Header's SafeAreaView; remove outer SafeAreaView to avoid double padding
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header"; 
@@ -21,7 +25,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { SellStackParamList } from "./SellStackNavigator";
 import { listingsService, type CreateListingRequest } from "../../../src/services/listingsService";
 /** --- Options --- */
-const CATEGORY_OPTIONS = ["Tops", "Bottoms", "Shoes", "Bags", "Accessories", "Outerwear", "Dresses", "Others"];
+const CATEGORY_OPTIONS = ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"];
 const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "Others"];
 const CONDITION_OPTIONS = ["Brand New", "Like new", "Good", "Fair", "Poor"];
 const GENDER_OPTIONS = ["Men", "Women", "Unisex"];
@@ -62,14 +66,6 @@ const SIZE_OPTIONS_ACCESSORIES = [
   "Other",
 ];
 
-const SIZE_OPTIONS_BAGS = [
-  "N/A",
-  "Small",
-  "Medium",
-  "Large",
-  "Extra Large",
-  "Other",
-];
 const MATERIAL_OPTIONS = [
   "Cotton",
   "Polyester",
@@ -224,6 +220,10 @@ export default function SellScreen({
   const [category, setCategory] = useState("Select");
   const [condition, setCondition] = useState("Select");
   const [size, setSize] = useState("Select");
+  
+  // Image preview - 支持多图预览
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const scrollViewRef = useRef<RNScrollView>(null);
   const [customSize, setCustomSize] = useState("");
   const [material, setMaterial] = useState("Select");
   const [customMaterial, setCustomMaterial] = useState("");
@@ -270,46 +270,67 @@ export default function SellScreen({
     const allowed = await ensureMediaPermissions();
     if (!allowed) return;
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.85,
-      aspect: [4, 5],
-    });
-
-    if (result.canceled || !result.assets?.length) {
-      return;
-    }
-
-    const asset = result.assets[0];
-    const tempId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-    setPhotos((prev) => [
-      ...prev,
-      {
-        id: tempId,
-        localUri: asset.uri,
-        uploading: true,
-      },
-    ]);
-
     try {
-      const remoteUrl = await listingsService.uploadListingImage(asset.uri);
-      setPhotos((prev) =>
-        prev.map((photo) =>
-          photo.id === tempId
-            ? {
-                ...photo,
-                remoteUrl,
-                uploading: false,
-              }
-            : photo
-        )
+      // 使用 Expo ImagePicker，允许编辑
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.85,
+        // 不设置 aspect，让用户自由调整
+      });
+
+      if (result.canceled || !result.assets?.length) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      
+      // 使用 ImageManipulator 进行额外处理（如需要）
+      const manipulatedImage = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [
+          // 可以添加额外的变换，但保持用户裁剪的结果
+        ],
+        { 
+          compress: 0.85, 
+          format: ImageManipulator.SaveFormat.JPEG 
+        }
       );
+
+      const tempId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      setPhotos((prev) => [
+        ...prev,
+        {
+          id: tempId,
+          localUri: manipulatedImage.uri,
+          uploading: true,
+        },
+      ]);
+
+      try {
+        const remoteUrl = await listingsService.uploadListingImage(manipulatedImage.uri);
+        setPhotos((prev) =>
+          prev.map((photo) =>
+            photo.id === tempId
+              ? {
+                  ...photo,
+                  remoteUrl,
+                  uploading: false,
+                }
+              : photo
+          )
+        );
+      } catch (error) {
+        console.error("Photo upload failed:", error);
+        setPhotos((prev) => prev.filter((photo) => photo.id !== tempId));
+        Alert.alert("Upload failed", "We couldn't upload that photo. Please try again.");
+      }
     } catch (error) {
-      console.error("Photo upload failed:", error);
-      setPhotos((prev) => prev.filter((photo) => photo.id !== tempId));
-      Alert.alert("Upload failed", "We couldn't upload that photo. Please try again.");
+      // 用户取消选择或其他错误
+      if (error && typeof error === 'object' && 'message' in error) {
+        console.log("Image picker error:", error.message);
+      }
     }
   };
 
@@ -332,9 +353,9 @@ export default function SellScreen({
 
   // 保存 listing
   const handlePostListing = async () => {
-    // 验证必需字段
-    if (category === "Select" || condition === "Select" || size === "Select" || brand === "Select" || !price.trim()) {
-      Alert.alert("Missing Information", "Please fill in all required fields including price");
+    // 验证必需字段 (只验证核心字段)
+    if (!title.trim()) {
+      Alert.alert("Missing Information", "Please add a title");
       return;
     }
 
@@ -343,9 +364,29 @@ export default function SellScreen({
       return;
     }
 
+    if (category === "Select") {
+      Alert.alert("Missing Information", "Please select a category");
+      return;
+    }
+
+    if (condition === "Select") {
+      Alert.alert("Missing Information", "Please select a condition");
+      return;
+    }
+
+    if (!price.trim()) {
+      Alert.alert("Missing Information", "Please enter a price");
+      return;
+    }
+
     const priceValue = parseFloat(price);
     if (isNaN(priceValue) || priceValue <= 0) {
       Alert.alert("Invalid Price", "Please enter a valid price");
+      return;
+    }
+
+    if (shippingOption === "Select") {
+      Alert.alert("Missing Information", "Please select a shipping option");
       return;
     }
 
@@ -362,16 +403,16 @@ export default function SellScreen({
     setSaving(true);
     try {
       const listingData: CreateListingRequest = {
-        title: title.trim() || "New Listing",
+        title: title.trim(),
         description: description.trim(),
         price: priceValue,
-        brand: brand === "Others" ? brandCustom : brand,
-        size: size === "Other" ? customSize : size,
-        condition,
-        material: material === "Other" ? customMaterial : material,
+        brand: brand !== "Select" ? (brand === "Others" ? brandCustom : brand) : "",
+        size: size !== "Select" ? (size === "Other" ? customSize : size) : "N/A",
+        condition: condition !== "Select" ? condition : "Good",
+        material: material !== "Select" ? (material === "Other" ? customMaterial : material) : "Polyester",
         tags,
         category,
-        gender: gender.toLowerCase(),
+        gender: gender !== "Select" ? gender.toLowerCase() : "unisex",
         images: uploadedImages,
         shippingOption,
         shippingFee: shippingFee ? parseFloat(shippingFee) : undefined,
@@ -430,264 +471,361 @@ export default function SellScreen({
         }
       />
 
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-        {/* 图片上传 */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.photoRow}
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      >
+        <ScrollView 
+          style={styles.container} 
+          contentContainerStyle={{ paddingBottom: 20 }} 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <TouchableOpacity style={styles.photoBox} onPress={handleAddPhoto}>
-            <Icon name="add" size={24} color="#999" />
-            <Text style={styles.photoAddHint}>Add photo</Text>
-          </TouchableOpacity>
-
-          {photos.map((photo) => (
-            <View key={photo.id} style={styles.photoPreview}>
-              <Image source={{ uri: photo.localUri }} style={styles.photoPreviewImage} />
-              {photo.uploading ? (
-                <View style={styles.photoUploadingOverlay}>
-                  <ActivityIndicator color="#fff" />
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={styles.photoRemoveBtn}
-                  onPress={() => handleRemovePhoto(photo.id)}
-                >
-                  <Icon name="close" size={16} color="#fff" />
-                </TouchableOpacity>
-              )}
-            </View>
-          ))}
-        </ScrollView>
-
-        <TouchableOpacity onPress={() => setShowGuide(true)}>
-          <Text style={styles.photoTips}>Read our photo tips</Text>
-        </TouchableOpacity>
-
-        {/* 标题 */}
-        <Text style={styles.sectionTitle}>Title</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter a catchy title for your item"
-          placeholderTextColor="#999"
-          value={title}
-          onChangeText={setTitle}
-          maxLength={60}
-        />
-        <Text style={styles.charCount}>{title.length}/60</Text>
-
-        {/* 描述 */}
-        <Text style={styles.sectionTitle}>Description</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="eg. small grey Nike t-shirt, only worn a few times"
-          placeholderTextColor="#999"
-          multiline
-          value={description}
-          onChangeText={setDescription}
-          maxLength={500}
-        />
-        <Text style={styles.charCount}>{description.length}/500</Text>
-        <TouchableOpacity style={styles.aiGenBtn} onPress={generateDescription}>
-          <Text style={{ color: "#5B21B6", fontWeight: "600" }}>Generate with AI ✨</Text>
-        </TouchableOpacity>
-
-        {loading && <ActivityIndicator size="small" color="#5B21B6" />}
-        {aiDesc && (
-          <View style={styles.aiBox}>
-            {/* 关闭按钮 */}
-            <TouchableOpacity style={styles.closeIcon} onPress={() => setAiDesc(null)}>
-              <Icon name="close" size={20} color="#444" />
+          {/* 图片上传 */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.photoRow}
+          >
+            <TouchableOpacity style={styles.photoBox} onPress={handleAddPhoto}>
+              <Icon name="add" size={24} color="#999" />
+              <Text style={styles.photoAddHint}>Add photo</Text>
             </TouchableOpacity>
 
-            <Text style={{ fontWeight: "600", marginBottom: 4 }}>Done! Use this to get started:</Text>
-            <Text style={{ marginBottom: 8 }}>{aiDesc}</Text>
-
-            {/* 左边 Use，小按钮；右边 shuffle */}
-            <View style={styles.aiActionRow}>
-              <TouchableOpacity style={styles.useSmallBtn} onPress={() => setDescription(aiDesc)}>
-                <Text style={{ color: "#fff", fontWeight: "600" }}>Use description</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={generateDescription}>
-                <Icon name="shuffle" size={20} color="#5B21B6" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Info */}
-        <Text style={styles.sectionTitle}>Info</Text>
-        <Text style={styles.fieldLabel}>Category</Text>
-        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCat(true)}>
-          <Text style={styles.selectValue}>{category}</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.fieldLabel}>Brand</Text>
-        {!brandCustomMode ? (
-          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowBrand(true)}>
-            <Text style={styles.selectValue}>{brand}</Text>
-          </TouchableOpacity>
-        ) : (
-          <View>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter brand (eg. Nike, Zara)"
-              value={brandCustom}
-              onChangeText={setBrandCustom}
-            />
-            <TouchableOpacity
-              style={styles.clearTiny}
-              onPress={() => {
-                setBrandCustomMode(false);
-                setBrand("Select");
-                setBrandCustom("");
-              }}
-            >
-              <Text style={{ color: "#5B21B6" }}>← Back to list</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <Text style={styles.fieldLabel}>Price</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter price (e.g. 25.00)"
-          value={price}
-          onChangeText={setPrice}
-          keyboardType="numeric"
-        />
-
-        <Text style={styles.fieldLabel}>Condition</Text>
-        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCond(true)}>
-          <Text style={styles.selectValue}>{condition}</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.fieldLabel}>Size</Text>
-        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowSize(true)}>
-          <Text style={styles.selectValue}>
-            {size === "Other" && customSize ? customSize : size}
-          </Text>
-        </TouchableOpacity>
-
-        <Text style={styles.fieldLabel}>Material</Text>
-        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowMaterial(true)}>
-          <Text style={styles.selectValue}>
-            {material === "Other" && customMaterial ? customMaterial : material}
-          </Text>
-        </TouchableOpacity>
-
-        <Text style={styles.fieldLabel}>Gender</Text>
-        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowGender(true)}>
-          <Text style={styles.selectValue}>{gender}</Text>
-        </TouchableOpacity>
-
-        {/* Tags Section */}
-        <Text style={styles.sectionTitle}>Tags</Text>
-        <Text style={{ color: "#555", marginBottom: 6 }}>
-          Add up to 5 tags to help buyers find your item
-        </Text>
-
-        <View style={styles.tagContainer}>
-          {tags.length === 0 ? (
-            <TouchableOpacity
-              style={styles.addStyleBtn}
-              onPress={() => setShowTagPicker(true)}
-            >
-              <Icon name="add-circle-outline" size={18} color="#F54B3D" />
-              <Text style={styles.addStyleText}>Style</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.selectedTagWrap}>
-              {tags.map((tag) => (
-                <View key={tag} style={styles.tagChip}>
-                  <Text style={styles.tagChipText}>{tag}</Text>
+            {photos.map((photo, index) => (
+              <TouchableOpacity 
+                key={photo.id} 
+                style={styles.photoPreview}
+                onPress={() => setPreviewIndex(index)}
+              >
+                <Image source={{ uri: photo.localUri }} style={styles.photoPreviewImage} />
+                {photo.uploading ? (
+                  <View style={styles.photoUploadingOverlay}>
+                    <ActivityIndicator color="#fff" />
+                  </View>
+                ) : (
                   <TouchableOpacity
-                    onPress={() => setTags(tags.filter((t) => t !== tag))}
+                    style={styles.photoRemoveBtn}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleRemovePhoto(photo.id);
+                    }}
                   >
-                    <Icon name="close" size={14} color="#fff" />
+                    <Icon name="close" size={16} color="#fff" />
                   </TouchableOpacity>
-                </View>
-              ))}
-              {tags.length < 5 && (
-                <TouchableOpacity
-                  style={styles.addStyleBtnSmall}
-                  onPress={() => setShowTagPicker(true)}
-                >
-                  <Icon name="add" size={16} color="#F54B3D" />
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-        </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
 
-        
+          <TouchableOpacity onPress={() => setShowGuide(true)}>
+            <Text style={styles.photoTips}>Read our photo tips</Text>
+          </TouchableOpacity>
 
-        {/* Shipping */}
-        <Text style={styles.sectionTitle}>Shipping</Text>
-        <Text style={styles.fieldLabel}>Shipping option</Text>
-        <TouchableOpacity style={styles.selectBtn} onPress={() => setShowShip(true)}>
-          <Text style={styles.selectValue}>{shippingOption}</Text>
-        </TouchableOpacity>
-
-        {shippingOption === "Buyer pays – fixed fee" && (
+          {/* === 必填字段区域 === */}
+          
+          {/* 标题 - 必填 */}
+          <Text style={styles.sectionTitle}>Title <Text style={styles.requiredMark}>*</Text></Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter custom fee (e.g. $3.00)"
+            placeholder="Enter a catchy title for your item"
             placeholderTextColor="#999"
-            keyboardType="numeric"
-            value={shippingFee}
-            onChangeText={setShippingFee}
+            value={title}
+            onChangeText={setTitle}
+            maxLength={60}
           />
-        )}
+          <Text style={styles.charCount}>{title.length}/60</Text>
 
-        {shippingOption === "Meet-up" && (
-          <>
-            <Text style={styles.fieldLabel}>Meet-up Location</Text>
+          {/* 描述 - 必填 */}
+          <Text style={styles.sectionTitle}>Description <Text style={styles.requiredMark}>*</Text></Text>
+          <TextInput
+            style={styles.input}
+            placeholder="eg. small grey Nike t-shirt, only worn a few times"
+            placeholderTextColor="#999"
+            multiline
+            value={description}
+            onChangeText={setDescription}
+            maxLength={500}
+          />
+          <Text style={styles.charCount}>{description.length}/500</Text>
+          <TouchableOpacity style={styles.aiGenBtn} onPress={generateDescription}>
+            <Text style={{ color: "#5B21B6", fontWeight: "600" }}>Generate with AI ✨</Text>
+          </TouchableOpacity>
+
+          {loading && <ActivityIndicator size="small" color="#5B21B6" />}
+          {aiDesc && (
+            <View style={styles.aiBox}>
+              {/* 关闭按钮 */}
+              <TouchableOpacity style={styles.closeIcon} onPress={() => setAiDesc(null)}>
+                <Icon name="close" size={20} color="#444" />
+              </TouchableOpacity>
+
+              <Text style={{ fontWeight: "600", marginBottom: 4 }}>Done! Use this to get started:</Text>
+              <Text style={{ marginBottom: 8 }}>{aiDesc}</Text>
+
+              {/* 左边 Use，小按钮；右边 shuffle */}
+              <View style={styles.aiActionRow}>
+                <TouchableOpacity style={styles.useSmallBtn} onPress={() => setDescription(aiDesc)}>
+                  <Text style={{ color: "#fff", fontWeight: "600" }}>Use description</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={generateDescription}>
+                  <Icon name="shuffle" size={20} color="#5B21B6" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Category - 必填 */}
+          <Text style={styles.sectionTitle}>Category <Text style={styles.requiredMark}>*</Text></Text>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCat(true)}>
+            <Text style={styles.selectValue}>{category}</Text>
+          </TouchableOpacity>
+
+          {/* Condition - 必填 */}
+          <Text style={styles.sectionTitle}>Condition <Text style={styles.requiredMark}>*</Text></Text>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCond(true)}>
+            <Text style={styles.selectValue}>{condition}</Text>
+          </TouchableOpacity>
+
+          {/* Price - 必填 */}
+          <Text style={styles.sectionTitle}>Price <Text style={styles.requiredMark}>*</Text></Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter price (e.g. 25.00)"
+            value={price}
+            onChangeText={setPrice}
+            keyboardType="numeric"
+          />
+
+          {/* Shipping - 必填 */}
+          <Text style={styles.sectionTitle}>Shipping <Text style={styles.requiredMark}>*</Text></Text>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowShip(true)}>
+            <Text style={styles.selectValue}>{shippingOption}</Text>
+          </TouchableOpacity>
+
+          {shippingOption === "Buyer pays – fixed fee" && (
             <TextInput
               style={styles.input}
-              placeholder="eg. Bugis MRT Station, Singapore"
+              placeholder="Enter custom fee (e.g. $3.00)"
               placeholderTextColor="#999"
-              value={location}
-              onChangeText={setLocation}
+              keyboardType="numeric"
+              value={shippingFee}
+              onChangeText={setShippingFee}
             />
-          </>
-        )}
+          )}
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.draftBtn}>
-            <Text style={styles.draftText}>Save to drafts</Text>
+          {shippingOption === "Meet-up" && (
+            <>
+              <Text style={styles.fieldLabel}>Meet-up Location</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="eg. Bugis MRT Station, Singapore"
+                placeholderTextColor="#999"
+                value={location}
+                onChangeText={setLocation}
+              />
+            </>
+          )}
+
+          {/* === 可选字段区域 === */}
+          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Additional Details (Optional)</Text>
+
+          <Text style={styles.fieldLabel}>Brand</Text>
+          {!brandCustomMode ? (
+            <TouchableOpacity style={styles.selectBtn} onPress={() => setShowBrand(true)}>
+              <Text style={styles.selectValue}>{brand}</Text>
+            </TouchableOpacity>
+          ) : (
+            <View>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter brand (eg. Nike, Zara)"
+                value={brandCustom}
+                onChangeText={setBrandCustom}
+              />
+              <TouchableOpacity
+                style={styles.clearTiny}
+                onPress={() => {
+                  setBrandCustomMode(false);
+                  setBrand("Select");
+                  setBrandCustom("");
+                }}
+              >
+                <Text style={{ color: "#5B21B6" }}>← Back to list</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <Text style={styles.fieldLabel}>Size</Text>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowSize(true)}>
+            <Text style={styles.selectValue}>
+              {size === "Other" && customSize ? customSize : size}
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.postBtn, saving && styles.postBtnDisabled]} 
-            onPress={handlePostListing}
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator size="small" color="#fff" />
+
+          <Text style={styles.fieldLabel}>Material</Text>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowMaterial(true)}>
+            <Text style={styles.selectValue}>
+              {material === "Other" && customMaterial ? customMaterial : material}
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={styles.fieldLabel}>Gender</Text>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowGender(true)}>
+            <Text style={styles.selectValue}>{gender}</Text>
+          </TouchableOpacity>
+
+          {/* Tags Section */}
+          <Text style={styles.fieldLabel}>Tags</Text>
+          <Text style={{ color: "#555", marginBottom: 6, fontSize: 13 }}>
+            Add up to 5 tags to help buyers find your item
+          </Text>
+
+          <View style={styles.tagContainer}>
+            {tags.length === 0 ? (
+              <TouchableOpacity
+                style={styles.addStyleBtn}
+                onPress={() => setShowTagPicker(true)}
+              >
+                <Icon name="add-circle-outline" size={18} color="#F54B3D" />
+                <Text style={styles.addStyleText}>Style</Text>
+              </TouchableOpacity>
             ) : (
-              <Text style={styles.postText}>Post listing</Text>
+              <View style={styles.selectedTagWrap}>
+                {tags.map((tag) => (
+                  <View key={tag} style={styles.tagChip}>
+                    <Text style={styles.tagChipText}>{tag}</Text>
+                    <TouchableOpacity
+                      onPress={() => setTags(tags.filter((t) => t !== tag))}
+                    >
+                      <Icon name="close" size={14} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {tags.length < 5 && (
+                  <TouchableOpacity
+                    style={styles.addStyleBtnSmall}
+                    onPress={() => setShowTagPicker(true)}
+                  >
+                    <Icon name="add" size={16} color="#F54B3D" />
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+          </View>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <TouchableOpacity style={styles.draftBtn}>
+              <Text style={styles.draftText}>Save to drafts</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.postBtn, saving && styles.postBtnDisabled]} 
+              onPress={handlePostListing}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.postText}>Post listing</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Pickers */}
       <OptionPicker title="Select gender" visible={showGender} options={GENDER_OPTIONS} value={gender} onClose={() => setShowGender(false)} onSelect={setGender} />
       <OptionPicker title="Select category" visible={showCat} options={CATEGORY_OPTIONS} value={category} onClose={() => setShowCat(false)} onSelect={setCategory} />
       <OptionPicker title="Select brand" visible={showBrand} options={BRAND_OPTIONS} value={brand} onClose={() => setShowBrand(false)} onSelect={setBrand} />
       <OptionPicker title="Select condition" visible={showCond} options={CONDITION_OPTIONS} value={condition} onClose={() => setShowCond(false)} onSelect={setCondition} />
+      
+      {/* Image Preview Modal - 支持滑动切换 */}
+      <Modal
+        visible={previewIndex !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewIndex(null)}
+      >
+        <View style={styles.previewModalOverlay}>
+          <ScrollView
+            ref={scrollViewRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            contentOffset={{ x: (previewIndex ?? 0) * Dimensions.get("window").width, y: 0 }}
+            style={styles.previewScrollView}
+          >
+            {photos.map((photo, index) => (
+              <View key={photo.id} style={styles.previewImageContainer}>
+                <Image 
+                  source={{ uri: photo.localUri }} 
+                  style={styles.previewModalImage}
+                  resizeMode="contain"
+                />
+              </View>
+            ))}
+          </ScrollView>
+          
+          {/* 顶部工具栏 */}
+          <View style={styles.previewTopBar}>
+            <View style={styles.previewIndicator}>
+              <Text style={styles.previewIndicatorText}>
+                {(previewIndex ?? 0) + 1} / {photos.length}
+              </Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.previewCloseBtn}
+              onPress={() => setPreviewIndex(null)}
+            >
+              <Icon name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {/* 底部缩略图导航 */}
+          {photos.length > 1 && (
+            <View style={styles.previewBottomBar}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.thumbnailContainer}
+              >
+                {photos.map((photo, index) => (
+                  <TouchableOpacity
+                    key={photo.id}
+                    style={[
+                      styles.thumbnail,
+                      index === previewIndex && styles.thumbnailActive
+                    ]}
+                    onPress={() => {
+                      setPreviewIndex(index);
+                      scrollViewRef.current?.scrollTo({
+                        x: index * Dimensions.get("window").width,
+                        animated: true
+                      });
+                    }}
+                  >
+                    <Image 
+                      source={{ uri: photo.localUri }} 
+                      style={styles.thumbnailImage}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      </Modal>
+
       <OptionPicker
         title="Select size"
         visible={showSize}
         options={
-          category === "Shoes" 
-            ? SIZE_OPTIONS_SHOES 
-            : category === "Accessories" 
-            ? SIZE_OPTIONS_ACCESSORIES 
-            : category === "Bags"
-            ? SIZE_OPTIONS_BAGS
+          category === "Footwear"
+            ? SIZE_OPTIONS_SHOES
+            : category === "Accessories"
+            ? SIZE_OPTIONS_ACCESSORIES
             : SIZE_OPTIONS_CLOTHES
         }
         value={size}
@@ -954,6 +1092,7 @@ const styles = StyleSheet.create({
   photoTips: { fontSize: 14, color: "#5B21B6", marginBottom: 16 },
 
   sectionTitle: { fontSize: 16, fontWeight: "600", marginTop: 12, marginBottom: 8 },
+  requiredMark: { color: "#F54B3D", fontWeight: "700" },
   fieldLabel: { fontSize: 14, fontWeight: "500", color: "#333", marginBottom: 6, marginTop: 8 },
   charCount: { 
     fontSize: 12, 
@@ -1166,5 +1305,80 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: "center",
+  },
+  previewModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+  },
+  previewScrollView: {
+    flex: 1,
+  },
+  previewImageContainer: {
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  previewModalImage: {
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height * 0.8,
+  },
+  previewTopBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  previewIndicator: {
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  previewIndicatorText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  previewCloseBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  previewBottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingVertical: 20,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  thumbnailContainer: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  thumbnail: {
+    width: 60,
+    height: 75,
+    borderRadius: 8,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  thumbnailActive: {
+    borderColor: "#fff",
+  },
+  thumbnailImage: {
+    width: "100%",
+    height: "100%",
   },
 });

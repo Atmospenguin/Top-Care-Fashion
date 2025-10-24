@@ -39,12 +39,6 @@ export default function AIFeatures({ config }: { config?: AIFeaturesConfig }) {
     "/TOPApp/mixnmatch1/Mix & Match-2.png",
     "/TOPApp/mixnmatch1/Mix & Match-3.png",
   ];
-  const defaultMixBoy = [
-    "/TOPApp/mixnmatch2/Mix & Match.png",
-    "/TOPApp/mixnmatch2/Mix & Match-1.png",
-    "/TOPApp/mixnmatch2/Mix & Match-2.png",
-    "/TOPApp/mixnmatch2/Mix & Match-3.png",
-  ];
   const defaultListing = ["/TOPApp/AI-Listing.png"];
   const defaultSearch = ["/TOPApp/Search Result.png"];
 

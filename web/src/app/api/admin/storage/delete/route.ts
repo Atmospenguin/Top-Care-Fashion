@@ -17,7 +17,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const supabaseUrl = env("NEXT_PUBLIC_SUPABASE_URL");
     const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
-    const { bucket: bodyBucket, path } = await req.json();
+    const { path } = await req.json();
     const bucket = "assets";
     if (!path || typeof path !== "string") {
       return NextResponse.json({ error: "path is required" }, { status: 400 });

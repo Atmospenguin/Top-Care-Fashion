@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 // GET /api/test-db - 测试数据库连接
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // 测试基本连接
     const userCount = await prisma.users.count();

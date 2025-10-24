@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../App";
 import { LOGO_FULL_COLOR } from "../../constants/assetUrls";
 import Icon from "../../components/Icon";
 import { useAuth } from "../../contexts/AuthContext";
+import { getCurrentUser } from "../../api";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
 
@@ -12,7 +13,7 @@ export default function LoginScreen({ navigation }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login, error, clearError } = useAuth();
+  const { login, error, clearError, user } = useAuth();
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -24,9 +25,20 @@ export default function LoginScreen({ navigation }: Props) {
       setLoading(true);
       clearError();
       await login(email.trim(), password);
-      
-      // 登录成功，导航到主应用
-      navigation.replace("OnboardingPreference");
+      // 登录成功后，拉取一次用户资料以判定是否已有偏好
+      let hasPreference = false;
+      try {
+        const me = await getCurrentUser();
+        const u = (me as any)?.data?.user || null;
+        hasPreference = Boolean(
+          u && (
+            u.gender ||
+            (Array.isArray(u.preferred_styles) && u.preferred_styles.length > 0) ||
+            u.preferred_size_top || u.preferred_size_bottom || u.preferred_size_shoe
+          )
+        );
+      } catch {}
+      navigation.replace(hasPreference ? "Main" : "OnboardingPreference");
     } catch (error: any) {
       Alert.alert("Login Failed", error.message || "Please check your credentials and try again");
     } finally {
@@ -35,7 +47,12 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       {/* 返回按钮 */}
       <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
         <Icon name="chevron-back" size={20} color="#111" />
@@ -93,7 +110,8 @@ export default function LoginScreen({ navigation }: Props) {
         )}
       </TouchableOpacity>
 
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

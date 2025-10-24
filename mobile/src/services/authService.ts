@@ -18,6 +18,11 @@ export interface User {
   location?: string | null;
   created_at?: string;
   updated_at?: string;
+  preferred_styles?: string[];
+  preferred_brands?: string[];
+  preferred_size_top?: string | null;
+  preferred_size_bottom?: string | null;
+  preferred_size_shoe?: string | null;
 }
 
 // 登录请求

@@ -1,49 +1,89 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RouteProp } from "@react-navigation/native";
 
 import Icon from "../../../components/Icon";
 import type { HomeStackParamList } from "./index";
 import { fetchListings } from "../../../api";
-import AdaptiveImage from "../../../components/AdaptiveImage";
 import type { RootStackParamList } from "../../../App";
 import type { ListingItem } from "../../../types/shop";
+import { useAuth } from "../../../contexts/AuthContext";
 
 export default function HomeScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
+  const route = useRoute<RouteProp<HomeStackParamList, "HomeMain">>();
+  const lastRefreshRef = useRef<number | null>(null);
   const [searchText, setSearchText] = useState("");
   const [featuredItems, setFeaturedItems] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 获取推荐商品数据
-  useEffect(() => {
-    const loadFeaturedItems = async () => {
-      try {
+  const { isAuthenticated } = useAuth();
+
+  // 获取推荐商品数据（仅登录后触发）
+  const loadFeaturedItems = useCallback(async (opts?: { isRefresh?: boolean }) => {
+    try {
+      setError(null);
+      if (opts?.isRefresh) {
+        setRefreshing(true);
+      } else {
         setLoading(true);
-        setError(null);
-        console.log('🔍 HomeScreen: Loading featured items...');
-        const items = await fetchListings({ limit: 6 });
-        console.log('🔍 HomeScreen: Received items:', items?.length || 0);
-        console.log('🔍 HomeScreen: Items data:', items);
-        setFeaturedItems(items);
-      } catch (err) {
-        console.error('Error loading featured items:', err);
-        setError('Failed to load items');
-      } finally {
+      }
+
+      console.log('🔍 HomeScreen: Loading featured items...');
+      const items = await fetchListings({ limit: 20 });
+      console.log('🔍 HomeScreen: Received items:', items?.length || 0);
+      console.log('🔍 HomeScreen: Items data:', items);
+      setFeaturedItems(items);
+    } catch (err) {
+      console.error('Error loading featured items:', err);
+      setError('Failed to load items');
+    } finally {
+      if (opts?.isRefresh) {
+        setRefreshing(false);
+      } else {
         setLoading(false);
       }
-    };
-
-    loadFeaturedItems();
+    }
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadFeaturedItems();
+    } else {
+      // 未登录时重置状态，避免界面显示旧数据
+      setFeaturedItems([]);
+      setLoading(false);
+      setError(null);
+    }
+  }, [isAuthenticated, loadFeaturedItems]);
+
+  const refreshTrigger = route.params?.refreshTS;
+
+  useEffect(() => {
+    if (refreshTrigger && lastRefreshRef.current !== refreshTrigger) {
+      lastRefreshRef.current = refreshTrigger;
+      loadFeaturedItems({ isRefresh: true });
+    }
+  }, [refreshTrigger, loadFeaturedItems]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: 60 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadFeaturedItems({ isRefresh: true })}
+          />
+        }
+      >
         {/* 🔍 搜索栏 */}
         <View style={styles.searchRow}>
           <TextInput
@@ -125,42 +165,73 @@ export default function HomeScreen() {
         ) : error ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => {
-                setError(null);
-                setLoading(true);
-                fetchListings({ limit: 6 }).then(setFeaturedItems).catch(() => setError('Failed to load items')).finally(() => setLoading(false));
-              }}
-            >
-              <Text style={styles.retryText}>Retry</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => {
+                  // reuse the same loader for retry
+                  loadFeaturedItems();
+                }}
+              >
+                <Text style={styles.retryText}>Retry</Text>
+              </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.grid}>
-            {featuredItems.slice(0, 3).map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.card}
-                onPress={() =>
-                  (navigation as any)
-                    .getParent()
-                    ?.getParent()
-                    ?.navigate("Buy", {
-                      screen: "ListingDetail",
-                      params: { item },
-                    } as any)
-                }
-                accessibilityRole="button"
-              >
-                <AdaptiveImage 
-                  uri={item.images?.[0]} 
-                  style={styles.itemImg} 
-                />
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.price}>${item.price?.toFixed(2) || '0.00'}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.gridWrapper}>
+            {featuredItems.map((item) => {
+              const primaryImage =
+                (Array.isArray(item.images) && item.images[0]) ||
+                "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
+
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.gridItem}
+                  onPress={() =>
+                    (navigation as any)
+                      .getParent()
+                      ?.getParent()
+                      ?.navigate("Buy", {
+                        screen: "ListingDetail",
+                        params: { item },
+                      } as any)
+                  }
+                  accessibilityRole="button"
+                >
+                  <Image
+                    source={{ uri: primaryImage }}
+                    style={styles.gridImage}
+                  />
+                  <View style={styles.itemInfo}>
+                    <Text style={styles.itemTitle} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    <Text style={styles.itemPrice}>${item.price?.toFixed(2) || "0.00"}</Text>
+                    {item.size && (
+                      <Text style={styles.itemSize} numberOfLines={1}>
+                        Size {item.size}
+                      </Text>
+                    )}
+                    {item.material && (
+                      <Text style={styles.itemMaterial} numberOfLines={1}>
+                        {item.material}
+                      </Text>
+                    )}
+                    {Array.isArray(item.tags) && item.tags.length > 0 && (
+                      <View style={styles.itemTags}>
+                        {item.tags.slice(0, 2).map((tag, index) => (
+                          <View key={index} style={styles.itemTagChip}>
+                            <Text style={styles.itemTagText}>{tag}</Text>
+                          </View>
+                        ))}
+                        {item.tags.length > 2 && (
+                          <Text style={styles.itemTagMore}>+{item.tags.length - 2}</Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -209,12 +280,75 @@ const styles = StyleSheet.create({
 
   // 推荐
   sectionTitle: { fontSize: 16, fontWeight: "700", marginBottom: 12 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  card: { width: "48%", marginBottom: 16 },
-  // itemImg uses AdaptiveImage which provides width:100% + aspectRatio dynamically
-  itemImg: { borderRadius: 8, marginBottom: 6, overflow: "hidden" },
-  cardTitle: { fontSize: 15, fontWeight: "600", marginBottom: 2 },
-  price: { fontWeight: "700" },
+  gridWrapper: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginHorizontal: -4,
+  },
+  gridItem: {
+    width: "48%",
+    marginHorizontal: 4,
+    marginBottom: 12,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#f9f9f9",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#ededed",
+  },
+  gridImage: {
+    width: "100%",
+    aspectRatio: 1,
+    backgroundColor: "#f1f1f1",
+  },
+  itemInfo: {
+    padding: 10,
+    rowGap: 4,
+  },
+  itemTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111",
+  },
+  itemPrice: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111",
+  },
+  itemSize: {
+    fontSize: 12,
+    color: "#666",
+  },
+  itemMaterial: {
+    fontSize: 11,
+    color: "#888",
+    marginTop: 2,
+    fontStyle: "italic",
+  },
+  itemTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 4,
+    gap: 4,
+  },
+  itemTagChip: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 0.5,
+    borderColor: "#e0e0e0",
+  },
+  itemTagText: {
+    fontSize: 10,
+    color: "#666",
+    fontWeight: "500",
+  },
+  itemTagMore: {
+    fontSize: 10,
+    color: "#999",
+    fontStyle: "italic",
+    alignSelf: "center",
+  },
 
   // 加载和错误状态
   loadingContainer: {

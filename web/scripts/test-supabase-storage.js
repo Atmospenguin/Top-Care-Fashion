@@ -27,7 +27,7 @@ async function testSupabaseStorage() {
     
     // 测试连接
     console.log('🔍 Testing Supabase connection...');
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { error: authError } = await supabase.auth.getUser();
     
     if (authError) {
       console.log(`   ⚠️ Auth error (expected): ${authError.message}`);
