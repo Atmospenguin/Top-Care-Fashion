@@ -23,10 +23,18 @@ async function getCurrentUser(req: NextRequest) {
       const v = verifyLegacyToken(token);
       if (v.valid && v.payload?.uid) {
         dbUser = await prisma.users.findUnique({ where: { id: Number(v.payload.uid) } });
+      // 优先尝试本地 JWT（legacy），避免对 Supabase 发起无效请求
+      const v = verifyLegacyToken(token);
+      if (v.valid && v.payload?.uid) {
+        dbUser = await prisma.users.findUnique({ where: { id: Number(v.payload.uid) } });
       }
 
       // 如果不是本地 JWT，再尝试 Supabase JWT
+      // 如果不是本地 JWT，再尝试 Supabase JWT
       if (!dbUser) {
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        if (user && !error) {
+          dbUser = await prisma.users.findUnique({ where: { supabase_user_id: user.id } });
         const { data: { user }, error } = await supabase.auth.getUser(token);
         if (user && !error) {
           dbUser = await prisma.users.findUnique({ where: { supabase_user_id: user.id } });
@@ -188,6 +196,29 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
+    // 偏好：样式（数组）
+    if (data.preferredStyles !== undefined) {
+      if (Array.isArray(data.preferredStyles)) {
+        updateData.preferred_styles = data.preferredStyles;
+      } else if (data.preferredStyles === null) {
+        updateData.preferred_styles = null;
+      }
+    }
+
+    // 偏好：尺寸（对象）
+    if (data.preferredSizes !== undefined && data.preferredSizes !== null) {
+      const sizes = data.preferredSizes as any;
+      if (Object.prototype.hasOwnProperty.call(sizes, 'top')) {
+        updateData.preferred_size_top = sizes.top ?? null;
+      }
+      if (Object.prototype.hasOwnProperty.call(sizes, 'bottom')) {
+        updateData.preferred_size_bottom = sizes.bottom ?? null;
+      }
+      if (Object.prototype.hasOwnProperty.call(sizes, 'shoe')) {
+        updateData.preferred_size_shoe = sizes.shoe ?? null;
+      }
+    }
+
     console.log("📝 Update data prepared:", JSON.stringify(updateData, null, 2));
 
     // ✅ 检查是否有实际要更新的字段
@@ -228,6 +259,14 @@ export async function PATCH(req: NextRequest) {
         dob: updated.dob ? updated.dob.toISOString().slice(0, 10) : null,
         gender: updated.gender === "MALE" ? "Male" : updated.gender === "FEMALE" ? "Female" : null,
         avatar_url: updated.avatar_url,
+        preferred_styles: Array.isArray((updated as any)?.preferred_styles)
+          ? (updated as any).preferred_styles
+          : (updated as any)?.preferred_styles
+          ? ((updated as any).preferred_styles as any)
+          : [],
+        preferred_size_top: (updated as any)?.preferred_size_top ?? null,
+        preferred_size_bottom: (updated as any)?.preferred_size_bottom ?? null,
+        preferred_size_shoe: (updated as any)?.preferred_size_shoe ?? null,
         preferred_styles: Array.isArray((updated as any)?.preferred_styles)
           ? (updated as any).preferred_styles
           : (updated as any)?.preferred_styles

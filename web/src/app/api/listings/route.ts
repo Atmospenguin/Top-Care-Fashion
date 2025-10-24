@@ -7,6 +7,7 @@ export async function GET(req: Request) {
     const category = searchParams.get("category");
     const search = searchParams.get("search");
     const genderParam = searchParams.get("gender");
+    const genderParam = searchParams.get("gender");
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = parseInt(searchParams.get("offset") || "0");
 
@@ -19,7 +20,12 @@ export async function GET(req: Request) {
     if (category) {
       where.category = {
         name: { contains: category, mode: "insensitive" },
+        name: { contains: category, mode: "insensitive" },
       };
+    }
+
+    if (genderParam) {
+      where.gender = genderParam.toLowerCase();
     }
 
     if (genderParam) {
@@ -207,6 +213,8 @@ export async function GET(req: Request) {
         seller: sellerInfo,
         createdAt: listing.created_at ? listing.created_at.toISOString() : null,
         updatedAt: listing.updated_at ? listing.updated_at.toISOString() : null,
+        createdAt: listing.created_at ? listing.created_at.toISOString() : null,
+        updatedAt: listing.updated_at ? listing.updated_at.toISOString() : null,
       };
     });
 
@@ -227,3 +235,4 @@ export async function GET(req: Request) {
     );
   }
 }
+

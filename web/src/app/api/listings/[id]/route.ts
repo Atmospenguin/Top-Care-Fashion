@@ -122,6 +122,9 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       shippingOption: (listing as any).shipping_option || "Free shipping",
       shippingFee: Number((listing as any).shipping_fee || 0),
       location: (listing as any).location || "",
+      shippingOption: (listing as any).shipping_option || "Free shipping",
+      shippingFee: Number((listing as any).shipping_fee || 0),
+      location: (listing as any).location || "",
       seller: {
         name: listing.seller?.username || "Unknown",
         avatar: listing.seller?.avatar_url || "",
@@ -152,8 +155,14 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const sessionUser = await getSessionUser(req);
     if (!sessionUser) {
       console.log("❌ No session user found");
+    // 使用 getSessionUser 支持 Legacy JWT token
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) {
+      console.log("❌ No session user found");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    console.log("✅ Authenticated user:", sessionUser.username, "ID:", sessionUser.id);
 
     console.log("✅ Authenticated user:", sessionUser.username, "ID:", sessionUser.id);
 
@@ -171,6 +180,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const existingListing = await prisma.listings.findFirst({
       where: {
         id: listingId,
+        seller_id: sessionUser.id,
         seller_id: sessionUser.id,
       },
     });
@@ -216,6 +226,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (body.gender !== undefined) updateData.gender = body.gender.toLowerCase();
     if (body.tags !== undefined) updateData.tags = JSON.stringify(body.tags);
     if (body.images !== undefined) updateData.image_urls = JSON.stringify(body.images);
+    if (body.shippingOption !== undefined) updateData.shipping_option = body.shippingOption;
+    if (body.shippingFee !== undefined) updateData.shipping_fee = parseFloat(body.shippingFee);
+    if (body.location !== undefined) updateData.location = body.location;
     if (body.shippingOption !== undefined) updateData.shipping_option = body.shippingOption;
     if (body.shippingFee !== undefined) updateData.shipping_fee = parseFloat(body.shippingFee);
     if (body.location !== undefined) updateData.location = body.location;
@@ -268,6 +281,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       shippingOption: (updatedListing as any).shipping_option || "Free shipping",
       shippingFee: Number((updatedListing as any).shipping_fee || 0),
       location: (updatedListing as any).location || "",
+      shippingOption: (updatedListing as any).shipping_option || "Free shipping",
+      shippingFee: Number((updatedListing as any).shipping_fee || 0),
+      location: (updatedListing as any).location || "",
       seller: {
         name: updatedListing.seller?.username || "Unknown",
         avatar: updatedListing.seller?.avatar_url || "",
@@ -303,8 +319,14 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
     const sessionUser = await getSessionUser(req);
     if (!sessionUser) {
       console.log("❌ No session user found");
+    // 使用 getSessionUser 支持 Legacy JWT token
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) {
+      console.log("❌ No session user found");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    console.log("✅ Authenticated user:", sessionUser.username, "ID:", sessionUser.id);
 
     console.log("✅ Authenticated user:", sessionUser.username, "ID:", sessionUser.id);
 
@@ -316,11 +338,13 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
     }
 
     console.log("🗑️ Deleting listing:", listingId, "for user:", sessionUser.id);
+    console.log("🗑️ Deleting listing:", listingId, "for user:", sessionUser.id);
 
     // 验证listing是否属于当前用户
     const existingListing = await prisma.listings.findFirst({
       where: {
         id: listingId,
+        seller_id: sessionUser.id,
         seller_id: sessionUser.id,
       },
     });

@@ -57,6 +57,23 @@ const formatDateString = (value?: string | null) => {
 };
 
 
+const formatGenderLabel = (value?: string | null) => {
+  if (!value) return "Unisex";
+  const lower = value.toLowerCase();
+  if (lower === "men" || lower === "male") return "Men";
+  if (lower === "women" || lower === "female") return "Women";
+  if (lower === "unisex") return "Unisex";
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+};
+
+const formatDateString = (value?: string | null) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString();
+};
+
+
 export default function ListingDetailScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
@@ -449,9 +466,25 @@ export default function ListingDetailScreen() {
                   ? safeItem.size 
                   : 'Not specified'}
               </Text>
+              <Text style={styles.metaValue}>
+                {safeItem?.size && safeItem.size !== 'N/A' && safeItem.size !== 'Select' 
+                  ? safeItem.size 
+                  : 'Not specified'}
+              </Text>
             </View>
             <View style={styles.metaPill}>
               <Text style={styles.metaLabel}>Condition</Text>
+              <Text style={styles.metaValue}>
+                {safeItem?.condition && safeItem.condition !== 'Select' 
+                  ? safeItem.condition 
+                  : 'Not specified'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.metaRow}>
+            <View style={styles.metaPill}>
+              <Text style={styles.metaLabel}>Gender</Text>
+              <Text style={styles.metaValue}>{genderLabel}</Text>
               <Text style={styles.metaValue}>
                 {safeItem?.condition && safeItem.condition !== 'Select' 
                   ? safeItem.condition 
@@ -477,10 +510,30 @@ export default function ListingDetailScreen() {
             )}
             {/* 只在有值时显示 Material */}
             {safeItem?.material && safeItem.material !== 'Select' && safeItem.material !== 'Polyester' && (
+            {/* 只在有值时显示 Brand */}
+            {safeItem?.brand && safeItem.brand !== '' && safeItem.brand !== 'Select' && (
+              <View style={styles.attributeBlock}>
+                <Text style={styles.attributeLabel}>Brand</Text>
+                <Text style={styles.attributeValue}>{safeItem.brand}</Text>
+              </View>
+            )}
+            {/* 只在有值时显示 Material */}
+            {safeItem?.material && safeItem.material !== 'Select' && safeItem.material !== 'Polyester' && (
               <View style={styles.attributeBlock}>
                 <Text style={styles.attributeLabel}>Material</Text>
                 <Text style={styles.attributeValue}>{safeItem.material}</Text>
               </View>
+            )}
+            {/* 如果 Brand 和 Material 都没有，显示占位信息 */}
+            {(!safeItem?.brand || safeItem.brand === '' || safeItem.brand === 'Select') && 
+             (!safeItem?.material || safeItem.material === 'Select' || safeItem.material === 'Polyester') && (
+              <View style={styles.attributeBlock}>
+                <Text style={styles.attributeLabel}>Additional Details</Text>
+                <Text style={[styles.attributeValue, { color: '#999', fontStyle: 'italic' }]}>
+                  Not provided by seller
+                </Text>
+              </View>
+            )}
             )}
             {/* 如果 Brand 和 Material 都没有，显示占位信息 */}
             {(!safeItem?.brand || safeItem.brand === '' || safeItem.brand === 'Select') && 
@@ -505,6 +558,18 @@ export default function ListingDetailScreen() {
                   </View>
                 ))}
               </View>
+            </View>
+          )}
+
+          {(listedOn || updatedOn) && (
+            <View style={styles.infoSection}>
+              <Text style={styles.infoHeading}>Listing Info</Text>
+              {listedOn && (
+                <Text style={styles.infoText}>Listed on {listedOn}</Text>
+              )}
+              {updatedOn && (
+                <Text style={styles.infoText}>Last updated {updatedOn}</Text>
+              )}
             </View>
           )}
 
@@ -589,7 +654,28 @@ export default function ListingDetailScreen() {
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionHeading}>Shipping</Text>
+          <Text style={styles.sectionHeading}>Shipping</Text>
           <Text style={styles.description}>
+            {safeItem?.shippingOption && safeItem.shippingOption !== 'Select' ? (
+              <>
+                {safeItem.shippingOption}
+                {safeItem.shippingFee && Number(safeItem.shippingFee) > 0 
+                  ? ` • Shipping fee: $${Number(safeItem.shippingFee).toFixed(2)}` 
+                  : ''}
+                {safeItem.shippingOption === "Meet-up" && safeItem?.location 
+                  ? `\n📍 Meet-up location: ${safeItem.location}` 
+                  : ''}
+              </>
+            ) : (
+              'Please contact seller for shipping options and rates.'
+            )}
+          </Text>
+        </View>
+
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionHeading}>Returns & Protection</Text>
+          <Text style={styles.description}>
+            All purchases are protected by TOP Care. Returns accepted within 7 days of delivery for items not as described. Please review item details carefully before purchase.
             {safeItem?.shippingOption && safeItem.shippingOption !== 'Select' ? (
               <>
                 {safeItem.shippingOption}
@@ -853,6 +939,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#666",
     fontWeight: "500",
+  },
+  infoSection: {
+    rowGap: 4,
+  },
+  infoHeading: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#666",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  infoText: {
+    fontSize: 13,
+    color: "#444",
   },
   infoSection: {
     rowGap: 4,
