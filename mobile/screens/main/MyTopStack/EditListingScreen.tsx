@@ -58,12 +58,10 @@ const SIZE_OPTIONS_SHOES = [
   "Other",
 ];
 const SIZE_OPTIONS_ACCESSORIES = [
-  "N/A",
   "One Size",
   "Small",
   "Medium",
   "Large",
-  "Other",
 ];
 const MATERIAL_OPTIONS = [
   "Cotton",
