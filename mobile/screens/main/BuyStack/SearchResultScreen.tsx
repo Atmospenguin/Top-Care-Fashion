@@ -15,23 +15,66 @@ import type { RouteProp } from "@react-navigation/native";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import FilterModal from "../../../components/FilterModal";
-import { MOCK_LISTINGS } from "../../../mocks/shop";
 import { fetchListings } from "../../../api";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
+import { authService } from "../../../src/services/authService";
 
 type SearchResultRoute = RouteProp<BuyStackParamList, "SearchResult">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
 
-const MAIN_CATEGORIES = ["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"] as const;
-const SIZES = ["All", "My Size", "XS", "S", "M", "L", "XL", "XXL"] as const;
-const CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
+// App-wide main categories (match Sell screen and backend categories)
+const MAIN_CATEGORIES = [
+  "All",
+  "Accessories",
+  "Bottoms",
+  "Footwear",
+  "Outerwear",
+  "Tops",
+] as const;
+const APPAREL_SIZES = [
+  "All",
+  "My Size",
+  "XXS",
+  "XS",
+  "S",
+  "M",
+  "L",
+  "XL",
+  "XXL",
+] as const;
+const ACCESSORY_SIZES = [
+  "All",
+  "My Size",
+  "One Size",
+  "Small",
+  "Medium",
+  "Large",
+];
+const SHOE_SIZES = [
+  "All",
+  "My Size",
+  "35",
+  "36",
+  "37",
+  "38",
+  "39",
+  "40",
+  "41",
+  "42",
+  "43",
+  "44",
+  "45",
+  "46",
+  "47",
+] as const;
+const CONDITIONS = ["All", "New", "Like New", "Good", "Fair", "Poor"] as const;
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
 
 export default function SearchResultScreen() {
   const navigation = useNavigation<BuyNavigation>();
   const {
-    params: { query },
+    params: { query, gender },
   } = useRoute<SearchResultRoute>();
 
   const [filterModalVisible, setFilterModalVisible] = useState(false);
@@ -59,60 +102,173 @@ export default function SearchResultScreen() {
   const [headerVisible, setHeaderVisible] = useState(true);
 
   const [apiListings, setApiListings] = useState<ListingItem[]>([]);
+  const [mySizes, setMySizes] = useState<string[]>([]);
+  const tempSizeOptions = useMemo(() => {
+    const cat = tempCategory.toLowerCase();
+    if (cat === "footwear") return SHOE_SIZES;
+    if (cat === "accessories") return ACCESSORY_SIZES as readonly string[];
+    return APPAREL_SIZES;
+  }, [tempCategory]);
+  // Keep tempSize valid when switching category in modal
+  useEffect(() => {
+    if (!tempSizeOptions.includes(tempSize as any)) {
+      setTempSize("All");
+    }
+  }, [tempSizeOptions, tempSize]);
+
+  const normalizedQuery = (query ?? "").trim();
+  const lowerQuery = normalizedQuery.toLowerCase();
+  const normalizedGender = gender ? gender.toLowerCase() : undefined;
+  const isMainCategoryQuery = useMemo(() => {
+    if (!normalizedQuery) return false;
+    return (MAIN_CATEGORIES as readonly string[]).some(
+      (cat) => cat.toLowerCase() === lowerQuery && cat.toLowerCase() !== "all"
+    );
+  }, [lowerQuery, normalizedQuery]);
 
   useEffect(() => {
     let mounted = true;
-    fetchListings()
+
+    const params: Record<string, unknown> = { limit: 40 };
+    if (normalizedQuery) {
+      if (isMainCategoryQuery) {
+        params.category = normalizedQuery;
+      } else {
+        params.search = normalizedQuery;
+      }
+    }
+    if (normalizedGender) {
+      params.gender = normalizedGender;
+    }
+
+    fetchListings(params)
       .then((items) => {
         if (!mounted) return;
-        // items should be ListingItem[] shape; if not, map minimally
         setApiListings(
           (items || []).map((it: any) => ({
             id: String(it.id ?? it._id ?? Math.random().toString(36).slice(2)),
             title: String(it.title ?? "Untitled"),
             price: Number(it.price ?? 0),
+            description: String(it.description ?? ""),
+            brand: String(it.brand ?? ""),
             size: String(it.size ?? "M"),
             condition: String(it.condition ?? "Good"),
+            material: String(it.material ?? ""),
+            gender: String(it.gender ?? "unisex"),
+            tags: Array.isArray(it.tags) ? it.tags : [],
             category: String(it.category ?? "top"),
-            images: Array.isArray(it.images) && it.images.length > 0 ? it.images : [
-              typeof it.image === "string" ? it.image : "https://via.placeholder.com/512"
-            ],
-            seller: it.seller ?? { id: "api", name: "Seller" },
+            images:
+              Array.isArray(it.images) && it.images.length > 0
+                ? it.images
+                : [
+                    typeof it.image === "string"
+                      ? it.image
+                      : "https://via.placeholder.com/512",
+                  ],
+            seller: {
+              name: it.seller?.name ?? "Seller",
+              avatar: it.seller?.avatar ?? "",
+              rating: Number(it.seller?.rating ?? 0),
+              sales: Number(it.seller?.sales ?? 0),
+            },
             location: it.location ?? "",
-          })) as ListingItem[]
+            shippingOption: it.shippingOption ?? null,
+            shippingFee:
+              typeof it.shippingFee === "number"
+                ? it.shippingFee
+                : it.shippingFee
+                ? Number(it.shippingFee)
+                : null,
+            likesCount:
+              typeof it.likesCount === "number"
+                ? it.likesCount
+                : typeof it.likes === "number"
+                ? it.likes
+                : Number(it.likes ?? 0),
+            createdAt: typeof it.createdAt === "string" ? it.createdAt : undefined,
+            updatedAt: typeof it.updatedAt === "string" ? it.updatedAt : undefined,
+          })) as ListingItem[],
         );
       })
-      .catch(() => setApiListings([]));
+      .catch(() => {
+        if (mounted) {
+          setApiListings([]);
+        }
+      });
+
     return () => {
       mounted = false;
     };
+  }, [isMainCategoryQuery, normalizedGender, normalizedQuery]);
+
+  // Load current user's preferred sizes for "My Size" filter
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const me = await authService.getCurrentUser();
+        if (!alive || !me) {
+          setMySizes([]);
+          return;
+        }
+        const sizes = [
+          me.preferred_size_top,
+          me.preferred_size_bottom,
+          me.preferred_size_shoe,
+        ]
+          .filter((s): s is string => Boolean(s))
+          .map((s) => String(s).trim().toUpperCase());
+        // Deduplicate
+        const uniq = Array.from(new Set(sizes));
+        setMySizes(uniq);
+      } catch {
+        setMySizes([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  const sourceListings = apiListings.length > 0 ? apiListings : MOCK_LISTINGS;
+  const sourceListings = apiListings;
 
   const filteredListings = useMemo(() => {
-    let results = sourceListings.filter((item) =>
-      item.title.toLowerCase().includes(query.toLowerCase())
-    );
+    let results = sourceListings;
+
+    if (normalizedQuery && !isMainCategoryQuery) {
+      results = results.filter(
+        (item) =>
+          item.title.toLowerCase().includes(lowerQuery) ||
+          (item.brand || "").toLowerCase().includes(lowerQuery),
+      );
+    }
+
+    if (normalizedGender) {
+      results = results.filter(
+        (item) => (item.gender || "").toLowerCase() === normalizedGender,
+      );
+    }
 
     if (selectedCategory !== "All") {
-      results = results.filter((item) => {
-        const categoryLower = selectedCategory.toLowerCase();
-        if (categoryLower === "tops") return item.category === "top";
-        if (categoryLower === "bottoms") return item.category === "bottom";
-        if (categoryLower === "footwear") return item.category === "shoe";
-        if (categoryLower === "accessories") return item.category === "accessory";
-        return true;
-      });
+      const categoryLower = selectedCategory.toLowerCase();
+      results = results.filter(
+        (item) => (item.category || "").toLowerCase() === categoryLower,
+      );
     }
 
     if (selectedSize !== "All") {
       if (selectedSize === "My Size") {
-        // TODO: Get user's preferred size from user settings/preferences
-        const userPreferredSize = "M"; // Default to M for now
-        results = results.filter((item) => item.size === userPreferredSize);
+        if (mySizes.length > 0) {
+          results = results.filter((item) =>
+            mySizes.includes(String(item.size ?? "").trim().toUpperCase()),
+          );
+        }
+        // If no preferred sizes set, treat as no additional size filtering
       } else {
-        results = results.filter((item) => item.size === selectedSize);
+        const needle = String(selectedSize).trim().toUpperCase();
+        results = results.filter(
+          (item) => String(item.size ?? "").trim().toUpperCase() === needle,
+        );
       }
     }
 
@@ -120,23 +276,34 @@ export default function SearchResultScreen() {
       results = results.filter((item) => item.condition === selectedCondition);
     }
 
-    // Apply custom price range
     const min = minPrice ? parseFloat(minPrice) : 0;
     const max = maxPrice ? parseFloat(maxPrice) : Infinity;
     if (minPrice || maxPrice) {
       results = results.filter((item) => item.price >= min && item.price <= max);
     }
 
-    // Apply sorting
     if (sortBy === "Price Low to High") {
-      results = [...results].sort((a, b) => a.price - b.price);
-    } else if (sortBy === "Price High to Low") {
-      results = [...results].sort((a, b) => b.price - a.price);
+      return [...results].sort((a, b) => a.price - b.price);
     }
-    // Latest is the default order
+    if (sortBy === "Price High to Low") {
+      return [...results].sort((a, b) => b.price - a.price);
+    }
 
     return results;
-  }, [query, selectedCategory, selectedSize, selectedCondition, minPrice, maxPrice, sortBy, sourceListings]);
+  }, [
+    isMainCategoryQuery,
+    lowerQuery,
+    normalizedGender,
+    normalizedQuery,
+    selectedCategory,
+    selectedSize,
+    mySizes,
+    selectedCondition,
+    minPrice,
+    maxPrice,
+    sortBy,
+    sourceListings,
+  ]);
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
@@ -147,6 +314,16 @@ export default function SearchResultScreen() {
     if (sortBy !== "Latest") count++;
     return count;
   }, [selectedCategory, selectedSize, selectedCondition, minPrice, maxPrice, sortBy]);
+
+  const tempActiveFiltersCount = useMemo(() => {
+    let count = 0;
+    if (tempCategory !== "All") count++;
+    if (tempSize !== "All") count++;
+    if (tempCondition !== "All") count++;
+    if (tempMinPrice || tempMaxPrice) count++;
+    if (tempSortBy !== "Latest") count++;
+    return count;
+  }, [tempCategory, tempSize, tempCondition, tempMinPrice, tempMaxPrice, tempSortBy]);
 
   const handleOpenFilters = () => {
     // Sync temp filters with current applied filters
@@ -271,9 +448,6 @@ export default function SearchResultScreen() {
                 {item.title}
               </Text>
               <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
-              <Text style={styles.itemSize} numberOfLines={1}>
-                Size {item.size}
-              </Text>
             </View>
           </TouchableOpacity>
         )}
@@ -318,7 +492,7 @@ export default function SearchResultScreen() {
           {
             key: "size",
             title: "Size",
-            options: SIZES.map((size) => ({
+            options: tempSizeOptions.map((size) => ({
               label: size,
               value: size,
             })),
@@ -360,7 +534,7 @@ export default function SearchResultScreen() {
         onClose={() => setFilterModalVisible(false)}
         onClear={handleClearFilters}
         onApply={handleApplyFilters}
-        applyButtonLabel={`Apply Filters (${filteredListings.length})`}
+        applyButtonLabel={`Apply Filters (${tempActiveFiltersCount})`}
       />
     </View>
   );
@@ -444,6 +618,37 @@ const styles = StyleSheet.create({
   itemSize: {
     fontSize: 12,
     color: "#666",
+  },
+  itemMaterial: {
+    fontSize: 11,
+    color: "#888",
+    marginTop: 2,
+    fontStyle: "italic",
+  },
+  itemTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 4,
+    gap: 4,
+  },
+  itemTagChip: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 0.5,
+    borderColor: "#e0e0e0",
+  },
+  itemTagText: {
+    fontSize: 10,
+    color: "#666",
+    fontWeight: "500",
+  },
+  itemTagMore: {
+    fontSize: 10,
+    color: "#999",
+    fontStyle: "italic",
+    alignSelf: "center",
   },
   emptyState: {
     flex: 1,

@@ -19,7 +19,7 @@ export default function NavBar() {
 
         <div className="flex items-center gap-5 text-sm">
           <Link href="/#features" className="hover:opacity-90">Features</Link>
-          <Link href="/#comm  unity" className="hover:opacity-90">Community</Link>
+          <Link href="/#community" className="hover:opacity-90">Community</Link>
           <Link href="/#pricing" className="hover:opacity-90">Pricing</Link>
           <Link href="/#download" className="hover:opacity-90">Download</Link>
           <Link href="/faq" className="hover:opacity-90">FAQ</Link>

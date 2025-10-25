@@ -21,33 +21,22 @@ export async function GET() {
       return NextResponse.json({
         heroTitle: 'Discover outfits powered by AI',
         heroSubtitle: 'Mix & Match is an AI outfit recommender that builds looks from listed items. Snap, list, and get smart suggestions instantly.',
-        heroCarouselImages: [
-          '/TOPApp/Cart.png',
-          '/TOPApp/Listing%20Detail.png',
-          '/TOPApp/Mix%20%26%20Match.png',
-          '/TOPApp/Search%20Result.png'
-        ],
+        heroCarouselImages: [],
         aiFeatures: {
           mixmatch: {
             title: 'Mix & Match',
             desc: 'AI outfit recommendations from your listed items.',
-            // default unified images: reuse previous girl defaults
-            images: [
-              '/TOPApp/mixnmatch1/Mix%20%26%20Match.png',
-              '/TOPApp/mixnmatch1/Mix%20%26%20Match-1.png',
-              '/TOPApp/mixnmatch1/Mix%20%26%20Match-2.png',
-              '/TOPApp/mixnmatch1/Mix%20%26%20Match-3.png'
-            ],
+            images: [],
           },
           ailisting: {
             title: 'AI Listing',
             desc: 'Auto-generate titles, tags and descriptions from photos.',
-            images: ['/TOPApp/AI-Listing.png']
+            images: []
           },
           search: {
             title: 'Search',
             desc: 'Natural language and image-based search to find pieces fast.',
-            images: ['/TOPApp/Search%20Result.png']
+            images: []
           }
         }
       });

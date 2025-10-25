@@ -206,6 +206,12 @@ PRISMA_DISABLE_PREPARED_STATEMENTS=1
 - **Auth**: Supabase Auth + local user sync
 - **Error Handling**: Standardized error responses
 
+- Practical API hygiene (short):
+  - Use the centralized helper `getSessionUser(req)` for server-route auth checks instead of ad-hoc parsing.
+  - In Next 15 App Router dynamic routes, `context.params` may be a Promise — await it inside handlers and normalize param names to avoid type collisions.
+  - Avoid selecting nonexistent Prisma fields (e.g., `avatar_path`) and guard nullable relations before accessing properties.
+  - Guard `Date | null` fields before calling `.toISOString()` and return `null` in JSON when appropriate.
+
 ### API Standards
 - **Status Codes**: RFC 9110-aligned semantics
 - **Error Format**:
@@ -239,6 +245,8 @@ PRISMA_DISABLE_PREPARED_STATEMENTS=1
 - Testing
   - Web/Backend: Jest + React Testing Library / Supertest
   - AI: Pytest; fixture-based model stubs
+
+- Typecheck-first workflow: when touching API types run `npx -y tsc -p web/tsconfig.json --noEmit` and prefer small, focused fixes to make the typecheck pass before opening a PR.
 
 > ACCESSIBILITY: Ensure color contrast AA; brand color #F54B3D on white is acceptable for large text/CTAs.
 
@@ -345,3 +353,27 @@ Mobile (Expo)
 - Design system tokens and theme color: primary `#F54B3D`
 - Links: Figma, Notion board, CI dashboard (see `docs/links.md`)
 - Maintainers: @frontend, @backend, @ai
+
+---
+
+## 16. Operational lessons & quick fixes (2025-10-25)
+
+This project keeps evolving; below are concise operational lessons from a recent maintenance session that are useful for reviewers and contributors.
+
+- Auth: Consolidate authentication into `web/src/lib/auth` helpers (use `getSessionUser(req)`). Avoid inline token parsing in individual routes.
+- Next 15 App Router: Route handlers must `await context.params` in dynamic routes. Standardize handler signatures across `web/src/app/api/*` to avoid type mismatches.
+- Prisma safety:
+  - Do not select non-existent fields (example: remove `avatar_path` selects).
+  - Guard nullable relations before accessing properties (e.g., `listing.seller?.username`).
+  - Guard date fields before calling `.toISOString()` and return `null` in JSON responses when DB date is nullable.
+- Mobile: keep `expo-image-picker` and use `ImagePicker.MediaTypeOptions.Images` in TypeScript code. Implement FormData primary upload and a base64 fallback for avatars.
+- Typecheck-first workflow: run `npx -y tsc -p web/tsconfig.json --noEmit` before submitting PRs that touch API types. Prefer small, focused fixes to make the typecheck pass.
+
+Quick checklist for small API fixes
+
+1. Update route signature to Next 15 style and `await context.params`.
+2. Replace any `avatar_path` selects with `avatar_url` and check client usage.
+3. Add `x?.toISOString()` guards where `x` is possibly `null`.
+4. Re-run TypeScript checks and fix only the minimal related errors in the same PR.
+
+If you want, we can add a lightweight `CHECKLIST.md` under `docs/` that PR authors must run before requesting review; I can create it in a follow-up PR.

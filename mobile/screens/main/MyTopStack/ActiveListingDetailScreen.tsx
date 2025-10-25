@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Dimensions,
   Image,
@@ -7,47 +7,172 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Alert,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
-import type { MyTopStackParamList } from "./index"; // 你的栈类型
+import type { MyTopStackParamList } from "./index";
+import { listingsService } from "../../../src/services/listingsService";
+import type { ListingItem } from "../../../types/shop";
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
 
+const formatGenderLabel = (value?: string | null) => {
+  if (!value) return "";
+  const lower = value.toLowerCase();
+  if (lower === "men" || lower === "male") return "Men";
+  if (lower === "women" || lower === "female") return "Women";
+  if (lower === "unisex") return "Unisex";
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+};
+
 export default function ActiveListingDetailScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
+  const route = useRoute<RouteProp<MyTopStackParamList, "ActiveListingDetail">>();
 
-  // 这条 Listing 的静态数据（按你的确认版）
-  const listing = {
-    id: "bm-corduroy-1",
-    title: "Brandy Melville Corduroy Jacket",
-    price: 35,
-    images: [
-      "https://th.bing.com/th/id/OIP.S07mGFGvwi2ldQARRcy0ngHaJ4?w=138&h=190&c=7&r=0&o=7&cb=12&dpr=2&pid=1.7&rm=3",
-      "https://media.karousell.com/media/photos/products/2019/01/06/brandy_melville_coat_1546784131_d0cba3ab_progressive.jpg",
-      "https://media.karousell.com/media/photos/products/2019/01/06/brandy_melville_coat_1546784131_a1ddefe8_progressive.jpg",
-    ],
-    size: "M",
-    condition: "Brand new",
-    material: "Corduroy",
-    brand: "Brandy Melville",
-    colors: ["Brown"],
-    description:
-      "Brand new Brandy Melville Elisha Corduroy Jacket.\nFeatures a warm, sherpa lining and a corduroy exterior.\nClassic brown color, one-size fit, perfect for colder months.\nStill has original tags attached.",
-    seller: {
-      name: "ccc446981",
-      avatar:
-        "https://ui-avatars.com/api/?name=CCC&background=EEE&color=777&bold=true",
-      rating: 5.0,
-      sales: 0,
-      isMe: true, // 自己的 listing
-    },
+  const [listing, setListing] = useState<ListingItem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const genderLabel = useMemo(
+    () => formatGenderLabel(listing?.gender),
+    [listing?.gender],
+  );
+  const detailMetaCards = useMemo(() => {
+    if (!listing) return [];
+
+    const normalize = (value?: string | null) =>
+      typeof value === "string" ? value.trim() : "";
+
+    const cards: Array<{
+      id: string;
+      label: string;
+      value: string;
+      placeholder?: boolean;
+    }> = [
+      {
+        id: "size",
+        label: "Size",
+        value:
+          listing.size && listing.size !== "N/A" && listing.size !== "Select"
+            ? listing.size
+            : "Not specified",
+      },
+      {
+        id: "condition",
+        label: "Condition",
+        value:
+          listing.condition && listing.condition !== "Select"
+            ? listing.condition
+            : "Not specified",
+      },
+      {
+        id: "gender",
+        label: "Gender",
+        value: genderLabel || "Not specified",
+      },
+    ];
+
+    const brandValue = normalize(listing.brand);
+    const hasBrand = !!(brandValue && brandValue !== "Select");
+    if (hasBrand) {
+      cards.push({ id: "brand", label: "Brand", value: brandValue });
+    }
+
+    const materialValue = normalize(listing.material);
+    const hasMaterial = !!(
+      materialValue &&
+      materialValue !== "Select" &&
+      materialValue !== "Polyester"
+    );
+    if (hasMaterial) {
+      cards.push({ id: "material", label: "Material", value: materialValue });
+    }
+
+    if (!hasBrand && !hasMaterial) {
+      cards.push({
+        id: "additional",
+        label: "Additional Details",
+        value: "Not provided by seller",
+        placeholder: true,
+      });
+    }
+
+    return cards;
+  }, [listing, genderLabel]);
+
+  // ✅ 获取listing数据
+  useEffect(() => {
+    const fetchListing = async () => {
+      try {
+        const listingId = route.params?.listingId;
+        if (!listingId) {
+          Alert.alert("Error", "No listing ID provided");
+          navigation.goBack();
+          return;
+        }
+
+        console.log("📖 Fetching listing:", listingId);
+        const listingData = await listingsService.getListingById(listingId);
+        
+        if (listingData) {
+          setListing(listingData);
+          console.log("✅ Listing loaded:", listingData.title);
+        } else {
+          Alert.alert("Error", "Listing not found");
+          navigation.goBack();
+        }
+      } catch (error) {
+        console.error("❌ Error fetching listing:", error);
+        Alert.alert("Error", "Failed to load listing");
+        navigation.goBack();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchListing();
+  }, [route.params?.listingId, navigation]);
+
+  // ✅ 处理Manage Listing点击
+  const handleManageListing = () => {
+    if (listing) {
+      navigation.navigate("ManageListing", { listingId: listing.id });
+    }
   };
+
+  // ✅ 处理Boost Listing点击
+  const handleBoostListing = () => {
+    if (listing) {
+      navigation.navigate("PromotionPlans");
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.screen}>
+        <Header title="" showBack />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!listing) {
+    return (
+      <View style={styles.screen}>
+        <Header title="" showBack />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Listing not found</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>
@@ -62,7 +187,7 @@ export default function ActiveListingDetailScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.imageCarousel}
         >
-          {listing.images.map((uri, idx) => (
+          {(listing.images || []).map((uri: string, idx: number) => (
             <Image
               key={`${listing.id}-${idx}`}
               source={{ uri }}
@@ -80,66 +205,81 @@ export default function ActiveListingDetailScreen() {
             </View>
           </View>
 
-          {/* size / condition */}
-          <View style={styles.metaRow}>
-            <View style={styles.metaPill}>
-              <Text style={styles.metaLabel}>Size</Text>
-              <Text style={styles.metaValue}>{listing.size}</Text>
-            </View>
-            <View style={styles.metaPill}>
-              <Text style={styles.metaLabel}>Condition</Text>
-              <Text style={styles.metaValue}>{listing.condition}</Text>
-            </View>
+          <View style={styles.metaGrid}>
+            {detailMetaCards.map((info) => (
+              <View
+                key={info.id}
+                style={[
+                  styles.metaPill,
+                  info.placeholder ? styles.metaPillPlaceholder : undefined,
+                ]}
+              >
+                <Text style={styles.metaLabel}>{info.label}</Text>
+                <Text
+                  style={[
+                    styles.metaValue,
+                    info.placeholder ? styles.metaValuePlaceholder : undefined,
+                  ]}
+                >
+                  {info.value}
+                </Text>
+              </View>
+            ))}
           </View>
 
           {/* 描述 */}
           <Text style={styles.description}>{listing.description}</Text>
 
-          {/* brand / material */}
-          <View style={styles.attributeRow}>
-            <View style={styles.attributeBlock}>
-              <Text style={styles.attributeLabel}>Brand</Text>
-              <Text style={styles.attributeValue}>{listing.brand}</Text>
-            </View>
-            {listing.material ? (
-              <View style={styles.attributeBlock}>
-                <Text style={styles.attributeLabel}>Material</Text>
-                <Text style={styles.attributeValue}>{listing.material}</Text>
+          {/* Tags Section */}
+          {listing.tags && listing.tags.length > 0 && (
+            <View style={styles.tagsSection}>
+              <Text style={styles.tagsLabel}>Tags</Text>
+              <View style={styles.tagsContainer}>
+                {listing.tags.map((tag: string, index: number) => (
+                  <View key={index} style={styles.tagChip}>
+                    <Text style={styles.tagText}>{tag}</Text>
+                  </View>
+                ))}
               </View>
-            ) : null}
-          </View>
-
-          {/* colors（可选） */}
-          <View style={styles.colorsRow}>
-            {listing.colors.map((c) => (
-              <Text key={c} style={styles.colorChip}>
-                {c}
-              </Text>
-            ))}
-          </View>
+            </View>
+          )}
         </View>
 
         {/* Seller（我自己的资料，不显示 Message 按钮） */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionHeading}>Seller</Text>
           <View style={styles.sellerRow}>
-            <Image source={{ uri: listing.seller.avatar }} style={styles.sellerAvatar} />
+            <Image 
+              source={{ uri: listing.seller?.avatar || "" }} 
+              style={styles.sellerAvatar} 
+            />
             <View style={{ flex: 1 }}>
-              <Text style={styles.sellerName}>{listing.seller.name}</Text>
+              <Text style={styles.sellerName}>{listing.seller?.name || "Unknown"}</Text>
               <Text style={styles.sellerMeta}>
-                {listing.seller.rating.toFixed(1)} stars | {listing.seller.sales} sales
+                {(listing.seller?.rating || 0).toFixed(1)} stars | {listing.seller?.sales || 0} sales
               </Text>
             </View>
             {/* 自己的 Listing，不展示 message */}
           </View>
         </View>
 
-        {/* 物流与退货（与 buyer 版同款） */}
+        {/* Shipping 信息（连接后端数据） */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeading}>Shipping & Returns</Text>
+          <Text style={styles.sectionHeading}>Shipping</Text>
           <Text style={styles.description}>
-            Ships within 2 business days from New York, USA. Trackable shipping is included.
-            Returns accepted within 7 days of delivery.
+            {(listing as any)?.shippingOption && (listing as any).shippingOption !== 'Select' ? (
+              <>
+                {(listing as any).shippingOption}
+                {(listing as any).shippingFee && Number((listing as any).shippingFee) > 0 
+                  ? ` • Shipping fee: $${Number((listing as any).shippingFee).toFixed(2)}` 
+                  : ''}
+                {(listing as any).shippingOption === "Meet-up" && (listing as any)?.location 
+                  ? `\nLocation: ${(listing as any).location}` 
+                  : ''}
+              </>
+            ) : (
+              'Please contact seller for shipping options and rates.'
+            )}
           </Text>
         </View>
       </ScrollView>
@@ -148,7 +288,7 @@ export default function ActiveListingDetailScreen() {
       <View style={styles.bottomBar}>
         <TouchableOpacity
           style={styles.secondaryButton}
-          onPress={() => navigation.navigate("ManageListing")}
+          onPress={handleManageListing}
         >
           <Icon name="settings-outline" size={20} color="#111" />
           <Text style={styles.secondaryText}>Manage Listing</Text>
@@ -156,7 +296,7 @@ export default function ActiveListingDetailScreen() {
 
         <TouchableOpacity
           style={styles.primaryButton}
-          onPress={() => navigation.navigate("PromotionPlans")}
+          onPress={handleBoostListing}
         >
           <Text style={styles.primaryText}>Boost Listing</Text>
         </TouchableOpacity>
@@ -168,6 +308,15 @@ export default function ActiveListingDetailScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#fff" },
   container: { paddingBottom: 120, rowGap: 16 },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#666",
+  },
   imageCarousel: { columnGap: 12, paddingHorizontal: 16 },
   image: {
     width: IMAGE_SIZE,
@@ -194,13 +343,20 @@ const styles = StyleSheet.create({
   price: { fontSize: 18, fontWeight: "700", color: "#111" },
 
 
-  metaRow: { flexDirection: "row", columnGap: 12 },
+  metaGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    columnGap: 12,
+    rowGap: 12,
+  },
   metaPill: {
-    flex: 1,
+    width: "48%",
+    flexGrow: 1,
     paddingVertical: 10,
     borderRadius: 12,
     backgroundColor: "#f6f6f6",
     alignItems: "center",
+    justifyContent: "center",
   },
   metaLabel: {
     fontSize: 12,
@@ -208,29 +364,55 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  metaValue: { fontSize: 14, fontWeight: "600", color: "#111", marginTop: 4 },
+  metaValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111",
+    marginTop: 4,
+    textAlign: "center",
+  },
+  metaPillPlaceholder: {
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    borderStyle: "dashed",
+    backgroundColor: "#fff",
+  },
+  metaValuePlaceholder: {
+    color: "#999",
+    fontStyle: "italic",
+  },
 
   description: { fontSize: 14, color: "#333", lineHeight: 20 },
 
-  attributeRow: { flexDirection: "row", columnGap: 16 },
-  attributeBlock: { flex: 1 },
-  attributeLabel: {
+
+  // Tags
+  tagsSection: {
+    marginTop: 16,
+  },
+  tagsLabel: {
     fontSize: 12,
     color: "#999",
     textTransform: "uppercase",
     letterSpacing: 0.5,
+    marginBottom: 8,
   },
-  attributeValue: { fontSize: 15, fontWeight: "600", marginTop: 4 },
-
-  colorsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  colorChip: {
+  tagsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  tagChip: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "#f0f0f0",
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#333",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  tagText: {
+    fontSize: 13,
+    color: "#666",
+    fontWeight: "500",
   },
 
   sectionHeading: { fontSize: 16, fontWeight: "700" },

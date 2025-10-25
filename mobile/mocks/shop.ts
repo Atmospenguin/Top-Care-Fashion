@@ -36,7 +36,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-green-dress",
     title: "Green Midi Dress",
-    category: "top",
+    category: "Tops",
     price: 20,
     description:
       "Relaxed-fit midi dress in emerald green with a subtle pleated skirt and adjustable straps for a flattering fit.",
@@ -44,7 +44,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "S",
     condition: "Very good",
     material: "Polyester blend",
-    colors: ["Emerald", "Soft white"],
+    tags: ["Elegant", "Minimal", "Casual"],
     images: [
       "https://cdn.shopify.com/s/files/1/0281/2071/1254/products/191219hm74370_1800x1800.jpg?v=1607871412",
       "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=600&q=80",
@@ -59,7 +59,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-skinny-jeans",
     title: "American Eagle Super Stretch Jeans",
-    category: "bottom",
+    category: "Bottoms",
     price: 14.5,
     description:
       "High-rise skinny jeans in a soft, super-stretch denim that keeps its shape all day.",
@@ -67,7 +67,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "6",
     condition: "Like new",
     material: "Cotton & Elastane",
-    colors: ["Mid wash"],
     images: [
       "https://tse4.mm.bing.net/th/id/OIP.TC_mOkLd6sQzsLiE_uSloQHaJ3?w=600&h=799&rs=1&pid=ImgDetMain&o=7&rm=3",
       "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80",
@@ -82,7 +81,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-nerdy-hoodie",
     title: "Purple Nerdy Hoodie",
-    category: "top",
+    category: "Tops",
     price: 15,
     description:
       "Oversized hoodie from Nerdy with brushed fleece interior and embroidered chest logo.",
@@ -90,7 +89,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "M",
     condition: "Good",
     material: "Cotton",
-    colors: ["Purple"],
     images: [
       "https://assets.atmos-tokyo.com/items/L/pnef21ke11-ppl-1.jpg",
       "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=600&q=80",
@@ -105,7 +103,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-red-jacket",
     title: "Vintage Red Jacket",
-    category: "top",
+    category: "Tops",
     price: 30,
     description:
       "Statement red wool jacket with structured shoulders and snap-button closure.",
@@ -113,7 +111,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "M",
     condition: "Good",
     material: "Wool",
-    colors: ["Ruby"],
     images: [
       "https://th.bing.com/th/id/R.d54043fa984e94c86b926d96ed3eb6a1?rik=l0s2kAsoEoM6Og&pid=ImgRaw&r=0",
     ],
@@ -127,7 +124,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-casual-hoodie",
     title: "Casual Beige Hoodie",
-    category: "top",
+    category: "Tops",
     price: 25,
     description:
       "Neutral-toned hoodie with kangaroo pocket and ribbed cuffs, perfect for everyday wear.",
@@ -135,7 +132,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "L",
     condition: "Very good",
     material: "Cotton",
-    colors: ["Beige"],
     images: [
       "https://i5.walmartimages.com/asr/7aed82da-69af-46b8-854e-5c22d45a4df3.e7011d0ebdea1d9fabb68417c789ae16.jpeg",
     ],
@@ -149,7 +145,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-satin-slip-dress",
     title: "Rose Satin Slip Dress",
-    category: "top",
+    category: "Tops",
     price: 28,
     description:
       "Bias-cut satin slip dress with delicate shoulder straps and a soft drape that moves with you.",
@@ -157,7 +153,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "S",
     condition: "Like new",
     material: "Polyester satin",
-    colors: ["Rose", "Champagne"],
     images: [
       "https://images.unsplash.com/photo-1525171254930-643fc658b64e?auto=format&fit=crop&w=640&q=80",
       "https://tse3.mm.bing.net/th/id/OIP.mbv8-A49xgbIH4hkKjhCBwHaJc?rs=1&pid=ImgDetMain&o=7&rm=3",
@@ -172,7 +167,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-y2k-football-top",
     title: "Y2K Football Crop Top",
-    category: "top",
+    category: "Tops",
     price: 18,
     description:
       "Cropped jersey-style tee with varsity stripes and a bold front graphic for a nostalgic streetwear look.",
@@ -180,7 +175,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "S",
     condition: "Good",
     material: "Cotton",
-    colors: ["Navy", "White"],
+    tags: ["Y2K", "Streetwear", "Vintage"],
     images: [
       "https://images.unsplash.com/photo-1514996937319-344454492b37?auto=format&fit=crop&w=640&q=80",
       "https://y2kdream.com/cdn/shop/files/Y2K-Football-Crop-Top-6.webp?v=1723621579&width=750",
@@ -195,7 +190,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-pleated-tennis-skirt",
     title: "Pleated Tennis Skirt",
-    category: "bottom",
+    category: "Bottoms",
     price: 22,
     description:
       "High-waisted pleated skirt with built-in shorts and contrast piping inspired by classic tennis silhouettes.",
@@ -203,7 +198,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "M",
     condition: "Excellent",
     material: "Polyester",
-    colors: ["Ivory", "Charcoal"],
+    tags: ["Sporty", "Minimal", "Casual"],
     images: [
       "https://images.unsplash.com/photo-1503341455253-b2e723bb3dbb?auto=format&fit=crop&w=640&q=80",
       "https://tse3.mm.bing.net/th/id/OIP.81YGmCDrRsgih3_rHL6qxgHaHa?rs=1&pid=ImgDetMain&o=7&rm=3",
@@ -218,7 +213,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-wide-leg-trousers",
     title: "Wide-Leg Tailored Trousers",
-    category: "bottom",
+    category: "Bottoms",
     price: 26,
     description:
       "High-waisted trousers with soft pleats and a relaxed wide leg for effortless office-to-evening styling.",
@@ -226,7 +221,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "M",
     condition: "Very good",
     material: "Polyester blend",
-    colors: ["Stone", "Sand"],
     images: [
       "https://images.unsplash.com/photo-1562157873-818bc0726f92?auto=format&fit=crop&w=640&q=80",
       "https://tse3.mm.bing.net/th/id/OIP.VLA_zUUPCS-z2IemiQ43PgHaHa?rs=1&pid=ImgDetMain&o=7&rm=3",
@@ -241,7 +235,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-platform-sneakers",
     title: "Platform Canvas Sneakers",
-    category: "shoe",
+    category: "Footwear",
     price: 32,
     description:
       "Chunky platform sneakers in breathable canvas with a contrast gum sole and padded collar.",
@@ -249,7 +243,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "38",
     condition: "Like new",
     material: "Canvas",
-    colors: ["White", "Gum"],
     images: [
       "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=640&q=80",
       "https://images.unsplash.com/photo-1475180098004-ca77a66827be?auto=format&fit=crop&w=640&q=80",
@@ -264,7 +257,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-chunky-ankle-boots",
     title: "Chunky Ankle Boots",
-    category: "shoe",
+    category: "Footwear",
     price: 38,
     description:
       "Matte leather ankle boots with elastic side panels and a lug sole for rainy-day grip.",
@@ -272,7 +265,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "39",
     condition: "Good",
     material: "Leather",
-    colors: ["Black"],
     images: [
       "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=640&q=80",
       "https://images.unsplash.com/photo-1516763296043-76d3f3157948?auto=format&fit=crop&w=640&q=80",
@@ -287,7 +279,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-leather-crossbody",
     title: "Leather Crossbody Bag",
-    category: "accessory",
+    category: "Accessories",
     price: 24,
     description:
       "Structured crossbody bag with adjustable strap, interior zip pocket, and matte gold hardware.",
@@ -295,7 +287,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "One size",
     condition: "Very good",
     material: "Leather",
-    colors: ["Cognac"],
     images: [
       "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=640&q=80",
       "https://tse1.mm.bing.net/th/id/OIP._PU2jbpd_bGX-M3WoLm6IAHaLe?rs=1&pid=ImgDetMain&o=7&rm=3",
@@ -310,7 +301,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-gold-hoop-earrings",
     title: "Gold Hoop Earrings",
-    category: "accessory",
+    category: "Accessories",
     price: 16,
     description:
       "Lightweight gold-tone hoops with a click-closure backing and mirrored finish.",
@@ -318,7 +309,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "One size",
     condition: "Like new",
     material: "Gold plated brass",
-    colors: ["Gold"],
     images: [
       "https://images.unsplash.com/photo-1522312346375-d1a52e2b99b3?auto=format&fit=crop&w=640&q=80",
       "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=640&q=80",
@@ -333,7 +323,7 @@ export const MOCK_LISTINGS: ListingItem[] = [
   {
     id: "listing-hello-kitty-jeans",
     title: "Hello Kitty Baggy Jeans",
-    category: "bottom",
+    category: "Bottoms",
     price: 25,
     description:
       "Playful baggy jeans featuring an all-over Hello Kitty print and relaxed straight-leg silhouette.",
@@ -341,7 +331,6 @@ export const MOCK_LISTINGS: ListingItem[] = [
     size: "M",
     condition: "Very good",
     material: "Denim",
-    colors: ["Blue"],
     images: [
       "https://tse3.mm.bing.net/th/id/OIP.VLA_zUUPCS-z2IemiQ43PgHaHa?rs=1&pid=ImgDetMain&o=7&rm=3",
     ],

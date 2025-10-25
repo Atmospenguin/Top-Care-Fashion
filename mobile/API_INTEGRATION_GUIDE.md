@@ -103,7 +103,7 @@ const MyComponent = () => {
 };
 ```
 
-### 3. 用户认证示例
+### 3. 用户认证与导航规则
 
 ```typescript
 import { authService } from '../services';
@@ -113,6 +113,8 @@ const handleLogin = async (email: string, password: string) => {
   try {
     const response = await authService.signIn({ email, password });
     console.log('Login successful:', response.user);
+    // 登录后根据是否已有偏好（示例：以 gender 是否存在作为判断）决定是否进入偏好引导
+    // 实际逻辑已内置在 LoginScreen 中
   } catch (error) {
     console.error('Login failed:', error);
   }
@@ -128,6 +130,11 @@ const handleRegister = async (username: string, email: string, password: string)
   }
 };
 ```
+
+### 4. 数据访问时机
+
+- 登录前不会主动访问需要鉴权的数据接口（如 `/api/listings/my`、`/api/profile`）。
+- 首页等需要数据的页面会在检测到 `isAuthenticated === true` 后再触发加载，避免未登录时访问 API（该逻辑已加在 HomeScreen）。
 
 ## API 端点
 
@@ -215,3 +222,5 @@ EXPO_PUBLIC_API_DEBUG=true
 3. 添加离线支持
 4. 实现数据缓存
 5. 添加错误重试机制
+
+

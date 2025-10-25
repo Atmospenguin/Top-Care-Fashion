@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -6,21 +6,26 @@ import {
   TouchableOpacity,
   StyleSheet,
   FlatList,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 import Icon from "../../../components/Icon";
 import FilterModal from "../../../components/FilterModal";
-import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute, useScrollToTop } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import type { MyTopStackParamList } from "./index";
 import SoldTab from "./SoldTab";
 import PurchasesTab from "./PurchasesTab";
 import LikesTab from "./LikesTab";
+import { useAuth } from "../../../contexts/AuthContext";
+import { listingsService } from "../../../src/services/listingsService";
+import { userService } from "../../../src/services/userService";
+import type { ListingItem } from "../../../types/shop";
+import type { UserListingsQueryParams } from "../../../src/services/listingsService";
 
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
-const SHOP_CATEGORIES = ["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories", "Dresses"] as const;
 const SHOP_CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
 
 // --- 保证 3 列对齐 ---
@@ -38,11 +43,29 @@ function formatData(data: any[], numColumns: number) {
 }
 
 export default function MyTopScreen() {
+  const { user, updateUser } = useAuth(); // ✅ 使用全局用户状态 + 更新方法
   const navigation =
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
   const route = useRoute<RouteProp<MyTopStackParamList, "MyTopMain">>();
+  const lastRefreshRef = useRef<number | null>(null);
+  const isRefreshingRef = useRef<boolean>(false);
   const [activeTab, setActiveTab] =
     useState<"Shop" | "Sold" | "Purchases" | "Likes">("Shop");
+
+  // ✅ 添加真实数据状态
+  const [activeListings, setActiveListings] = useState<ListingItem[]>([]);
+  const [soldListings, setSoldListings] = useState<ListingItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // ✅ 添加follow统计状态
+  const [followStats, setFollowStats] = useState({
+    followersCount: 0,
+    followingCount: 0,
+  });
+
+  // ✅ 添加用户分类状态
+  const [userCategories, setUserCategories] = useState<{ id: number; name: string; description: string; count: number }[]>([]);
 
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [minPrice, setMinPrice] = useState<string>("");
@@ -59,29 +82,264 @@ export default function MyTopScreen() {
   const [tempCategory, setTempCategory] = useState<string>("All");
   const [tempCondition, setTempCondition] = useState<string>("All");
 
+  // ✅ 获取用户分类
+  const fetchUserCategories = async () => {
+    try {
+      console.log("📖 Fetching user categories");
+      const categories = await listingsService.getUserCategories();
+      setUserCategories(categories);
+      console.log(`✅ Loaded ${categories.length} user categories`);
+    } catch (error) {
+      console.error("❌ Error fetching user categories:", error);
+      // 保持空数组，不显示错误
+    }
+  };
+
+  // ✅ 获取用户follow统计
+  const fetchFollowStats = async () => {
+    try {
+      console.log("👥 Fetching follow stats");
+      const stats = await userService.getMyFollowStats();
+      setFollowStats(stats);
+      console.log(`✅ Loaded follow stats: ${stats.followersCount} followers, ${stats.followingCount} following`);
+    } catch (error) {
+      console.error("❌ Error fetching follow stats:", error);
+      // 保持默认值0，不显示错误
+    }
+  };
+
+  // ✅ 获取并刷新当前用户资料（用于进入页面或手动刷新时同步头像/简介等）
+  const refreshCurrentUser = async () => {
+    try {
+      const latest = await userService.getProfile();
+      if (latest) {
+        updateUser(latest as any);
+      }
+    } catch (e) {
+      // 静默失败，不打断其它刷新任务
+      console.log("❌ Error refreshing current user:", e);
+    }
+  };
+
+  // ✅ 获取用户listings
+  const fetchUserListings = async (status?: 'active' | 'sold' | 'all', filters?: Partial<UserListingsQueryParams>) => {
+    try {
+      console.log("📖 Fetching user listings with status:", status, "filters:", filters);
+      
+      const params: UserListingsQueryParams = {
+        status: status || 'active',
+        ...filters,
+      };
+      
+      console.log("📖 Final API params:", params);
+      
+      const listings = await listingsService.getUserListings(params);
+      
+      if (status === 'active' || status === undefined) {
+        setActiveListings(listings);
+      } else if (status === 'sold') {
+        setSoldListings(listings);
+      }
+      
+      console.log(`✅ Loaded ${listings.length} ${status || 'active'} listings`);
+      console.log("📖 Sample listing:", listings[0]);
+    } catch (error) {
+      console.error("❌ Error fetching user listings:", error);
+      Alert.alert("Error", "Failed to load listings. Please try again.");
+    }
+  };
+
+  // ✅ 使用指定值应用filter（避免状态更新延迟）
+  const applyFiltersWithValues = async (
+    category: string,
+    condition: string,
+    minPriceValue: string,
+    maxPriceValue: string,
+    sortByValue: string
+  ) => {
+    setLoading(true);
+    
+    try {
+      const filters: Partial<UserListingsQueryParams> = {};
+      
+      if (category !== "All") {
+        filters.category = category;
+      }
+      
+      if (condition !== "All") {
+        filters.condition = condition;
+      }
+      
+      if (minPriceValue) {
+        filters.minPrice = parseFloat(minPriceValue);
+      }
+      
+      if (maxPriceValue) {
+        filters.maxPrice = parseFloat(maxPriceValue);
+      }
+      
+      // 转换sortBy到API格式
+      if (sortByValue === "Latest") {
+        filters.sortBy = "latest";
+      } else if (sortByValue === "Price Low to High") {
+        filters.sortBy = "price_low_to_high";
+      } else if (sortByValue === "Price High to Low") {
+        filters.sortBy = "price_high_to_low";
+      }
+      
+      console.log("🔍 Applying filters with values:", filters);
+      
+      // 重新获取active listings
+      await fetchUserListings('active', filters);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ 应用filter并重新获取数据
+  const applyFilters = async () => {
+    setLoading(true);
+    
+    try {
+      const filters: Partial<UserListingsQueryParams> = {};
+      
+      if (selectedCategory !== "All") {
+        filters.category = selectedCategory;
+      }
+      
+      if (selectedCondition !== "All") {
+        filters.condition = selectedCondition;
+      }
+      
+      if (minPrice) {
+        filters.minPrice = parseFloat(minPrice);
+      }
+      
+      if (maxPrice) {
+        filters.maxPrice = parseFloat(maxPrice);
+      }
+      
+      // 转换sortBy到API格式
+      if (sortBy === "Latest") {
+        filters.sortBy = "latest";
+      } else if (sortBy === "Price Low to High") {
+        filters.sortBy = "price_low_to_high";
+      } else if (sortBy === "Price High to Low") {
+        filters.sortBy = "price_high_to_low";
+      }
+      
+      console.log("🔍 Applying filters:", filters);
+      
+      // 重新获取active listings
+      await fetchUserListings('active', filters);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ 刷新数据
+  const onRefresh = useCallback(async () => {
+    if (isRefreshingRef.current) return;
+    isRefreshingRef.current = true;
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refreshCurrentUser(), // ✅ 同步最新用户资料（头像/简介等）
+        fetchUserListings('active'),
+        fetchUserListings('sold'),
+        fetchFollowStats(),
+        fetchUserCategories(),
+      ]);
+    } finally {
+      setRefreshing(false);
+      isRefreshingRef.current = false;
+    }
+  }, []);
+
+  // （移除初次挂载时的重复加载，统一在获得焦点时刷新）
+
+  // 为 Tab 单击滚动到顶部提供支持
+  const listRef = useRef<FlatList<any>>(null);
+  const listOffsetRef = useRef(0);
+  useScrollToTop(listRef);
+
+  // 监听 refreshTS 参数变化（用于在已聚焦状态下通过双击 Tab 触发显式刷新）
+  const refreshTrigger = route.params?.refreshTS;
+  const scrollToTopTrigger = route.params?.scrollToTopTS;
+  const tabPressTrigger = route.params?.tabPressTS;
+  useEffect(() => {
+    if (refreshTrigger && lastRefreshRef.current !== refreshTrigger) {
+      lastRefreshRef.current = refreshTrigger;
+      onRefresh();
+      // 处理完即清理，避免残留参数引发误判
+      navigation.setParams({ refreshTS: undefined });
+    }
+  }, [refreshTrigger, onRefresh, navigation]);
+
+  // 丝滑回到顶部（仅在 Shop 标签时才滚动）
+  useEffect(() => {
+    if (scrollToTopTrigger && activeTab === "Shop") {
+      // 轻微延时，避免与其他动画或参数清理竞争
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+      });
+      navigation.setParams({ scrollToTopTS: undefined });
+    }
+  }, [scrollToTopTrigger, activeTab, navigation]);
+
+  // 单击 Tab：若在顶部则刷新，否则丝滑回顶（仅 Shop 列表）
+  useEffect(() => {
+    if (tabPressTrigger && activeTab === "Shop") {
+      const atTop = (listOffsetRef.current || 0) <= 2;
+      if (atTop) {
+        onRefresh();
+      } else {
+        listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+      }
+      navigation.setParams({ tabPressTS: undefined });
+    }
+  }, [tabPressTrigger, activeTab, navigation, onRefresh]);
+
+  // ✅ 当屏幕获得焦点时刷新数据
   useFocusEffect(
     useCallback(() => {
-      if (route.params?.initialTab) {
-        setActiveTab(route.params.initialTab);
-        navigation.setParams({ initialTab: undefined });
+      const params = route.params;
+
+      if (params?.initialTab) {
+        setActiveTab(params.initialTab);
       }
-    }, [route.params?.initialTab, navigation])
+
+      let didRefresh = false;
+      if (params?.refreshTS && lastRefreshRef.current !== params.refreshTS) {
+        lastRefreshRef.current = params.refreshTS;
+        onRefresh();
+        didRefresh = true;
+      }
+
+      // 如果没有通过参数触发刷新，则执行一次隐式焦点刷新
+      if (!didRefresh) {
+        onRefresh();
+      }
+
+      // 统一一次性清理参数，防止参数变化导致的回调重复执行
+      navigation.setParams({ initialTab: undefined, refreshTS: undefined });
+    }, [navigation, onRefresh])
   );
 
-  const mockUser = {
-    username: "ccc446981",
-    followers: 0,
-    following: 0,
+  // ✅ 使用真实用户数据，提供默认值以防用户数据为空
+  const displayUser = {
+    username: user?.username || "User",
+    followers: followStats.followersCount, // ✅ 使用真实的follow统计
+    following: followStats.followingCount,  // ✅ 使用真实的follow统计
     reviews: 0,
-    bio: "My name is Pink, and I'm really glad to meet you",
-    avatar: DEFAULT_AVATAR,
-    activeListings: [
-      {
-        id: 1,
-        image:
-          "https://th.bing.com/th/id/OIP.S07mGFGvwi2ldQARRcy0ngHaJ4?w=138&h=190&c=7&r=0&o=7&cb=12&dpr=2&pid=1.7&rm=3",
-      },
-    ],
+    bio: user?.bio || "Welcome to my profile!",
+    avatar: user?.avatar_url || DEFAULT_AVATAR,
+    activeListings: activeListings, // ✅ 使用真实的active listings
+  };
+
+  // ✅ 处理listing点击
+  const handleListingPress = (listing: ListingItem) => {
+    navigation.navigate("ActiveListingDetail", { listingId: listing.id });
   };
 
   const tabs: Array<"Shop" | "Sold" | "Purchases" | "Likes"> = [
@@ -96,7 +354,7 @@ export default function MyTopScreen() {
       {/* 顶部 Header */}
       <View style={styles.header}>
         <View style={{ width: 24 }} />
-        <Text style={styles.username}>{mockUser.username}</Text>
+        <Text style={styles.username}>{displayUser.username}</Text>
         <TouchableOpacity onPress={() => navigation.navigate("Settings")}>
           <Icon name="settings-sharp" size={24} color="#111" />
         </TouchableOpacity>
@@ -120,29 +378,43 @@ export default function MyTopScreen() {
       <View style={{ flex: 1 }}>
         {activeTab === "Shop" && (
           <FlatList
+            ref={listRef}
             data={
-              mockUser.activeListings.length
-                ? formatData(mockUser.activeListings, 3)
+              displayUser.activeListings.length
+                ? formatData(displayUser.activeListings, 3)
                 : []
             }
             keyExtractor={(item) => String(item.id)}
             numColumns={3}
             showsVerticalScrollIndicator={false}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            onScroll={(e) => {
+              listOffsetRef.current = e.nativeEvent.contentOffset.y;
+            }}
+            scrollEventThrottle={16}
             ListHeaderComponent={
               <View style={styles.headerContent}>
                 {/* Profile 区 */}
                 <View style={styles.profileRow}>
-                  <Image source={mockUser.avatar} style={styles.avatar} />
+                  <Image 
+                    source={
+                      user?.avatar_url && typeof user.avatar_url === 'string' && user.avatar_url.startsWith('http') 
+                        ? { uri: user.avatar_url } 
+                        : DEFAULT_AVATAR
+                    } 
+                    style={styles.avatar} 
+                  />
                   <View style={styles.statsRow}>
-                    <Text style={styles.stats}>{mockUser.followers} followers</Text>
-                    <Text style={styles.stats}>{mockUser.following} following</Text>
-                    <Text style={styles.stats}>{mockUser.reviews} reviews</Text>
+                    <Text style={styles.stats}>{displayUser.followers} followers</Text>
+                    <Text style={styles.stats}>{displayUser.following} following</Text>
+                    <Text style={styles.stats}>{displayUser.reviews} reviews</Text>
                   </View>
                 </View>
 
                 {/* Bio */}
                 <View style={styles.bioRow}>
-                  <Text style={styles.bio}>{mockUser.bio}</Text>
+                  <Text style={styles.bio}>{displayUser.bio}</Text>
                   <TouchableOpacity
                     style={styles.editBtn}
                     onPress={() => navigation.navigate("EditProfile")}
@@ -154,7 +426,7 @@ export default function MyTopScreen() {
                 {/* Active Title */}
                 <View style={styles.activeRow}>
                   <Text style={styles.activeTitle}>
-                    Active ({mockUser.activeListings.length} listings)
+                    Active ({displayUser.activeListings.length} listings)
                   </Text>
                   <TouchableOpacity 
                     onPress={() => setFilterModalVisible(true)}
@@ -182,18 +454,31 @@ export default function MyTopScreen() {
               ) : (
                 <TouchableOpacity
                   style={styles.itemBox}
-                  onPress={() => navigation.navigate("ActiveListingDetail")}
+                  onPress={() => handleListingPress(item as ListingItem)}
                 >
-                  <Image source={{ uri: item.image }} style={styles.itemImage} />
+                  {/* ✅ 使用真实的listing数据 */}
+                  {(() => {
+                    const listing = item as ListingItem;
+                    const imageUri = listing.images && listing.images.length > 0 
+                      ? listing.images[0] 
+                      : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
+                    return <Image source={{ uri: imageUri }} style={styles.itemImage} />;
+                  })()}
                 </TouchableOpacity>
               )
             }
             ListEmptyComponent={
-              <View style={[styles.emptyBox]}>
-                <Text style={styles.emptyText}>
-                  You haven't listed anything for sale yet.{"\n"}Tap + below to get started.
-                </Text>
-              </View>
+              loading ? (
+                <View style={[styles.emptyBox]}>
+                  <Text style={styles.emptyText}>Loading...</Text>
+                </View>
+              ) : (
+                <View style={[styles.emptyBox]}>
+                  <Text style={styles.emptyText}>
+                    You haven't listed anything for sale yet.{"\n"}Tap + below to get started.
+                  </Text>
+                </View>
+              )
             }
           />
         )}
@@ -210,10 +495,13 @@ export default function MyTopScreen() {
           {
             key: "category",
             title: "Category",
-            options: SHOP_CATEGORIES.map((category) => ({
-              label: category,
-              value: category,
-            })),
+            options: [
+              { label: "All", value: "All" },
+              ...userCategories.map(category => ({
+                label: `${category.name} (${category.count})`,
+                value: category.name,
+              })),
+            ],
             selectedValue: tempCategory,
             onSelect: (value) => setTempCategory(String(value)),
           },
@@ -257,6 +545,9 @@ export default function MyTopScreen() {
           setMaxPrice(tempMaxPrice);
           setSortBy(tempSortBy);
           setFilterModalVisible(false);
+          
+          // 立即应用filter，使用临时值
+          applyFiltersWithValues(tempCategory, tempCondition, tempMinPrice, tempMaxPrice, tempSortBy);
         }}
         onClear={() => {
           setTempCategory("All");
@@ -264,6 +555,14 @@ export default function MyTopScreen() {
           setTempMinPrice("");
           setTempMaxPrice("");
           setTempSortBy("Latest");
+          
+          // 立即清除filter
+          setSelectedCategory("All");
+          setSelectedCondition("All");
+          setMinPrice("");
+          setMaxPrice("");
+          setSortBy("Latest");
+          applyFiltersWithValues("All", "All", "", "", "Latest");
         }}
         applyButtonLabel="Apply Filters"
       />
