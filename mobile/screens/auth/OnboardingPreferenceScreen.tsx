@@ -16,6 +16,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
 import Icon from "../../components/Icon";
+import { userService } from "../../src/services/userService";
 
 type OnboardingNav = NativeStackNavigationProp<RootStackParamList, "Main">;
 
@@ -144,13 +145,27 @@ export default function OnboardingPreferenceScreen() {
     return () => backHandler.remove();
   }, [currentStep]);
 
-  const handleFinish = () => {
-    // TODO: Save preferences to backend/storage
-    console.log("Saving preferences:", {
-      gender: selectedGender,
-      styles: selectedStyles,
-      sizes: { shoe: shoeSize, top: topSize, bottom: bottomSize },
-    });
+  const handleFinish = async () => {
+    // 将 Onboarding 偏好保存到后端（当前后端仅支持 gender 字段；size/style 可在后续扩展）
+    const genderValue = selectedGender === 'Womenswear' ? 'Female' : selectedGender === 'Menswear' ? 'Male' : null;
+    try {
+      console.log("Saving preferences:", {
+        gender: selectedGender,
+        sizes: { shoe: shoeSize, top: topSize, bottom: bottomSize },
+        styles: selectedStyles,
+      });
+      await userService.updateProfile({
+        gender: (genderValue as any) ?? null,
+        preferredStyles: selectedStyles.length ? selectedStyles : [],
+        preferredSizes: {
+          shoe: shoeSize ?? null,
+          top: topSize ?? null,
+          bottom: bottomSize ?? null,
+        },
+      });
+    } catch (e) {
+      console.warn('Failed to persist preferences, proceeding anyway:', e);
+    }
     // 使用 replace 导航，防止用户返回到引导页面
     navigation.replace("Main");
   };

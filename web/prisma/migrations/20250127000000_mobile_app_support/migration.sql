@@ -217,28 +217,33 @@ ON CONFLICT (slug) DO NOTHING;
 -- 17. 更新RLS策略
 -- 用户地址RLS
 ALTER TABLE user_addresses ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Users can manage own addresses" ON user_addresses
+DROP POLICY IF EXISTS "Users can manage own addresses" ON user_addresses;
+CREATE POLICY "Users can manage own addresses" ON user_addresses
   FOR ALL USING (auth.uid()::text = (SELECT supabase_user_id FROM users WHERE id = user_addresses.user_id)::text);
 
 -- 用户支付方式RLS
 ALTER TABLE user_payment_methods ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Users can manage own payment methods" ON user_payment_methods
+DROP POLICY IF EXISTS "Users can manage own payment methods" ON user_payment_methods;
+CREATE POLICY "Users can manage own payment methods" ON user_payment_methods
   FOR ALL USING (auth.uid()::text = (SELECT supabase_user_id FROM users WHERE id = user_payment_methods.user_id)::text);
 
 -- 购物车RLS
 ALTER TABLE cart_items ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Users can manage own cart" ON cart_items
+DROP POLICY IF EXISTS "Users can manage own cart" ON cart_items;
+CREATE POLICY "Users can manage own cart" ON cart_items
   FOR ALL USING (auth.uid()::text = (SELECT supabase_user_id FROM users WHERE id = cart_items.user_id)::text);
 
 -- 订单RLS
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Users can view own orders" ON orders
+DROP POLICY IF EXISTS "Users can view own orders" ON orders;
+CREATE POLICY "Users can view own orders" ON orders
   FOR SELECT USING (auth.uid()::text = (SELECT supabase_user_id FROM users WHERE id = orders.buyer_id)::text OR 
                    auth.uid()::text = (SELECT supabase_user_id FROM users WHERE id = orders.seller_id)::text);
 
 -- 订单项RLS
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Users can view order items for own orders" ON order_items
+DROP POLICY IF EXISTS "Users can view order items for own orders" ON order_items;
+CREATE POLICY "Users can view order items for own orders" ON order_items
   FOR SELECT USING (EXISTS (
     SELECT 1 FROM orders o 
     WHERE o.id = order_items.order_id 

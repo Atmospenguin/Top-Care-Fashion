@@ -18,6 +18,11 @@ export interface User {
   location?: string | null;
   created_at?: string;
   updated_at?: string;
+  preferred_styles?: string[];
+  preferred_brands?: string[];
+  preferred_size_top?: string | null;
+  preferred_size_bottom?: string | null;
+  preferred_size_shoe?: string | null;
 }
 
 // 登录请求
@@ -122,6 +127,33 @@ export class AuthService {
       return user !== null;
     } catch (error) {
       return false;
+    }
+  }
+
+  // 请求密码重置
+  async forgotPassword(email: string): Promise<void> {
+    try {
+      console.log("🔍 Requesting password reset for:", email);
+      await apiClient.post(API_CONFIG.ENDPOINTS.AUTH.FORGOT_PASSWORD, { email });
+      console.log('🔍 Password reset email sent successfully');
+    } catch (error) {
+      console.error('🔍 Error requesting password reset:', error);
+      throw error;
+    }
+  }
+
+  // 重置密码
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    try {
+      console.log("🔍 Resetting password with token");
+      await apiClient.post(API_CONFIG.ENDPOINTS.AUTH.RESET_PASSWORD, { 
+        token, 
+        newPassword 
+      });
+      console.log('🔍 Password reset successful');
+    } catch (error) {
+      console.error('🔍 Error resetting password:', error);
+      throw error;
     }
   }
 }

@@ -42,7 +42,7 @@ export default function AssetLibraryManager({
       const data = await res.json();
       setItems(data.files || []);
       setFolders((data.folders || []).filter((f: string) => f.startsWith(prefix)));
-    } catch (e) {
+    } catch {
       console.error(e);
       alert("Failed to load assets");
     } finally {
@@ -84,7 +84,7 @@ export default function AssetLibraryManager({
       }
       await fetchItems();
       alert(`Uploaded ${files.length} file(s)`);
-    } catch (e) {
+    } catch {
       console.error(e);
       alert("Upload failed");
     } finally {
@@ -109,7 +109,7 @@ export default function AssetLibraryManager({
       }
       await fetchItems();
       setSelected((prev) => prev.filter((p) => !paths.includes(p)));
-    } catch (e) {
+    } catch {
       console.error(e);
       alert("Delete failed");
     }
@@ -164,7 +164,7 @@ export default function AssetLibraryManager({
       console.log(`DBG AssetLibraryManager[${title}](${prefix}): items.count=`, items.length);
        
       console.log(`DBG AssetLibraryManager[${title}](${prefix}): initialSelectedUrls=`, initialSelectedUrls);
-    } catch (e) {}
+    } catch {}
 
     if (!initialSelectedUrls || initialSelectedUrls.length === 0 || items.length === 0) return;
     // Debug: show incoming values to help diagnose matching failures
@@ -174,7 +174,7 @@ export default function AssetLibraryManager({
       console.log(`AssetLibraryManager[${title}](${prefix}): initialSelectedUrls:`, initialSelectedUrls);
        
       console.log(`AssetLibraryManager[${title}](${prefix}): item urls:`, items.map(i => i.url));
-    } catch (e) {}
+    } catch {}
 
     // Try several matching strategies to account for DB storing relative paths or encoded values
     const paths: string[] = [];
@@ -206,7 +206,7 @@ export default function AssetLibraryManager({
             i.url.endsWith('/' + u) ||
             decodedItem.endsWith('/' + u)
           );
-        } catch (e) {
+        } catch {
           // decodeURIComponent may throw for invalid input; fall back to simple checks
           try {
             const itemBase = i.url.split("/").pop();
@@ -233,7 +233,7 @@ export default function AssetLibraryManager({
       console.log(`AssetLibraryManager[${title}](${prefix}): matchedUrls:`, matchedUrls);
        
       console.log(`AssetLibraryManager[${title}](${prefix}): unmatched initial urls:`, unmatched);
-    } catch (e) {}
+    } catch {}
 
     // only set if differs
     const same = paths.length === selected.length && paths.every((p, idx) => selected[idx] === p);

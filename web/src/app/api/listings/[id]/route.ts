@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { createSupabaseServer } from "@/lib/supabase";
+import { getSessionUser } from "@/lib/auth";
 
 /**
  * 映射条件显示值
@@ -66,74 +66,12 @@ const mapSizeToDisplay = (sizeValue: string | null) => {
 };
 
 /**
- * 获取当前登录用户
- */
-async function getCurrentUser(req: NextRequest) {
-  try {
-    const supabase = await createSupabaseServer();
-
-    // 从 Authorization 头读取 token
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.startsWith("Bearer ")
-      ? authHeader.split(" ")[1]
-      : null;
-
-    let userId: string | null = null;
-
-    if (token) {
-      const { data, error } = await supabase.auth.getUser(token);
-      
-      if (!error && data?.user) {
-        userId = data.user.id;
-      }
-    }
-
-    if (!userId) {
-      return null;
-    }
-
-    // 查找数据库用户
-    const dbUser = await prisma.users.findUnique({
-      where: { supabase_user_id: userId },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        role: true,
-        status: true,
-        is_premium: true,
-        dob: true,
-        gender: true,
-      },
-    });
-
-    if (!dbUser) {
-      return null;
-    }
-
-    return {
-      id: dbUser.id,
-      username: dbUser.username,
-      email: dbUser.email,
-      role: dbUser.role === "ADMIN" ? "Admin" : "User",
-      status: dbUser.status === "SUSPENDED" ? "suspended" : "active",
-      isPremium: Boolean(dbUser.is_premium),
-      dob: dbUser.dob ? dbUser.dob.toISOString().slice(0, 10) : null,
-      gender: dbUser.gender === "MALE" ? "Male" : dbUser.gender === "FEMALE" ? "Female" : null,
-    };
-  } catch (error) {
-    console.error("❌ Error getting current user:", error);
-    return null;
-  }
-}
-
-/**
  * 获取单个listing详情
  */
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const params = await context.params;
-    const listingId = parseInt(params.id);
+    const listingId = Number.parseInt(params.id, 10);
 
     if (isNaN(listingId)) {
       return NextResponse.json({ error: "Invalid listing ID" }, { status: 400 });
@@ -180,6 +118,9 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       tags: listing.tags ? JSON.parse(listing.tags as string) : [],
       category: listing.category?.name,
       images: listing.image_urls ? JSON.parse(listing.image_urls as string) : [],
+      shippingOption: (listing as any).shipping_option || "Free shipping",
+      shippingFee: Number((listing as any).shipping_fee || 0),
+      location: (listing as any).location || "",
       seller: {
         id: listing.seller?.id || 0, // 🔥 添加seller ID字段
         name: listing.seller?.username || "Unknown",
@@ -207,13 +148,17 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
  */
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const user = await getCurrentUser(req);
-    if (!user) {
+    // 使用 getSessionUser 支持 Legacy JWT token
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) {
+      console.log("❌ No session user found");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    console.log("✅ Authenticated user:", sessionUser.username, "ID:", sessionUser.id);
+
     const params = await context.params;
-    const listingId = parseInt(params.id);
+    const listingId = Number.parseInt(params.id, 10);
 
     if (isNaN(listingId)) {
       return NextResponse.json({ error: "Invalid listing ID" }, { status: 400 });
@@ -226,7 +171,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const existingListing = await prisma.listings.findFirst({
       where: {
         id: listingId,
-        seller_id: user.id,
+        seller_id: sessionUser.id,
       },
     });
 
@@ -271,6 +216,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (body.gender !== undefined) updateData.gender = body.gender.toLowerCase();
     if (body.tags !== undefined) updateData.tags = JSON.stringify(body.tags);
     if (body.images !== undefined) updateData.image_urls = JSON.stringify(body.images);
+    if (body.shippingOption !== undefined) updateData.shipping_option = body.shippingOption;
+    if (body.shippingFee !== undefined) updateData.shipping_fee = parseFloat(body.shippingFee);
+    if (body.location !== undefined) updateData.location = body.location;
     if (body.listed !== undefined) updateData.listed = body.listed;
     if (body.sold !== undefined) updateData.sold = body.sold;
 
@@ -317,6 +265,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       category: updatedListing.category?.name || "Unknown",
       images: updatedListing.image_urls ? JSON.parse(updatedListing.image_urls as string) : 
               (updatedListing.image_url ? [updatedListing.image_url] : []),
+      shippingOption: (updatedListing as any).shipping_option || "Free shipping",
+      shippingFee: Number((updatedListing as any).shipping_fee || 0),
+      location: (updatedListing as any).location || "",
       seller: {
         id: updatedListing.seller?.id || 0, // 🔥 添加seller ID字段
         name: updatedListing.seller?.username || "Unknown",
@@ -349,25 +300,29 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
  */
 export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const user = await getCurrentUser(req);
-    if (!user) {
+    // 使用 getSessionUser 支持 Legacy JWT token
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) {
+      console.log("❌ No session user found");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    console.log("✅ Authenticated user:", sessionUser.username, "ID:", sessionUser.id);
+
     const params = await context.params;
-    const listingId = parseInt(params.id);
+    const listingId = Number.parseInt(params.id, 10);
 
     if (isNaN(listingId)) {
       return NextResponse.json({ error: "Invalid listing ID" }, { status: 400 });
     }
 
-    console.log("🗑️ Deleting listing:", listingId, "for user:", user.id);
+    console.log("🗑️ Deleting listing:", listingId, "for user:", sessionUser.id);
 
     // 验证listing是否属于当前用户
     const existingListing = await prisma.listings.findFirst({
       where: {
         id: listingId,
-        seller_id: user.id,
+        seller_id: sessionUser.id,
       },
     });
 

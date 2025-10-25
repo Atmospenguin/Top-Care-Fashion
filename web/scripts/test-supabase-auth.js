@@ -19,7 +19,7 @@ async function testSupabase() {
     console.log('🔍 Testing Supabase connection...');
     
     // Test basic connection
-    const { data, error } = await supabase.from('users').select('count').limit(1);
+    const { error } = await supabase.from('users').select('count').limit(1);
     
     if (error) {
       console.error('❌ Supabase connection error:', error);
@@ -30,7 +30,7 @@ async function testSupabase() {
     
     // Test auth service
     console.log('🔍 Testing auth service...');
-    const { data: authData, error: authError } = await supabase.auth.getSession();
+    const { error: authError } = await supabase.auth.getSession();
     
     if (authError) {
       console.error('❌ Auth service error:', authError);

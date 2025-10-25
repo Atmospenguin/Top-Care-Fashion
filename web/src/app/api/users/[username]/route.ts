@@ -60,19 +60,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
     const followersCount = user.followers.length;
     const followingCount = user.following.length;
 
-    // 检查当前用户是否关注了这个用户（如果有认证信息）
-    let isFollowing = false;
-    try {
-      const authHeader = req.headers.get("authorization");
-      const token = authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : null;
-      
-      if (token) {
-        // 这里可以添加获取当前用户的逻辑来检查follow状态
-        // 暂时设为false，后续可以在前端处理
-      }
-    } catch (error) {
-      // 忽略认证错误，继续返回用户信息
-    }
+    const isFollowing = false;
 
     const formattedUser = {
       id: user.id.toString(),

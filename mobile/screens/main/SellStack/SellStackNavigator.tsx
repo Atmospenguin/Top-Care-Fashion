@@ -14,7 +14,11 @@ const Stack = createNativeStackNavigator<SellStackParamList>();
 export default function SellStackNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="SellMain" component={SellScreen} />
+      <Stack.Screen
+        name="SellMain"
+        component={SellScreen}
+        options={{ gestureEnabled: false }}
+      />
       <Stack.Screen name="Drafts" component={DraftsScreen} />
     </Stack.Navigator>
   );

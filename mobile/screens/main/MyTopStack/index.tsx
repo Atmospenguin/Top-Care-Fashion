@@ -31,6 +31,7 @@ export type MyTopStackParamList = {
   MyTopMain:
     | {
         initialTab?: "Shop" | "Sold" | "Purchases" | "Likes";
+        refreshTS?: number;
       }
     | undefined;
   EditProfile: undefined;
@@ -68,6 +69,8 @@ export type MyTopStackParamList = {
   EditBrand:
     | {
         selectedBrands?: string[];
+        availableBrands?: string[];
+        source?: "discover" | "mytop";
       }
     | undefined;
 };
@@ -77,7 +80,11 @@ const Stack = createNativeStackNavigator<MyTopStackParamList>();
 export default function MyTopStackNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="MyTopMain" component={MyTopScreen} />
+      <Stack.Screen
+        name="MyTopMain"
+        component={MyTopScreen}
+        options={{ gestureEnabled: false }}
+      />
       <Stack.Screen name="Settings" component={SettingScreen} /> 
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen

@@ -1,4 +1,4 @@
-export type ListingCategory = "top" | "bottom" | "shoe" | "accessory";
+export type ListingCategory = "Accessories" | "Bottoms" | "Footwear" | "Outerwear" | "Tops";
 
 export type ListingItem = {
   id: string;
@@ -13,6 +13,12 @@ export type ListingItem = {
   tags?: string[]; // 添加用户自定义标签
   images: string[];
   category?: ListingCategory;
+  shippingOption?: string | null;
+  shippingFee?: number | null;
+  location?: string | null;
+  likesCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
   seller: {
     id: number;
     name: string;

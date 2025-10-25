@@ -40,20 +40,24 @@ export async function POST(req: Request) {
       location,
     } = body;
 
-    // 验证必需字段
-    if (!title || !description || !price || !brand || !size || !condition || !category || !gender) {
-      console.log("❌ Missing required fields:", { title: !!title, description: !!description, price: !!price, brand: !!brand, size: !!size, condition: !!condition, category: !!category, gender: !!gender });
+    // 验证必需字段（只验证核心字段）
+    if (!title || !description || !price || !category || !shippingOption) {
+      console.log("❌ Missing required fields:", { 
+        title: !!title, 
+        description: !!description, 
+        price: !!price, 
+        category: !!category,
+        shippingOption: !!shippingOption
+      });
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: "Missing required fields: title, description, price, category, shippingOption" },
         { status: 400 }
       );
     }
 
     // 转换condition字符串到ConditionType枚举
-    const mapConditionToEnum = (conditionStr: string) => {
-      // 标准化输入字符串，处理大小写和空格
-      const normalizedStr = conditionStr.trim();
-      
+    const mapConditionToEnum = (conditionStr: string | undefined) => {
+      if (!conditionStr) return "GOOD"; // 默认值
       const conditionMap: Record<string, "NEW" | "LIKE_NEW" | "GOOD" | "FAIR" | "POOR"> = {
         "Brand New": "NEW",
         "New": "NEW",
@@ -80,23 +84,28 @@ export async function POST(req: Request) {
       seller_id: sessionUser.id
     });
 
+    const categoryId = await getCategoryId(category);
+
     // 创建 listing
     const listing = await prisma.listings.create({
       data: {
-        name: title, // 使用 name 字段
+        name: title,
         description,
         price: parseFloat(price),
-        brand,
-        size,
-        condition_type: mapConditionToEnum(condition), // 转换为枚举值
+        brand: brand || "",
+        size: size || "N/A",
+        condition_type: mapConditionToEnum(condition),
         material: material || null,
         tags: tags ? JSON.stringify(tags) : Prisma.JsonNull,
-        category_id: await getCategoryId(category),
-        gender: gender.toLowerCase(),
+        category_id: categoryId,
+        gender: gender ? gender.toLowerCase() : "unisex",
         seller_id: sessionUser.id,
         image_urls: images ? JSON.stringify(images) : Prisma.JsonNull,
         listed: true,
         sold: false,
+        shipping_option: shippingOption || null,
+        shipping_fee: shippingFee != null ? parseFloat(String(shippingFee)) : null,
+        location: location || null,
       } as any,
       include: {
         seller: {
@@ -179,6 +188,18 @@ export async function POST(req: Request) {
         tags: listing.tags ? JSON.parse(listing.tags as string) : [],
         category: listing.category?.name,
         images: listing.image_urls ? JSON.parse(listing.image_urls as string) : [],
+        shippingOption: (listing as any).shipping_option ?? null,
+        shippingFee: (listing as any).shipping_fee ?? null,
+        location: (listing as any).location ?? null,
+        likesCount: (listing as any).likes_count ?? 0,
+        createdAt: listing.created_at ? listing.created_at.toISOString() : null,
+        updatedAt: listing.updated_at ? listing.updated_at.toISOString() : null,
+        gender: (() => {
+          const value = (listing as any).gender;
+          if (!value || typeof value !== "string") return "Unisex";
+          const lower = value.toLowerCase();
+          return lower.charAt(0).toUpperCase() + lower.slice(1);
+        })(),
         seller: {
           name: listing.seller?.username || "Unknown",
           avatar: listing.seller?.avatar_url || "",
@@ -200,32 +221,54 @@ export async function POST(req: Request) {
 }
 
 // 辅助函数：根据分类名称获取分类ID
+const BASE_CATEGORY_NAMES = ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"] as const;
+
 async function getCategoryId(categoryName: string): Promise<number> {
-  // 首先尝试直接匹配
-  let category = await prisma.listing_categories.findFirst({
-    where: { name: categoryName },
+  const name = (categoryName || "").trim().toLowerCase();
+
+  const synonymMap: Record<string, typeof BASE_CATEGORY_NAMES[number]> = {
+    accessories: "Accessories",
+    accessory: "Accessories",
+    bags: "Accessories",
+    belts: "Accessories",
+    bottoms: "Bottoms",
+    pants: "Bottoms",
+    trousers: "Bottoms",
+    shorts: "Bottoms",
+    skirts: "Bottoms",
+    leggings: "Bottoms",
+    joggers: "Bottoms",
+    footwear: "Footwear",
+    shoes: "Footwear",
+    shoe: "Footwear",
+    boots: "Footwear",
+    sneakers: "Footwear",
+    outerwear: "Outerwear",
+    coats: "Outerwear",
+    jackets: "Outerwear",
+    blazers: "Outerwear",
+    tops: "Tops",
+    top: "Tops",
+    shirts: "Tops",
+    shirt: "Tops",
+    hoodies: "Tops",
+    sweaters: "Tops",
+    dress: "Tops",
+    dresses: "Tops",
+    activewear: "Tops",
+    others: "Accessories",
+    other: "Accessories",
+  };
+
+  const mappedName = synonymMap[name] ?? BASE_CATEGORY_NAMES.find((cat) => cat.toLowerCase() === name) ?? "Tops";
+
+  const category = await prisma.listing_categories.findFirst({
+    where: { name: mappedName },
   });
 
-  if (category) {
-    return category.id;
+  if (!category) {
+    throw new Error(`Base category '${mappedName}' is missing from the database.`);
   }
 
-  // 如果没找到，尝试匹配子分类（如 "men-tops-t-shirts"）
-  const subcategory = await prisma.listing_categories.findFirst({
-    where: { name: { contains: categoryName.toLowerCase() } },
-  });
-
-  if (subcategory) {
-    return subcategory.id;
-  }
-
-  // 如果还是没找到，创建一个默认分类
-  const defaultCategory = await prisma.listing_categories.create({
-    data: {
-      name: categoryName.toLowerCase(),
-      description: `Category for ${categoryName}`,
-    },
-  });
-
-  return defaultCategory.id;
+  return category.id;
 }

@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import ImageListManager from "@/components/admin/ImageListManager";
 import FeatureCardManager from "@/components/admin/FeatureCardManager";
 import AssetLibraryManager from "../../../components/admin/AssetLibraryManager";
 
@@ -315,31 +314,6 @@ export default function ContentManagementPage() {
   const applyAssetsToHero = (urls: string[]) => {
     setContent((prev) => ({ ...prev, heroCarouselImages: urls }));
   };
-  const applyAssetsToAllFeatures = (urls: string[]) => {
-    setContent((prev) => ({
-      ...prev,
-      aiFeatures: {
-        ...prev.aiFeatures,
-        mixmatch: {
-          title: prev.aiFeatures?.mixmatch?.title,
-          desc: prev.aiFeatures?.mixmatch?.desc,
-          girlImages: urls.slice(0, Math.ceil(urls.length / 2)),
-          boyImages: urls.slice(Math.ceil(urls.length / 2)),
-        },
-        ailisting: {
-          title: prev.aiFeatures?.ailisting?.title,
-          desc: prev.aiFeatures?.ailisting?.desc,
-          images: urls,
-        },
-        search: {
-          title: prev.aiFeatures?.search?.title,
-          desc: prev.aiFeatures?.search?.desc,
-          images: urls,
-        },
-      },
-    }));
-  };
-
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
       <h1 className="text-3xl font-bold mb-8">Content Management</h1>

@@ -18,6 +18,11 @@ export interface User {
   location?: string | null;
   created_at?: string;
   updated_at?: string;
+  preferred_styles?: string[];
+  preferred_brands?: string[];
+  preferred_size_top?: string | null;
+  preferred_size_bottom?: string | null;
+  preferred_size_shoe?: string | null;
 }
 
 // 认证上下文类型
@@ -136,7 +141,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(updatedUser);
   };
 
-  // 应用启动时检查用户登录状态（基于 Web API + Bearer token）
+  // 应用启动时检查用户登录状态（仅在存在本地 token 时触发服务器查询）
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {

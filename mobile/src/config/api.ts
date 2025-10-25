@@ -18,6 +18,8 @@ export const API_CONFIG = {
       SIGNUP: '/api/auth/register',
       ME: '/api/auth/me',
       SIGNOUT: '/api/auth/signout',
+      FORGOT_PASSWORD: '/api/auth/forgot-password',
+      RESET_PASSWORD: '/api/auth/reset-password',
     },
     PROFILE: '/api/profile',
     FEEDBACK: '/api/feedback',

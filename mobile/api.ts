@@ -78,6 +78,7 @@ export async function fetchListings(params?: {
   maxPrice?: number;
   limit?: number;
   offset?: number;
+  gender?: string;
 }) {
   try {
     console.log('🔍 fetchListings: Making API request with params:', params);

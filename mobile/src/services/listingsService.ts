@@ -2,6 +2,11 @@ import { apiClient } from './api';
 import { API_CONFIG } from '../config/api';
 import type { ListingItem } from '../../types/shop';
 
+export interface BrandSummary {
+  name: string;
+  listingsCount: number;
+}
+
 // 用户listings查询参数
 export interface UserListingsQueryParams {
   status?: 'active' | 'sold' | 'all';
@@ -12,6 +17,16 @@ export interface UserListingsQueryParams {
   sortBy?: 'latest' | 'price_low_to_high' | 'price_high_to_low';
   limit?: number;
   offset?: number;
+}
+
+export interface ListingsQueryParams {
+  category?: string;
+  search?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  limit?: number;
+  offset?: number;
+  gender?: string;
 }
 
 // 创建商品请求参数
@@ -57,6 +72,34 @@ export class ListingsService {
   private extractFileName(uri: string): string {
     const segments = uri.split("/").filter(Boolean);
     return segments.length ? segments[segments.length - 1] : `listing-${Date.now()}.jpg`;
+  }
+
+  async getBrandSummaries(params?: { limit?: number; search?: string }): Promise<BrandSummary[]> {
+    try {
+      const response = await apiClient.get<{
+        success?: boolean;
+        brands?: BrandSummary[];
+        data?: BrandSummary[];
+      }>('/api/listings/brands', params);
+
+      const payload = response.data;
+      if (!payload) {
+        throw new Error('No brand data received');
+      }
+
+      if (payload.brands && Array.isArray(payload.brands)) {
+        return payload.brands;
+      }
+
+      if (payload.data && Array.isArray(payload.data)) {
+        return payload.data;
+      }
+
+      throw new Error('No brand data received');
+    } catch (error) {
+      console.error('Error fetching brand summaries:', error);
+      throw error;
+    }
   }
 
   // 获取分类数据

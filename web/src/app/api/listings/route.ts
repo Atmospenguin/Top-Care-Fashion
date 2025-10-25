@@ -6,6 +6,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
     const search = searchParams.get("search");
+    const genderParam = searchParams.get("gender");
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = parseInt(searchParams.get("offset") || "0");
 
@@ -17,17 +18,30 @@ export async function GET(req: Request) {
 
     if (category) {
       where.category = {
-        name: { contains: category.toLowerCase() },
+        name: { contains: category, mode: "insensitive" },
       };
     }
 
+    if (genderParam) {
+      where.gender = genderParam.toLowerCase();
+    }
+
     if (search) {
-      where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
-        { brand: { contains: search, mode: "insensitive" } },
-        { tags: { contains: search, mode: "insensitive" } },
-      ];
+      const trimmed = search.trim();
+      if (trimmed.length > 0) {
+        const searchFilters: any[] = [
+          { name: { contains: trimmed, mode: "insensitive" } },
+          { description: { contains: trimmed, mode: "insensitive" } },
+          { brand: { contains: trimmed, mode: "insensitive" } },
+        ];
+
+        // NOTE: Prisma JSON filter on Postgres does not support `has` on Json at this version.
+        // If you need to search tags (stored as JSON array), consider migrating to a text[] column
+        // and use `hasSome`/`hasEvery`, or use `path` + `string_contains` with JSONPath when
+        // Prisma adds broader support. For now, we skip tags to avoid runtime errors.
+
+        where.OR = searchFilters;
+      }
     }
 
   // 获取 listings
@@ -175,7 +189,6 @@ export async function GET(req: Request) {
         size: mapSizeToDisplay(listing.size),
         condition: mapConditionToDisplay(listing.condition_type), // 使用映射函数转换枚举值
         material: listing.material,
-        gender: (listing as any).gender || "unisex",
         tags: toArray(listing.tags),
         category: listing.category?.name ?? null,
         images: (() => {
@@ -190,8 +203,19 @@ export async function GET(req: Request) {
           }
           return [];
         })(),
+        shippingOption: (listing as any).shipping_option ?? null,
+        shippingFee: toNumber((listing as any).shipping_fee ?? null),
+        location: (listing as any).location ?? null,
+        likesCount: toNumber((listing as any).likes_count ?? 0),
+        gender: (() => {
+          const value = (listing as any).gender;
+          if (!value || typeof value !== "string") return "Unisex";
+          const lower = value.toLowerCase();
+          return lower.charAt(0).toUpperCase() + lower.slice(1);
+        })(),
         seller: sellerInfo,
-        createdAt: listing.created_at,
+        createdAt: listing.created_at ? listing.created_at.toISOString() : null,
+        updatedAt: listing.updated_at ? listing.updated_at.toISOString() : null,
       };
     });
 
@@ -212,3 +236,4 @@ export async function GET(req: Request) {
     );
   }
 }
+
