@@ -94,17 +94,21 @@ export async function GET(request: NextRequest) {
             kind = "order";
           }
 
-          // 确定最后消息来源
+          // 🔥 修复：正确确定最后消息来源
           let lastFrom = "other";
           if (lastMessage) {
-            if (lastMessage.sender_id === dbUser.id) {
-              lastFrom = "me";
-            } else if (conv.type === "SUPPORT") {
+            if (conv.type === "SUPPORT") {
               lastFrom = "support";
-            } else if (conv.initiator_id === dbUser.id) {
-              lastFrom = "buyer";
             } else {
-              lastFrom = "seller";
+              // 🔥 关键修复：根据当前用户在对话中的角色来确定lastFrom
+              // initiator = 买家，participant = 卖家
+              if (conv.initiator_id === dbUser.id) {
+                // 当前用户是initiator（买家），这是与卖家的对话
+                lastFrom = "seller";
+              } else {
+                // 当前用户是participant（卖家），这是与买家的对话
+                lastFrom = "buyer";
+              }
             }
           }
 
