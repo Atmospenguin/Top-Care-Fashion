@@ -8,7 +8,7 @@ export async function PUT(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { heroTitle, heroSubtitle, heroCarouselImages, aiFeatures } = body as any;
+    const { heroTitle, heroSubtitle, heroCarouselImages, aiFeatures, featureCards } = body as any;
     // Normalize mixmatch images: prefer aiFeatures.mixmatch.images, else merge legacy girl/boy
     const mixmatchImages: string[] | null =
       (aiFeatures?.mixmatch?.images && Array.isArray(aiFeatures.mixmatch.images) && aiFeatures.mixmatch.images.length > 0)
@@ -18,6 +18,30 @@ export async function PUT(req: NextRequest) {
           ).length > 0
           ? ((aiFeatures?.mixmatch?.girlImages || []) as string[]).concat((aiFeatures?.mixmatch?.boyImages || []) as string[])
           : null;
+
+    const sanitizeFeatureCards = (val: unknown): Array<{ title?: string; desc?: string; images: string[] }> | null => {
+      if (!val || !Array.isArray(val)) return null;
+      const normalized = val
+        .map((item) => {
+          if (!item || typeof item !== "object") return null;
+          const title = typeof (item as any).title === "string" ? (item as any).title.trim() : undefined;
+          const desc = typeof (item as any).desc === "string" ? (item as any).desc.trim() : undefined;
+          const imagesRaw = (item as any).images;
+          const images = Array.isArray(imagesRaw) ? imagesRaw.filter((img) => typeof img === "string" && img.trim().length > 0) : [];
+          if (!title && !desc && images.length === 0) return null;
+          return { title, desc, images };
+        })
+        .filter(Boolean) as Array<{ title?: string; desc?: string; images: string[] }>;
+      return normalized.length > 0 ? normalized : null;
+    };
+
+    const legacyFeatureCards = sanitizeFeatureCards([
+      aiFeatures?.mixmatch,
+      aiFeatures?.ailisting,
+      aiFeatures?.search,
+    ]);
+
+    const normalizedFeatureCards = sanitizeFeatureCards(featureCards) ?? legacyFeatureCards;
 
     const connection = await getConnection();
 
@@ -29,6 +53,7 @@ export async function PUT(req: NextRequest) {
          mixmatch_title, mixmatch_desc, mixmatch_images,
          ailisting_title, ailisting_desc, ailisting_images,
          search_title, search_desc, search_images,
+         feature_cards,
          updated_at
        ) VALUES (
          1,
@@ -36,6 +61,7 @@ export async function PUT(req: NextRequest) {
          ?, ?, CAST(? AS JSONB),
          ?, ?, CAST(? AS JSONB),
          ?, ?, CAST(? AS JSONB),
+         CAST(? AS JSONB),
          NOW()
        )
        ON CONFLICT (id) DO UPDATE SET
@@ -51,6 +77,7 @@ export async function PUT(req: NextRequest) {
          search_title = EXCLUDED.search_title,
          search_desc = EXCLUDED.search_desc,
          search_images = EXCLUDED.search_images,
+         feature_cards = EXCLUDED.feature_cards,
          updated_at = NOW()`,
       [
         heroTitle ?? null,
@@ -65,6 +92,7 @@ export async function PUT(req: NextRequest) {
         aiFeatures?.search?.title ?? null,
         aiFeatures?.search?.desc ?? null,
         aiFeatures?.search?.images ? JSON.stringify(aiFeatures.search.images) : null,
+        normalizedFeatureCards ? JSON.stringify(normalizedFeatureCards) : null,
       ]
     );
 

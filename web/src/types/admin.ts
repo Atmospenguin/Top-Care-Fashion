@@ -128,6 +128,11 @@ export type LandingContent = {
   heroTitle: string;
   heroSubtitle: string;
   heroCarouselImages?: string[];
+  featureCards?: {
+    title?: string;
+    desc?: string;
+    images?: string[];
+  }[];
   aiFeatures?: {
     mixmatch?: {
       title?: string;

@@ -1,15 +1,25 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 function PhoneCarousel({ images, className = "", altPrefix = "Feature" }: { images: string[]; className?: string; altPrefix?: string }) {
   const [i, setI] = useState(0);
   const slides = useMemo(() => images.map((s) => s.replace(/ /g, "%20")), [images]);
   useEffect(() => {
+    if (slides.length === 0) return;
     const t = setInterval(() => setI((v) => (v + 1) % slides.length), 3000);
     return () => clearInterval(t);
   }, [slides.length]);
+  if (slides.length === 0) {
+    return (
+      <div className={`relative aspect-[1608/3496] w-full max-w-[320px] md:max-w-[380px] mx-auto ${className}`}>
+        <div className="absolute inset-0 rounded-[24px] border border-dashed border-black/10 bg-black/5 flex items-center justify-center text-sm text-black/40">
+          Upload screenshots to preview
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={`relative aspect-[1608/3496] w-full max-w-[320px] md:max-w-[380px] mx-auto ${className}`}>
       <div className="absolute inset-0 rounded-[24px] border border-black/10 shadow-xl overflow-hidden bg-white">
@@ -26,27 +36,22 @@ function PhoneCarousel({ images, className = "", altPrefix = "Feature" }: { imag
   );
 }
 
+type FeatureCard = {
+  title?: string;
+  desc?: string;
+  images?: string[] | null;
+};
+
 type AIFeaturesConfig = {
   mixmatch?: { title?: string; desc?: string; images?: string[] | null; girlImages?: string[] | null; boyImages?: string[] | null };
   ailisting?: { title?: string; desc?: string; images?: string[] | null };
   search?: { title?: string; desc?: string; images?: string[] | null };
 };
 
-export default function AIFeatures({ config }: { config?: AIFeaturesConfig }) {
-  const defaultMixGirl = [
-    "/TOPApp/mixnmatch1/Mix & Match.png",
-    "/TOPApp/mixnmatch1/Mix & Match-1.png",
-    "/TOPApp/mixnmatch1/Mix & Match-2.png",
-    "/TOPApp/mixnmatch1/Mix & Match-3.png",
-  ];
-  const defaultMixBoy = [
-    "/TOPApp/mixnmatch2/Mix & Match.png",
-    "/TOPApp/mixnmatch2/Mix & Match-1.png",
-    "/TOPApp/mixnmatch2/Mix & Match-2.png",
-    "/TOPApp/mixnmatch2/Mix & Match-3.png",
-  ];
-  const defaultListing = ["/TOPApp/AI-Listing.png"];
-  const defaultSearch = ["/TOPApp/Search Result.png"];
+export default function AIFeatures({ cards, config }: { cards?: FeatureCard[] | null; config?: AIFeaturesConfig }) {
+  const defaultMixGirl: string[] = [];
+  const defaultListing: string[] = [];
+  const defaultSearch: string[] = [];
 
   // Use unified images; fallback to legacy girlImages if needed
   const mixImages = (config?.mixmatch?.images && config.mixmatch.images.length > 0)
@@ -55,7 +60,7 @@ export default function AIFeatures({ config }: { config?: AIFeaturesConfig }) {
   const listing = (config?.ailisting?.images && config.ailisting.images.length > 0) ? config.ailisting.images : defaultListing;
   const search = (config?.search?.images && config.search.images.length > 0) ? config.search.images : defaultSearch;
 
-  const cards: Array<{ title: string; desc: string; images: string[] }> = [
+  const fallbackCards: Array<{ title: string; desc: string; images: string[] }> = [
     {
       title: config?.mixmatch?.title || "Mix & Match",
       desc: config?.mixmatch?.desc || "AI outfit recommendations from your listed items.",
@@ -73,23 +78,69 @@ export default function AIFeatures({ config }: { config?: AIFeaturesConfig }) {
     },
   ];
 
+  const resolvedCards =
+    cards && cards.length > 0
+      ? cards.map((card, idx) => ({
+          title: card.title || `Feature ${idx + 1}`,
+          desc: card.desc || "",
+          images: (card.images && card.images.length > 0 ? card.images : []),
+        }))
+      : fallbackCards;
+
+  const marqueeCards = resolvedCards.length > 0 ? [...resolvedCards, ...resolvedCards] : resolvedCards;
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const node = scrollRef.current;
+    let frame: number;
+    const halfWidth = node.scrollWidth / 2;
+    if (halfWidth === 0) return;
+
+    const step = () => {
+      if (node && !paused) {
+        node.scrollLeft += 0.75;
+        if (node.scrollLeft >= halfWidth) {
+          node.scrollLeft = 0;
+        }
+      }
+      frame = requestAnimationFrame(step);
+    };
+
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [paused, marqueeCards.length]);
+
   return (
     <section>
       <h2 className="text-3xl font-semibold tracking-tight">AI Features</h2>
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-        {cards.map((c) => (
-          <div key={c.title} className="rounded-2xl border border-black/10 p-6 bg-white flex flex-col relative">
-            <div className="min-h-[72px]">
-              <h3 className="font-medium">{c.title}</h3>
-              <p className="text-sm text-black/70 mt-1">{c.desc}</p>
-              {/* toggles moved to overlay above phone status bar */}
-            </div>
-            <div className="relative mt-4 mt-auto">
-              {/* Mix & Match uses the unified images set; no gender selector */}
-              <PhoneCarousel images={c.images} className="pt-2" altPrefix={c.title} />
-            </div>
+      <div className="mt-8">
+        <div
+          ref={scrollRef}
+          className="relative overflow-hidden w-screen left-1/2 -ml-[50vw] rounded-none md:rounded-[32px]"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+          onTouchStart={() => setPaused(true)}
+          onTouchEnd={() => setPaused(false)}
+        >
+          {/* Full-bleed track (no side padding to remove gaps) */}
+          <div className="flex items-stretch gap-6">
+            {marqueeCards.map((c, idx) => (
+              <div key={`${c.title}-${idx}`} className="flex-shrink-0 w-[320px] sm:w-[360px] md:w-[380px]">
+                <div className="rounded-3xl border border-black/10 p-6 md:p-8 bg-white flex flex-col h-full shadow-sm">
+                  <div className="min-h-[88px]">
+                    <h3 className="font-medium text-2xl">{c.title}</h3>
+                    <p className="text-base text-black/70 mt-2">{c.desc}</p>
+                  </div>
+                  <div className="relative mt-6 mt-auto">
+                    <PhoneCarousel images={c.images ?? []} className="pt-2" altPrefix={c.title} />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </section>
   );
