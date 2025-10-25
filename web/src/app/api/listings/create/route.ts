@@ -60,8 +60,6 @@ export async function POST(req: Request) {
       if (!conditionStr) return "GOOD"; // 默认值
       
       // 🔥 标准化输入字符串
-      const normalizedStr = conditionStr.trim();
-      
       const conditionMap: Record<string, "NEW" | "LIKE_NEW" | "GOOD" | "FAIR" | "POOR"> = {
         "Brand New": "NEW",
         "New": "NEW",

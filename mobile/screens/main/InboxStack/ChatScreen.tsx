@@ -2152,7 +2152,22 @@ export default function ChatScreen() {
         keyExtractor={(it) => it.id}
         contentContainerStyle={{ padding: 12, paddingBottom: 12 }}
         renderItem={({ item }) => {
-          if (item.type === "orderCard") return <View style={{ marginBottom: 12 }}>{renderOrderCard(item.order)}</View>;
+          if (item.type === "orderCard") {
+            // 🔥 判断订单卡片应该显示在左侧还是右侧
+            // 如果当前用户是买家，订单卡片应该显示在右侧
+            const isBuyer = (conversation?.conversation as any)?.initiator_id === user?.id;
+            const cardPosition = isBuyer ? "flex-end" : "flex-start";
+            
+            return (
+              <View style={{ 
+                marginBottom: 12, 
+                alignItems: cardPosition,
+                paddingHorizontal: 8
+              }}>
+                {renderOrderCard(item.order)}
+              </View>
+            );
+          }
           if (item.type === "system")
             return <View style={{ marginBottom: 12 }}>{renderSystem(item)}</View>;
           if (item.type === "reviewCta") {

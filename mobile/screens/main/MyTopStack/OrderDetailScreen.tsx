@@ -55,6 +55,41 @@ function mapApiStatusToDisplayStatus(apiStatus: OrderStatus): string {
   }
 }
 
+// 🔒 安全的支付信息显示函数
+const formatPaymentDetails = (paymentDetails: any) => {
+  if (!paymentDetails) return null;
+  
+  // 只显示安全的支付信息，隐藏敏感数据
+  const safeInfo = [];
+  
+  if (paymentDetails.brand) {
+    safeInfo.push(`Brand: ${paymentDetails.brand}`);
+  }
+  
+  if (paymentDetails.last4) {
+    safeInfo.push(`Card: **** **** **** ${paymentDetails.last4}`);
+  }
+  
+  if (paymentDetails.expiry) {
+    safeInfo.push(`Expires: ${paymentDetails.expiry}`);
+  }
+  
+  // 不显示CVV等敏感信息
+  return safeInfo.length > 0 ? safeInfo.join('\n') : null;
+};
+
+// 💳 买家视角的支付信息显示函数（只显示卡号尾号）
+const formatBuyerPaymentDetails = (paymentDetails: any) => {
+  if (!paymentDetails) return null;
+  
+  // 买家视角：只显示卡号尾号，不显示brand和expires
+  if (paymentDetails.last4) {
+    return `Card: **** **** **** ${paymentDetails.last4}`;
+  }
+  
+  return null;
+};
+
 export default function OrderDetailScreen() {
   const route = useRoute<RouteProp<MyTopStackParamList, "OrderDetail">>();
   const navigation = useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
@@ -443,7 +478,6 @@ export default function OrderDetailScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Buyer Info</Text>
             <Text style={styles.text}>Name: {order.buyer_name || order.buyer.username || "N/A"}</Text>
-            <Text style={styles.text}>Email: {order.buyer.email || "N/A"}</Text>
             <Text style={styles.text}>Phone: {order.buyer_phone || order.buyer.phone_number || "N/A"}</Text>
 
             {/* Seller-side: Show real shipping address */}
@@ -465,9 +499,6 @@ export default function OrderDetailScreen() {
             <Text style={styles.text}>Method: {order.payment_method || "N/A"}</Text>
             <Text style={styles.text}>Date: {new Date(order.created_at).toLocaleDateString()}</Text>
             <Text style={styles.text}>Transaction ID: {(order as any).order_number || `TXN-${order.id}`}</Text>
-            {order.payment_details && (
-              <Text style={styles.text}>Details: {JSON.stringify(order.payment_details)}</Text>
-            )}
           </View>
         )}
 
@@ -482,8 +513,8 @@ export default function OrderDetailScreen() {
             <Text style={styles.text}>
               Transaction ID: {(order as any).order_number || `TXN-${order.id}`}
             </Text>
-            {order.payment_details && (
-              <Text style={styles.text}>Details: {JSON.stringify(order.payment_details)}</Text>
+            {order.payment_details && formatBuyerPaymentDetails(order.payment_details) && (
+              <Text style={styles.text}>{formatBuyerPaymentDetails(order.payment_details)}</Text>
             )}
           </View>
         )}

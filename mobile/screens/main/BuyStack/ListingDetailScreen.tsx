@@ -774,13 +774,51 @@ export default function ListingDetailScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.primaryButton}
-              onPress={() =>
-                navigation.navigate("Checkout", {
-                  items: defaultBag,
-                  subtotal,
-                  shipping: shippingFee,
-                })
-              }
+              onPress={async () => {
+                console.log("🔍 Buy Now button pressed from ListingDetailScreen");
+                
+                // 🔥 创建或获取与卖家的对话，以便下单后能回到聊天界面
+                try {
+                  console.log("🔍 Creating conversation with seller...");
+                  console.log("🔍 SafeItem details:", {
+                    id: safeItem.id,
+                    title: safeItem.title,
+                    seller: safeItem.seller
+                  });
+                  
+                  const sellerId = parseInt(safeItem.seller.id.toString());
+                  const listingId = parseInt(safeItem.id);
+                  
+                  console.log("🔍 Final parameters:", {
+                    sellerId,
+                    listingId
+                  });
+                  
+                  const conversation = await messagesService.getOrCreateSellerConversation(
+                    sellerId,
+                    listingId
+                  );
+                  
+                  console.log("✅ Conversation created/found:", conversation);
+                  
+                  // 🔥 导航到CheckoutScreen，传递conversationId
+                  navigation.navigate("Checkout", {
+                    items: defaultBag,
+                    subtotal,
+                    shipping: shippingFee,
+                    conversationId: conversation.id.toString() // 🔥 传递conversationId
+                  });
+                  
+                } catch (error) {
+                  console.error("❌ Error creating conversation:", error);
+                  // 如果创建对话失败，仍然可以继续结账流程
+                  navigation.navigate("Checkout", {
+                    items: defaultBag,
+                    subtotal,
+                    shipping: shippingFee,
+                  });
+                }
+              }}
             >
               <Text style={styles.primaryText}>Buy Now</Text>
             </TouchableOpacity>
