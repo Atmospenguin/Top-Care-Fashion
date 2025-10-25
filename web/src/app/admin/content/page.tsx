@@ -14,6 +14,7 @@ interface LandingContent {
   heroTitle: string;
   heroSubtitle: string;
   heroCarouselImages?: string[];
+  featureCards?: FeatureCard[];
   aiFeatures?: {
     mixmatch?: { title?: string; desc?: string; images?: string[]; girlImages?: string[]; boyImages?: string[] };
     ailisting?: { title?: string; desc?: string; images?: string[] };
