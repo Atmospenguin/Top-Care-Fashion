@@ -33,14 +33,9 @@ type AIFeaturesConfig = {
 };
 
 export default function AIFeatures({ config }: { config?: AIFeaturesConfig }) {
-  const defaultMixGirl = [
-    "/TOPApp/mixnmatch1/Mix & Match.png",
-    "/TOPApp/mixnmatch1/Mix & Match-1.png",
-    "/TOPApp/mixnmatch1/Mix & Match-2.png",
-    "/TOPApp/mixnmatch1/Mix & Match-3.png",
-  ];
-  const defaultListing = ["/TOPApp/AI-Listing.png"];
-  const defaultSearch = ["/TOPApp/Search Result.png"];
+  const defaultMixGirl: string[] = [];
+  const defaultListing: string[] = [];
+  const defaultSearch: string[] = [];
 
   // Use unified images; fallback to legacy girlImages if needed
   const mixImages = (config?.mixmatch?.images && config.mixmatch.images.length > 0)
