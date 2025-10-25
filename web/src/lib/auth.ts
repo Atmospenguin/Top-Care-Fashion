@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
+import { verifyLegacyToken } from "@/lib/jwt";
 import { createSupabaseServer } from "@/lib/supabase";
 
 export type SessionUser = {
@@ -45,6 +46,40 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
       if (authHeader?.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
         console.log("🔍 Bearer token:", token.substring(0, 20) + "...");
+        // 先尝试 legacy JWT（移动端兜底）
+        try {
+          const legacy = verifyLegacyToken(token);
+          if (legacy.valid && legacy.payload?.uid) {
+            const user = await prisma.users.findUnique({
+              where: { id: Number(legacy.payload.uid) },
+              select: {
+                id: true,
+                username: true,
+                email: true,
+                role: true,
+                status: true,
+                is_premium: true,
+                dob: true,
+                gender: true,
+              },
+            });
+            if (user) {
+              const sessionUser: SessionUser = {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                role: mapRole(user.role),
+                status: mapStatus(user.status),
+                isPremium: Boolean(user.is_premium),
+                dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
+                gender: mapGender(user.gender),
+              };
+              return sessionUser;
+            }
+          }
+        } catch (e) {
+          console.log("❌ Legacy token auth failed:", e);
+        }
         try {
           const { data: { user: supabaseUser }, error } = await supabase.auth.getUser(token);
           console.log("🔍 Supabase user:", supabaseUser?.id);

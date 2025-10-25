@@ -43,11 +43,12 @@ function formatData(data: any[], numColumns: number) {
 }
 
 export default function MyTopScreen() {
-  const { user } = useAuth(); // ✅ 使用全局用户状态
+  const { user, updateUser } = useAuth(); // ✅ 使用全局用户状态 + 更新方法
   const navigation =
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
   const route = useRoute<RouteProp<MyTopStackParamList, "MyTopMain">>();
   const lastRefreshRef = useRef<number | null>(null);
+  const isRefreshingRef = useRef<boolean>(false);
   const [activeTab, setActiveTab] =
     useState<"Shop" | "Sold" | "Purchases" | "Likes">("Shop");
 
@@ -56,7 +57,7 @@ export default function MyTopScreen() {
   const [soldListings, setSoldListings] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  
+
   // ✅ 添加follow统计状态
   const [followStats, setFollowStats] = useState({
     followersCount: 0,
@@ -104,6 +105,19 @@ export default function MyTopScreen() {
     } catch (error) {
       console.error("❌ Error fetching follow stats:", error);
       // 保持默认值0，不显示错误
+    }
+  };
+
+  // ✅ 获取并刷新当前用户资料（用于进入页面或手动刷新时同步头像/简介等）
+  const refreshCurrentUser = async () => {
+    try {
+      const latest = await userService.getProfile();
+      if (latest) {
+        updateUser(latest as any);
+      }
+    } catch (e) {
+      // 静默失败，不打断其它刷新任务
+      console.log("❌ Error refreshing current user:", e);
     }
   };
 
@@ -224,10 +238,13 @@ export default function MyTopScreen() {
   };
 
   // ✅ 刷新数据
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
+    if (isRefreshingRef.current) return;
+    isRefreshingRef.current = true;
     setRefreshing(true);
     try {
       await Promise.all([
+        refreshCurrentUser(), // ✅ 同步最新用户资料（头像/简介等）
         fetchUserListings('active'),
         fetchUserListings('sold'),
         fetchFollowStats(),
@@ -235,18 +252,11 @@ export default function MyTopScreen() {
       ]);
     } finally {
       setRefreshing(false);
+      isRefreshingRef.current = false;
     }
-  };
+  }, []);
 
-  // ✅ 组件加载时获取数据
-  useEffect(() => {
-    if (user) {
-      fetchUserListings('active');
-      fetchUserListings('sold');
-      fetchFollowStats();
-      fetchUserCategories();
-    }
-  }, [user]);
+  // （移除初次挂载时的重复加载，统一在获得焦点时刷新）
 
   const refreshTrigger = route.params?.refreshTS;
 
@@ -269,7 +279,7 @@ export default function MyTopScreen() {
       if (user) {
         onRefresh();
       }
-    }, [route.params?.initialTab, navigation, user])
+    }, [route.params?.initialTab, navigation, user, onRefresh])
   );
 
   // ✅ 使用真实用户数据，提供默认值以防用户数据为空
