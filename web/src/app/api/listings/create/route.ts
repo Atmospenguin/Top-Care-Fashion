@@ -76,6 +76,7 @@ export async function POST(req: Request) {
         "poor": "POOR"
       };
       
+      const normalizedStr = String(conditionStr).trim();
       const result = conditionMap[normalizedStr];
       console.log("📝 Condition mapping:", { input: conditionStr, normalized: normalizedStr, result });
       return result || "GOOD";
@@ -195,8 +196,6 @@ export async function POST(req: Request) {
         shippingFee: (listing as any).shipping_fee ?? null,
         location: (listing as any).location ?? null,
         likesCount: (listing as any).likes_count ?? 0,
-        createdAt: listing.created_at ? listing.created_at.toISOString() : null,
-        updatedAt: listing.updated_at ? listing.updated_at.toISOString() : null,
         gender: (() => {
           const value = (listing as any).gender;
           if (!value || typeof value !== "string") return "Unisex";
@@ -209,6 +208,8 @@ export async function POST(req: Request) {
           rating: listing.seller?.average_rating || 0,
           sales: listing.seller?.total_reviews || 0,
         },
+        createdAt: listing.created_at ? listing.created_at.toISOString() : null,
+        updatedAt: listing.updated_at ? listing.updated_at.toISOString() : null,
       },
     });
 

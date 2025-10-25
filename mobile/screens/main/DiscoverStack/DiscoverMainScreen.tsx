@@ -108,9 +108,9 @@ export default function DiscoverMainScreen() {
   }, []);
 
   useEffect(() => {
+    // 初次加载仅加载品牌，偏好在获得焦点时加载，避免重复
     loadBrands();
-    loadPreferred();
-  }, [loadBrands, loadPreferred]);
+  }, [loadBrands]);
 
   useFocusEffect(
     useCallback(() => {

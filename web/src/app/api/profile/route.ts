@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { createSupabaseServer } from "@/lib/supabase";
-import { verifyLegacyToken } from "@/lib/jwt";
+import { getSessionUser } from "@/lib/auth";
 
 type FollowInfo = { id: number };
 
@@ -82,61 +81,7 @@ const formatUserResponse = (user: UserProfile) => ({
   preferred_brands: normalizePreferredBrands(user.preferred_brands),
 });
 
-async function getCurrentUser(req: NextRequest) {
-  try {
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.startsWith("Bearer ")
-      ? authHeader.split(" ")[1]
-      : null;
-
-    console.log("🔍 Profile API - Auth header:", authHeader ? "present" : "missing");
-    console.log("🔍 Profile API - Token:", token ? `${token.substring(0, 20)}...` : "missing");
-
-    if (!token) {
-      console.log("❌ Profile API - No token provided");
-      return null;
-    }
-
-    // 尝试 Legacy JWT 认证
-    const legacy = verifyLegacyToken(token);
-    console.log("🔍 Profile API - Legacy JWT valid:", legacy.valid);
-    if (legacy.valid && legacy.payload?.uid) {
-      console.log("🔍 Profile API - Legacy JWT payload:", legacy.payload);
-      const legacyUser = await prisma.users.findUnique({
-        where: { id: Number(legacy.payload.uid) },
-      });
-      if (legacyUser) {
-        console.log("✅ Profile API - Legacy JWT user found:", legacyUser.id);
-        return legacyUser;
-      }
-    }
-
-    // 尝试 Supabase 认证
-    console.log("🔍 Profile API - Trying Supabase auth...");
-    const supabase = await createSupabaseServer();
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(token);
-
-    console.log("🔍 Profile API - Supabase auth result:", { 
-      hasUser: !!user, 
-      error: error?.message,
-      userId: user?.id 
-    });
-
-    if (!error && user) {
-      const dbUser = await prisma.users.findUnique({ where: { supabase_user_id: user.id } });
-      console.log("🔍 Profile API - DB user found:", dbUser ? dbUser.id : "not found");
-      return dbUser;
-    }
-
-    return null;
-  } catch (err) {
-    console.error("❌ getCurrentUser failed:", err);
-    return null;
-  }
-}
+// 统一使用 getSessionUser，避免路由内重复鉴权
 
 const selectUserProfile = {
   id: true,
@@ -169,25 +114,15 @@ const selectUserProfile = {
  * 获取用户资料
  */
 export async function GET(req: NextRequest) {
-  const dbUser = await getCurrentUser(req);
+  const sessionUser = await getSessionUser(req);
+  const dbUser = sessionUser ? await prisma.users.findUnique({ where: { id: sessionUser.id }, select: selectUserProfile }) : null;
   if (!dbUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  console.log("📖 Loading profile for user:", dbUser.id);
-
-  const userWithFollows = await prisma.users.findUnique({
-    where: { id: dbUser.id },
-    select: selectUserProfile,
-  });
-
-  if (!userWithFollows) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
-  }
-
   return NextResponse.json({
     success: true,
-    user: formatUserResponse(userWithFollows as UserProfile),
+    user: formatUserResponse(dbUser as UserProfile),
   });
 }
 
@@ -196,7 +131,8 @@ export async function GET(req: NextRequest) {
  */
 export async function PATCH(req: NextRequest) {
   try {
-    const dbUser = await getCurrentUser(req);
+    const sessionUser = await getSessionUser(req);
+    const dbUser = sessionUser ? await prisma.users.findUnique({ where: { id: sessionUser.id }, select: selectUserProfile }) : null;
     if (!dbUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -269,18 +205,9 @@ export async function PATCH(req: NextRequest) {
 
     if (Object.keys(updateData).length === 0) {
       console.log("📝 No fields to update, returning current user data");
-      const current = await prisma.users.findUnique({
-        where: { id: dbUser.id },
-        select: selectUserProfile,
-      });
-
-      if (!current) {
-        return NextResponse.json({ error: "User not found" }, { status: 404 });
-      }
-
       return NextResponse.json({
         ok: true,
-        user: formatUserResponse(current as UserProfile),
+        user: formatUserResponse(dbUser as UserProfile),
       });
     }
 

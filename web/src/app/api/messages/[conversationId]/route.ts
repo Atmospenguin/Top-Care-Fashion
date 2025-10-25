@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { createClient } from "@supabase/supabase-js";
+import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 // 🔒 安全检查
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -10,11 +10,7 @@ if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
 // 🔧 获取 TOP Support 用户 ID
 const SUPPORT_USER_ID = Number(process.env.SUPPORT_USER_ID) || 59;
 
-const prisma = new PrismaClient();
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// 鉴权统一走 getSessionUser，避免在路由中重复实现鉴权逻辑
 
 // GET /api/messages/[conversationId] - 获取对话中的所有消息
 export async function GET(
@@ -25,27 +21,10 @@ export async function GET(
 
   // 🩹 support- 对话特殊处理 - 查询真实对话
   if (rawId.startsWith("support-")) {
-    const authHeader = request.headers.get("authorization");
-    const token = authHeader?.substring(7);
-    
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     try {
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (!user) {
-        return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-      }
-
-      const dbUser = await prisma.users.findUnique({
-        where: { supabase_user_id: user.id },
-        select: { id: true, username: true }
-      });
-
-      if (!dbUser) {
-        return NextResponse.json({ error: "User not found" }, { status: 404 });
-      }
+      const sessionUser = await getSessionUser(request);
+      if (!sessionUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      const dbUser = { id: sessionUser.id, username: sessionUser.username };
 
       // 查找真实的 TOP Support 对话
       const supportConversation = await prisma.conversations.findFirst({
@@ -148,25 +127,9 @@ export async function GET(
   }
 
   try {
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-
-    const dbUser = await prisma.users.findUnique({
-      where: { supabase_user_id: user.id },
-      select: { id: true, username: true }
-    });
-
-    if (!dbUser) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+    const sessionUser = await getSessionUser(request);
+    if (!sessionUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const dbUser = { id: sessionUser.id, username: sessionUser.username };
 
     // 验证用户是否有权限访问这个对话
     const conversation = await prisma.conversations.findFirst({
@@ -443,25 +406,9 @@ export async function POST(
 
   // 🩹 处理 support-1 虚拟对话
   if (rawId.startsWith("support-")) {
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-
-    const dbUser = await prisma.users.findUnique({
-      where: { supabase_user_id: user.id },
-      select: { id: true, username: true, avatar_url: true }
-    });
-
-    if (!dbUser) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+    const sessionUser = await getSessionUser(request);
+    if (!sessionUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const dbUser = { id: sessionUser.id, username: sessionUser.username } as const;
 
     const { content, message_type = "TEXT", sentByUser } = await request.json();
     
@@ -543,25 +490,9 @@ export async function POST(
   }
 
   try {
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-
-    const dbUser = await prisma.users.findUnique({
-      where: { supabase_user_id: user.id },
-      select: { id: true, username: true }
-    });
-
-    if (!dbUser) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+    const sessionUser = await getSessionUser(request);
+    if (!sessionUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const dbUser = { id: sessionUser.id, username: sessionUser.username } as const;
 
     const { content, message_type = "TEXT", sentByUser } = await request.json();
     

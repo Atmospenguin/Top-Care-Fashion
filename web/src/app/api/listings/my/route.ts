@@ -1,73 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { createSupabaseServer } from "@/lib/supabase";
-import { verifyLegacyToken } from "@/lib/jwt";
+import { getSessionUser } from "@/lib/auth";
 
 /**
  * 获取当前登录用户
  */
-async function getCurrentUser(req: NextRequest) {
-  try {
-    const supabase = await createSupabaseServer();
-
-    // 从 Authorization 头读取 token
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.startsWith("Bearer ")
-      ? authHeader.split(" ")[1]
-      : null;
-
-    let dbUser: any = null;
-
-    if (token) {
-      console.log("🔍 Auth header:", authHeader);
-      console.log("🔍 Bearer token:", token?.substring(0, 20) + "...");
-
-      // 优先尝试 legacy JWT，避免向 Supabase 发送无效请求
-      const v = verifyLegacyToken(token);
-      if (v.valid && v.payload?.uid) {
-        dbUser = await prisma.users.findUnique({ where: { id: Number(v.payload.uid) } });
-      }
-
-      // 若不是 legacy，则尝试 Supabase JWT
-      if (!dbUser) {
-        const { data, error } = await supabase.auth.getUser(token);
-        console.log("🔍 Supabase user:", data?.user?.id);
-        console.log("🔍 Supabase error:", error);
-        if (!error && data?.user) {
-          dbUser = await prisma.users.findUnique({ where: { supabase_user_id: data.user.id } });
-        }
-      }
-    }
-
-    if (!dbUser) {
-      console.log("❌ No valid user token found");
-      return null;
-    }
-
-    console.log("🔍 DB user found:", dbUser.username);
-
-    return {
-      id: dbUser.id,
-      username: dbUser.username,
-      email: dbUser.email,
-      role: dbUser.role === "ADMIN" ? "Admin" : "User",
-      status: dbUser.status === "SUSPENDED" ? "suspended" : "active",
-      isPremium: Boolean(dbUser.is_premium),
-      dob: dbUser.dob ? dbUser.dob.toISOString().slice(0, 10) : null,
-      gender: dbUser.gender === "MALE" ? "Male" : dbUser.gender === "FEMALE" ? "Female" : null,
-    };
-  } catch (error) {
-    console.error("❌ Error getting current user:", error);
-    return null;
-  }
-}
+// 统一鉴权：使用 getSessionUser(req)
 
 /**
  * 获取当前用户的listings
  */
 export async function GET(req: NextRequest) {
   try {
-    const user = await getCurrentUser(req);
+    const sessionUser = await getSessionUser(req);
+    const user = sessionUser ? sessionUser : null;
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

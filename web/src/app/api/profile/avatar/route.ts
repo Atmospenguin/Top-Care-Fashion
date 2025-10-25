@@ -1,31 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServer } from "@/lib/supabase";
 import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
+import { createClient } from "@supabase/supabase-js";
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createSupabaseServer();
-
-    // 1️⃣ 从 Authorization 头获取 Bearer token
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.startsWith("Bearer ")
-      ? authHeader.split(" ")[1]
-      : null;
-
-    if (!token) {
+    // 统一鉴权（支持 Bearer legacy/Supabase、Cookie、tc_session）
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !data?.user) {
-      return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
-    }
-
-    const user = data.user;
-
     // 2️⃣ 查找数据库用户
     const dbUser = await prisma.users.findUnique({
-      where: { supabase_user_id: user.id },
+      where: { id: sessionUser.id },
     });
 
     if (!dbUser) {
@@ -53,6 +41,9 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(arrayBuffer);
 
     // 5️⃣ 上传到 Supabase Storage（⚠️ 使用 avatars bucket）
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
     const fileExt = file.name.split(".").pop() || "jpg";
     const fileName = `avatar-${dbUser.id}-${Date.now()}.${fileExt}`;
 
@@ -99,25 +90,11 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const supabase = await createSupabaseServer();
-
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.startsWith("Bearer ")
-      ? authHeader.split(" ")[1]
-      : null;
-
-    if (!token) {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const { data, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !data?.user) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-
-    const dbUser = await prisma.users.findUnique({
-      where: { supabase_user_id: data.user.id },
-    });
+    const dbUser = await prisma.users.findUnique({ where: { id: sessionUser.id } });
 
     if (!dbUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
