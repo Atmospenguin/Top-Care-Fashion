@@ -44,11 +44,9 @@ export default function PurchasesTab() {
   const filterLabels: Record<string, string> = {
     All: "All",
     IN_PROGRESS: "In Progress",
-    DELIVERED: "Delivered",
+    DELIVERED: "Delivered", 
     COMPLETED: "Completed",
-    RECEIVED: "Received",
     CANCELLED: "Cancelled",
-    REVIEWED: "Reviewed",
   };
 
   // Load purchased orders from API
@@ -58,13 +56,18 @@ export default function PurchasesTab() {
         setLoading(true);
         setError(null);
         
+        console.log("🔍 PurchasesTab - Loading purchased orders...");
         const response = await ordersService.getBoughtOrders();
+        console.log("🔍 PurchasesTab - API response:", response);
+        console.log("🔍 PurchasesTab - Orders count:", response.orders?.length || 0);
+        
         setOrders(response.orders);
       } catch (err) {
-        console.error("Error loading purchased orders:", err);
+        console.error("❌ PurchasesTab - Error loading purchased orders:", err);
         setError(err instanceof Error ? err.message : "Failed to load orders");
         
         // Fallback to mock data
+        console.log("🔍 PurchasesTab - Using mock data as fallback");
         const mockOrders: Order[] = PURCHASE_GRID_ITEMS.map((item, index) => ({
           id: parseInt(item.id) || index + 1,
           buyer_id: 1,
@@ -118,15 +121,60 @@ export default function PurchasesTab() {
     }
   }
 
+  // Helper function to get display text for status
+  function getStatusDisplayText(status: OrderStatus): string {
+    switch (status) {
+      case "IN_PROGRESS": return "In Progress";
+      case "TO_SHIP": return "To Ship";
+      case "SHIPPED": return "Shipped";
+      case "DELIVERED": return "Delivered";
+      case "RECEIVED": return "Received";
+      case "COMPLETED": return "Completed";
+      case "CANCELLED": return "Cancelled";
+      case "REVIEWED": return "Reviewed";
+      default: return "Unknown";
+    }
+  }
+
+  // Handle cancel order
+  const handleCancel = async (orderId: number) => {
+    try {
+      console.log("🔍 PurchasesTab - Cancelling order:", orderId);
+      const updatedOrder = await ordersService.cancelOrder(orderId);
+      
+      // 🔥 发送系统消息到 ChatScreen - 根据用户角色发送不同视角的消息
+      const order = orders.find(o => o.id === orderId);
+      if (order?.conversations?.[0]?.id) {
+        try {
+          const { messagesService } = await import("../../../src/services");
+          // 买家取消订单：发送操作者视角的消息，ChatScreen 会根据用户角色显示不同内容
+          await messagesService.sendMessage(order.conversations[0].id.toString(), {
+            content: "I've cancelled this order.", // 买家视角：我取消了订单
+            message_type: "SYSTEM"
+          });
+          console.log("✅ System message sent: I've cancelled this order.");
+        } catch (messageError) {
+          console.error("❌ Failed to send system message:", messageError);
+        }
+      }
+      
+      // Update the orders list
+      setOrders(prevOrders => 
+        prevOrders.map(order => 
+          order.id === orderId ? updatedOrder : order
+        )
+      );
+      
+      Alert.alert("Order Cancelled", "Your order has been successfully cancelled.");
+    } catch (error) {
+      console.error("❌ PurchasesTab - Error cancelling order:", error);
+      Alert.alert("Error", "Failed to cancel order. Please try again.");
+    }
+  };
+
   // Filter data
   const filtered = orders.filter((order) => {
-    if (filter === "All") return true;
-
-    // ✅ 新增逻辑：RECEIVED 也归到 COMPLETED 分类中
-    if (filter === "COMPLETED" && ["COMPLETED", "RECEIVED"].includes(order.status)) {
-      return true;
-    }
-
+    if (filter === "All") return order.status !== "CANCELLED"; // 🔥 "All" 不包含 cancelled orders
     return order.status === filter;
   });
 
@@ -162,9 +210,7 @@ export default function PurchasesTab() {
               <Picker.Item label="In Progress" value="IN_PROGRESS" />
               <Picker.Item label="Delivered" value="DELIVERED" />
               <Picker.Item label="Completed" value="COMPLETED" />
-              <Picker.Item label="Received" value="RECEIVED" />
               <Picker.Item label="Cancelled" value="CANCELLED" />
-              <Picker.Item label="Reviewed" value="REVIEWED" />
             </Picker>
           </View>
         </View>
@@ -219,22 +265,36 @@ export default function PurchasesTab() {
                 style={styles.item}
                 onPress={() => {
                   if (!item.id) return;
-                  // 🔍 Debug: confirm navigating with correct id
-                  try {
-                    console.log("Navigating to order id:", item.id);
-                  } catch (e) {
-                    // no-op
-                  }
+                  console.log("🔍 PurchasesTab - Navigating to order id:", item.id);
+                  console.log("🔍 PurchasesTab - Item object:", item);
+                  console.log("🔍 PurchasesTab - Item conversations:", item.conversations);
+                  console.log("🔍 PurchasesTab - Item conversationId:", item.conversationId);
+                  
                   navigation.navigate("OrderDetail", {
                     id: item.id.toString(),
                     source: "purchase",
+                    conversationId: item.conversationId || item.conversations?.[0]?.id?.toString() || undefined,
                   });
                 }}
               >
                 <Image 
-                  source={{ uri: item.listing?.image_url || item.listing?.image_urls?.[0] || "https://via.placeholder.com/100x100" }} 
+                  source={{ 
+                    uri: item.listing?.image_url || 
+                         (typeof item.listing?.image_urls === 'string' ? JSON.parse(item.listing.image_urls)[0] : item.listing?.image_urls?.[0]) || 
+                         "https://via.placeholder.com/100x100" 
+                  }} 
                   style={styles.image} 
                 />
+                {/* Status overlay */}
+                <View style={styles.overlay}>
+                  <Text style={styles.overlayText}>
+                    {item.status === "CANCELLED" ? "CANCELLED" : 
+                     item.status === "IN_PROGRESS" ? "PENDING" :
+                     item.status === "DELIVERED" ? "DELIVERED" :
+                     item.status === "COMPLETED" ? "COMPLETED" : 
+                     item.status}
+                  </Text>
+                </View>
               </TouchableOpacity>
             )
           }
@@ -310,5 +370,23 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     borderRadius: 6,
+  },
+  // Status overlay (mimicking SoldTab)
+  overlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 6,
+  },
+  overlayText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center",
   },
 });

@@ -9,6 +9,28 @@ export interface Order {
   status: OrderStatus;
   created_at: string;
   updated_at: string;
+  // 订单金额和编号
+  total_amount?: number;
+  order_number?: string;
+  // 买家信息字段
+  buyer_name?: string;
+  buyer_phone?: string;
+  shipping_address?: string;
+  payment_method?: string;
+  payment_details?: any;
+  // 对话信息
+  conversations?: Array<{
+    id: number;
+  }>;
+  conversationId?: string | null;
+  // 评论信息
+  reviews?: Array<{
+    id: number;
+    reviewer_id: number;
+    rating: number;
+    comment: string;
+    created_at: string;
+  }>;
   buyer: {
     id: number;
     username: string;
@@ -93,6 +115,16 @@ export interface OrdersResponse {
 
 export interface CreateOrderRequest {
   listing_id: number;
+  buyer_name?: string;
+  buyer_phone?: string;
+  shipping_address?: string;
+  payment_method?: string;
+  payment_details?: {
+    brand?: string;
+    last4?: string;
+    expiry?: string;
+    cvv?: string;
+  };
 }
 
 export interface UpdateOrderRequest {
@@ -126,7 +158,9 @@ class OrdersService {
 
   // Create a new order
   async createOrder(data: CreateOrderRequest): Promise<Order> {
+    console.log("🔍 Creating order with data:", data);
     const response = await apiClient.post(API_CONFIG.ENDPOINTS.ORDERS, data);
+    console.log("✅ Order created successfully:", response.data);
     return response.data;
   }
 
@@ -158,7 +192,7 @@ class OrdersService {
   }
 
   async markAsReceived(orderId: number): Promise<Order> {
-    return this.updateOrderStatus(orderId, { status: 'RECEIVED' });
+    return this.updateOrderStatus(orderId, { status: 'COMPLETED' });
   }
 
   async markAsCompleted(orderId: number): Promise<Order> {

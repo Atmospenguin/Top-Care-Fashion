@@ -58,6 +58,10 @@ export async function POST(req: Request) {
     // 转换condition字符串到ConditionType枚举
     const mapConditionToEnum = (conditionStr: string | undefined) => {
       if (!conditionStr) return "GOOD"; // 默认值
+      
+      // 🔥 标准化输入字符串
+      const normalizedStr = conditionStr.trim();
+      
       const conditionMap: Record<string, "NEW" | "LIKE_NEW" | "GOOD" | "FAIR" | "POOR"> = {
         "Brand New": "NEW",
         "New": "NEW",
@@ -177,14 +181,13 @@ export async function POST(req: Request) {
       success: true,
       data: {
         id: listing.id.toString(),
-        title: listing.name, // 返回 name 作为 title
+        title: listing.name,
         description: listing.description,
         price: listing.price,
         brand: listing.brand,
         size: mapSizeToDisplay(listing.size),
         condition: listing.condition_type,
         material: listing.material,
-        gender: (listing as any).gender || "unisex",
         tags: listing.tags ? JSON.parse(listing.tags as string) : [],
         category: listing.category?.name,
         images: listing.image_urls ? JSON.parse(listing.image_urls as string) : [],
@@ -206,7 +209,6 @@ export async function POST(req: Request) {
           rating: listing.seller?.average_rating || 0,
           sales: listing.seller?.total_reviews || 0,
         },
-        createdAt: listing.created_at,
       },
     });
 

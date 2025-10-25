@@ -477,47 +477,53 @@ export default function UserProfileScreen() {
       // 导航到聊天界面
       console.log("🔍 Navigating to ChatScreen...");
       
-      // 🔥 正确的导航方式：Buy Stack → Root Stack → Main Tab → Inbox Stack → Chat
-      try {
-        // 方式1：通过根导航到 Main Tab，然后到 Inbox
-        const rootNavigation = (navigation as any).getParent?.();
-        if (rootNavigation) {
-          rootNavigation.navigate("Main", {
-            screen: "Inbox",
-            params: {
-              screen: "Chat",
-              params: {
-                sender: userProfile.username,
-                kind: "general",
-                conversationId: conversation.id,
-                order: null
+      // 🔥 使用 CommonActions 重置导航栈到正确状态
+      const rootNavigation = (navigation as any).getParent?.();
+      if (rootNavigation) {
+        // 使用 CommonActions.reset 重置到 Main Tab 的 Inbox Stack
+        rootNavigation.dispatch({
+          type: 'RESET',
+          payload: {
+            index: 0,
+            routes: [
+              {
+                name: 'Main',
+                state: {
+                  routes: [
+                    { name: 'Home' },
+                    { name: 'Discover' },
+                    { name: 'Sell' },
+                    {
+                      name: 'Inbox',
+                      state: {
+                        routes: [
+                          { name: 'InboxMain' },
+                          {
+                            name: 'Chat',
+                            params: {
+                              sender: userProfile.username,
+                              kind: "general",
+                              conversationId: conversation.id,
+                              order: null
+                            }
+                          }
+                        ],
+                        index: 1
+                      }
+                    },
+                    { name: 'My TOP' }
+                  ],
+                  index: 3
+                }
               }
-            }
-          });
-          console.log("✅ Navigation successful via Main Tab");
-        } else {
-          throw new Error("Root navigation not available");
-        }
-      } catch (navError) {
-        console.log("❌ Main Tab navigation failed:", navError);
-        console.log("🔍 Trying alternative navigation...");
+            ]
+          }
+        });
         
-        // 方式2：尝试直接导航到 Inbox（可能不会工作，但作为 fallback）
-        try {
-          (navigation as any).navigate("Inbox", {
-            screen: "Chat",
-            params: {
-              sender: userProfile.username,
-              kind: "general",
-              conversationId: conversation.id,
-              order: null
-            }
-          });
-          console.log("✅ Navigation successful via direct");
-        } catch (directError) {
-          console.error("❌ Direct navigation also failed:", directError);
-          Alert.alert("Navigation Error", "Unable to open chat. Please try again.");
-        }
+        console.log("✅ Navigation successful via RESET to Main Tab → Inbox Stack → Chat");
+      } else {
+        console.error("❌ Root navigation not available");
+        Alert.alert("Navigation Error", "Unable to open chat. Please try again.");
       }
     } catch (error) {
       console.error("❌ Error creating conversation:", error);

@@ -8,6 +8,7 @@ export { ordersService, OrdersService } from './ordersService';
 export { likesService, LikesService } from './likesService';
 export { cartService, CartService } from './cartService';
 export { messagesService, MessagesService } from './messagesService';
+export { reviewsService, ReviewsService } from './reviewsService';
 
 // 导出类型
 export type { ApiResponse, ApiError } from '../config/api';

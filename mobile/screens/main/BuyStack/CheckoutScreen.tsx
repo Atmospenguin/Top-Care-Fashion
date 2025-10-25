@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, TextInput, Alert } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, TextInput, Alert, Modal } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
@@ -12,12 +12,13 @@ import {
   DEFAULT_SHIPPING_ADDRESS,
 } from "../../../mocks/shop";
 import { ordersService } from "../../../src/services";
+import { messagesService } from "../../../src/services/messagesService";
 import { useAuth } from "../../../contexts/AuthContext";
 
 function getDeliveryEstimate(): string {
   const today = new Date();
   const delivery = new Date(today);
-  delivery.setDate(delivery.getDate() + 7);
+  delivery.setDate(delivery.getDate() + 3); // 🔥 新加坡3天内配送
   return delivery.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -28,7 +29,7 @@ export default function CheckoutScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
   const {
-    params: { items, subtotal, shipping },
+    params: { items, subtotal, shipping, conversationId },
   } = useRoute<RouteProp<BuyStackParamList, "Checkout">>();
   const { user } = useAuth();
 
@@ -36,6 +37,23 @@ export default function CheckoutScreen() {
   const [shippingAddress, setShippingAddress] = useState(DEFAULT_SHIPPING_ADDRESS);
   const [paymentMethod, setPaymentMethod] = useState(DEFAULT_PAYMENT_METHOD);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+  
+  // 🔥 编辑状态管理
+  const [editingField, setEditingField] = useState<'personal' | 'payment' | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    phone: '',
+    line1: '',
+    line2: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    country: '',
+    paymentMethod: '',
+    cardNumber: '',
+    expiryDate: '',
+    cvv: ''
+  });
 
   const total = useMemo(() => subtotal + shipping, [subtotal, shipping]);
   const deliveryEstimate = useMemo(() => getDeliveryEstimate(), []);
@@ -51,52 +69,51 @@ export default function CheckoutScreen() {
     return parts.join("\n");
   };
 
-  // 🔥 编辑地址功能
-  const handleChangeAddress = () => {
-    Alert.prompt(
-      "Edit Shipping Address",
-      "Enter your address:",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Save",
-          onPress: (address) => {
-            if (address) {
-              setShippingAddress({
-                ...shippingAddress,
-                line1: address
-              });
-            }
-          }
-        }
-      ],
-      "plain-text",
-      shippingAddress.line1
-    );
+  // 🔥 编辑功能
+  const handleEditField = (field: 'personal' | 'payment') => {
+    setEditingField(field);
+    // 初始化表单数据
+    setEditForm({
+      name: shippingAddress.name,
+      phone: shippingAddress.phone,
+      line1: shippingAddress.line1,
+      line2: shippingAddress.line2 || '',
+      city: shippingAddress.city,
+      state: shippingAddress.state,
+      postalCode: shippingAddress.postalCode,
+      country: shippingAddress.country,
+      paymentMethod: paymentMethod.brand,
+      cardNumber: paymentMethod.last4,
+      expiryDate: '12/25',
+      cvv: '123'
+    });
   };
 
-  // 🔥 编辑付款方式功能
-  const handleChangePayment = () => {
-    Alert.prompt(
-      "Edit Payment Method",
-      "Enter card number (last 4 digits):",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Save",
-          onPress: (last4) => {
-            if (last4 && last4.length === 4) {
-              setPaymentMethod({
-                ...paymentMethod,
-                last4: last4
-              });
-            }
-          }
-        }
-      ],
-      "plain-text",
-      paymentMethod.last4
-    );
+  const handleSaveEdit = () => {
+    if (editingField === 'personal') {
+      setShippingAddress({
+        ...shippingAddress,
+        name: editForm.name,
+        phone: editForm.phone,
+        line1: editForm.line1,
+        line2: editForm.line2,
+        city: editForm.city,
+        state: editForm.state,
+        postalCode: editForm.postalCode,
+        country: editForm.country
+      });
+    } else if (editingField === 'payment') {
+      setPaymentMethod({
+        ...paymentMethod,
+        brand: editForm.paymentMethod,
+        last4: editForm.cardNumber
+      });
+    }
+    setEditingField(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingField(null);
   };
 
   // 🔥 创建真实订单
@@ -110,41 +127,85 @@ export default function CheckoutScreen() {
       setIsCreatingOrder(true);
       
       // 🔥 为每个商品创建订单
+      const createdOrders = [];
       for (const bagItem of items) {
         console.log("🔍 Creating order for item:", bagItem.item.id);
+        console.log("🔍 Item details:", {
+          id: bagItem.item.id,
+          title: bagItem.item.title,
+          seller: bagItem.item.seller
+        });
         
         const newOrder = await ordersService.createOrder({
-          listing_id: parseInt(bagItem.item.id)
+          listing_id: parseInt(bagItem.item.id),
+          buyer_name: shippingAddress.name,
+          buyer_phone: shippingAddress.phone,
+          shipping_address: `${shippingAddress.line1}, ${shippingAddress.city}, ${shippingAddress.state} ${shippingAddress.postalCode}`,
+          payment_method: paymentMethod.brand,
+          payment_details: {
+            brand: paymentMethod.brand,
+            last4: paymentMethod.last4,
+            expiry: '12/25', // Mock expiry
+            cvv: '123' // Mock CVV
+          }
         });
         
         console.log("✅ Order created successfully:", newOrder);
+        createdOrders.push(newOrder);
       }
       
-      // 🔥 显示成功消息并导航
-      Alert.alert(
-        "Order Placed Successfully!",
-        `Your order has been confirmed. You will receive tracking details once it ships.`,
-        [
-          {
-            text: "View Orders",
-            onPress: () => {
-              const rootNavigation = (navigation as any).getParent?.();
-              if (rootNavigation) {
-                rootNavigation.navigate("Main", {
-                  screen: "MyTop",
-                  params: {
-                    screen: "PurchasesTab"
-                  }
-                });
+      // 🔥 订单创建成功，显示成功消息并返回上一页
+      console.log("✅ Order created successfully:", createdOrders);
+      
+      // 🔥 使用第一个创建的订单信息
+      const firstOrder = createdOrders[0];
+      if (firstOrder && firstOrder.id) {
+        // 🔥 立即发送 "I've paid" 系统消息
+        const sendPaidMessage = async () => {
+          try {
+            if (conversationId) {
+              console.log("📤 Sending SYSTEM message to conversation:", conversationId);
+              await messagesService.sendMessage(conversationId, {
+                content: "I've paid, waiting for you to ship\nPlease pack the item and ship to the address I provided on TOP.",
+                message_type: "SYSTEM"
+              });
+              console.log("✅ SYSTEM message sent successfully");
+            } else {
+              console.warn("❌ No conversationId when trying to send system message");
+            }
+          } catch (error) {
+            console.error("❌ Failed to send SYSTEM message:", error);
+          }
+        };
+        
+        // 发送系统消息
+        sendPaidMessage();
+        
+        Alert.alert(
+          "Order Created", 
+          "Your order has been placed successfully!",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                // 🔥 返回上一页
+                navigation.goBack();
               }
             }
-          },
-          { text: "Continue Shopping" }
-        ]
-      );
+          ]
+        );
+      } else {
+        Alert.alert("Success", "Order created successfully!");
+        navigation.goBack();
+      }
       
     } catch (error) {
       console.error("❌ Error creating order:", error);
+      console.error("❌ Error details:", {
+        message: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : "No stack",
+        error: error
+      });
       Alert.alert(
         "Error", 
         error instanceof Error ? error.message : "Failed to create order. Please try again.",
@@ -161,20 +222,26 @@ export default function CheckoutScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Shipping Address</Text>
-            <TouchableOpacity accessibilityRole="button" onPress={handleChangeAddress}>
+            <Text style={styles.sectionTitle}>Personal Information</Text>
+            <TouchableOpacity accessibilityRole="button" onPress={() => handleEditField('personal')}>
               <Text style={styles.sectionAction}>Change</Text>
             </TouchableOpacity>
           </View>
+          
+          {/* 显示姓名 */}
           <Text style={styles.addressName}>{shippingAddress.name}</Text>
+          
+          {/* 显示电话 */}
           <Text style={styles.addressPhone}>{shippingAddress.phone}</Text>
+          
+          {/* 显示地址 */}
           <Text style={styles.addressBody}>{formatCurrentAddress()}</Text>
         </View>
 
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Payment</Text>
-            <TouchableOpacity accessibilityRole="button" onPress={handleChangePayment}>
+            <TouchableOpacity accessibilityRole="button" onPress={() => handleEditField('payment')}>
               <Text style={styles.sectionAction}>Change</Text>
             </TouchableOpacity>
           </View>
@@ -222,6 +289,173 @@ export default function CheckoutScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* 🔥 编辑模态框 */}
+      <Modal
+        visible={editingField !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={handleCancelEdit}>
+              <Text style={styles.modalCancel}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>
+              {editingField === 'personal' && 'Edit Personal Information'}
+              {editingField === 'payment' && 'Edit Payment'}
+            </Text>
+            <TouchableOpacity onPress={handleSaveEdit}>
+              <Text style={styles.modalSave}>Save</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {editingField === 'personal' && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Full Name</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.name}
+                  onChangeText={(text) => setEditForm({...editForm, name: text})}
+                  placeholder="Enter your full name"
+                />
+                
+                <Text style={styles.inputLabel}>Phone Number</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.phone}
+                  onChangeText={(text) => setEditForm({...editForm, phone: text})}
+                  placeholder="Enter your phone number"
+                  keyboardType="phone-pad"
+                />
+                
+                <Text style={styles.inputLabel}>Street Address</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.line1}
+                  onChangeText={(text) => setEditForm({...editForm, line1: text})}
+                  placeholder="Enter your street address"
+                />
+                
+                <Text style={styles.inputLabel}>Apartment, suite, etc. (Optional)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.line2}
+                  onChangeText={(text) => setEditForm({...editForm, line2: text})}
+                  placeholder="Apartment, suite, unit, building, floor, etc."
+                />
+                
+                <View style={styles.addressRow}>
+                  <View style={styles.addressColumn}>
+                    <Text style={styles.inputLabel}>City</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={editForm.city}
+                      onChangeText={(text) => setEditForm({...editForm, city: text})}
+                      placeholder="City"
+                    />
+                  </View>
+                  
+                  <View style={styles.addressColumn}>
+                    <Text style={styles.inputLabel}>State</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={editForm.state}
+                      onChangeText={(text) => setEditForm({...editForm, state: text})}
+                      placeholder="State"
+                    />
+                  </View>
+                </View>
+                
+                <View style={styles.addressRow}>
+                  <View style={styles.addressColumn}>
+                    <Text style={styles.inputLabel}>Postal Code</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={editForm.postalCode}
+                      onChangeText={(text) => setEditForm({...editForm, postalCode: text})}
+                      placeholder="Postal Code"
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  
+                  <View style={styles.addressColumn}>
+                    <Text style={styles.inputLabel}>Country</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={editForm.country}
+                      onChangeText={(text) => setEditForm({...editForm, country: text})}
+                      placeholder="Country"
+                    />
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {editingField === 'payment' && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Payment Method</Text>
+                <View style={styles.paymentOptions}>
+                  <TouchableOpacity 
+                    style={[styles.paymentOption, editForm.paymentMethod === 'Visa' && styles.paymentOptionSelected]}
+                    onPress={() => setEditForm({...editForm, paymentMethod: 'Visa'})}
+                  >
+                    <Text style={styles.paymentOptionText}>Visa</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.paymentOption, editForm.paymentMethod === 'Mastercard' && styles.paymentOptionSelected]}
+                    onPress={() => setEditForm({...editForm, paymentMethod: 'Mastercard'})}
+                  >
+                    <Text style={styles.paymentOptionText}>Mastercard</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.paymentOption, editForm.paymentMethod === 'PayPal' && styles.paymentOptionSelected]}
+                    onPress={() => setEditForm({...editForm, paymentMethod: 'PayPal'})}
+                  >
+                    <Text style={styles.paymentOptionText}>PayPal</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.inputLabel}>Card Number (Last 4 digits)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.cardNumber}
+                  onChangeText={(text) => setEditForm({...editForm, cardNumber: text})}
+                  placeholder="1234"
+                  keyboardType="numeric"
+                  maxLength={4}
+                />
+
+                <Text style={styles.inputLabel}>Expiry Date</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.expiryDate}
+                  onChangeText={(text) => setEditForm({...editForm, expiryDate: text})}
+                  placeholder="MM/YY"
+                  keyboardType="numeric"
+                />
+
+                <Text style={styles.inputLabel}>CVV</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.cvv}
+                  onChangeText={(text) => setEditForm({...editForm, cvv: text})}
+                  placeholder="123"
+                  keyboardType="numeric"
+                  maxLength={3}
+                />
+
+                <View style={styles.paymentNote}>
+                  <Text style={styles.paymentNoteText}>
+                    🔒 This is a demo payment system for educational purposes. No real payment will be processed.
+                  </Text>
+                </View>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -319,5 +553,108 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
+  },
+  // 🔥 编辑相关样式
+  editableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  // 🔥 模态框样式
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#ddd",
+  },
+  modalCancel: {
+    fontSize: 16,
+    color: "#666",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  modalSave: {
+    fontSize: 16,
+    color: "#2A7BF4",
+    fontWeight: "600",
+  },
+  modalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  inputGroup: {
+    marginBottom: 24,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 8,
+    color: "#333",
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: "#f9f9f9",
+  },
+  // 🔥 地址编辑布局样式
+  addressRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 16,
+  },
+  addressColumn: {
+    flex: 1,
+    marginRight: 8,
+  },
+  // 🔥 支付选项样式
+  paymentOptions: {
+    flexDirection: "row",
+    marginBottom: 16,
+    gap: 8,
+  },
+  paymentOption: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    alignItems: "center",
+    backgroundColor: "#f9f9f9",
+  },
+  paymentOptionSelected: {
+    borderColor: "#2A7BF4",
+    backgroundColor: "#E6F0FF",
+  },
+  paymentOptionText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+  },
+  paymentNote: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: "#FFF3CD",
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: "#FFC107",
+  },
+  paymentNoteText: {
+    fontSize: 12,
+    color: "#856404",
+    lineHeight: 16,
   },
 });

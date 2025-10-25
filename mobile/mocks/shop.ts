@@ -350,13 +350,13 @@ export const DEFAULT_BAG_ITEMS: BagItem[] = [
 
 export const DEFAULT_SHIPPING_ADDRESS: ShippingAddress = {
   name: "Mia Chen",
-  phone: "+1 917-555-1200",
-  line1: "245 Grand St",
-  line2: "Apt 5C",
-  city: "New York",
-  state: "NY",
-  postalCode: "10002",
-  country: "USA",
+  phone: "+65 9123 4567",
+  line1: "101 West Coast Vale",
+  line2: "Block 101 #17-05",
+  city: "Singapore",
+  state: "Singapore",
+  postalCode: "128101",
+  country: "Singapore",
 };
 
 export const DEFAULT_PAYMENT_METHOD: PaymentMethod = {

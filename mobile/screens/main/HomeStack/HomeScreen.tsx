@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, RefreshControl } from "react-native";
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, RefreshControl, FlatList } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -74,167 +74,174 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
-      <ScrollView
+      <FlatList
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: 60 }}
+        data={featuredItems}
+        numColumns={2}
+        keyExtractor={(item) => item.id.toString()}
+        columnWrapperStyle={styles.row}
+        contentContainerStyle={styles.gridContainer}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => loadFeaturedItems({ isRefresh: true })}
           />
         }
-      >
-        {/* 🔍 搜索栏 */}
-        <View style={styles.searchRow}>
-          <TextInput
-            style={styles.searchBar}
-            placeholder="Search for anything"
-            placeholderTextColor="#666"
-            value={searchText}
-            onChangeText={setSearchText}
-            returnKeyType="search"
-            onSubmitEditing={() => {
-              // Navigate to SearchResult in Buy stack
-              const parent = navigation.getParent()?.getParent();
-              parent?.navigate("Buy", { screen: "SearchResult", params: { query: searchText || "" } });
-            }}
-          />
-          <TouchableOpacity
-            style={{ marginLeft: 12 }}
-            accessibilityRole="button"
-            onPress={() =>
-              navigation
-                .getParent()
-                ?.navigate("My TOP", {
-                  screen: "MyTopMain",
-                  params: { initialTab: "Likes" },
-                })
-            }
-          >
-            <Icon name="heart-outline" size={24} color="#111" />
-          </TouchableOpacity>
-            <TouchableOpacity
-            style={{ marginLeft: 12 }}
-            accessibilityRole="button"
-            onPress={() =>
-              // Navigate to Bag screen without passing items parameter
-              // This will load cart items from API
-              (navigation as any)
-              .getParent()
-              ?.getParent()
-              ?.navigate("Buy", {
-                screen: "Bag",
-              } as any)
-            }
-            >
-            <Icon name="bag-outline" size={24} color="#111" />
-            </TouchableOpacity>
-        </View>
-
-        {/* 🌟 Premium Banner */}
-        <View style={styles.banner}>
-          <Text style={styles.bannerTitle}>Style smarter with AI Mix & Match</Text>
-          <Text style={styles.bannerSubtitle}>
-            Unlimited Mix & Match Styling{"\n"}Reduced commission fees & Free boosts
-          </Text>
-          <TouchableOpacity
-            style={styles.premiumBtn}
-            onPress={() => {
-              const rootNavigation = navigation
-                .getParent()
-                ?.getParent() as
-                | NativeStackNavigationProp<RootStackParamList>
-                | undefined;
-
-              rootNavigation?.navigate("Premium", {
-                screen: "PremiumPlans",
-              });
-            }}
-          >
-            <Text style={styles.premiumText}>Get Premium</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 👕 推荐区 */}
-        <Text style={styles.sectionTitle}>Suggested for you</Text>
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#007AFF" />
-            <Text style={styles.loadingText}>Loading items...</Text>
-          </View>
-        ) : error ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
+        ListHeaderComponent={() => (
+          <View>
+            {/* 🔍 搜索栏 */}
+            <View style={styles.searchRow}>
+              <TextInput
+                style={styles.searchBar}
+                placeholder="Search for anything"
+                placeholderTextColor="#666"
+                value={searchText}
+                onChangeText={setSearchText}
+                returnKeyType="search"
+                onSubmitEditing={() => {
+                  // Navigate to SearchResult in Buy stack
+                  const parent = navigation.getParent()?.getParent();
+                  parent?.navigate("Buy", { screen: "SearchResult", params: { query: searchText || "" } });
+                }}
+              />
               <TouchableOpacity
-                style={styles.retryButton}
+                style={{ marginLeft: 12 }}
+                accessibilityRole="button"
+                onPress={() =>
+                  navigation
+                    .getParent()
+                    ?.navigate("My TOP", {
+                      screen: "MyTopMain",
+                      params: { initialTab: "Likes" },
+                    })
+                }
+              >
+                <Icon name="heart-outline" size={24} color="#111" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ marginLeft: 12 }}
+                accessibilityRole="button"
+                onPress={() =>
+                  // Navigate to Bag screen without passing items parameter
+                  // This will load cart items from API
+                  (navigation as any)
+                  .getParent()
+                  ?.getParent()
+                  ?.navigate("Buy", {
+                    screen: "Bag",
+                  } as any)
+                }
+              >
+                <Icon name="bag-outline" size={24} color="#111" />
+              </TouchableOpacity>
+            </View>
+
+            {/* 🌟 Premium Banner */}
+            <View style={styles.banner}>
+              <Text style={styles.bannerTitle}>Style smarter with AI Mix & Match</Text>
+              <Text style={styles.bannerSubtitle}>
+                Unlimited Mix & Match Styling{"\n"}Reduced commission fees & Free boosts
+              </Text>
+              <TouchableOpacity
+                style={styles.premiumBtn}
                 onPress={() => {
-                  // reuse the same loader for retry
-                  loadFeaturedItems();
+                  const rootNavigation = navigation
+                    .getParent()
+                    ?.getParent() as
+                    | NativeStackNavigationProp<RootStackParamList>
+                    | undefined;
+
+                  rootNavigation?.navigate("Premium", {
+                    screen: "PremiumPlans",
+                  });
                 }}
               >
-                <Text style={styles.retryText}>Retry</Text>
+                <Text style={styles.premiumText}>Get Premium</Text>
               </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.gridWrapper}>
-            {featuredItems.map((item) => {
-              const primaryImage =
-                (Array.isArray(item.images) && item.images[0]) ||
-                "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
+            </View>
 
-              return (
+            {/* 👕 推荐区标题 */}
+            <Text style={styles.sectionTitle}>Suggested for you</Text>
+            
+            {/* Loading or Error states */}
+            {loading && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#007AFF" />
+                <Text style={styles.loadingText}>Loading items...</Text>
+              </View>
+            )}
+            {error && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{error}</Text>
                 <TouchableOpacity
-                  key={item.id}
-                  style={styles.gridItem}
-                  onPress={() =>
-                    (navigation as any)
-                      .getParent()
-                      ?.getParent()
-                      ?.navigate("Buy", {
-                        screen: "ListingDetail",
-                        params: { item },
-                      } as any)
-                  }
-                  accessibilityRole="button"
+                  style={styles.retryButton}
+                  onPress={() => {
+                    loadFeaturedItems();
+                  }}
                 >
-                  <Image
-                    source={{ uri: primaryImage }}
-                    style={styles.gridImage}
-                  />
-                  <View style={styles.itemInfo}>
-                    <Text style={styles.itemTitle} numberOfLines={1}>
-                      {item.title}
-                    </Text>
-                    <Text style={styles.itemPrice}>${item.price?.toFixed(2) || "0.00"}</Text>
-                    {item.size && (
-                      <Text style={styles.itemSize} numberOfLines={1}>
-                        Size {item.size}
-                      </Text>
-                    )}
-                    {item.material && (
-                      <Text style={styles.itemMaterial} numberOfLines={1}>
-                        {item.material}
-                      </Text>
-                    )}
-                    {Array.isArray(item.tags) && item.tags.length > 0 && (
-                      <View style={styles.itemTags}>
-                        {item.tags.slice(0, 2).map((tag, index) => (
-                          <View key={index} style={styles.itemTagChip}>
-                            <Text style={styles.itemTagText}>{tag}</Text>
-                          </View>
-                        ))}
-                        {item.tags.length > 2 && (
-                          <Text style={styles.itemTagMore}>+{item.tags.length - 2}</Text>
-                        )}
-                      </View>
-                    )}
-                  </View>
+                  <Text style={styles.retryText}>Retry</Text>
                 </TouchableOpacity>
-              );
-            })}
+              </View>
+            )}
           </View>
         )}
-      </ScrollView>
+        ListFooterComponent={() => <View style={{ height: 60 }} />}
+        renderItem={({ item }) => {
+          const primaryImage =
+            (Array.isArray(item.images) && item.images[0]) ||
+            "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
+
+          return (
+            <TouchableOpacity
+              style={styles.gridItem}
+              onPress={() =>
+                (navigation as any)
+                  .getParent()
+                  ?.getParent()
+                  ?.navigate("Buy", {
+                    screen: "ListingDetail",
+                    params: { item },
+                  } as any)
+              }
+              accessibilityRole="button"
+            >
+              <Image
+                source={{ uri: primaryImage }}
+                style={styles.gridImage}
+              />
+              <View style={styles.itemInfo}>
+                <Text style={styles.itemTitle} numberOfLines={1}>
+                  {item.title}
+                </Text>
+                <Text style={styles.itemPrice}>${item.price?.toFixed(2) || "0.00"}</Text>
+                {item.size && (
+                  <Text style={styles.itemSize} numberOfLines={1}>
+                    Size {item.size}
+                  </Text>
+                )}
+                {item.material && (
+                  <Text style={styles.itemMaterial} numberOfLines={1}>
+                    {item.material}
+                  </Text>
+                )}
+                {Array.isArray(item.tags) && item.tags.length > 0 && (
+                  <View style={styles.itemTags}>
+                    {item.tags.slice(0, 2).map((tag, index) => (
+                      <View key={index} style={styles.itemTagChip}>
+                        <Text style={styles.itemTagText}>{tag}</Text>
+                      </View>
+                    ))}
+                    {item.tags.length > 2 && (
+                      <Text style={styles.itemTagMore}>+{item.tags.length - 2}</Text>
+                    )}
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -280,15 +287,16 @@ const styles = StyleSheet.create({
 
   // 推荐
   sectionTitle: { fontSize: 16, fontWeight: "700", marginBottom: 12 },
-  gridWrapper: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginHorizontal: -4,
+  gridContainer: {
+    paddingHorizontal: 0,
+  },
+  row: {
+    justifyContent: "space-between",
+    paddingHorizontal: 0,
   },
   gridItem: {
     width: "48%",
-    marginHorizontal: 4,
-    marginBottom: 12,
+    marginBottom: 16,
     borderRadius: 12,
     overflow: "hidden",
     backgroundColor: "#f9f9f9",

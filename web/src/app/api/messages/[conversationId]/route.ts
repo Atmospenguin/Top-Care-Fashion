@@ -19,9 +19,9 @@ const supabase = createClient(
 // GET /api/messages/[conversationId] - 获取对话中的所有消息
 export async function GET(
   request: NextRequest,
-  { params }: { params: { conversationId: string } }
+  { params }: { params: Promise<{ conversationId: string }> }
 ) {
-  const rawId = params.conversationId; // ✅ 获取真正的参数
+  const { conversationId: rawId } = await params; // ✅ 获取真正的参数
 
   // 🩹 support- 对话特殊处理 - 查询真实对话
   if (rawId.startsWith("support-")) {
@@ -77,9 +77,10 @@ export async function GET(
         const formattedMessages = supportConversation.messages.map(msg => ({
           id: msg.id.toString(),
           type: msg.message_type === "SYSTEM" ? "system" : "msg",
-          sender: msg.sender_id === dbUser.id ? "me" : "other",
+          sender: msg.message_type === "SYSTEM" ? undefined : (msg.sender_id === dbUser.id ? "me" : "other"),
           text: msg.content,
           time: formatTime(msg.created_at),
+          sentByUser: msg.sender_id === dbUser.id,
           senderInfo: {
             id: msg.sender.id,
             username: msg.sender.username,
@@ -89,7 +90,7 @@ export async function GET(
 
         // 检查是否有欢迎消息，如果没有则添加
         const hasWelcomeMessage = formattedMessages.some(msg => 
-          msg.text.includes('Welcome to TOP') && msg.senderInfo.username === 'TOP Support'
+          msg.text.includes('Welcome to TOP') && msg.senderInfo?.username === 'TOP Support'
         );
 
         let finalMessages = formattedMessages;
@@ -101,6 +102,7 @@ export async function GET(
             sender: "support",
             text: `Hey @${dbUser.username}, Welcome to TOP! 👋`,
             time: "Just now",
+            sentByUser: false,
             senderInfo: { id: SUPPORT_USER_ID, username: "TOP Support", avatar: null }
           };
           finalMessages = [welcomeMessage, ...formattedMessages];
@@ -250,9 +252,10 @@ export async function GET(
     const formattedMessages = messages.map(msg => ({
       id: msg.id.toString(),
       type: msg.message_type === "SYSTEM" ? "system" : "msg",
-      sender: msg.sender_id === dbUser.id ? "me" : "other",
+      sender: msg.message_type === "SYSTEM" ? undefined : (msg.sender_id === dbUser.id ? "me" : "other"),
       text: msg.content,
       time: formatTime(msg.created_at),
+      sentByUser: msg.message_type === "SYSTEM",
       senderInfo: {
         id: msg.sender.id,
         username: msg.sender.username,
@@ -434,9 +437,9 @@ image: (() => {
 // POST /api/messages/[conversationId] - 发送新消息
 export async function POST(
   request: NextRequest,
-  { params }: { params: { conversationId: string } }
+  { params }: { params: Promise<{ conversationId: string }> }
 ) {
-  const rawId = params.conversationId; // ✅ 获取真正的参数
+  const { conversationId: rawId } = await params; // ✅ 获取真正的参数
 
   // 🩹 处理 support-1 虚拟对话
   if (rawId.startsWith("support-")) {
@@ -460,7 +463,9 @@ export async function POST(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const { content } = await request.json();
+    const { content, message_type = "TEXT", sentByUser } = await request.json();
+    
+    console.log("📥 Received message:", { content, message_type, conversationId: rawId });
     
     if (!content || content.trim().length === 0) {
       return NextResponse.json({ error: "Message content is required" }, { status: 400 });
@@ -496,7 +501,7 @@ export async function POST(
         sender_id: dbUser.id,
         receiver_id: SUPPORT_USER_ID, // TOP Support
         content: content.trim(),
-        message_type: "TEXT"
+        message_type: message_type as "TEXT" | "IMAGE" | "SYSTEM"
       },
       include: {
         sender: {
@@ -518,10 +523,11 @@ export async function POST(
     return NextResponse.json({
       message: {
         id: message.id.toString(),
-        type: "msg",
-        sender: "me",
+        type: message_type === "SYSTEM" ? "system" : "msg",
+        sender: message_type === "SYSTEM" ? undefined : "me",
         text: message.content,
         time: formatTime(message.created_at),
+        sentByUser: true, // 当前用户发送的消息
         senderInfo: {
           id: message.sender.id,
           username: message.sender.username,
@@ -557,7 +563,9 @@ export async function POST(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const { content, message_type = "TEXT" } = await request.json();
+    const { content, message_type = "TEXT", sentByUser } = await request.json();
+    
+    console.log("📥 Received message (regular conversation):", { content, message_type, conversationId });
 
     if (!content || content.trim().length === 0) {
       return NextResponse.json({ error: "Message content is required" }, { status: 400 });
@@ -613,9 +621,10 @@ export async function POST(
       message: {
         id: message.id.toString(),
         type: message.message_type === "SYSTEM" ? "system" : "msg",
-        sender: "me",
+        sender: message.message_type === "SYSTEM" ? undefined : "me",
         text: message.content,
         time: formatTime(message.created_at),
+        sentByUser: true, // 当前用户发送的消息
         senderInfo: {
           id: message.sender.id,
           username: message.sender.username,

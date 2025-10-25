@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   Image,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
@@ -12,6 +13,7 @@ import type { RouteProp } from "@react-navigation/native";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { RootStackParamList } from "../../../App";
+import { reviewsService } from "../../../src/services";
 
 type ReviewSide = {
   name: string;
@@ -48,7 +50,71 @@ export default function MutualReviewScreen() {
     params: { orderId },
   } = useRoute<RouteProp<RootStackParamList, "MutualReview">>();
 
-  const mutual = mockMutualReviews[orderId];
+  const [loading, setLoading] = useState(true);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  // 🔥 加载评论数据
+  useEffect(() => {
+    const loadReviews = async () => {
+      try {
+        setLoading(true);
+        const reviewsData = await reviewsService.getOrderReviews(parseInt(orderId));
+        setReviews(reviewsData);
+      } catch (error) {
+        console.error("Error loading reviews:", error);
+        setError("Failed to load reviews");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadReviews();
+  }, [orderId]);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <Header title="Mutual Review" showBack />
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#000" />
+          <Text style={styles.loadingText}>Loading reviews...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <Header title="Mutual Review" showBack />
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // 🔥 转换数据格式
+  const buyerReview = reviews.find(r => r.reviewer.role === "buyer" || r.reviewer_id === reviews[0]?.order?.buyer_id);
+  const sellerReview = reviews.find(r => r.reviewer.role === "seller" || r.reviewer_id === reviews[0]?.order?.seller_id);
+
+  const mutualReviews = buyerReview && sellerReview ? {
+    buyer: {
+      name: buyerReview.reviewer.username,
+      avatar: buyerReview.reviewer.avatar_url || buyerReview.reviewer.avatar_path || "https://via.placeholder.com/44x44",
+      role: "Buyer" as const,
+      rating: buyerReview.rating,
+      comment: buyerReview.comment || "",
+    },
+    seller: {
+      name: sellerReview.reviewer.username,
+      avatar: sellerReview.reviewer.avatar_url || sellerReview.reviewer.avatar_path || "https://via.placeholder.com/44x44",
+      role: "Seller" as const,
+      rating: sellerReview.rating,
+      comment: sellerReview.comment || "",
+    }
+  } : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -62,18 +128,18 @@ export default function MutualReviewScreen() {
           </Text>
         </View>
 
-        {mutual ? (
+        {mutualReviews ? (
           <>
-            <ReviewCard side={mutual.buyer} />
-            <ReviewCard side={mutual.seller} />
+            <ReviewCard side={mutualReviews.buyer} />
+            <ReviewCard side={mutualReviews.seller} />
           </>
         ) : (
           <View style={styles.emptyState}>
             <Icon name="chatbubble-ellipses-outline" size={36} color="#c2c7d1" />
             <Text style={styles.emptyTitle}>No mutual review yet</Text>
-          <Text style={styles.emptyText}>
-            Once both parties submit their reviews, they will appear here.
-          </Text>
+            <Text style={styles.emptyText}>
+              Once both parties submit their reviews, they will appear here.
+            </Text>
           </View>
         )}
       </ScrollView>
@@ -179,5 +245,19 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
     paddingHorizontal: 24,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: "#666",
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#666",
   },
 });

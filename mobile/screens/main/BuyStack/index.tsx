@@ -31,7 +31,7 @@ export type BuyStackParamList = {
   };
   SearchResult: { query: string; gender?: "men" | "women" | "unisex" };
   Bag: { items: BagItem[] } | undefined;
-  Checkout: { items: BagItem[]; subtotal: number; shipping: number };
+  Checkout: { items: BagItem[]; subtotal: number; shipping: number; conversationId?: string };
   Purchase: {
     orderId: string;
     total: number;

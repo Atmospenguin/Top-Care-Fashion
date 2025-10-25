@@ -89,28 +89,46 @@ async function getCurrentUser(req: NextRequest) {
       ? authHeader.split(" ")[1]
       : null;
 
+    console.log("🔍 Profile API - Auth header:", authHeader ? "present" : "missing");
+    console.log("🔍 Profile API - Token:", token ? `${token.substring(0, 20)}...` : "missing");
+
     if (!token) {
+      console.log("❌ Profile API - No token provided");
       return null;
     }
 
+    // 尝试 Legacy JWT 认证
     const legacy = verifyLegacyToken(token);
+    console.log("🔍 Profile API - Legacy JWT valid:", legacy.valid);
     if (legacy.valid && legacy.payload?.uid) {
+      console.log("🔍 Profile API - Legacy JWT payload:", legacy.payload);
       const legacyUser = await prisma.users.findUnique({
         where: { id: Number(legacy.payload.uid) },
       });
       if (legacyUser) {
+        console.log("✅ Profile API - Legacy JWT user found:", legacyUser.id);
         return legacyUser;
       }
     }
 
+    // 尝试 Supabase 认证
+    console.log("🔍 Profile API - Trying Supabase auth...");
     const supabase = await createSupabaseServer();
     const {
       data: { user },
       error,
     } = await supabase.auth.getUser(token);
 
+    console.log("🔍 Profile API - Supabase auth result:", { 
+      hasUser: !!user, 
+      error: error?.message,
+      userId: user?.id 
+    });
+
     if (!error && user) {
-      return prisma.users.findUnique({ where: { supabase_user_id: user.id } });
+      const dbUser = await prisma.users.findUnique({ where: { supabase_user_id: user.id } });
+      console.log("🔍 Profile API - DB user found:", dbUser ? dbUser.id : "not found");
+      return dbUser;
     }
 
     return null;

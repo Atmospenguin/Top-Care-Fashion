@@ -64,6 +64,12 @@ export default function ListingDetailScreen() {
   const {
     params: { item, isOwnListing: isOwnListingParam = false },
   } = useRoute<RouteProp<BuyStackParamList, "ListingDetail">>();
+  
+  // 调试：查看传递的 item 数据
+  console.log("🔍 ListingDetailScreen - Received item:", item);
+  console.log("🔍 ListingDetailScreen - Item ID:", item?.id);
+  console.log("🔍 ListingDetailScreen - Item title:", item?.title);
+  console.log("🔍 ListingDetailScreen - Item seller:", item?.seller);
   const { user } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
   const [reportModalVisible, setReportModalVisible] = useState(false);
@@ -110,7 +116,13 @@ export default function ListingDetailScreen() {
     }, 0),
     [defaultBag],
   );
-  const shippingFee = 8;
+  // 🔥 使用真实的 shipping fee 数据
+  const shippingFee = useMemo(() => {
+    if (!safeItem?.shippingFee) return 0;
+    return typeof safeItem.shippingFee === 'number' 
+      ? safeItem.shippingFee 
+      : Number(safeItem.shippingFee);
+  }, [safeItem?.shippingFee]);
 
   const genderLabel = useMemo(() => formatGenderLabel(safeItem?.gender), [safeItem?.gender]);
   const likesCount = safeItem?.likesCount ?? 0;
@@ -655,81 +667,70 @@ export default function ListingDetailScreen() {
                   // 导航到聊天界面
                   console.log("🔍 Navigating to ChatScreen...");
                   
-             // 🔥 正确的导航方式：Buy Stack → Root Stack → Main Tab → Inbox Stack → Chat
-             try {
-               // 方式1：通过根导航到 Main Tab，然后到 Inbox
-               const rootNavigation = (navigation as any).getParent?.();
-               if (rootNavigation) {
-                 rootNavigation.navigate("Main", {
-                   screen: "Inbox",
-                   params: {
-                     screen: "Chat",
-                     params: {
-                       sender: safeItem.seller.name || "Seller",
-                       kind: "order",
-                       conversationId: conversation.id,
-                       order: {
-                         id: safeItem.id || "new-order",
-                         product: {
-                           title: safeItem.title || "Item",
-                           price: Number(safeItem.price) || 0,
-                           size: safeItem.size,
-                           image: safeItem.images?.[0] || ""
-                         },
-                         seller: {
-                           name: safeItem.seller.name || "Seller",
-                           avatar: safeItem.seller.avatar
-                         },
-                         buyer: {
-                           name: "You",
-                           avatar: "https://i.pravatar.cc/100?img=32"
-                         },
-                         status: "Inquiry"
+             // 🔥 使用 CommonActions 重置导航栈到正确状态
+             const rootNavigation = (navigation as any).getParent?.();
+             if (rootNavigation) {
+               // 使用 CommonActions.reset 重置到 Main Tab 的 Inbox Stack
+               rootNavigation.dispatch({
+                 type: 'RESET',
+                 payload: {
+                   index: 0,
+                   routes: [
+                     {
+                       name: 'Main',
+                       state: {
+                         routes: [
+                           { name: 'Home' },
+                           { name: 'Discover' },
+                           { name: 'Sell' },
+                           {
+                             name: 'Inbox',
+                             state: {
+                               routes: [
+                                 { name: 'InboxMain' },
+                                 {
+                                   name: 'Chat',
+                                   params: {
+                                     sender: safeItem.seller.name || "Seller",
+                                     kind: "order",
+                                     conversationId: conversation.id,
+                                     order: {
+                                       id: safeItem.id || "new-order",
+                                       product: {
+                                         title: safeItem.title || "Item",
+                                         price: Number(safeItem.price) || 0,
+                                         size: safeItem.size,
+                                         image: safeItem.images?.[0] || ""
+                                       },
+                                       seller: {
+                                         name: safeItem.seller.name || "Seller",
+                                         avatar: safeItem.seller.avatar
+                                       },
+                                       buyer: {
+                                         name: "You",
+                                         avatar: "https://i.pravatar.cc/100?img=32"
+                                       },
+                                       status: "Inquiry"
+                                     }
+                                   }
+                                 }
+                               ],
+                               index: 1
+                             }
+                           },
+                           { name: 'My TOP' }
+                         ],
+                         index: 3
                        }
                      }
-                   }
-                 });
-                 console.log("✅ Navigation successful via Main Tab");
-               } else {
-                 throw new Error("Root navigation not available");
-               }
-             } catch (navError) {
-               console.log("❌ Main Tab navigation failed:", navError);
-               console.log("🔍 Trying alternative navigation...");
+                   ]
+                 }
+               });
                
-               // 方式2：尝试直接导航到 Inbox（可能不会工作，但作为 fallback）
-               try {
-                 (navigation as any).navigate("Inbox", {
-                   screen: "Chat",
-                   params: {
-                     sender: safeItem.seller.name || "Seller",
-                     kind: "order",
-                     conversationId: conversation.id,
-                     order: {
-                       id: safeItem.id || "new-order",
-                       product: {
-                         title: safeItem.title || "Item",
-                         price: safeItem.price || 0,
-                         size: safeItem.size,
-                         image: safeItem.images?.[0] || ""
-                       },
-                       seller: {
-                         name: safeItem.seller.name || "Seller",
-                         avatar: safeItem.seller.avatar
-                       },
-                       buyer: {
-                         name: "You",
-                         avatar: "https://i.pravatar.cc/100?img=32"
-                       },
-                       status: "Inquiry"
-                     }
-                   }
-                 });
-                 console.log("✅ Navigation successful via direct");
-               } catch (directError) {
-                 console.error("❌ Direct navigation also failed:", directError);
-                 Alert.alert("Navigation Error", "Unable to open chat. Please try again.");
-               }
+               console.log("✅ Navigation successful via RESET to Main Tab → Inbox Stack → Chat");
+             } else {
+               console.error("❌ Root navigation not available");
+               Alert.alert("Navigation Error", "Unable to open chat. Please try again.");
              }
                 } catch (error) {
                   console.error("❌ Error creating conversation:", error);
