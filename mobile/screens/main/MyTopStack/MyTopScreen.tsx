@@ -49,7 +49,7 @@ export default function MyTopScreen() {
   const route = useRoute<RouteProp<MyTopStackParamList, "MyTopMain">>();
   const lastRefreshRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] =
-    useState<"Shop" | "Sold" | "Purchases" | "Likes">("Shop");
+    useState<"Shop" | "Sold" | "Purchases" | "Likes" | "Saved Outfits">("Shop");
 
   // ✅ 添加真实数据状态
   const [activeListings, setActiveListings] = useState<ListingItem[]>([]);
@@ -288,11 +288,12 @@ export default function MyTopScreen() {
     navigation.navigate("ActiveListingDetail", { listingId: listing.id });
   };
 
-  const tabs: Array<"Shop" | "Sold" | "Purchases" | "Likes"> = [
+  const tabs: Array<"Shop" | "Sold" | "Purchases" | "Likes" | "Saved Outfits"> = [
     "Shop",
     "Sold",
     "Purchases",
     "Likes",
+	"Saved Outfits",
   ];
 
   return (
@@ -643,4 +644,3 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
 });
-

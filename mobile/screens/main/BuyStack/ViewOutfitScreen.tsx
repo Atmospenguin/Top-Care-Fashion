@@ -15,6 +15,8 @@ import { captureRef } from "react-native-view-shot";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import SaveOutfitModal from "../../../src/components/SaveOutfitModal";
+import { outfitService } from "../../../src/services/outfitService";
 import type { BuyStackParamList } from "./index";
 import type { BagItem, ListingItem } from "../../../types/shop";
 
@@ -117,7 +119,8 @@ export default function ViewOutfitScreen() {
   const { baseItem, top, bottom, shoe, accessories, selection } = route.params;
   const captureViewRef = useRef<View | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  
+  const [saveOutfitModalVisible, setSaveOutfitModalVisible] = useState(false);
+  const [isSavingOutfit, setIsSavingOutfit] = useState(false);
 
   const composedSelection: BagItem[] = useMemo(() => {
     const unique = new Map<string, ListingItem>();
@@ -156,6 +159,29 @@ export default function ViewOutfitScreen() {
     navigation.navigate("Bag", { items: composedSelection });
   }, [navigation, composedSelection]);
 
+  const handleSaveOutfit = async (outfitName: string) => {
+    try {
+      setIsSavingOutfit(true);
+      
+      await outfitService.createOutfit({
+        outfit_name: outfitName,
+        base_item_id: baseItem.id,
+        top_item_id: top?.id || null,
+        bottom_item_id: bottom?.id || null,
+        shoe_item_id: shoe?.id || null,
+        accessory_ids: accessories.map(acc => acc.id),
+      });
+
+      Alert.alert('Success', `"${outfitName}" saved successfully!`);
+      setSaveOutfitModalVisible(false);
+    } catch (error) {
+      console.error('Error saving outfit:', error);
+      throw error;
+    } finally {
+      setIsSavingOutfit(false);
+    }
+  };
+
   const leftItems: Array<{ item: ListingItem | null }> = [
     { item: top || baseItem },
     { item: bottom || baseItem },
@@ -190,6 +216,13 @@ export default function ViewOutfitScreen() {
         <View style={styles.bottomSafe}>
           <View style={styles.bottomBar}>
             <TouchableOpacity
+              style={styles.saveOutfitButton}
+              onPress={() => setSaveOutfitModalVisible(true)}
+            >
+              <Icon name="bookmark" size={20} color="#111" />
+              <Text style={styles.saveOutfitButtonText}>Save Outfit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={styles.secondaryButton}
               onPress={handleShare}
               disabled={isSaving}
@@ -213,6 +246,13 @@ export default function ViewOutfitScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        <SaveOutfitModal
+          visible={saveOutfitModalVisible}
+          onClose={() => setSaveOutfitModalVisible(false)}
+          onSave={handleSaveOutfit}
+          isLoading={isSavingOutfit}
+        />
       </SafeAreaView>
     </View>
   );
@@ -346,6 +386,25 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingHorizontal: 16,
     paddingBottom: 16,
+    columnGap: 8,
+  },
+  saveOutfitButton: {
+    flex: 1,
+    marginRight: 0,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#111',
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    columnGap: 8,
+  },
+  saveOutfitButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111',
   },
   secondaryButton: {
     flex: 1,
@@ -357,7 +416,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     borderWidth: 1,
     borderColor: "#111",
-    marginRight: 12,
+    marginRight: 0,
     backgroundColor: "#fff",
   },
   secondaryText: {
