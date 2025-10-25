@@ -170,13 +170,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Resolve seller id (some schemas may have nullable seller_id)
+    const sellerId: number | null = (listing as any).seller_id ?? (listing as any).seller?.id ?? null;
+    if (sellerId === null || sellerId === undefined) {
+      return NextResponse.json(
+        { error: 'Listing has no seller associated' },
+        { status: 400 }
+      );
+    }
+
     // Create the order
+    const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+    const totalAmount = ((): string => {
+      const p: any = (listing as any).price;
+      try { return typeof p === 'string' ? p : p?.toString?.() ?? String(p ?? 0); } catch { return '0'; }
+    })();
+
     const order = await prisma.orders.create({
       data: {
         buyer_id: currentUser.id,
-        seller_id: listing.seller_id,
+        seller_id: sellerId,
         listing_id: listing.id,
-        status: 'IN_PROGRESS'
+        status: 'IN_PROGRESS',
+        order_number: orderNumber,
+        total_amount: totalAmount,
       },
       include: {
         buyer: {

@@ -46,7 +46,7 @@ export default function AssetLibraryManager({
       const data = await res.json();
       setItems(data.files || []);
       setFolders((data.folders || []).filter((f: string) => f.startsWith(prefix)));
-    } catch {
+    } catch (e) {
       console.error(e);
       alert("Failed to load assets");
     } finally {
@@ -88,7 +88,7 @@ export default function AssetLibraryManager({
       }
       await fetchItems();
       alert(`Uploaded ${files.length} file(s)`);
-    } catch {
+    } catch (e) {
       console.error(e);
       alert("Upload failed");
     } finally {
@@ -113,7 +113,7 @@ export default function AssetLibraryManager({
       }
       await fetchItems();
       setSelected((prev) => prev.filter((p) => !paths.includes(p)));
-    } catch {
+    } catch (e) {
       console.error(e);
       alert("Delete failed");
     }
