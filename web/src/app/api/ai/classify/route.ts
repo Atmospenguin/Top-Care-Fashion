@@ -20,13 +20,13 @@ const vision = new ImageAnnotatorClient({
 });
 
 const CATEGORY_KEYS = {
-  Top: [
+  Tops: [
     "shirt","t-shirt","tee","blouse","sweater","hoodie","cardigan",
     "pullover","top","tank","camisole","polo","jersey","jumper",
     "knitwear","crewneck","long sleeve","sweatshirt","uniform shirt",
     "denim shirt","sleeve","neck","collar","wool","woolen","fur"
   ],
-  Bottom: [
+  Bottoms: [
     "pants","trousers","jeans","shorts",
     "skirt","skirts","midi skirt","maxi skirt","mini skirt",
     "pleated skirt","a-line skirt","a line skirt","wrap skirt",
