@@ -6,6 +6,8 @@ class ApiClient {
   private baseURL: string;
   private timeout: number;
   private authToken: string | null = null;
+  // 仅用于 GET 的请求去重：相同 URL 的并发请求复用同一 Promise，避免重复发起
+  private inFlightGet: Map<string, Promise<ApiResponse<any>>> = new Map();
 
   constructor() {
     this.baseURL = API_CONFIG.BASE_URL;
@@ -171,9 +173,20 @@ class ApiClient {
       });
     }
 
-    return this.request<T>(url.pathname + url.search, {
+    const key = `GET ${url.pathname}${url.search}`;
+    const existing = this.inFlightGet.get(key);
+    if (existing) {
+      return existing as Promise<ApiResponse<T>>;
+    }
+
+    const p = this.request<T>(url.pathname + url.search, {
       method: 'GET',
+    }).finally(() => {
+      // 请求完成后移除，允许后续相同 GET 再次发起
+      this.inFlightGet.delete(key);
     });
+    this.inFlightGet.set(key, p as Promise<ApiResponse<any>>);
+    return p;
   }
 
   // POST 请求

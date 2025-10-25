@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
+import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 // 🔒 安全检查
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -10,7 +11,6 @@ if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
 // 🔧 获取 TOP Support 用户 ID
 const SUPPORT_USER_ID = Number(process.env.SUPPORT_USER_ID) || 59;
 
-const prisma = new PrismaClient();
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -19,28 +19,13 @@ const supabase = createClient(
 // GET /api/conversations - 获取当前用户的所有对话
 export async function GET(request: NextRequest) {
   try {
-    // 获取认证token
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const token = authHeader.substring(7);
-    
-    // 验证Supabase token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-
-    // 获取用户信息
-    const dbUser = await prisma.users.findUnique({
-      where: { supabase_user_id: user.id },
-      select: { id: true, username: true }
-    });
+    const sessionUser = await getSessionUser(request);
+    const dbUser = sessionUser
+      ? { id: sessionUser.id, username: sessionUser.username }
+      : null;
 
     if (!dbUser) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // 获取用户的所有对话（只显示ACTIVE状态的对话）
@@ -227,25 +212,11 @@ function formatTime(date: Date): string {
 // POST /api/conversations - 创建新对话
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-
-    const dbUser = await prisma.users.findUnique({
-      where: { supabase_user_id: user.id },
-      select: { id: true }
-    });
-
-    if (!dbUser) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+    const sessionUser = await getSessionUser(request);
+    const dbUser = sessionUser
+      ? { id: sessionUser.id }
+      : null;
+    if (!dbUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const requestBody = await request.json();
     console.log("🔍 Request body:", requestBody);
@@ -374,33 +345,14 @@ export async function DELETE(request: NextRequest) {
   console.log("🔥 DELETE endpoint called - this should appear in server logs");
   
   try {
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      console.log("❌ No auth header");
+    const sessionUser = await getSessionUser(request);
+    const dbUser = sessionUser
+      ? { id: sessionUser.id }
+      : null;
+    if (!dbUser) {
+      console.log("❌ Unauthorized");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const token = authHeader.substring(7);
-    console.log("🔍 Token received:", token.substring(0, 10) + "...");
-    
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      console.log("❌ Auth error:", authError);
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-
-    console.log("🔍 User authenticated:", user.id);
-
-    const dbUser = await prisma.users.findUnique({
-      where: { supabase_user_id: user.id },
-      select: { id: true }
-    });
-
-    if (!dbUser) {
-      console.log("❌ DB user not found");
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
     console.log("🔍 DB user found:", dbUser.id);
 
     const requestBody = await request.json();
