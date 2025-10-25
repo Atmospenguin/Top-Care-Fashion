@@ -12,7 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 import Icon from "../../../components/Icon";
 import FilterModal from "../../../components/FilterModal";
-import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute, useScrollToTop } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import type { MyTopStackParamList } from "./index";
@@ -258,7 +258,47 @@ export default function MyTopScreen() {
 
   // （移除初次挂载时的重复加载，统一在获得焦点时刷新）
 
-  // 去掉独立的 refreshTS 监听，统一在 focus 中处理，避免与焦点刷新相互叠加
+  // 为 Tab 单击滚动到顶部提供支持
+  const listRef = useRef<FlatList<any>>(null);
+  const listOffsetRef = useRef(0);
+  useScrollToTop(listRef);
+
+  // 监听 refreshTS 参数变化（用于在已聚焦状态下通过双击 Tab 触发显式刷新）
+  const refreshTrigger = route.params?.refreshTS;
+  const scrollToTopTrigger = route.params?.scrollToTopTS;
+  const tabPressTrigger = route.params?.tabPressTS;
+  useEffect(() => {
+    if (refreshTrigger && lastRefreshRef.current !== refreshTrigger) {
+      lastRefreshRef.current = refreshTrigger;
+      onRefresh();
+      // 处理完即清理，避免残留参数引发误判
+      navigation.setParams({ refreshTS: undefined });
+    }
+  }, [refreshTrigger, onRefresh, navigation]);
+
+  // 丝滑回到顶部（仅在 Shop 标签时才滚动）
+  useEffect(() => {
+    if (scrollToTopTrigger && activeTab === "Shop") {
+      // 轻微延时，避免与其他动画或参数清理竞争
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+      });
+      navigation.setParams({ scrollToTopTS: undefined });
+    }
+  }, [scrollToTopTrigger, activeTab, navigation]);
+
+  // 单击 Tab：若在顶部则刷新，否则丝滑回顶（仅 Shop 列表）
+  useEffect(() => {
+    if (tabPressTrigger && activeTab === "Shop") {
+      const atTop = (listOffsetRef.current || 0) <= 2;
+      if (atTop) {
+        onRefresh();
+      } else {
+        listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+      }
+      navigation.setParams({ tabPressTS: undefined });
+    }
+  }, [tabPressTrigger, activeTab, navigation, onRefresh]);
 
   // ✅ 当屏幕获得焦点时刷新数据
   useFocusEffect(
@@ -338,6 +378,7 @@ export default function MyTopScreen() {
       <View style={{ flex: 1 }}>
         {activeTab === "Shop" && (
           <FlatList
+            ref={listRef}
             data={
               displayUser.activeListings.length
                 ? formatData(displayUser.activeListings, 3)
@@ -348,6 +389,10 @@ export default function MyTopScreen() {
             showsVerticalScrollIndicator={false}
             refreshing={refreshing}
             onRefresh={onRefresh}
+            onScroll={(e) => {
+              listOffsetRef.current = e.nativeEvent.contentOffset.y;
+            }}
+            scrollEventThrottle={16}
             ListHeaderComponent={
               <View style={styles.headerContent}>
                 {/* Profile 区 */}

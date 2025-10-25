@@ -131,14 +131,14 @@ function MainTabs() {
       <Tab.Screen
         name="Home"
         component={HomeStackNavigator}
-        listeners={({ navigation }) => ({
-          tabPress: (event) => {
-            if (navigation.isFocused?.()) {
-              event.preventDefault();
-              const ts = Date.now();
+        listeners={({ navigation, route }) => ({
+          tabPress: () => {
+            const now = Date.now();
+            if (navigation.isFocused && navigation.isFocused()) {
+              // 已聚焦：交给屏幕判断是不是在顶部——在顶部就刷新，否则丝滑回顶
               navigation.navigate("Home", {
                 screen: "HomeMain",
-                params: { refreshTS: ts },
+                params: { tabPressTS: now },
               });
             }
           },
@@ -176,14 +176,13 @@ function MainTabs() {
       <Tab.Screen
         name="My TOP"
         component={MyTopStackNavigator}
-        listeners={({ navigation }) => ({
-          tabPress: (event) => {
-            if (navigation.isFocused?.()) {
-              event.preventDefault();
-              const ts = Date.now();
+        listeners={({ navigation, route }) => ({
+          tabPress: () => {
+            const now = Date.now();
+            if (navigation.isFocused && navigation.isFocused()) {
               navigation.navigate("My TOP", {
                 screen: "MyTopMain",
-                params: { refreshTS: ts },
+                params: { tabPressTS: now },
               });
             }
           },

@@ -32,6 +32,8 @@ export type MyTopStackParamList = {
     | {
         initialTab?: "Shop" | "Sold" | "Purchases" | "Likes";
         refreshTS?: number;
+        scrollToTopTS?: number;
+        tabPressTS?: number;
       }
     | undefined;
   EditProfile: undefined;
