@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import FeatureCardManager from "@/components/admin/FeatureCardManager";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import FeatureCardManager, { FeatureCard } from "@/components/admin/FeatureCardManager";
 import AssetLibraryManager from "../../../components/admin/AssetLibraryManager";
 
 interface SiteStats {
@@ -65,14 +65,13 @@ interface PricingPlan {
 
 export default function ContentManagementPage() {
   const [stats, setStats] = useState<SiteStats>({ users: 0, listings: 0, sold: 0, rating: 0 });
-  const [content, setContent] = useState<LandingContent>({ heroTitle: "", heroSubtitle: "", heroCarouselImages: [], aiFeatures: {} });
+  const [content, setContent] = useState<LandingContent>({ heroTitle: "", heroSubtitle: "", heroCarouselImages: [], featureCards: [], aiFeatures: {} });
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
   const [newFeedback, setNewFeedback] = useState<NewFeedbackForm>({ userName: "", userEmail: "", message: "", rating: 5, tags: [], featured: true });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [assetTarget, setAssetTarget] = useState<"carousel" | "feature1" | "feature2" | "feature3">("carousel");
   const [updatingFeedbackId, setUpdatingFeedbackId] = useState<number | null>(null);
   const [deletingFeedbackId, setDeletingFeedbackId] = useState<number | null>(null);
   const [feedbackQuery, setFeedbackQuery] = useState("");
@@ -96,11 +95,39 @@ export default function ContentManagementPage() {
   const featuredFeedbacks = useMemo(() => filteredFeedbacks.filter((feedback) => feedback.featured), [filteredFeedbacks]);
   const nonFeaturedFeedbacks = useMemo(() => filteredFeedbacks.filter((feedback) => !feedback.featured), [filteredFeedbacks]);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const sanitizeFeatureCards = (cards?: FeatureCard[] | null): FeatureCard[] => {
+    if (!cards) return [];
+    return cards.map((card) => ({
+      title: card?.title,
+      desc: card?.desc,
+      images: Array.isArray(card?.images) ? card.images : [],
+    }));
+  };
 
-  async function fetchData() {
+  const deriveFeatureCardsFromAi = (ai?: LandingContent["aiFeatures"]): FeatureCard[] => {
+    if (!ai) return [];
+    const order: Array<keyof NonNullable<LandingContent["aiFeatures"]>> = ["mixmatch", "ailisting", "search"];
+    return order
+      .map((key) => {
+        const node = ai?.[key];
+        if (!node) return null;
+        const images =
+          (Array.isArray(node.images) && node.images.length > 0
+            ? node.images
+            : [
+                ...((node as any).girlImages || []),
+                ...((node as any).boyImages || []),
+              ]) || [];
+        return {
+          title: node.title,
+          desc: node.desc,
+          images,
+        };
+      })
+      .filter((card): card is FeatureCard => Boolean(card));
+  };
+
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [statsRes, contentRes, feedbackRes, pricingRes, tagsRes] = await Promise.all([
@@ -117,7 +144,16 @@ export default function ContentManagementPage() {
       }
       if (contentRes.ok) {
         const contentData = await contentRes.json();
-        setContent(contentData);
+        const hasFeatureCards = Array.isArray(contentData.featureCards);
+        const normalizedCards = hasFeatureCards ? sanitizeFeatureCards(contentData.featureCards) : [];
+        const fallbackCards = hasFeatureCards ? normalizedCards : deriveFeatureCardsFromAi(contentData.aiFeatures);
+        setContent({
+          heroTitle: contentData.heroTitle || "",
+          heroSubtitle: contentData.heroSubtitle || "",
+          heroCarouselImages: contentData.heroCarouselImages || [],
+          featureCards: fallbackCards,
+          aiFeatures: contentData.aiFeatures || {},
+        });
       }
       if (feedbackRes.ok) {
         const feedbackData = await feedbackRes.json();
@@ -150,7 +186,11 @@ export default function ContentManagementPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   async function updateStats() {
     try {
@@ -314,6 +354,48 @@ export default function ContentManagementPage() {
   const applyAssetsToHero = (urls: string[]) => {
     setContent((prev) => ({ ...prev, heroCarouselImages: urls }));
   };
+
+  const featureCards = content.featureCards || [];
+
+  const handleFeatureCardChange = (index: number, next: FeatureCard) => {
+    setContent((prev) => {
+      const current = prev.featureCards ? [...prev.featureCards] : [];
+      current[index] = next;
+      return { ...prev, featureCards: current };
+    });
+  };
+
+  const addFeatureCard = () => {
+    setContent((prev) => ({
+      ...prev,
+      featureCards: [...(prev.featureCards || []), { title: "", desc: "", images: [] }],
+    }));
+  };
+
+  const removeFeatureCard = (index: number) => {
+    setContent((prev) => {
+      const current = prev.featureCards ? [...prev.featureCards] : [];
+      current.splice(index, 1);
+      return { ...prev, featureCards: current };
+    });
+  };
+
+  const moveFeatureCard = (index: number, direction: -1 | 1) => {
+    setContent((prev) => {
+      const current = prev.featureCards ? [...prev.featureCards] : [];
+      const target = index + direction;
+      if (target < 0 || target >= current.length) return prev;
+      [current[index], current[target]] = [current[target], current[index]];
+      return { ...prev, featureCards: current };
+    });
+  };
+
+  const getFeatureAssetPrefix = (index: number) => `assets/feature${index + 1}/`;
+
+  const applyFeatureAssets = (index: number, urls: string[]) => {
+    const card = featureCards[index] || { title: "", desc: "", images: [] };
+    handleFeatureCardChange(index, { ...card, images: urls });
+  };
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
       <h1 className="text-3xl font-bold mb-8">Content Management</h1>
@@ -324,61 +406,13 @@ export default function ContentManagementPage() {
         {/* Landing Page Content (full width) */}
         <div className="lg:col-span-2 bg-white p-6 rounded-lg border border-gray-200">
           <h2 className="text-xl font-semibold mb-4">Landing Page Content</h2>
-          {/* Assets managers for fixed subfolders */}
+          {/* Hero carousel assets */}
           <div className="mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm text-gray-600">Assets subfolder:</span>
-              <button className={`px-3 py-1 border rounded ${assetTarget === "carousel" ? "bg-black text-white" : ""}`} onClick={() => setAssetTarget("carousel")}>assets/carousel</button>
-              <button className={`px-3 py-1 border rounded ${assetTarget === "feature1" ? "bg-black text-white" : ""}`} onClick={() => setAssetTarget("feature1")}>assets/feature1</button>
-              <button className={`px-3 py-1 border rounded ${assetTarget === "feature2" ? "bg-black text-white" : ""}`} onClick={() => setAssetTarget("feature2")}>assets/feature2</button>
-              <button className={`px-3 py-1 border rounded ${assetTarget === "feature3" ? "bg-black text-white" : ""}`} onClick={() => setAssetTarget("feature3")}>assets/feature3</button>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-sm text-gray-600">Hero carousel screenshots</span>
+              <span className="text-xs text-gray-500">assets/carousel/</span>
             </div>
-            {assetTarget === "carousel" && (
-              <AssetLibraryManager title="Assets (assets/carousel)" prefix="assets/carousel/" initialSelectedUrls={content.heroCarouselImages || []} onApply={applyAssetsToHero} />
-            )}
-            {assetTarget === "feature1" && (
-              <AssetLibraryManager title="Assets (assets/feature1)" prefix="assets/feature1/" initialSelectedUrls={
-                (content.aiFeatures?.mixmatch?.images && content.aiFeatures.mixmatch.images.length > 0)
-                  ? content.aiFeatures.mixmatch.images
-                  : (
-                      (content.aiFeatures?.mixmatch?.girlImages && content.aiFeatures.mixmatch.girlImages.length > 0)
-                        ? content.aiFeatures.mixmatch.girlImages
-                        : (content.aiFeatures?.mixmatch?.boyImages || [])
-                    )
-              } onApply={(urls: string[]) => setContent((prev) => ({
-                ...prev,
-                aiFeatures: {
-                  ...prev.aiFeatures,
-                  mixmatch: {
-                    title: prev.aiFeatures?.mixmatch?.title,
-                    desc: prev.aiFeatures?.mixmatch?.desc,
-                    // unified field
-                    images: urls,
-                    // clear legacy fields on write
-                    girlImages: [],
-                    boyImages: [],
-                  },
-                },
-              }))} />
-            )}
-            {assetTarget === "feature2" && (
-              <AssetLibraryManager title="Assets (assets/feature2)" prefix="assets/feature2/" initialSelectedUrls={content.aiFeatures?.ailisting?.images || []} onApply={(urls: string[]) => setContent((prev) => ({
-                ...prev,
-                aiFeatures: {
-                  ...prev.aiFeatures,
-                  ailisting: { title: prev.aiFeatures?.ailisting?.title, desc: prev.aiFeatures?.ailisting?.desc, images: urls },
-                },
-              }))} />
-            )}
-            {assetTarget === "feature3" && (
-              <AssetLibraryManager title="Assets (assets/feature3)" prefix="assets/feature3/" initialSelectedUrls={content.aiFeatures?.search?.images || []} onApply={(urls: string[]) => setContent((prev) => ({
-                ...prev,
-                aiFeatures: {
-                  ...prev.aiFeatures,
-                  search: { title: prev.aiFeatures?.search?.title, desc: prev.aiFeatures?.search?.desc, images: urls },
-                },
-              }))} />
-            )}
+            <AssetLibraryManager title="Assets (assets/carousel)" prefix="assets/carousel/" initialSelectedUrls={content.heroCarouselImages || []} onApply={applyAssetsToHero} />
           </div>
           <div className="space-y-4">
             <div>
@@ -390,67 +424,80 @@ export default function ContentManagementPage() {
               <textarea id="heroSubtitle" value={content.heroSubtitle} onChange={(e) => setContent({ ...content, heroSubtitle: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <FeatureCardManager
-                  label="Feature 1"
-                  value={{
-                    title: content.aiFeatures?.mixmatch?.title,
-                    desc: content.aiFeatures?.mixmatch?.desc,
-                    // unified field (fallback to legacy if empty)
-                    images:
-                      (content.aiFeatures?.mixmatch?.images && content.aiFeatures.mixmatch.images.length > 0)
-                        ? content.aiFeatures.mixmatch.images
-                        : (content.aiFeatures?.mixmatch?.girlImages || []),
-                  }}
-                  showImages={false}
-                  onChange={(next) => setContent({
-                    ...content,
-                    aiFeatures: {
-                      ...content.aiFeatures,
-                      mixmatch: {
-                        title: next.title,
-                        desc: next.desc,
-                        images: next.images || [],
-                        girlImages: [],
-                        boyImages: [],
-                      },
-                    },
-                  })}
-                />
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold">Feature Cards</h3>
+                <button
+                  type="button"
+                  onClick={addFeatureCard}
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  + Add Card
+                </button>
               </div>
-              <FeatureCardManager
-                label="Feature 2"
-                value={{
-                  title: content.aiFeatures?.ailisting?.title,
-                  desc: content.aiFeatures?.ailisting?.desc,
-                  images: content.aiFeatures?.ailisting?.images || [],
-                }}
-                showImages={false}
-                onChange={(next) => setContent({
-                  ...content,
-                  aiFeatures: {
-                    ...content.aiFeatures,
-                    ailisting: { title: next.title, desc: next.desc, images: next.images || [] },
-                  },
-                })}
-              />
-              <FeatureCardManager
-                label="Feature 3"
-                value={{
-                  title: content.aiFeatures?.search?.title,
-                  desc: content.aiFeatures?.search?.desc,
-                  images: content.aiFeatures?.search?.images || [],
-                }}
-                showImages={false}
-                onChange={(next) => setContent({
-                  ...content,
-                  aiFeatures: {
-                    ...content.aiFeatures,
-                    search: { title: next.title, desc: next.desc, images: next.images || [] },
-                  },
-                })}
-              />
+              {featureCards.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
+                  No feature cards yet. Click “Add Card” to create one.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {featureCards.map((card, index) => {
+                    const prefix = getFeatureAssetPrefix(index);
+                    return (
+                      <div key={`feature-card-${index}`} className="space-y-3">
+                        <FeatureCardManager
+                          label={`Feature ${index + 1}`}
+                          value={card}
+                          showImages={false}
+                          onChange={(next) => handleFeatureCardChange(index, next)}
+                        />
+                        <div className="border border-gray-200 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium text-gray-700">Screenshots</span>
+                            <span className="text-xs text-gray-500">{prefix}</span>
+                          </div>
+                          <AssetLibraryManager
+                            title={`Assets (${prefix})`}
+                            prefix={prefix}
+                            initialSelectedUrls={card.images || []}
+                            displayMode="list"
+                            className="shadow-none border border-dashed border-gray-300"
+                            onApply={(urls: string[]) => applyFeatureAssets(index, urls)}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="text-gray-500">Card #{index + 1}</div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => moveFeatureCard(index, -1)}
+                              disabled={index === 0}
+                              className="px-2 py-1 border border-gray-300 rounded-md disabled:opacity-40 hover:bg-gray-50"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveFeatureCard(index, 1)}
+                              disabled={index === featureCards.length - 1}
+                              className="px-2 py-1 border border-gray-300 rounded-md disabled:opacity-40 hover:bg-gray-50"
+                            >
+                              ↓
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeFeatureCard(index)}
+                              className="px-2 py-1 border border-red-200 text-red-700 rounded-md hover:bg-red-50"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <button onClick={updateLandingContent} disabled={saving} className="w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50">{saving ? "Updating..." : "Update Content"}</button>
