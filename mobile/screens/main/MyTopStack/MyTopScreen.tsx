@@ -258,28 +258,32 @@ export default function MyTopScreen() {
 
   // （移除初次挂载时的重复加载，统一在获得焦点时刷新）
 
-  const refreshTrigger = route.params?.refreshTS;
-
-  useEffect(() => {
-    if (refreshTrigger && lastRefreshRef.current !== refreshTrigger) {
-      lastRefreshRef.current = refreshTrigger;
-      onRefresh();
-    }
-  }, [refreshTrigger, onRefresh]);
+  // 去掉独立的 refreshTS 监听，统一在 focus 中处理，避免与焦点刷新相互叠加
 
   // ✅ 当屏幕获得焦点时刷新数据
   useFocusEffect(
     useCallback(() => {
-      if (route.params?.initialTab) {
-        setActiveTab(route.params.initialTab);
-        navigation.setParams({ initialTab: undefined });
+      const params = route.params;
+
+      if (params?.initialTab) {
+        setActiveTab(params.initialTab);
       }
-      
-      // 刷新数据
-      if (user) {
+
+      let didRefresh = false;
+      if (params?.refreshTS && lastRefreshRef.current !== params.refreshTS) {
+        lastRefreshRef.current = params.refreshTS;
+        onRefresh();
+        didRefresh = true;
+      }
+
+      // 如果没有通过参数触发刷新，则执行一次隐式焦点刷新
+      if (!didRefresh) {
         onRefresh();
       }
-    }, [route.params?.initialTab, navigation, user, onRefresh])
+
+      // 统一一次性清理参数，防止参数变化导致的回调重复执行
+      navigation.setParams({ initialTab: undefined, refreshTS: undefined });
+    }, [navigation, onRefresh])
   );
 
   // ✅ 使用真实用户数据，提供默认值以防用户数据为空
