@@ -15,9 +15,10 @@ const SUPPORT_USER_ID = Number(process.env.SUPPORT_USER_ID) || 59;
 // GET /api/messages/[conversationId] - 获取对话中的所有消息
 export async function GET(
   request: NextRequest,
-  { params }: { params: { conversationId: string } }
+  context: { params: Promise<{ conversationId: string }> }
 ) {
-  const rawId = params.conversationId; // ✅ 获取真正的参数
+  const { conversationId: conversationIdParam } = await context.params;
+  const rawId = conversationIdParam; // ✅ 获取真正的参数
 
   // 🩹 support- 对话特殊处理 - 查询真实对话
   if (rawId.startsWith("support-")) {
@@ -361,9 +362,10 @@ image: (() => {
 // POST /api/messages/[conversationId] - 发送新消息
 export async function POST(
   request: NextRequest,
-  { params }: { params: { conversationId: string } }
+  context: { params: Promise<{ conversationId: string }> }
 ) {
-  const rawId = params.conversationId; // ✅ 获取真正的参数
+  const { conversationId: conversationIdParam } = await context.params;
+  const rawId = conversationIdParam; // ✅ 获取真正的参数
 
   // 🩹 处理 support-1 虚拟对话
   if (rawId.startsWith("support-")) {

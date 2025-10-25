@@ -117,7 +117,7 @@ export default function EditProfileScreen() {
 
       console.log("✅ Permissions granted, opening camera...");
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: 'Images', // ✅ 更简单的写法
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -160,7 +160,7 @@ export default function EditProfileScreen() {
 
       console.log("✅ Permissions granted, opening image picker...");
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'Images', // ✅ 更简单的写法
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,

@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db';
 // GET /api/orders/[id] - Get a specific order
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const currentUser = await getSessionUser(request);
@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const orderId = parseInt(params.id);
+    const { id } = await context.params;
+    const orderId = parseInt(id);
     if (isNaN(orderId)) {
       return NextResponse.json(
         { error: 'Invalid order ID' },
@@ -29,7 +30,6 @@ export async function GET(
             id: true,
             username: true,
             avatar_url: true,
-            avatar_path: true,
             email: true,
             phone_number: true
           }
@@ -39,7 +39,6 @@ export async function GET(
             id: true,
             username: true,
             avatar_url: true,
-            avatar_path: true,
             email: true,
             phone_number: true
           }
@@ -72,8 +71,7 @@ export async function GET(
               select: {
                 id: true,
                 username: true,
-                avatar_url: true,
-                avatar_path: true
+                avatar_url: true
               }
             }
           }
@@ -110,7 +108,7 @@ export async function GET(
 // PATCH /api/orders/[id] - Update order status
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const currentUser = await getSessionUser(request);
@@ -118,7 +116,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const orderId = parseInt(params.id);
+    const { id } = await context.params;
+    const orderId = parseInt(id);
     if (isNaN(orderId)) {
       return NextResponse.json(
         { error: 'Invalid order ID' },
@@ -204,7 +203,7 @@ export async function PATCH(
             id: true,
             username: true,
             avatar_url: true,
-            avatar_path: true
+            
           }
         },
         seller: {
@@ -212,7 +211,7 @@ export async function PATCH(
             id: true,
             username: true,
             avatar_url: true,
-            avatar_path: true
+            
           }
         },
         listing: {
