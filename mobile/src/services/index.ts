@@ -9,6 +9,8 @@ export { likesService, LikesService } from './likesService';
 export { cartService, CartService } from './cartService';
 export { messagesService, MessagesService } from './messagesService';
 export { reviewsService, ReviewsService } from './reviewsService';
+export { notificationService, NotificationService } from './notificationService';
+export { NotificationHelper } from './notificationHelper';
 
 // 导出类型
 export type { ApiResponse, ApiError } from '../config/api';
@@ -40,4 +42,8 @@ export type {
   CreateConversationParams, 
   SendMessageParams 
 } from './messagesService';
+export type { 
+  Notification, 
+  NotificationParams 
+} from './notificationService';
 

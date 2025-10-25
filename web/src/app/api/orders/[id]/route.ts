@@ -363,6 +363,86 @@ export async function PATCH(
       console.log(`✅ Listing ${existingOrder.listing_id} restored to available after order ${orderId} cancellation`);
     }
 
+    // 🔔 创建订单状态变化notification
+    try {
+      const isSeller = currentUser.id === existingOrder.seller_id;
+      const targetUserId = isSeller ? existingOrder.buyer_id : existingOrder.seller_id;
+      const targetUser = isSeller ? existingOrder.buyer : existingOrder.seller;
+      
+      let notificationTitle = '';
+      let notificationMessage = '';
+      
+      switch (status) {
+        case 'IN_PROGRESS':
+          if (isSeller) {
+            notificationTitle = 'New order received';
+            notificationMessage = `@${existingOrder.buyer.username} placed an order for your item.`;
+          } else {
+            notificationTitle = 'Order placed successfully';
+            notificationMessage = `Your order with @${existingOrder.seller.username} has been placed.`;
+          }
+          break;
+        case 'TO_SHIP':
+          notificationTitle = 'Order ready to ship';
+          notificationMessage = `@${existingOrder.seller.username} is preparing your order for shipment.`;
+          break;
+        case 'SHIPPED':
+          if (isSeller) {
+            notificationTitle = 'Order shipped';
+            notificationMessage = `You shipped the order to @${existingOrder.buyer.username}.`;
+          } else {
+            notificationTitle = 'Order shipped';
+            notificationMessage = `@${existingOrder.seller.username} has shipped your order.`;
+          }
+          break;
+        case 'DELIVERED':
+          if (isSeller) {
+            notificationTitle = 'Order arrived';
+            notificationMessage = `Parcel delivered to @${existingOrder.buyer.username}. Waiting for confirmation.`;
+          } else {
+            notificationTitle = 'Order arrived';
+            notificationMessage = `Parcel arrived. Please confirm you have received the item.`;
+          }
+          break;
+        case 'RECEIVED':
+          if (isSeller) {
+            notificationTitle = 'Order completed';
+            notificationMessage = `@${existingOrder.buyer.username} confirmed received. Transaction completed.`;
+          } else {
+            notificationTitle = 'Order completed';
+            notificationMessage = `You confirmed received. Transaction completed successfully.`;
+          }
+          break;
+        case 'CANCELLED':
+          if (isSeller) {
+            notificationTitle = 'Order cancelled';
+            notificationMessage = `Order with @${existingOrder.buyer.username} has been cancelled.`;
+          } else {
+            notificationTitle = 'Order cancelled';
+            notificationMessage = `Order with @${existingOrder.seller.username} has been cancelled.`;
+          }
+          break;
+      }
+      
+      if (notificationTitle && targetUserId) {
+        await prisma.notifications.create({
+          data: {
+            user_id: targetUserId,
+            type: 'ORDER',
+            title: notificationTitle,
+            message: notificationMessage,
+            image_url: isSeller ? existingOrder.buyer.avatar_url : existingOrder.seller.avatar_url,
+            order_id: orderId.toString(),
+            related_user_id: isSeller ? existingOrder.buyer_id : existingOrder.seller_id,
+          },
+        });
+        console.log(`🔔 Order status notification created for user ${targetUserId} (${status})`);
+      }
+    } catch (notificationError) {
+      console.error("❌ Error creating order status notification:", notificationError);
+      // 不阻止订单更新，即使notification创建失败
+    }
+
     return NextResponse.json(updatedOrder);
 
   } catch (error) {

@@ -100,6 +100,42 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // 🔔 创建like notification
+      try {
+        // 获取商品信息
+        const listing = await prisma.listings.findUnique({
+          where: { id: parseInt(listing_id) },
+          include: {
+            seller: {
+              select: {
+                id: true,
+                username: true,
+                avatar_url: true,
+              },
+            },
+          },
+        });
+
+        if (listing && listing.seller && listing.seller.id !== user.id) {
+          // 只有不是自己like自己的商品才创建notification
+          await prisma.notifications.create({
+            data: {
+              user_id: listing.seller.id, // 商品卖家收到通知
+              type: 'LIKE',
+              title: `@${user.username} liked your listing`,
+              message: listing.name,
+              image_url: user.avatar_url,
+              listing_id: parseInt(listing_id),
+              related_user_id: user.id,
+            },
+          });
+          console.log(`🔔 Like notification created for seller ${listing.seller.username}`);
+        }
+      } catch (notificationError) {
+        console.error("❌ Error creating like notification:", notificationError);
+        // 不阻止like操作，即使notification创建失败
+      }
+
       console.log('Successfully liked listing:', listing_id);
     } else if (action === 'unlike') {
       // Remove like
