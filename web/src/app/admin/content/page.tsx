@@ -108,24 +108,20 @@ export default function ContentManagementPage() {
   const deriveFeatureCardsFromAi = (ai?: LandingContent["aiFeatures"]): FeatureCard[] => {
     if (!ai) return [];
     const order: Array<keyof NonNullable<LandingContent["aiFeatures"]>> = ["mixmatch", "ailisting", "search"];
-    return order
-      .map((key) => {
-        const node = ai?.[key];
-        if (!node) return null;
-        const images =
-          (Array.isArray(node.images) && node.images.length > 0
-            ? node.images
-            : [
-                ...((node as any).girlImages || []),
-                ...((node as any).boyImages || []),
-              ]) || [];
-        return {
-          title: node.title,
-          desc: node.desc,
-          images,
-        };
-      })
-      .filter((card): card is FeatureCard => Boolean(card));
+    return order.reduce<FeatureCard[]>((acc, key) => {
+      const node = ai?.[key];
+      if (!node) return acc;
+      const rawImages =
+        (Array.isArray(node.images) && node.images.length > 0
+          ? node.images
+          : [
+              ...(((node as any).girlImages || []) as unknown[]),
+              ...(((node as any).boyImages || []) as unknown[]),
+            ]) || [];
+      const images = (rawImages as unknown[]).filter((u): u is string => typeof u === "string");
+      acc.push({ title: node.title, desc: node.desc, images });
+      return acc;
+    }, []);
   };
 
   const fetchData = useCallback(async () => {
