@@ -6,8 +6,17 @@ export const runtime = "nodejs";         // Vision requires Node on Vercel
 export const dynamic = "force-dynamic";
 
 // ---------- Your classifier (embedded) ----------
+const privateKey = process.env.GOOGLE_PRIVATE_KEY || "";
+const fixedKey = privateKey.includes("\\n")
+  ? privateKey.replace(/\\n/g, "\n")
+  : privateKey;
+
 const vision = new ImageAnnotatorClient({
   projectId: process.env.GOOGLE_CLOUD_PROJECT || "topcarefashion-ai",
+  credentials: {
+    client_email: process.env.GOOGLE_CLIENT_EMAIL,
+    private_key: fixedKey,
+  },
 });
 
 const CATEGORY_KEYS = {
