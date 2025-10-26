@@ -6,6 +6,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
@@ -16,6 +17,7 @@ import { captureRef } from "react-native-view-shot";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import SaveOutfitModal from "../../../src/components/SaveOutfitModal";
+import AIOutfitFeedback from "../../../components/AIOutfitFeedback";
 import { outfitService } from "../../../src/services/outfitService";
 import type { BuyStackParamList } from "./index";
 import type { BagItem, ListingItem } from "../../../types/shop";
@@ -128,6 +130,49 @@ export default function ViewOutfitScreen() {
     return Array.from(unique.values()).map((item) => ({ item, quantity: 1 }));
   }, [selection]);
 
+  // ✨ Prepare outfit items for AI analysis
+  const outfitItems = useMemo(() => {
+    const items = [];
+    
+    if (top) {
+      items.push({
+        type: 'top' as const,
+        title: top.title,
+        category: top.category,
+        tags: top.tags || [],
+      });
+    }
+    
+    if (bottom) {
+      items.push({
+        type: 'bottom' as const,
+        title: bottom.title,
+        category: bottom.category,
+        tags: bottom.tags || [],
+      });
+    }
+    
+    if (shoe) {
+      items.push({
+        type: 'shoes' as const,
+        title: shoe.title,
+        category: shoe.category,
+        tags: shoe.tags || [],
+      });
+    }
+    
+    accessories.forEach(acc => {
+      items.push({
+        type: 'accessory' as const,
+        title: acc.title,
+        category: acc.category,
+        tags: acc.tags || [],
+      });
+    });
+    
+    return items;
+  }, [top, bottom, shoe, accessories]);
+
   const handleShare = useCallback(async () => {
     if (!captureViewRef.current) return;
     
@@ -193,25 +238,40 @@ export default function ViewOutfitScreen() {
     <View style={styles.container}>
       <Header title="View Outfit" showBack />
       <SafeAreaView style={styles.body} edges={["left", "right"]}>
-        <View style={[styles.content, { paddingBottom: 120 }]}>
-          <View
-            ref={captureViewRef}
-            collapsable={false}
-            style={styles.captureCanvas}
-          >
-            <View style={styles.previewRow}>
-              <View style={styles.leftColumn}>
-                {leftItems.map((section, index) => (
-                  <PreviewCard key={index} item={section.item} />
-                ))}
-              </View>
-              <View style={styles.rightColumn}>
-                <Text style={styles.sectionLabel}>ACCESSORIES</Text>
-                <AccessoryGrid items={rightItems} />
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            <View
+              ref={captureViewRef}
+              collapsable={false}
+              style={styles.captureCanvas}
+            >
+              <View style={styles.previewRow}>
+                <View style={styles.leftColumn}>
+                  {leftItems.map((section, index) => (
+                    <PreviewCard key={index} item={section.item} />
+                  ))}
+                </View>
+                <View style={styles.rightColumn}>
+                  <Text style={styles.sectionLabel}>ACCESSORIES</Text>
+                  <AccessoryGrid items={rightItems} />
+                </View>
               </View>
             </View>
+
+            {/* ✨ AI Feedback Component */}
+            <AIOutfitFeedback 
+              items={outfitItems}
+              onStyleNameSelected={(name) => {
+                console.log('AI suggested name:', name);
+                // You can use this name when saving outfit
+              }}
+            />
           </View>
-        </View>
+        </ScrollView>
 
         <View style={styles.bottomSafe}>
           <View style={styles.bottomBar}>
@@ -266,9 +326,13 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
   },
-  content: {
+  scrollView: {
     flex: 1,
-    paddingBottom: 120,
+  },
+  scrollContent: {
+    paddingBottom: 140, // Space for bottom bar
+  },
+  content: {
     paddingHorizontal: 8,
     paddingTop: 0,
     rowGap: 20,

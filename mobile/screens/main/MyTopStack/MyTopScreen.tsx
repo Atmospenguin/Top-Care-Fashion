@@ -19,6 +19,7 @@ import type { MyTopStackParamList } from "./index";
 import SoldTab from "./SoldTab";
 import PurchasesTab from "./PurchasesTab";
 import LikesTab from "./LikesTab";
+import SavedOutfitsTab from "./SavedOutfitsTab";
 import { useAuth } from "../../../contexts/AuthContext";
 import { listingsService } from "../../../src/services/listingsService";
 import { userService } from "../../../src/services/userService";
@@ -428,6 +429,7 @@ export default function MyTopScreen() {
         {activeTab === "Sold" && <SoldTab />}
         {activeTab === "Purchases" && <PurchasesTab />}
         {activeTab === "Likes" && <LikesTab />}
+		{activeTab === "Saved Outfits" && <SavedOutfitsTab />}
       </View>
 
       <FilterModal

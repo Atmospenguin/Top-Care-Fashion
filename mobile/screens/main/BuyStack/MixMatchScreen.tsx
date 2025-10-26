@@ -14,12 +14,14 @@ import {
   TouchableOpacity,
   View,
   ViewToken,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
@@ -83,9 +85,10 @@ function categorizeItem(item: ListingItem): ListingCategory | "other" {
   return "other";
 }
 
-function findMatches(base: ListingItem): MatchResult {
+// ✅ FIXED: Now accepts allListings parameter instead of using MOCK_LISTINGS
+function findMatches(base: ListingItem, allListings: ListingItem[]): MatchResult {
   const baseCategory = categorizeItem(base);
-  const others = MOCK_LISTINGS.filter((item) => item.id !== base.id);
+  const others = allListings.filter((item) => item.id !== base.id);
   const byCategory = (category: ListingCategory) =>
     others.filter((item) => categorizeItem(item) === category);
   const fallback = others.length ? others : [base];
@@ -107,9 +110,11 @@ export default function MixMatchScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
 
-  const matches = useMemo(() => findMatches(baseItem), [baseItem]);
-  const { baseCategory, tops, bottoms, footwear, accessories, fallback } = matches;
+  // ✅ NEW: Fetch real listings from API
+  const [realListings, setRealListings] = useState<ListingItem[]>([]);
+  const [loadingListings, setLoadingListings] = useState(true);
 
+  // ✅ CRITICAL: All useState hooks MUST be before any conditional returns
   const [topIndex, setTopIndex] = useState(0);
   const [bottomIndex, setBottomIndex] = useState(0);
   const [shoeIndex, setShoeIndex] = useState(0);
@@ -122,6 +127,62 @@ export default function MixMatchScreen() {
   const fadeAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const fadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hardHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const fetchListings = async () => {
+      try {
+        const token = await AsyncStorage.getItem('authToken');
+        console.log('🔍 Fetching all listings for Mix & Match...');
+        
+        const response = await fetch(
+          `http://192.168.31.188:3000/api/listings?limit=100`,
+          {
+            headers: {
+              'Authorization': token ? `Bearer ${token}` : '',
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`API returned ${response.status}`);
+        }
+
+        const result = await response.json();
+        const listings = result.data?.items || [];
+        
+        console.log('✅ Fetched', listings.length, 'listings for Mix & Match');
+
+        // Convert to ListingItem format
+        const formatted: ListingItem[] = listings.map((item: any) => ({
+          id: String(item.id),
+          title: item.title || item.name || 'Unknown Item',
+          price: item.price || 0,
+          images: item.images || item.image_urls || (item.image_url ? [item.image_url] : []),
+          category: item.category as ListingCategory,
+          condition: item.condition,
+          size: item.size,
+          brand: item.brand,
+          seller: item.seller,
+          gender: item.gender,
+          tags: item.tags || [],
+          likesCount: item.likesCount || 0,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+        }));
+
+        setRealListings(formatted);
+      } catch (error) {
+        console.error('❌ Failed to fetch listings for Mix & Match:', error);
+        // Fallback to mock listings if API fails
+        console.log('⚠️ Using MOCK_LISTINGS as fallback');
+        setRealListings(MOCK_LISTINGS);
+      } finally {
+        setLoadingListings(false);
+      }
+    };
+
+    fetchListings();
+  }, []);
 
   useEffect(() => {
     if (!tipVisible) return;
@@ -204,6 +265,14 @@ export default function MixMatchScreen() {
     tipOpacity.setValue(1);
     setTipVisible(true);
   }, [baseItem.id, tipTranslateY, tipOpacity]);
+
+  // ✅ FIXED: Now uses realListings instead of MOCK_LISTINGS
+  const matches = useMemo(
+    () => findMatches(baseItem, realListings),
+    [baseItem, realListings]
+  );
+  
+  const { baseCategory, tops, bottoms, footwear, accessories, fallback } = matches;
 
   const ensurePool = (pool: ListingItem[]) => (pool.length ? pool : fallback);
   const topPool = ensurePool(tops);
@@ -360,6 +429,19 @@ export default function MixMatchScreen() {
       imageMode: "cover" as const,
     },
   ];
+
+  // ✅ NEW: Show loading state while fetching real listings (AFTER ALL HOOKS)
+  if (loadingListings) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#fff' }}>
+        <Header title="Mix & Match" showBack />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#000" />
+          <Text style={{ fontSize: 16, color: '#666', marginTop: 16 }}>Loading items...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -732,6 +814,10 @@ function FrameCarousel({
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
   scrollContent: {
     paddingTop: 12,
     paddingBottom: 80,

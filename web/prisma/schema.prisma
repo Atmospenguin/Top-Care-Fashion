@@ -478,16 +478,16 @@ model saved_outfits {
   id              Int        @id @default(autoincrement())
   user_id         Int
   outfit_name     String?    @db.VarChar(100)
-  base_item_id    Int
+  base_item_id    Int?
   top_item_id     Int?
   bottom_item_id  Int?
   shoe_item_id    Int?
-  accessory_ids   Json?      @default("[]") @db.Json
+  accessory_ids   Int[]      @default([])
   created_at      DateTime   @default(now()) @db.Timestamptz(6)
   updated_at      DateTime   @default(now()) @db.Timestamptz(6)
   
   user            users      @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  base_item       listings   @relation("SavedOutfitBase", fields: [base_item_id], references: [id], onDelete: Cascade)
+  base_item       listings?  @relation("SavedOutfitBase", fields: [base_item_id], references: [id], onDelete: SetNull)
   top_item        listings?  @relation("SavedOutfitTop", fields: [top_item_id], references: [id], onDelete: SetNull)
   bottom_item     listings?  @relation("SavedOutfitBottom", fields: [bottom_item_id], references: [id], onDelete: SetNull)
   shoe_item       listings?  @relation("SavedOutfitShoe", fields: [shoe_item_id], references: [id], onDelete: SetNull)
