@@ -85,6 +85,9 @@ class LikesService {
         throw new Error(result.error || 'Failed to like listing');
       }
 
+      // 🔔 Like notification will be created by backend API
+      console.log("🔔 Like notification will be created by backend");
+
       return result.data.liked;
     } catch (error) {
       console.error('Error liking listing:', error);

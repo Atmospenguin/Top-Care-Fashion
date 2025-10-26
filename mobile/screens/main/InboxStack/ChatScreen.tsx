@@ -11,23 +11,36 @@ import {
   Platform,
   Alert,
 } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { InboxStackParamList } from "./InboxStackNavigator";
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
-import { messagesService, type Message, type ConversationDetail } from "../../../src/services";
+import { messagesService, ordersService, type Message, type ConversationDetail } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
+import { API_CONFIG } from "../../../src/config/api";
 
 type Order = {
   id: string;
-  product: { title: string; price: number; size?: string; image: string | null };
-  seller: { name: string; avatar?: string };
-  buyer?: { name: string; avatar?: string };
-  status: "Delivered" | "Shipped" | "Processing" | string;
-  address?: { name?: string; phone?: string; detail?: string };
-  payment?: { method?: string; amount?: number; date?: string; transactionId?: string };
+  product: {
+    title: string;
+    price: number;
+    size?: string;
+    image: string | null;
+    shippingFee?: number; // 🔥 添加运费字段
+  };
+  seller: { 
+    name: string;
+    avatar?: string;
+  };
+  buyer?: {
+    name: string;
+    avatar?: string;
+  };
+  status: string;
+  // 🔥 添加listing_id字段用于BuyNow功能
+  listing_id?: number;
 };
 
 type ChatItem =
@@ -67,12 +80,42 @@ type ChatItem =
       type: "reviewCta"; 
       text: string; 
       orderId: string;
+      reviewType?: "buyer" | "seller";
+    }
+  | { 
+      id: string; 
+      type: "reviewReplyCta"; 
+      text: string; 
+      orderId: string;
+      reviewType?: "buyer" | "seller";
+    }
+  | { 
+      id: string; 
+      type: "mutualReviewCta"; 
+      text: string; 
+      orderId: string;
+    };
+
+// 🔥 状态转换函数 - 与OrderDetailScreen保持一致
+const getDisplayStatus = (status: string): string => {
+  switch (status) {
+    case "IN_PROGRESS": return "In Progress";
+    case "TO_SHIP": return "To Ship";
+    case "SHIPPED": return "Shipped";
+    case "DELIVERED": return "Delivered";
+    case "RECEIVED": return "Received";
+    case "COMPLETED": return "Completed";
+    case "REVIEWED": return "Reviewed";
+    case "CANCELLED": return "Cancelled";
+    case "Inquiry": return "Inquiry";
+    default: return status;
+  }
     };
 
 export default function ChatScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<InboxStackParamList, "Chat">>();
   const route = useRoute<any>();
-  const { sender = "TOP Support", kind = "support", order = null, conversationId = null } = route.params || {};
+  const { sender = "TOP Support", kind = "support", order = null, conversationId = null, autoSendPaidMessage = false } = route.params || {};
   const { user } = useAuth();
 
   // 状态管理
@@ -80,22 +123,522 @@ export default function ChatScreen() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [conversation, setConversation] = useState<ConversationDetail | null>(null);
+  const [lastOrderStatus, setLastOrderStatus] = useState<string | null>(null);
   const listRef = useRef<FlatList<ChatItem>>(null);
+
+  // 🔥 移除重复的 useEffect，只保留 focus listener 中的逻辑
+
+  // 🔥 监听路由参数变化，处理从CheckoutScreen返回的订单信息
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      console.log("🔍 ChatScreen focused, checking for new order data");
+      console.log("🔍 Route params:", route.params);
+      console.log("🔍 ConversationId:", conversationId);
+      console.log("🔍 Order:", order);
+      console.log("🔍 AutoSendPaidMessage:", autoSendPaidMessage);
+      
+      // 🔥 重新加载对话数据，获取最新的订单信息
+      const reloadData = async () => {
+        if (conversationId) {
+          await loadConversationData();
+        } else {
+          // 🔥 如果没有conversationId，也重新加载数据（可能显示订单卡片）
+          await loadConversationData();
+        }
+        
+        // 🔥 数据加载完成后，检查是否需要发送 "I've paid" 消息
+        setTimeout(() => {
+          // 🔥 检查是否需要发送 "I've paid" 消息
+          // 条件：1. 有订单 2. 订单状态是 IN_PROGRESS 3. 还没有发送过消息
+          if (order && order.status === "IN_PROGRESS") {
+            console.log("🔍 Order found with IN_PROGRESS status, checking for paid message");
+            
+            // 🔥 检查本地消息中是否已经有 "I've paid" 消息
+            const hasPaidMessage = items.some(item => 
+              item.type === "system" && 
+              item.sentByUser === true && 
+              item.text.includes("I've paid, waiting for you to ship")
+            );
+            
+            console.log("🔍 Has paid message:", hasPaidMessage);
+            
+            if (!hasPaidMessage) {
+              console.log("🔍 Sending 'I've paid' message");
+              
+              const paidMessage: ChatItem = {
+                id: `auto-paid-${Date.now()}`,
+                type: "system",
+                text: "I've paid, waiting for you to ship\nPlease pack the item and ship to the address I provided on TOP.",
+                sentByUser: true,
+                senderInfo: {
+                  id: user?.id || 0,
+                  username: user?.username || "Buyer",
+                  avatar: user?.avatar_url || ""
+                }, // 🔥 重新添加 senderInfo 字段
+                time: new Date().toLocaleTimeString()
+              };
+              
+              setItems(prev => [...prev, paidMessage]);
+              
+              // 🔥 异步发送消息到后端
+              const sendMessageToBackend = async () => {
+                if (conversationId) {
+                  try {
+                    await messagesService.sendMessage(conversationId, {
+                      content: paidMessage.text,
+                      message_type: "SYSTEM"
+                    });
+                    console.log("✅ 'I've paid' message sent to backend via focus listener");
+                  } catch (error) {
+                    console.error("❌ Failed to send 'I've paid' message to backend:", error);
+                  }
+                } else {
+                  console.log("⚠️ No conversationId, trying to create conversation and send message");
+                  
+                  // 🔥 尝试创建对话并发送消息
+                  try {
+                    // 如果有订单信息，尝试创建对话
+                    if (order && order.seller) {
+                      console.log("🔍 Creating conversation for order:", order.id);
+                      console.log("🔍 Seller:", order.seller);
+                      console.log("🔍 Buyer:", user);
+                      
+                      // 🔥 创建对话
+                      const sellerId = order.seller.id || order.seller.user_id;
+                      const listingId = order.listing_id || order.product?.listing_id;
+                      
+                      console.log("🔍 Seller ID:", sellerId);
+                      console.log("🔍 Listing ID:", listingId);
+                      
+                      if (!sellerId) {
+                        console.error("❌ No seller ID found in order:", order);
+                        return;
+                      }
+                      
+                      const newConversation = await messagesService.createConversation({
+                        participant_id: sellerId,
+                        listing_id: listingId,
+                        type: 'ORDER'
+                      });
+                      
+                      console.log("✅ New conversation created:", newConversation);
+                      
+                      // 🔥 发送消息到新创建的对话
+                      if (newConversation && newConversation.id) {
+                        console.log("🔍 Attempting to send message to conversation:", newConversation.id);
+                        console.log("🔍 Message content:", paidMessage.text);
+                        console.log("🔍 Message type: SYSTEM");
+                        
+                        try {
+                          const sentMessage = await messagesService.sendMessage(newConversation.id.toString(), {
+                            content: paidMessage.text,
+                            message_type: "SYSTEM"
+                          });
+                          console.log("✅ 'I've paid' message sent successfully:", sentMessage);
+                          
+                          // 🔥 更新 conversationId 状态
+                          console.log("🔍 Conversation ID updated to:", newConversation.id);
+                        } catch (sendError) {
+                          console.error("❌ Failed to send message to conversation:", sendError);
+                          console.error("❌ Send error details:", {
+                            conversationId: newConversation.id,
+                            messageContent: paidMessage.text,
+                            messageType: "SYSTEM"
+                          });
+                        }
+                      } else {
+                        console.error("❌ No conversation ID available for sending message");
+                        console.error("❌ New conversation data:", newConversation);
+                      }
+                    }
+                  } catch (error) {
+                    console.error("❌ Failed to create conversation:", error);
+                  }
+                }
+              };
+              
+              sendMessageToBackend();
+              
+              setTimeout(() => {
+                listRef.current?.scrollToEnd({ animated: true });
+              }, 100);
+            }
+          }
+          
+          // 🔥 检查是否需要发送其他状态变化的系统消息
+          if (order && conversationId) {
+            console.log("🔍 Checking for other order status changes, current status:", order.status);
+            console.log("🔍 Order object:", order);
+            console.log("🔍 Conversation object:", conversation);
+            console.log("🔍 User object:", user);
+            
+            // 🔥 检查本地消息中是否已经有对应状态的系统消息
+            const hasStatusMessage = items.some(item => 
+              item.type === "system" && 
+              item.text.includes("confirmed received") && 
+              item.text.includes("Transaction completed")
+            );
+            
+            console.log("🔍 Has status message for COMPLETED:", hasStatusMessage);
+            console.log("🔍 Current items:", items.map(item => ({ 
+              type: item.type, 
+              text: item.type === "system" || item.type === "msg" ? item.text : "N/A" 
+            })));
+            
+            // 🔥 如果订单状态是 COMPLETED 且没有对应的系统消息，生成并发送
+            if (order.status === "COMPLETED" && !hasStatusMessage) {
+              console.log("🔍 Order is COMPLETED, generating system message");
+              
+              // 🔥 判断当前用户是否为卖家
+              const isSeller = (conversation?.conversation as any)?.participant_id === user?.id;
+              console.log("🔍 isSeller:", isSeller);
+              console.log("🔍 conversation.participant_id:", (conversation?.conversation as any)?.participant_id);
+              console.log("🔍 user.id:", user?.id);
+              
+              // 🔥 使用 generateOrderSystemMessages 生成完整的系统消息（包括 review CTA）
+              const systemMessages = generateOrderSystemMessages(order, isSeller, true); // skipPaidMessage = true
+              console.log("🔍 Generated system messages:", systemMessages);
+              
+              // 🔥 添加系统消息到聊天列表
+              setItems(prev => [...prev, ...systemMessages]);
+              
+              // 🔥 异步发送消息到后端
+              const sendStatusMessageToBackend = async () => {
+                try {
+                  // 只发送主要的系统消息，不发送 review CTA（因为 CTA 是本地生成的）
+                  const mainMessage = systemMessages.find(msg => msg.type === "system");
+                  if (mainMessage) {
+                    await messagesService.sendMessage(conversationId, {
+                      content: mainMessage.text,
+                      message_type: "SYSTEM"
+                    });
+                    console.log("✅ Status message sent to backend:", mainMessage.text);
+                  }
+                } catch (error) {
+                  console.error("❌ Failed to send status message to backend:", error);
+                }
+              };
+              
+              sendStatusMessageToBackend();
+            }
+          }
+        }, 1000); // 🔥 延迟1秒确保数据加载完成
+      };
+      
+      reloadData();
+    });
+
+    return unsubscribe;
+  }, [navigation, route.params, conversationId, order, items]);
+
+  // 🔥 获取评论状态的辅助函数
+  const getReviewStatus = (orderData: any): string => {
+    // 检查订单是否有评论数据
+    const reviews = orderData.reviews || [];
+    
+    console.log("🔍 getReviewStatus - Order data:", orderData);
+    console.log("🔍 getReviewStatus - Reviews:", reviews);
+    console.log("🔍 getReviewStatus - Buyer ID:", orderData.buyer_id);
+    console.log("🔍 getReviewStatus - Seller ID:", orderData.seller_id);
+    
+    // 检查买家是否已经评论
+    const hasBuyerReview = reviews.some((review: any) => 
+      review.reviewer_id === orderData.buyer_id
+    );
+    
+    // 检查卖家是否已经评论
+    const hasSellerReview = reviews.some((review: any) => 
+      review.reviewer_id === orderData.seller_id
+    );
+    
+    console.log("🔍 getReviewStatus - Has buyer review:", hasBuyerReview);
+    console.log("🔍 getReviewStatus - Has seller review:", hasSellerReview);
+    
+    if (!hasBuyerReview && !hasSellerReview) {
+      console.log("🔍 getReviewStatus - Result: canReview");
+      return "canReview"; // 双方都可以评论
+    } else if (hasBuyerReview && !hasSellerReview) {
+      console.log("🔍 getReviewStatus - Result: canReply");
+      return "canReply"; // 买家已评论，卖家可以回复
+    } else if (!hasBuyerReview && hasSellerReview) {
+      console.log("🔍 getReviewStatus - Result: canReply");
+      return "canReply"; // 卖家已评论，买家可以回复
+    } else {
+      console.log("🔍 getReviewStatus - Result: mutualComplete");
+      return "mutualComplete"; // 双方都已评论
+    }
+  };
+
+  // 🔥 根据订单状态生成系统消息（根据用户角色显示不同内容）
+  const generateOrderSystemMessages = (orderData: any, isSeller: boolean, skipPaidMessage: boolean = false): ChatItem[] => {
+    const messages: ChatItem[] = [];
+    const orderStatus = orderData.status;
+    const orderId = orderData.id;
+    
+    // 根据订单状态和用户角色生成相应的系统消息
+    switch (orderStatus) {
+      case "IN_PROGRESS":
+        if (!skipPaidMessage) { // 🔥 只有在不跳过时才生成
+          if (isSeller) {
+            // 🔥 卖家视角：显示买家已付款的消息（灰色卡片）
+            messages.push({
+              id: `seller-paid-${orderId}`,
+              type: "system",
+              text: `${orderData.buyer?.name || 'Buyer'} has paid for the order.\nPlease prepare the package and ship soon.`,
+              sentByUser: false, // 灰色卡片
+              avatar: orderData.buyer?.avatar,
+              time: new Date().toLocaleTimeString()
+            });
+          } else {
+            // 🔥 买家视角：显示自己已付款的消息（黄色卡片）
+            messages.push({
+              id: `buyer-paid-${orderId}`,
+              type: "system",
+              text: "I've paid, waiting for you to ship\nPlease pack the item and ship to the address I provided on TOP.",
+              sentByUser: true, // 黄色卡片
+              senderInfo: {
+                id: orderData.buyer?.id || 0,
+                username: orderData.buyer?.name || "Buyer",
+                avatar: orderData.buyer?.avatar || ""
+              }, // 🔥 添加 senderInfo 字段
+              time: new Date().toLocaleTimeString()
+            });
+          }
+        }
+        break;
+        
+      case "TO_SHIP":
+        if (isSeller) {
+          messages.push({
+            id: `sys-toship-seller-${orderId}`,
+            type: "system",
+            text: "Order confirmed. Please prepare the package and ship soon.",
+            time: new Date().toLocaleTimeString()
+          });
+        } else {
+          messages.push({
+            id: `sys-toship-buyer-${orderId}`,
+            type: "system",
+            text: "Order confirmed. Seller is preparing to ship.",
+            time: new Date().toLocaleTimeString()
+          });
+        }
+        break;
+        
+      case "SHIPPED":
+        if (isSeller) {
+          messages.push({
+            id: `sys-shipped-seller-${orderId}`,
+            type: "system",
+            text: "You have shipped the parcel.",
+            time: new Date().toLocaleTimeString()
+          });
+        } else {
+          messages.push({
+            id: `sys-shipped-buyer-${orderId}`,
+            type: "system",
+            text: "Seller has shipped your parcel.",
+            time: new Date().toLocaleTimeString()
+          });
+        }
+        break;
+        
+      case "DELIVERED":
+        if (isSeller) {
+          messages.push({
+            id: `sys-delivered-seller-${orderId}`,
+            type: "system",
+            text: "Parcel delivered. Waiting for buyer to confirm received.",
+            time: new Date().toLocaleTimeString()
+          });
+        } else {
+          messages.push({
+            id: `sys-delivered-buyer-${orderId}`,
+            type: "system",
+            text: "Parcel arrived. Waiting for buyer to confirm received.",
+            time: new Date().toLocaleTimeString()
+          });
+        }
+        break;
+        
+      case "RECEIVED":
+        if (isSeller) {
+          messages.push({
+            id: `sys-received-seller-${orderId}`,
+            type: "system",
+            text: "Buyer confirmed received. Transaction completed.",
+            time: new Date().toLocaleTimeString()
+          });
+          
+          // 🔥 检查评论状态并显示相应的CTA
+          const reviewStatus = getReviewStatus(orderData);
+          if (reviewStatus === "canReview") {
+            messages.push({
+              id: `cta-review-seller-${orderId}`,
+              type: "reviewCta",
+              text: "How was your experience with the buyer? Leave a review to help others.",
+              orderId: orderId,
+              reviewType: "seller"
+            });
+          } else if (reviewStatus === "canReply") {
+            messages.push({
+              id: `cta-reply-seller-${orderId}`,
+              type: "reviewReplyCta",
+              text: "Buyer has left a review. You can reply to their feedback.",
+              orderId: orderId,
+              reviewType: "seller"
+            });
+          } else if (reviewStatus === "mutualComplete") {
+            messages.push({
+              id: `cta-mutual-seller-${orderId}`,
+              type: "mutualReviewCta",
+              text: "Both reviews completed. View mutual feedback.",
+              orderId: orderId
+            });
+          }
+        } else {
+          messages.push({
+            id: `sys-received-buyer-${orderId}`,
+            type: "system",
+            text: "I've confirmed received. Transaction completed.",
+            time: new Date().toLocaleTimeString()
+          });
+          
+          // 🔥 检查评论状态并显示相应的CTA
+          const reviewStatus = getReviewStatus(orderData);
+          if (reviewStatus === "canReview") {
+            messages.push({
+              id: `cta-review-buyer-${orderId}`,
+              type: "reviewCta",
+              text: "How was your experience? Leave a review to help others discover great items.",
+              orderId: orderId,
+              reviewType: "buyer"
+            });
+          } else if (reviewStatus === "canReply") {
+            messages.push({
+              id: `cta-reply-buyer-${orderId}`,
+              type: "reviewReplyCta",
+              text: "Seller has left a review. You can reply to their feedback.",
+              orderId: orderId,
+              reviewType: "buyer"
+            });
+          } else if (reviewStatus === "mutualComplete") {
+            messages.push({
+              id: `cta-mutual-buyer-${orderId}`,
+              type: "mutualReviewCta",
+              text: "Both reviews completed. View mutual feedback.",
+              orderId: orderId
+            });
+          }
+        }
+        break;
+        
+      case "COMPLETED":
+        // 🔥 COMPLETED状态不需要额外的系统消息，Review CTA已经在RECEIVED状态处理了
+        break;
+        
+      case "CANCELLED":
+        if (isSeller) {
+          messages.push({
+            id: `sys-cancelled-seller-${orderId}`,
+            type: "system",
+            text: "Order has been cancelled by buyer.",
+            time: new Date().toLocaleTimeString()
+          });
+        } else {
+          messages.push({
+            id: `sys-cancelled-buyer-${orderId}`,
+            type: "system",
+            text: "Order has been cancelled.",
+            time: new Date().toLocaleTimeString()
+          });
+        }
+        break;
+        
+      case "REVIEWED":
+        if (isSeller) {
+          messages.push({
+            id: `sys-reviewed-seller-${orderId}`,
+            type: "system",
+            text: "Buyer has submitted a review.",
+            time: new Date().toLocaleTimeString()
+          });
+        } else {
+          messages.push({
+            id: `sys-reviewed-buyer-${orderId}`,
+            type: "system",
+            text: "Review submitted. Thank you for your feedback!",
+            time: new Date().toLocaleTimeString()
+          });
+        }
+        break;
+    }
+    
+    return messages;
+  };
+
+  // 🔥 创建订单后自动发送用户消息
+  const sendOrderCreatedMessage = async (orderData: any) => {
+    try {
+      console.log("🔍 发送订单创建消息:", orderData);
+      
+      // 🔥 判断当前用户是否为买家
+      const isBuyer = (conversation?.conversation as any)?.initiator_id === user?.id;
+      
+      let userMessage: ChatItem;
+      
+      // 🔥 买家自动发送的卡片消息（卖家和买家都能看到）
+      userMessage = {
+        id: `buyer-paid-${orderData.id}-${Date.now()}`,
+        type: "system",
+        text: "I've paid, waiting for you to ship\nPlease pack the item and ship to the address I provided on TOP.",
+        sentByUser: true, // 🔥 都是买家发送的，只是自动生成
+        time: new Date().toLocaleTimeString()
+      };
+      
+      // 添加到消息列表
+      setItems(prev => [...prev, userMessage]);
+      
+      // 🔥 发送到服务器（如果需要）
+      if (conversation?.conversation?.id) {
+        await messagesService.sendMessage(conversation.conversation.id.toString(), {
+          content: userMessage.text,
+          message_type: "TEXT"
+        });
+        console.log("✅ 订单创建消息已发送到服务器");
+      }
+      
+      // 滚动到底部
+      setTimeout(() => {
+        listRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+      
+    } catch (error) {
+      console.error("❌ 发送订单创建消息失败:", error);
+    }
+  };
 
   // —— MOCK 数据：保留作为 UI 参考和学习 —— //
   const mockItemsInit: ChatItem[] = useMemo(() => {
     if (kind === "order" && order) {
       const o: Order = {
-        ...order,
+        id: order?.id ?? "1",
+        product: {
+          title: order?.product?.title ?? "Adidas jumper",
+          price: order?.product?.price ?? 50,
+          size: order?.product?.size ?? "M",
+          image: order?.product?.image ?? "https://via.placeholder.com/64x64/f0f0f0/999999?text=Adidas",
+        },
         seller: {
-          name: order?.seller?.name ?? "seller111",
-          avatar: order?.seller?.avatar ?? (order?.seller?.name === "sellerCozy" ? "https://i.pravatar.cc/100?img=22" : "https://i.pravatar.cc/100?img=12"),
+          name: order?.seller?.name ?? "Cathy",
+          avatar: order?.seller?.avatar,
         },
         buyer: {
-          name: "buyer002",
-          avatar: "https://i.pravatar.cc/100?img=32",
+          name: order?.buyer?.name ?? "Cindy",
+          avatar: order?.buyer?.avatar,
         },
-        status: order?.status ?? "Completed",
+        status: order?.status ?? "CANCELLED",
+        listing_id: order?.listing_id ?? 41, // 🔥 确保有listing_id
       };
 
       if (sender === "seller111") {
@@ -182,8 +725,318 @@ export default function ChatScreen() {
     return [];
   }, [kind, order, sender]);
 
+  // 🔥 Focus事件监听 - 当用户从OrderDetailScreen返回时同步状态
+  useFocusEffect(
+    React.useCallback(() => {
+      const syncOrderStatus = async () => {
+        if (!conversationId || kind !== "order") return;
+        
+        try {
+          console.log("🔄 Syncing order status on focus...");
+          
+          // 重新加载对话数据
+          const conversationData = await messagesService.getMessages(conversationId);
+          setConversation(conversationData);
+          
+          // 获取当前订单状态
+          const orderCard = conversationData.messages.find(item => item.type === "orderCard");
+          if (orderCard && orderCard.type === "orderCard" && orderCard.order) {
+            const currentStatus = orderCard.order.status;
+            console.log("🔍 Current order status:", currentStatus);
+            console.log("🔍 Last order status:", lastOrderStatus);
+            
+            // 如果状态发生变化，添加系统消息并更新订单卡片
+            if (lastOrderStatus && lastOrderStatus !== currentStatus) {
+              console.log("🔄 Order status changed from", lastOrderStatus, "to", currentStatus);
+              
+              const systemMessage = generateSystemMessage(lastOrderStatus, currentStatus, orderCard.order);
+              if (systemMessage) {
+                // 🔥 更新订单卡片状态
+                setItems(prev => prev.map(item => {
+                  if (item.type === "orderCard" && item.order.id === orderCard.order!.id) {
+                    return {
+                      ...item,
+                      order: {
+                        ...item.order,
+                        status: currentStatus
+                      }
+                    };
+                  }
+                  return item;
+                }));
+                
+                // 🔥 添加系统消息
+                setItems(prev => [...prev, systemMessage]);
+                setTimeout(() => {
+                  listRef.current?.scrollToEnd({ animated: true });
+                }, 100);
+              }
+            }
+            
+            setLastOrderStatus(currentStatus);
+          }
+        } catch (error) {
+          console.error("❌ Error syncing order status:", error);
+        }
+      };
+      
+      syncOrderStatus();
+    }, [conversationId, kind, lastOrderStatus])
+  );
+
+  // 生成系统消息的函数 - 根据用户角色显示不同内容
+  const generateSystemMessage = (oldStatus: string, newStatus: string, order: Order): ChatItem | null => {
+    const timestamp = new Date().toLocaleTimeString();
+    
+    // 🔥 判断当前用户是否为卖家
+    const isSeller = (conversation?.conversation as any)?.participant_id === user?.id;
+    
+    // 🔥 特殊处理：DELIVERED -> COMPLETED (Mark as Received)
+    if (oldStatus === "DELIVERED" && newStatus === "COMPLETED") {
+      if (isSeller) {
+        return {
+          id: `system-received-seller-${Date.now()}`,
+          type: "system",
+          text: "Buyer confirmed received. Transaction completed.",
+          time: timestamp,
+          orderId: order.id,
+          sentByUser: false
+        };
+      } else {
+        return {
+          id: `system-received-buyer-${Date.now()}`,
+          type: "system",
+          text: "I've confirmed received. Transaction completed.",
+          time: timestamp,
+          orderId: order.id,
+          sentByUser: true
+        };
+      }
+    }
+    
+    switch (newStatus) {
+      case "IN_PROGRESS":
+        if (isSeller) {
+          return {
+            id: `system-paid-seller-${Date.now()}`,
+            type: "system",
+            text: `${order.buyer?.name || 'Buyer'} has paid for the order.\nPlease prepare the package and ship soon.`,
+            time: timestamp,
+            orderId: order.id,
+            sentByUser: false,
+            avatar: order.buyer?.avatar
+          };
+        } else {
+          return {
+            id: `system-paid-buyer-${Date.now()}`,
+            type: "system",
+            text: "I've paid, waiting for you to ship\nPlease pack the item and ship to the address I provided on TOP.",
+            time: timestamp,
+            orderId: order.id,
+            sentByUser: true
+          };
+        }
+      
+      case "TO_SHIP":
+        if (isSeller) {
+          return {
+            id: `system-prepare-seller-${Date.now()}`,
+            type: "system",
+            text: "Order confirmed. Please prepare the package and ship soon.",
+            time: timestamp,
+            orderId: order.id
+          };
+        } else {
+          return {
+            id: `system-prepare-buyer-${Date.now()}`,
+            type: "system",
+            text: "Order confirmed. Seller is preparing to ship.",
+            time: timestamp,
+            orderId: order.id
+          };
+        }
+      
+      case "SHIPPED":
+        if (isSeller) {
+          return {
+            id: `system-shipped-seller-${Date.now()}`,
+            type: "system",
+            text: "You have shipped the parcel.",
+            time: timestamp,
+            orderId: order.id
+          };
+        } else {
+          return {
+            id: `system-shipped-buyer-${Date.now()}`,
+            type: "system",
+            text: "Seller has shipped your parcel.",
+            time: timestamp,
+            orderId: order.id
+          };
+        }
+      
+      case "DELIVERED":
+        if (isSeller) {
+          return {
+            id: `system-delivered-seller-${Date.now()}`,
+            type: "system",
+            text: "Parcel delivered. Waiting for buyer to confirm received.",
+            time: timestamp,
+            orderId: order.id
+          };
+        } else {
+          return {
+            id: `system-delivered-buyer-${Date.now()}`,
+            type: "system",
+            text: "Parcel arrived. Waiting for buyer to confirm received.",
+            time: timestamp,
+            orderId: order.id
+          };
+        }
+      
+      case "RECEIVED":
+        if (isSeller) {
+          return {
+            id: `system-received-seller-${Date.now()}`,
+            type: "system",
+            text: "Buyer confirmed received. Transaction completed.",
+            time: timestamp,
+            orderId: order.id
+          };
+        } else {
+          return {
+            id: `system-received-buyer-${Date.now()}`,
+            type: "system",
+            text: "Order confirmed received. Transaction completed.",
+            time: timestamp,
+            orderId: order.id
+          };
+        }
+      
+      case "CANCELLED":
+        if (isSeller) {
+          return {
+            id: `system-cancelled-seller-${Date.now()}`,
+            type: "system",
+            text: "Order has been cancelled by buyer.",
+            time: timestamp,
+            orderId: order.id
+          };
+        } else {
+          return {
+            id: `system-cancelled-buyer-${Date.now()}`,
+            type: "system",
+            text: "Order has been cancelled.",
+            time: timestamp,
+            orderId: order.id
+          };
+        }
+      
+      case "COMPLETED":
+        if (isSeller) {
+          return {
+            id: `system-completed-seller-${Date.now()}`,
+            type: "system",
+            text: "Order completed successfully.",
+            time: timestamp,
+            orderId: order.id
+          };
+        } else {
+          return {
+            id: `system-completed-buyer-${Date.now()}`,
+            type: "system",
+            text: "Order completed successfully.",
+            time: timestamp,
+            orderId: order.id
+          };
+        }
+      
+      case "REVIEWED":
+        if (isSeller) {
+          return {
+            id: `system-reviewed-seller-${Date.now()}`,
+            type: "system",
+            text: "Buyer has submitted a review.",
+            time: timestamp,
+            orderId: order.id
+          };
+        } else {
+          return {
+            id: `system-reviewed-buyer-${Date.now()}`,
+            type: "system",
+            text: "Review submitted. Thank you for your feedback!",
+            time: timestamp,
+            orderId: order.id
+          };
+        }
+      
+      default:
+        return null;
+    }
+  };
+
   const loadConversationData = async () => {
     if (!conversationId) {
+      // 如果没有 conversationId，但有订单信息，显示订单卡片
+      if (kind === "order" && order) {
+        console.log("🔍 No conversationId but have order, showing order card");
+        const orderCard: ChatItem = {
+          id: `order-card-${order.id}`,
+          type: "orderCard",
+          order: order
+        };
+        
+        // 🔥 根据订单状态生成系统消息
+        const isSeller = false; // 从CheckoutScreen进入的都是买家
+        const systemMessages = generateOrderSystemMessages(order, isSeller);
+        
+        setItems([orderCard, ...systemMessages]);
+        
+        // 🔥 尝试创建对话并保存系统消息
+        const createConversationAndSaveMessages = async () => {
+          try {
+            if (order && order.seller) {
+              const sellerId = order.seller.id || order.seller.user_id;
+              const listingId = order.listing_id || order.product?.listing_id;
+              
+              if (sellerId) {
+                // 创建对话
+                const newConversation = await messagesService.createConversation({
+                  participant_id: sellerId,
+                  listing_id: listingId,
+                  type: 'ORDER'
+                });
+                
+                console.log("✅ New conversation created for system messages:", newConversation);
+                
+                // 保存系统消息
+                if (newConversation && newConversation.id) {
+                  for (const systemMsg of systemMessages) {
+                    if (systemMsg.type === "system" && "text" in systemMsg) {
+                      try {
+                        await messagesService.sendMessage(newConversation.id.toString(), {
+                          content: systemMsg.text,
+                          message_type: "SYSTEM"
+                        });
+                        console.log("✅ System message saved to new conversation:", systemMsg.text);
+                      } catch (error) {
+                        console.error("❌ Failed to save system message:", error);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.error("❌ Failed to create conversation for system messages:", error);
+          }
+        };
+        
+        // 延迟创建对话和保存消息
+        setTimeout(createConversationAndSaveMessages, 1000);
+        return;
+      }
+      
       // 如果没有 conversationId，只显示欢迎消息（不显示完整的 mock 数据）
       console.log("🔍 No conversationId, showing welcome message only");
       if (sender === "TOP Support") {
@@ -233,6 +1086,7 @@ export default function ChatScreen() {
             type: "system",
             text: msg.text,
             time: msg.time,
+            sentByUser: msg.sentByUser, // 🔥 添加 sentByUser 字段
             senderInfo: msg.senderInfo
           };
         } else if (msg.type === "orderCard" && msg.order) {
@@ -265,8 +1119,8 @@ export default function ChatScreen() {
         finalItems = apiItems.filter(item => item.type !== "orderCard");
         console.log("🔍 普通聊天，过滤后的消息数量:", finalItems.length);
       } else if (kind === "order") {
-        // 订单聊天：在开头添加商品卡片
-        console.log("🔍 订单聊天，添加商品卡片");
+        // 订单聊天：在开头添加商品卡片和系统消息
+        console.log("🔍 订单聊天，添加商品卡片和系统消息");
         
         // 优先使用 route.params.order，如果没有则使用 conversation.order
         const orderData = order || conversation?.order;
@@ -274,6 +1128,9 @@ export default function ChatScreen() {
         console.log("🔍 Order 数据:", JSON.stringify(orderData, null, 2));
         
         if (orderData) {
+          // 🔥 判断当前用户是否为卖家
+          const isSeller = (conversation?.conversation as any)?.participant_id === user?.id;
+          
           const orderCard: ChatItem = {
             id: "order-card-" + orderData.id,
             type: "orderCard",
@@ -283,7 +1140,8 @@ export default function ChatScreen() {
                 title: orderData.product.title,
                 price: orderData.product.price,
                 size: orderData.product.size,
-                image: orderData.product.image
+                image: orderData.product.image,
+                shippingFee: orderData.product.shippingFee
               },
               seller: {
                 name: orderData.seller.name,
@@ -293,17 +1151,65 @@ export default function ChatScreen() {
                 name: orderData.buyer.name,
                 avatar: orderData.buyer.avatar
               } : undefined,
-              status: orderData.status || "Inquiry"
+              status: orderData.status === "Active" ? "COMPLETED" : (orderData.status || "Inquiry"),
+              listing_id: orderData.listing_id
             }
           };
           
+          // 🔥 根据订单状态生成系统消息
+          const systemMessages = generateOrderSystemMessages(orderData, isSeller, true); // 🔥 跳过 paid 消息
+          
           console.log("🔍 创建的商品卡片:", JSON.stringify(orderCard, null, 2));
+          console.log("🔍 生成的系统消息:", JSON.stringify(systemMessages, null, 2));
+          
+          // 🔥 检查是否需要添加Review CTA卡片
+          // 1. 如果订单状态是COMPLETED，直接添加
+          // 2. 如果系统消息中有"Transaction complete"但没有Review CTA，也要添加
+          const hasTransactionComplete = systemMessages.some(msg => 
+            msg.type === "system" && msg.text.includes("Transaction complete")
+          );
+          const hasReviewCta = systemMessages.some(msg => msg.type === "reviewCta");
+          
+          if (orderData.status === "COMPLETED" || (hasTransactionComplete && !hasReviewCta)) {
+            const reviewCtaMessage: ChatItem = {
+              id: `review-cta-${orderData.id}`,
+              type: "reviewCta",
+              text: "How was your experience? Leave a review to help others discover great items.",
+              orderId: orderData.id.toString(),
+              reviewType: isSeller ? "seller" : "buyer"
+            };
+            systemMessages.push(reviewCtaMessage);
+            console.log("🔍 Added Review CTA for COMPLETED order:", reviewCtaMessage);
+            console.log("🔍 Trigger reason:", orderData.status === "COMPLETED" ? "Order status COMPLETED" : "Transaction complete message found");
+          }
           
           // 检查是否已经有商品卡片，避免重复
           const hasOrderCard = apiItems.some(item => item.type === "orderCard");
           if (!hasOrderCard) {
-            finalItems = [orderCard, ...apiItems];
-            console.log("🔍 添加了商品卡片，总消息数量:", finalItems.length);
+            // 🔥 组合商品卡片和系统消息
+            const orderItems = [orderCard, ...systemMessages];
+            finalItems = [...orderItems, ...apiItems];
+            console.log("🔍 添加了商品卡片和系统消息，总消息数量:", finalItems.length);
+            
+            // 🔥 将系统消息保存到数据库
+            const saveSystemMessages = async () => {
+              for (const systemMsg of systemMessages) {
+                if (systemMsg.type === "system" && "text" in systemMsg) {
+                  try {
+                    await messagesService.sendMessage(conversationId.toString(), {
+                      content: systemMsg.text,
+                      message_type: "SYSTEM"
+                    });
+                    console.log("✅ System message saved to database:", systemMsg.text);
+                  } catch (error) {
+                    console.error("❌ Failed to save system message:", error);
+                  }
+                }
+              }
+            };
+            
+            // 延迟保存系统消息，确保对话数据加载完成
+            setTimeout(saveSystemMessages, 500);
           } else {
             console.log("🔍 商品卡片已存在，不重复添加");
           }
@@ -324,8 +1230,38 @@ export default function ChatScreen() {
         setItems([welcomeMessage]);
         console.log("🔍 Added welcome message for new user");
       } else {
+        console.log("🔍 Final items before setItems:", finalItems);
+        console.log("🔍 Final items length:", finalItems.length);
+        
+        // 🔥 额外检查：如果消息中有"Transaction complete"但没有Review CTA，添加一个
+        const hasTransactionComplete = finalItems.some(item => 
+          item.type === "system" && item.text.includes("Transaction complete")
+        );
+        const hasReviewCta = finalItems.some(item => item.type === "reviewCta");
+        const orderCard = finalItems.find(item => item.type === "orderCard");
+        
+        if (hasTransactionComplete && !hasReviewCta && orderCard && orderCard.type === "orderCard") {
+          // 判断用户角色：如果订单有seller信息且当前用户是卖家，则为seller，否则为buyer
+          const isCurrentUserSeller = orderCard.order.seller && user?.username === orderCard.order.seller.name;
+          const reviewCtaMessage: ChatItem = {
+            id: `review-cta-${orderCard.order.id}`,
+            type: "reviewCta",
+            text: "How was your experience? Leave a review to help others discover great items.",
+            orderId: orderCard.order.id.toString(),
+            reviewType: isCurrentUserSeller ? "seller" : "buyer"
+          };
+          finalItems.push(reviewCtaMessage);
+          console.log("🔍 Added missing Review CTA after detecting Transaction complete:", reviewCtaMessage);
+        }
+        
         setItems(finalItems);
         console.log("🔍 Loaded", finalItems.length, "messages from API");
+        
+        // 🔥 记录当前订单状态
+        if (orderCard && orderCard.type === "orderCard") {
+          setLastOrderStatus(orderCard.order.status);
+          console.log("🔍 Recorded order status:", orderCard.order.status);
+        }
       }
       
     } catch (error) {
@@ -413,42 +1349,303 @@ export default function ChatScreen() {
     console.log("🔍 Order card - order buyer:", o.buyer?.name);
 
     const handleBuyNow = () => {
-      console.log("🛒 Buy Now button pressed for order:", o.id);
-      // 导航到购买页面
+      // 🔥 使用正确的listing_id，如果没有则从conversation中获取
+      let listingId = o.listing_id;
+      
+      // 如果没有listing_id，尝试从conversation中获取
+      if (!listingId && conversation?.listing?.id) {
+        listingId = conversation.listing.id;
+      }
+      
+      // 如果还是没有，使用Adidas jumper的ID
+      if (!listingId) {
+        console.warn("⚠️ No listing_id found, using Adidas jumper ID");
+        listingId = 41; // 使用Adidas jumper的ID
+      }
+      
+      console.log("🛒 Buy Now clicked for listing:", listingId);
+      console.log("🛒 Order listing_id:", o.listing_id);
+      console.log("🛒 Conversation listing_id:", (conversation as any)?.listing?.id);
+      
+      // 🔥 跳转到CheckoutScreen而不是直接创建订单
       const rootNavigation = (navigation as any).getParent?.();
       if (rootNavigation) {
-        // 构建符合 BagItem 格式的数据
-        const bagItem = {
+        // 构造单个商品的购物车项目格式
+        const singleItem = {
           item: {
-            id: o.id,
-            title: o.product.title,
+            id: listingId.toString(), // 🔥 使用listing_id
+            title: o.product.title, // 🔥 修复：使用title而不是name
+            name: o.product.title, // 保持兼容性
             price: o.product.price,
-            description: `Size: ${o.product.size || 'One Size'}`,
-            brand: "Brand", // 默认品牌
-            size: o.product.size || "One Size",
-            condition: "Good",
-            material: "Mixed",
-            gender: "unisex",
-            tags: [],
-            images: o.product.image ? [o.product.image] : [],
-            category: "top" as const,
-            seller: {
-              id: 0, // 默认卖家ID
-              name: o.seller.name,
-              avatar: o.seller.avatar || "",
-              rating: 5.0,
-              sales: 0
-            }
+            image: o.product.image,
+            size: o.product.size,
+            seller: o.seller
           },
           quantity: 1
         };
-
+        
+        console.log("🔍 Navigating to Checkout with item:", singleItem);
+        
+        // 🔥 BuyStack在根级别，直接导航
         rootNavigation.navigate("Buy", {
           screen: "Checkout",
           params: {
-            items: [bagItem],
+            items: [singleItem],
             subtotal: o.product.price,
-            shipping: 5.99 // 默认运费
+            shipping: o.product.shippingFee || 0, // 使用商品的真实运费
+            conversationId: conversationId // 🔥 传递 conversationId
+          }
+        });
+      } else {
+        console.error("❌ Root navigation not found");
+      }
+    };
+
+    // 🔥 买家操作函数
+    const handleCancelOrder = async () => {
+      console.log("🚫 Cancel Order button pressed for order:", o.id);
+      try {
+        Alert.alert(
+          "Cancel Order",
+          "Are you sure you want to cancel this order?",
+          [
+            { text: "No", style: "cancel" },
+            {
+              text: "Yes",
+              onPress: async () => {
+                try {
+                  await ordersService.updateOrderStatus(parseInt(o.id), { status: "CANCELLED" });
+                  
+                  // 更新聊天中的订单状态
+                  const updatedItems = items.map(item => {
+                    if (item.type === "orderCard" && item.order.id === o.id) {
+                      return {
+                        ...item,
+                        order: { ...item.order, status: "CANCELLED" }
+                      };
+                    }
+                    return item;
+                  });
+                  setItems(updatedItems);
+                  
+                  // 发送系统消息
+                  const systemMessage: ChatItem = {
+                    id: `system-cancel-${Date.now()}`,
+                    type: "system",
+                    text: `Order #${o.id} has been cancelled.`,
+                    time: new Date().toLocaleTimeString(),
+                    orderId: o.id
+                  };
+                  setItems(prev => [...prev, systemMessage]);
+                  
+                  // 🔥 保存 Cancel 系统消息到数据库
+                  if (conversationId) {
+                    try {
+                      await messagesService.sendMessage(conversationId.toString(), {
+                        content: systemMessage.text,
+                        message_type: "SYSTEM"
+                      });
+                      console.log("✅ Cancel system message saved to database");
+                    } catch (error) {
+                      console.error("❌ Failed to save cancel system message:", error);
+                    }
+                  }
+                  
+                  Alert.alert("Success", "Order has been cancelled.");
+                } catch (error) {
+                  console.error("Error cancelling order:", error);
+                  Alert.alert("Error", "Failed to cancel order. Please try again.");
+                }
+              }
+            }
+          ]
+        );
+      } catch (error) {
+        console.error("Error in cancel order:", error);
+      }
+    };
+
+    const handleOrderReceived = async () => {
+      console.log("📦 Order Received button pressed for order:", o.id);
+      try {
+        // 🔥 更新订单状态为COMPLETED（买家确认收货）
+        await ordersService.updateOrderStatus(parseInt(o.id), { status: "COMPLETED" });
+        
+        // 更新聊天中的订单状态
+        const updatedItems = items.map(item => {
+          if (item.type === "orderCard" && item.order.id === o.id) {
+            return {
+              ...item,
+              order: { ...item.order, status: "COMPLETED" }
+            };
+          }
+          return item;
+        });
+        setItems(updatedItems);
+        
+        // 🔥 发送正确的系统消息
+        const systemMessage: ChatItem = {
+          id: `system-received-${Date.now()}`,
+          type: "system",
+          text: "I've confirmed received. Transaction completed.",
+          time: new Date().toLocaleTimeString(),
+          orderId: o.id
+        };
+        setItems(prev => [...prev, systemMessage]);
+        
+        // 🔥 发送Review CTA卡片
+        const reviewCtaMessage: ChatItem = {
+          id: `cta-review-${Date.now()}`,
+          type: "reviewCta",
+          text: "How was your experience? Leave a review to help others discover great items.",
+          orderId: o.id,
+          reviewType: "buyer"
+        };
+        console.log("🔍 Adding Review CTA message:", reviewCtaMessage);
+        setItems(prev => {
+          const newItems = [...prev, reviewCtaMessage];
+          console.log("🔍 Updated items count:", newItems.length);
+          console.log("🔍 Last item type:", newItems[newItems.length - 1]?.type);
+          return newItems;
+        });
+        
+        Alert.alert("Success", "Order has been marked as received.");
+      } catch (error) {
+        console.error("Error marking order as received:", error);
+        Alert.alert("Error", "Failed to update order status. Please try again.");
+      }
+    };
+
+    const handleLeaveReview = () => {
+      console.log("⭐ Leave Review button pressed for order:", o.id);
+      console.log("⭐ Order ID:", o.id);
+      
+      const rootNavigation = (navigation as any).getParent?.();
+      if (rootNavigation) {
+        console.log("⭐ Root navigation found, navigating to Review screen");
+        // 直接导航到Review页面，不需要通过Main -> MyTop
+        rootNavigation.navigate("Review", { 
+          orderId: o.id,
+          reviewType: "buyer" // 买家视角
+        });
+      } else {
+        console.error("❌ Root navigation not found");
+        // 尝试直接使用当前navigation
+        console.log("⭐ Trying direct navigation");
+        (navigation as any).navigate("Review", { 
+          orderId: o.id,
+          reviewType: "buyer"
+        });
+      }
+    };
+
+    // 🔥 卖家操作函数
+    const handleMarkShipped = async () => {
+      console.log("📦 Mark as Shipped button pressed for order:", o.id);
+      try {
+        await ordersService.updateOrderStatus(parseInt(o.id), { status: "SHIPPED" });
+        
+        // 更新聊天中的订单状态
+        const updatedItems = items.map(item => {
+          if (item.type === "orderCard" && item.order.id === o.id) {
+            return {
+              ...item,
+              order: { ...item.order, status: "SHIPPED" }
+            };
+          }
+          return item;
+        });
+        setItems(updatedItems);
+        
+        // 发送系统消息
+        const systemMessage: ChatItem = {
+          id: `system-shipped-${Date.now()}`,
+          type: "system",
+          text: `Order #${o.id} has been marked as shipped.`,
+          time: new Date().toLocaleTimeString(),
+          orderId: o.id
+        };
+        setItems(prev => [...prev, systemMessage]);
+        
+        Alert.alert("Success", "Order has been marked as shipped.");
+      } catch (error) {
+        console.error("Error marking order as shipped:", error);
+        Alert.alert("Error", "Failed to update order status. Please try again.");
+      }
+    };
+
+    const handleCancelSold = async () => {
+      console.log("🚫 Cancel Sold Order button pressed for order:", o.id);
+      try {
+        Alert.alert(
+          "Cancel Order",
+          "Are you sure you want to cancel this order?",
+          [
+            { text: "No", style: "cancel" },
+            {
+              text: "Yes",
+              onPress: async () => {
+                try {
+                  await ordersService.updateOrderStatus(parseInt(o.id), { status: "CANCELLED" });
+                  
+                  // 更新聊天中的订单状态
+                  const updatedItems = items.map(item => {
+                    if (item.type === "orderCard" && item.order.id === o.id) {
+                      return {
+                        ...item,
+                        order: { ...item.order, status: "CANCELLED" }
+                      };
+                    }
+                    return item;
+                  });
+                  setItems(updatedItems);
+                  
+                  // 发送系统消息
+                  const systemMessage: ChatItem = {
+                    id: `system-cancel-sold-${Date.now()}`,
+                    type: "system",
+                    text: `Order #${o.id} has been cancelled by seller.`,
+                    time: new Date().toLocaleTimeString(),
+                    orderId: o.id
+                  };
+                  setItems(prev => [...prev, systemMessage]);
+                  
+                  // 🔥 保存 Cancel 系统消息到数据库
+                  if (conversationId) {
+                    try {
+                      await messagesService.sendMessage(conversationId.toString(), {
+                        content: systemMessage.text,
+                        message_type: "SYSTEM"
+                      });
+                      console.log("✅ Cancel system message saved to database");
+                    } catch (error) {
+                      console.error("❌ Failed to save cancel system message:", error);
+                    }
+                  }
+                  
+                  Alert.alert("Success", "Order has been cancelled.");
+                } catch (error) {
+                  console.error("Error cancelling sold order:", error);
+                  Alert.alert("Error", "Failed to cancel order. Please try again.");
+                }
+              }
+            }
+          ]
+        );
+      } catch (error) {
+        console.error("Error in cancel sold order:", error);
+      }
+    };
+
+    const handleViewMutualReview = () => {
+      console.log("👀 View Mutual Review button pressed for order:", o.id);
+      const rootNavigation = (navigation as any).getParent?.();
+      if (rootNavigation) {
+        rootNavigation.navigate("Main", {
+          screen: "MyTop",
+          params: {
+            screen: "MutualReview",
+            params: { orderId: o.id }
           }
         });
       }
@@ -462,7 +1659,7 @@ export default function ChatScreen() {
       
       try {
         // 🔥 获取完整的listing数据
-        const response = await fetch(`http://192.168.0.79:3000/api/listings/${o.id}`);
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/listings/${o.id}`);
         const listingData = await response.json();
         console.log("🔍 Fetched listing data:", listingData);
         
@@ -507,9 +1704,9 @@ export default function ChatScreen() {
           if (isOwnListing) {
             // 🔥 自己的listing：跳转到ListingDetail页面但显示卖家视角（没有购买按钮）
             console.log("🔍 Navigating to own listing detail");
-            rootNavigation.navigate("Buy", {
+        rootNavigation.navigate("Buy", {
               screen: "ListingDetail",
-              params: {
+          params: {
                 item: listingItem,
                 isOwnListing: true // 🔥 传递标记表示这是自己的listing
               }
@@ -554,25 +1751,121 @@ export default function ChatScreen() {
               ? `Inquiry from ${o?.buyer?.name ?? "Buyer"}`
               : `Sold by ${o?.seller?.name ?? "Seller"}`}
           </Text>
-          <Text style={styles.orderStatus}>Status: {o.status}</Text>
+          <Text style={styles.orderStatus}>
+            Status: {isSeller && o.status === "IN_PROGRESS" ? "To Ship" : getDisplayStatus(o.status)}
+          </Text>
         </View>
         <View style={styles.orderActions}>
-          {/* 🔥 卖家不显示任何按钮或状态徽章 */}
+          {/* 🔥 买家按钮逻辑 - 与OrderDetailScreen一致 */}
           {!isSeller && (
-            /* 🔥 买家在Inquiry状态下显示 Buy Now 按钮 */
-            o.status === "Inquiry" ? (
-              <TouchableOpacity 
-                style={styles.buyButton}
-                onPress={handleBuyNow}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.buyButtonText}>Buy Now</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusBadgeText}>{o.status}</Text>
-              </View>
-            )
+            <>
+              {/* Inquiry状态 - Buy Now按钮 */}
+              {o.status === "Inquiry" && (
+            <TouchableOpacity 
+              style={styles.buyButton}
+              onPress={handleBuyNow}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.buyButtonText}>Buy Now</Text>
+            </TouchableOpacity>
+              )}
+              
+              {/* IN_PROGRESS状态 - Cancel Order按钮 */}
+              {o.status === "IN_PROGRESS" && (
+                <TouchableOpacity 
+                  style={[styles.actionButton, { backgroundColor: "#F54B3D" }]}
+                  onPress={handleCancelOrder}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.actionButtonText}>Cancel Order</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* DELIVERED状态 - Order Received按钮 */}
+              {o.status === "DELIVERED" && (
+                <TouchableOpacity 
+                  style={[styles.actionButton, { backgroundColor: "#000" }]}
+                  onPress={handleOrderReceived}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.actionButtonText}>Order Received</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* RECEIVED/COMPLETED状态 - Leave Review按钮 */}
+              {["RECEIVED", "COMPLETED"].includes(o.status) && (
+                <TouchableOpacity 
+                  style={styles.actionButton}
+                  onPress={handleLeaveReview}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.actionButtonText}>Leave Review</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* CANCELLED状态 - Buy Now按钮 */}
+              {o.status === "CANCELLED" && (
+                <TouchableOpacity
+                  style={styles.buyButton}
+                  onPress={handleBuyNow}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.buyButtonText}>Buy Now</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* 其他状态 - 显示状态徽章 */}
+              {!["Inquiry", "IN_PROGRESS", "DELIVERED", "RECEIVED", "COMPLETED", "CANCELLED"].includes(o.status) && (
+            <View style={styles.statusBadge}>
+                  <Text style={styles.statusBadgeText}>{getDisplayStatus(o.status)}</Text>
+            </View>
+          )}
+            </>
+          )}
+          
+          {/* 🔥 卖家按钮逻辑 - 与OrderDetailScreen一致 */}
+          {isSeller && (
+            <>
+              {/* IN_PROGRESS/TO_SHIP状态 - Cancel Order按钮（Mark as Shipped移到SoldTab管理） */}
+              {["IN_PROGRESS", "TO_SHIP"].includes(o.status) && (
+                <TouchableOpacity 
+                  style={[styles.actionButton, { backgroundColor: "#F54B3D" }]}
+                  onPress={handleCancelSold}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.actionButtonText}>Cancel Order</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* COMPLETED状态 - Leave Review按钮 */}
+              {o.status === "COMPLETED" && (
+                <TouchableOpacity 
+                  style={styles.actionButton}
+                  onPress={handleLeaveReview}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.actionButtonText}>Leave Review</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* REVIEWED状态 - View Mutual Review按钮 */}
+              {o.status === "REVIEWED" && (
+                <TouchableOpacity 
+                  style={[styles.actionButton, { backgroundColor: "#2d7ef0" }]}
+                  onPress={handleViewMutualReview}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.actionButtonText}>View Mutual Review</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* 其他状态 - 显示状态徽章 */}
+              {!["IN_PROGRESS", "TO_SHIP", "COMPLETED", "REVIEWED"].includes(o.status) && (
+                <View style={styles.statusBadge}>
+                  <Text style={styles.statusBadgeText}>{getDisplayStatus(o.status)}</Text>
+      </View>
+              )}
+            </>
           )}
         </View>
       </TouchableOpacity>
@@ -595,11 +1888,22 @@ export default function ChatScreen() {
     if (text.includes("\n")) {
       const [title, ...rest] = text.split("\n");
       const subtitle = rest.join("\n");
-      const isMine = Boolean(sentByUser);
+      const isMine = senderInfo?.id === user?.id;
+      
+      console.log("🔍 renderSystem debug:", {
+        text: text.substring(0, 20) + "...",
+        sentByUser,
+        isMine,
+        senderInfoId: senderInfo?.id,
+        currentUserId: user?.id,
+        senderInfoAvatar: senderInfo?.avatar,
+        avatar: avatar,
+        senderInfo: senderInfo?.avatar ? "has avatar" : "no avatar"
+      });
 
       const bubbleStyle = isMine ? styles.userCardBubble : styles.userCardBubbleBuyer;
-      const avatarSource = isMine
-        ? ASSETS.avatars.default
+      const avatarSource = senderInfo?.avatar 
+        ? { uri: senderInfo.avatar }
         : avatar
         ? { uri: avatar }
         : ASSETS.avatars.default;
@@ -607,11 +1911,17 @@ export default function ChatScreen() {
       return (
         <>
           {time ? <Text style={styles.time}>{time}</Text> : null}
-          <View style={styles.messageRow}>
-            {/* TOP Support 头像 */}
-            {senderInfo?.username === "TOP Support" && (
+          <View style={[
+            styles.systemMessageRow,
+            { 
+              justifyContent: isMine ? "flex-end" : "flex-start",
+              alignItems: "flex-start" // 🔥 改为顶部对齐
+            }
+          ]}>
+            {/* 🔥 如果不是我的消息，在左侧显示发送者头像 */}
+            {!isMine && (
               <Image
-                source={ASSETS.avatars.top}
+                source={avatarSource}
                 style={[styles.avatar, { marginRight: 6 }]}
               />
             )}
@@ -619,47 +1929,222 @@ export default function ChatScreen() {
               <Text style={styles.userCardTitle}>{title}</Text>
               <View style={styles.userCardDivider} />
               <Text style={styles.userCardSubtitle}>{subtitle}</Text>
-              <TouchableOpacity style={styles.userCardBtn}>
-                <Text style={styles.userCardBtnText}>View Details</Text>
-              </TouchableOpacity>
             </View>
+            {/* 🔥 如果是我的消息，在右侧显示我的头像 */}
+            {isMine && (
+              <Image
+                source={avatarSource}
+                style={[styles.avatar, { marginLeft: 6 }]}
+              />
+            )}
           </View>
         </>
       );
     }
 
-    // 其他系统提示（物流状态等）维持灰框样式，但添加头像
+    // 🔥 动态转换系统消息的显示内容
+    let displayText = text;
+    
+    // 订单创建消息的动态转换
+    if (text.includes("I've paid, waiting for you to ship")) {
+      // 判断当前用户是否是发送者（买家）
+      const isCurrentUserSender = senderInfo?.id === user?.id;
+      
+      if (isCurrentUserSender) {
+        // 如果是发送者（买家），显示操作者视角
+        displayText = "I've paid, waiting for you to ship\nPlease pack the item and ship to the address I provided on TOP.";
+      } else {
+        // 如果不是发送者（卖家），显示接收者视角
+        displayText = "Buyer has paid for the order\nPlease pack the item and ship to the address provided on TOP.";
+      }
+    }
+    
+    // 取消消息的动态转换
+    if (text === "I've cancelled this order.") {
+      // 判断当前用户是否是发送者
+      const isCurrentUserSender = senderInfo?.id === user?.id;
+      
+      if (!isCurrentUserSender) {
+        // 如果不是发送者，显示接收者视角
+        // 需要判断发送者是买家还是卖家
+        const isSenderBuyer = senderInfo?.id === order?.buyer_id;
+        displayText = isSenderBuyer 
+          ? "Buyer has cancelled the order."
+          : "Seller has cancelled the order.";
+      }
+      // 如果是发送者，保持原文本 "I've cancelled this order."
+    }
+    
+    // 发货消息的动态转换
+    if (text === "Seller has shipped your parcel.") {
+      // 判断当前用户是否是发送者（卖家）
+      const isCurrentUserSender = senderInfo?.id === user?.id;
+      
+      if (isCurrentUserSender) {
+        // 如果是发送者（卖家），显示操作者视角
+        displayText = "You have shipped the parcel.";
+      }
+      // 如果不是发送者（买家），保持原文本 "Seller has shipped your parcel."
+    }
+    
+    // 订单确认收到消息的动态转换
+    if (text === "Order confirmed received. Transaction completed.") {
+      // 判断当前用户是否是发送者（买家）
+      const isCurrentUserSender = senderInfo?.id === user?.id;
+      
+      if (isCurrentUserSender) {
+        // 如果是发送者（买家），显示操作者视角
+        displayText = "I've confirmed received. Transaction completed.";
+      } else {
+        // 如果不是发送者（卖家），显示接收者视角
+        displayText = "Buyer confirmed received. Transaction completed.";
+      }
+    }
+    
+    // 包裹到达消息的动态转换
+    if (text === "Parcel arrived. Waiting for buyer to confirm received.") {
+      // 判断当前用户是否是发送者（卖家）
+      const isCurrentUserSender = senderInfo?.id === user?.id;
+      
+      if (isCurrentUserSender) {
+        // 如果是发送者（卖家），显示操作者视角
+        displayText = "Parcel arrived. Waiting for buyer to confirm received.";
+      } else {
+        // 如果不是发送者（买家），显示接收者视角
+        displayText = "Parcel arrived. Please confirm received.";
+      }
+    }
+
+    // 其他系统提示（物流状态等）维持灰框样式，居中显示
     return (
       <>
         {time ? <Text style={styles.time}>{time}</Text> : null}
-        <View style={styles.messageRow}>
-          {/* TOP Support 头像 */}
-          {senderInfo?.username === "TOP Support" && (
-            <Image
-              source={ASSETS.avatars.top}
-              style={[styles.avatar, { marginRight: 6 }]}
-            />
-          )}
+        <View style={styles.systemMessageRow}>
           <View style={styles.systemBox}>
-            <Text style={styles.systemText}>{text}</Text>
+            <Text style={styles.systemText}>{displayText}</Text>
           </View>
         </View>
       </>
     );
   };
 
-  const renderReviewCTA = (orderId: string, text: string) => (
+  const renderReviewCTA = (orderId: string, text: string, reviewType?: "buyer" | "seller") => (
     <View style={styles.reviewBox}>
       <Text style={styles.reviewHint}>{text}</Text>
-      <TouchableOpacity style={styles.reviewBtnCenter}>
+      <TouchableOpacity 
+        style={styles.reviewBtnCenter}
+        onPress={() => {
+          console.log("⭐ Leave Review button pressed for order:", orderId);
+          console.log("⭐ Review type:", reviewType || "buyer");
+          console.log("⭐ Navigation object:", navigation);
+          
+          const rootNavigation = (navigation as any).getParent?.();
+          if (rootNavigation) {
+            console.log("⭐ Root navigation found, navigating to Review screen");
+            console.log("⭐ OrderId:", orderId);
+            console.log("⭐ ReviewType:", reviewType || "buyer");
+            
+            // 直接导航到Review页面，不需要通过Main -> MyTop
+            rootNavigation.navigate("Review", { 
+              orderId: orderId,
+              reviewType: reviewType || "buyer"
+            });
+          } else {
+            console.error("❌ Root navigation not found");
+            // 尝试直接使用当前navigation
+            console.log("⭐ Trying direct navigation");
+            (navigation as any).navigate("Review", { 
+              orderId: orderId,
+              reviewType: reviewType || "buyer"
+            });
+          }
+        }}
+      >
         <Text style={styles.reviewBtnText}>Leave Review</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // 🔥 渲染评论回复邀请卡片
+  const renderReviewReplyCTA = (orderId: string, text: string, reviewType?: "buyer" | "seller") => (
+    <View style={styles.reviewBox}>
+      <Text style={styles.reviewHint}>{text}</Text>
+      <TouchableOpacity 
+        style={styles.reviewBtnCenter}
+        onPress={() => {
+          console.log("⭐ Reply to Review button pressed for order:", orderId);
+          const rootNavigation = (navigation as any).getParent?.();
+          if (rootNavigation) {
+            rootNavigation.navigate("Main", {
+              screen: "MyTop",
+              params: {
+                screen: "Review",
+                params: { 
+                  orderId: orderId,
+                  reviewType: reviewType || "buyer",
+                  isReply: true
+                }
+              }
+            });
+          }
+        }}
+      >
+        <Text style={styles.reviewBtnText}>Reply to Review</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // 🔥 渲染互评查看卡片
+  const renderMutualReviewCTA = (orderId: string, text: string) => (
+    <View style={styles.reviewBox}>
+      <Text style={styles.reviewHint}>{text}</Text>
+      <TouchableOpacity 
+        style={styles.reviewBtnCenter}
+        onPress={() => {
+          console.log("⭐ View Mutual Review button pressed for order:", orderId);
+          const rootNavigation = (navigation as any).getParent?.();
+          if (rootNavigation) {
+            rootNavigation.navigate("Main", {
+              screen: "MyTop",
+              params: {
+                screen: "MutualReview",
+                params: { 
+                  orderId: orderId
+                }
+              }
+            });
+          }
+        }}
+      >
+        <Text style={styles.reviewBtnText}>View Mutual Review</Text>
       </TouchableOpacity>
     </View>
   );
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
-      <Header title={sender} showBack />
+      <Header 
+        title={sender} 
+        showBack 
+        onBackPress={() => {
+          console.log("🔙 Back button pressed in ChatScreen");
+          
+          // 🔍 调试：检查当前导航状态
+          const state = navigation.getState();
+          console.log("🔍 Current navigation state:", JSON.stringify(state, null, 2));
+          console.log("🔍 Current route name:", state.routes[state.index]?.name);
+          console.log("🔍 Can go back:", navigation.canGoBack());
+          
+          // 🔥 兜底逻辑：确保能正确返回到 InboxScreen
+          if (navigation.canGoBack()) {
+            console.log("🔙 Going back via navigation.goBack()");
+            navigation.goBack(); // ✅ 正常返回到 InboxScreen
+          } else {
+            console.log("🔙 Cannot go back, navigating to InboxMain");
+            navigation.navigate("InboxMain"); // ✅ 兜底跳转到 InboxMain
+          }
+        }}
+      />
 
       <FlatList
         ref={listRef}
@@ -667,11 +2152,32 @@ export default function ChatScreen() {
         keyExtractor={(it) => it.id}
         contentContainerStyle={{ padding: 12, paddingBottom: 12 }}
         renderItem={({ item }) => {
-          if (item.type === "orderCard") return <View style={{ marginBottom: 12 }}>{renderOrderCard(item.order)}</View>;
+          if (item.type === "orderCard") {
+            // 🔥 判断订单卡片应该显示在左侧还是右侧
+            // 如果当前用户是买家，订单卡片应该显示在右侧
+            const isBuyer = (conversation?.conversation as any)?.initiator_id === user?.id;
+            const cardPosition = isBuyer ? "flex-end" : "flex-start";
+            
+            return (
+              <View style={{ 
+                marginBottom: 12, 
+                alignItems: cardPosition,
+                paddingHorizontal: 8
+              }}>
+                {renderOrderCard(item.order)}
+              </View>
+            );
+          }
           if (item.type === "system")
             return <View style={{ marginBottom: 12 }}>{renderSystem(item)}</View>;
-          if (item.type === "reviewCta")
-            return <View style={{ marginBottom: 12 }}>{renderReviewCTA(item.orderId, item.text)}</View>;
+          if (item.type === "reviewCta") {
+            console.log("🔍 Rendering reviewCta:", item);
+            return <View style={{ marginBottom: 12 }}>{renderReviewCTA(item.orderId, item.text, item.reviewType)}</View>;
+          }
+          if (item.type === "reviewReplyCta")
+            return <View style={{ marginBottom: 12 }}>{renderReviewReplyCTA(item.orderId, item.text, item.reviewType)}</View>;
+          if (item.type === "mutualReviewCta")
+            return <View style={{ marginBottom: 12 }}>{renderMutualReviewCTA(item.orderId, item.text)}</View>;
 
           // 普通消息
           return (
@@ -738,6 +2244,7 @@ const styles = StyleSheet.create({
   // avatars & bubbles
   avatar: { width: 32, height: 32, borderRadius: 16 },
   messageRow: { flexDirection: "row", alignItems: "flex-start" },
+  systemMessageRow: { flexDirection: "row", justifyContent: "center", alignItems: "center" },
   bubbleLeft: {
     backgroundColor: "#eee",
     paddingVertical: 10,
@@ -890,6 +2397,24 @@ const styles = StyleSheet.create({
     color: "#000",
     fontWeight: "700",
     fontSize: 13,
+  },
+  actionButton: {
+    backgroundColor: "#000",
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 80,
+  },
+  actionButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  sellerActions: {
+    alignItems: "center",
+    justifyContent: "center",
   },
   statusBadge: {
     backgroundColor: "#f0f0f0",

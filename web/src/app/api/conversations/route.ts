@@ -79,56 +79,106 @@ export async function GET(request: NextRequest) {
     });
 
     // 格式化对话数据 - 只包含有消息的对话
-    const formattedConversations = conversations
-      .filter(conv => conv.messages.length > 0) // 🔥 关键：只返回有消息的对话
-      .map(conv => {
-        const otherUser = conv.initiator_id === dbUser.id ? conv.participant : conv.initiator;
-        const lastMessage = conv.messages[0];
-        
-        // 确定对话类型
-        let kind = "general";
-        if (conv.type === "SUPPORT") {
-          kind = "support";
-        } else if (conv.type === "ORDER" && conv.listing) {
-          kind = "order";
-        }
-
-        // 确定最后消息来源
-        let lastFrom = "other";
-        if (lastMessage) {
-          if (lastMessage.sender_id === dbUser.id) {
-            lastFrom = "me";
-          } else if (conv.type === "SUPPORT") {
-            lastFrom = "support";
-          } else if (conv.initiator_id === dbUser.id) {
-            lastFrom = "buyer";
-          } else {
-            lastFrom = "seller";
+    const formattedConversations = await Promise.all(
+      conversations
+        .filter(conv => conv.messages.length > 0) // 🔥 关键：只返回有消息的对话
+        .map(async (conv) => {
+          const otherUser = conv.initiator_id === dbUser.id ? conv.participant : conv.initiator;
+          const lastMessage = conv.messages[0];
+          
+          // 确定对话类型
+          let kind = "general";
+          if (conv.type === "SUPPORT") {
+            kind = "support";
+          } else if (conv.type === "ORDER" && conv.listing) {
+            kind = "order";
           }
-        }
 
-        return {
-          id: conv.id.toString(),
-          sender: otherUser.username,
-          message: lastMessage.content, // 🔥 关键：确保有消息内容
-          time: formatTime(lastMessage.created_at),
-          avatar: otherUser.avatar_url ? { uri: otherUser.avatar_url } : null,
-          kind,
-          unread: !lastMessage.is_read && lastMessage.sender_id !== dbUser.id,
-          lastFrom,
-          order: conv.listing ? {
-            id: conv.listing.id.toString(),
-            product: {
-              title: conv.listing.name,
-              price: Number(conv.listing.price),
-              size: conv.listing.size,
-              image: conv.listing.image_url || (conv.listing.image_urls as any)?.[0] || null
-            },
-            seller: { name: conv.initiator.username },
-            status: "Active" // 可以根据实际状态更新
-          } : null
-        };
-      });
+          // 🔥 修复：正确确定最后消息来源
+          let lastFrom = "other";
+          if (lastMessage) {
+            if (conv.type === "SUPPORT") {
+              lastFrom = "support";
+            } else {
+              // 🔥 关键修复：根据当前用户在对话中的角色来确定lastFrom
+              // initiator = 买家，participant = 卖家
+              if (conv.initiator_id === dbUser.id) {
+                // 当前用户是initiator（买家），这是与卖家的对话
+                lastFrom = "seller";
+              } else {
+                // 当前用户是participant（卖家），这是与买家的对话
+                lastFrom = "buyer";
+              }
+            }
+          }
+
+          // 🔥 检查是否需要显示"Leave Review"消息
+          let displayMessage = lastMessage.content;
+          let displayTime = formatTime(lastMessage.created_at);
+          
+          // 如果是订单对话，检查订单状态并生成相应的最新消息
+          if (kind === "order" && conv.listing) {
+            // 查询订单状态
+            const order = await prisma.orders.findFirst({
+              where: {
+                listing_id: conv.listing.id,
+                OR: [
+                  { buyer_id: dbUser.id },
+                  { seller_id: dbUser.id }
+                ]
+              },
+              orderBy: { created_at: "desc" }
+            });
+            
+            if (order) {
+              // 根据订单状态生成相应的最新消息
+              if (order.status === "COMPLETED") {
+                displayMessage = "How was your experience? Leave a review to help others discover great items.";
+                displayTime = formatTime(order.updated_at || order.created_at);
+              } else if (order.status === "DELIVERED") {
+                displayMessage = "Parcel arrived. Waiting for buyer to confirm received.";
+                displayTime = formatTime(order.updated_at || order.created_at);
+              } else if (order.status === "SHIPPED") {
+                displayMessage = "Parcel is in transit.";
+                displayTime = formatTime(order.updated_at || order.created_at);
+              } else if (order.status === "TO_SHIP") {
+                displayMessage = "Seller has shipped your parcel.";
+                displayTime = formatTime(order.updated_at || order.created_at);
+              } else if (order.status === "IN_PROGRESS") {
+                const isBuyer = order.buyer_id === dbUser.id;
+                displayMessage = isBuyer 
+                  ? "I've paid, waiting for you to ship" 
+                  : "Buyer has paid for the order";
+                displayTime = formatTime(order.updated_at || order.created_at);
+              }
+            }
+          }
+
+          return {
+            id: conv.id.toString(),
+            sender: otherUser.username,
+            message: displayMessage.length > 50 
+              ? displayMessage.substring(0, 50) + "..." 
+              : displayMessage, // 🔥 截断长消息并添加省略号
+            time: displayTime,
+            avatar: otherUser.avatar_url ? { uri: otherUser.avatar_url } : null,
+            kind,
+            unread: !lastMessage.is_read && lastMessage.sender_id !== dbUser.id,
+            lastFrom,
+            order: conv.listing ? {
+              id: conv.listing.id.toString(),
+              product: {
+                title: conv.listing.name,
+                price: Number(conv.listing.price),
+                size: conv.listing.size,
+                image: conv.listing.image_url || (conv.listing.image_urls as any)?.[0] || null
+              },
+              seller: { name: conv.initiator.username },
+              status: "Active" // 可以根据实际状态更新
+            } : null
+          };
+        })
+    );
 
     // 查找用户的 TOP Support 对话（双向匹配，避免重复创建）
     const supportConversation = await prisma.conversations.findFirst({
@@ -154,7 +204,9 @@ export async function GET(request: NextRequest) {
       topSupportConversation = {
         id: "support-1",
         sender: "TOP Support",
-        message: lastMessage.content,
+        message: lastMessage.content.length > 50 
+          ? lastMessage.content.substring(0, 50) + "..." 
+          : lastMessage.content, // 🔥 截断长消息并添加省略号
         time: formatTime(lastMessage.created_at),
         avatar: "https://via.placeholder.com/48/FF6B6B/FFFFFF?text=TOP", // TOP Support 头像
         kind: "support",

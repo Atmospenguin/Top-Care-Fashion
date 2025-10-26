@@ -42,7 +42,10 @@ export async function GET(req: NextRequest) {
       where.listed = true;
       where.sold = false;
     } else if (status === "sold") {
-      where.sold = true;
+      // 🔥 修改逻辑：显示所有有订单记录的商品（包括被取消的）
+      where.orders = {
+        some: {} // 只要有订单记录就显示
+      };
     }
     // 如果status是'all'或者没有指定，则获取所有listings
 
@@ -105,13 +108,52 @@ export async function GET(req: NextRequest) {
             description: true,
           },
         },
+        // 🔥 对于sold状态的商品，包含最新的订单信息
+        orders: status === "sold" ? {
+          select: {
+            id: true,
+            status: true,
+            created_at: true,
+            updated_at: true,
+          },
+          orderBy: { created_at: "desc" },
+          take: 1, // 只取最新的订单
+        } : false,
       },
       orderBy,
       take: limit,
       skip: offset,
     });
 
-    const formattedListings = listings.map((listing) => ({
+    // 🔥 为每个sold商品获取conversationId
+    const listingsWithConversations = await Promise.all(
+      listings.map(async (listing) => {
+        let conversationId = null;
+        if (status === "sold" && listing.orders?.[0]) {
+          // 通过 listing_id 和用户 ID 查找对应的 conversation
+          const conversation = await prisma.conversations.findFirst({
+            where: {
+              listing_id: listing.id,
+              OR: [
+                { initiator_id: user.id },
+                { participant_id: user.id }
+              ]
+            },
+            select: {
+              id: true
+            }
+          });
+          conversationId = conversation?.id?.toString() || null;
+        }
+        
+        return {
+          ...listing,
+          conversationId
+        };
+      })
+    );
+
+    const formattedListings = listingsWithConversations.map((listing) => ({
       id: listing.id.toString(),
       title: listing.name,
       description: listing.description,
@@ -134,6 +176,10 @@ export async function GET(req: NextRequest) {
       sold: listing.sold,
       createdAt: listing.created_at.toISOString(),
       updatedAt: listing.updated_at?.toISOString() || null,
+      // 🔥 添加订单状态信息（仅对sold商品）
+      orderStatus: status === "sold" && listing.orders?.[0] ? listing.orders[0].status : null,
+      orderId: status === "sold" && listing.orders?.[0] ? listing.orders[0].id : null,
+      conversationId: listing.conversationId,
     }));
 
     console.log(`✅ Found ${formattedListings.length} listings for user ${user.id}`);

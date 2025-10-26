@@ -227,6 +227,10 @@ export class UserService {
       
       if (response.data?.success) {
         console.log(`✅ Successfully followed ${username}`);
+        
+        // 🔔 Follow notification will be created by backend API
+        console.log("🔔 Follow notification will be created by backend");
+        
         return response.data.isFollowing;
       }
       

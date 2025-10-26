@@ -57,9 +57,10 @@ export async function GET(
         const formattedMessages = supportConversation.messages.map(msg => ({
           id: msg.id.toString(),
           type: msg.message_type === "SYSTEM" ? "system" : "msg",
-          sender: msg.sender_id === dbUser.id ? "me" : "other",
+          sender: msg.message_type === "SYSTEM" ? undefined : (msg.sender_id === dbUser.id ? "me" : "other"),
           text: msg.content,
           time: formatTime(msg.created_at),
+          sentByUser: msg.sender_id === dbUser.id,
           senderInfo: {
             id: msg.sender.id,
             username: msg.sender.username,
@@ -69,7 +70,7 @@ export async function GET(
 
         // 检查是否有欢迎消息，如果没有则添加
         const hasWelcomeMessage = formattedMessages.some(msg => 
-          msg.text.includes('Welcome to TOP') && msg.senderInfo.username === 'TOP Support'
+          msg.text.includes('Welcome to TOP') && msg.senderInfo?.username === 'TOP Support'
         );
 
         let finalMessages = formattedMessages;
@@ -81,6 +82,7 @@ export async function GET(
             sender: "support",
             text: `Hey @${dbUser.username}, Welcome to TOP! 👋`,
             time: "Just now",
+            sentByUser: false,
             senderInfo: { id: SUPPORT_USER_ID, username: "TOP Support", avatar: null }
           };
           finalMessages = [welcomeMessage, ...formattedMessages];
@@ -214,9 +216,10 @@ export async function GET(
     const formattedMessages = messages.map(msg => ({
       id: msg.id.toString(),
       type: msg.message_type === "SYSTEM" ? "system" : "msg",
-      sender: msg.sender_id === dbUser.id ? "me" : "other",
+      sender: msg.message_type === "SYSTEM" ? undefined : (msg.sender_id === dbUser.id ? "me" : "other"),
       text: msg.content,
       time: formatTime(msg.created_at),
+      sentByUser: msg.message_type === "SYSTEM",
       senderInfo: {
         id: msg.sender.id,
         username: msg.sender.username,
@@ -256,12 +259,48 @@ export async function GET(
       current_user_username: dbUser.username
     });
     
+    // 🔥 查询真实订单状态（如果有订单的话）
+    let existingOrder = null;
+    if (conversation.listing) {
+      try {
+        existingOrder = await prisma.orders.findFirst({
+          where: {
+            listing_id: conversation.listing.id,
+            OR: [
+              { buyer_id: dbUser.id },
+              { seller_id: dbUser.id }
+            ]
+          },
+          include: {
+            buyer: {
+              select: {
+                id: true,
+                username: true,
+                avatar_url: true
+              }
+            },
+            seller: {
+              select: {
+                id: true,
+                username: true,
+                avatar_url: true
+              }
+            }
+          },
+          orderBy: { created_at: 'desc' }
+        });
+        console.log("🔍 Found existing order:", existingOrder?.id, "Status:", existingOrder?.status);
+      } catch (error) {
+        console.error("❌ Error querying order:", error);
+      }
+    }
+
     // 添加订单卡片（如果是订单对话）
     const orderCard = conversation.listing ? {
       id: "order-card",
       type: "orderCard",
       order: {
-        id: conversation.listing.id.toString(),
+        id: existingOrder ? existingOrder.id.toString() : conversation.listing.id.toString(),
         product: {
           title: conversation.listing.name,
           price: Number(conversation.listing.price),
@@ -289,14 +328,14 @@ image: (() => {
           })()
         },
         seller: { 
-          name: seller.username,
-          avatar: seller.avatar_url
+          name: existingOrder ? existingOrder.seller.username : seller.username,
+          avatar: existingOrder ? existingOrder.seller.avatar_url : seller.avatar_url
         },
         buyer: {
-          name: buyer.username,
-          avatar: buyer.avatar_url
+          name: existingOrder ? existingOrder.buyer.username : buyer.username,
+          avatar: existingOrder ? existingOrder.buyer.avatar_url : buyer.avatar_url
         },
-        status: "Inquiry"
+        status: existingOrder ? existingOrder.status : "Inquiry"
       }
     } : null;
 
@@ -314,7 +353,7 @@ image: (() => {
       },
       messages: orderCard ? [orderCard, ...formattedMessages] : formattedMessages,
       order: conversation.listing ? {
-        id: conversation.listing.id.toString(),
+        id: existingOrder ? existingOrder.id.toString() : conversation.listing.id.toString(),
         product: {
           title: conversation.listing.name,
           price: Number(conversation.listing.price),
@@ -342,14 +381,14 @@ image: (() => {
           })()
         },
         seller: { 
-          name: seller.username,
-          avatar: seller.avatar_url
+          name: existingOrder ? existingOrder.seller.username : seller.username,
+          avatar: existingOrder ? existingOrder.seller.avatar_url : seller.avatar_url
         },
         buyer: {
-          name: buyer.username,
-          avatar: buyer.avatar_url
+          name: existingOrder ? existingOrder.buyer.username : buyer.username,
+          avatar: existingOrder ? existingOrder.buyer.avatar_url : buyer.avatar_url
         },
-        status: "Inquiry"
+        status: existingOrder ? existingOrder.status : "Inquiry"
       } : null
     });
 
@@ -373,7 +412,9 @@ export async function POST(
     if (!sessionUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const dbUser = { id: sessionUser.id, username: sessionUser.username } as const;
 
-    const { content } = await request.json();
+    const { content, message_type = "TEXT", sentByUser } = await request.json();
+    
+    console.log("📥 Received message:", { content, message_type, conversationId: rawId });
     
     if (!content || content.trim().length === 0) {
       return NextResponse.json({ error: "Message content is required" }, { status: 400 });
@@ -409,7 +450,7 @@ export async function POST(
         sender_id: dbUser.id,
         receiver_id: SUPPORT_USER_ID, // TOP Support
         content: content.trim(),
-        message_type: "TEXT"
+        message_type: message_type as "TEXT" | "IMAGE" | "SYSTEM"
       },
       include: {
         sender: {
@@ -431,10 +472,11 @@ export async function POST(
     return NextResponse.json({
       message: {
         id: message.id.toString(),
-        type: "msg",
-        sender: "me",
+        type: message_type === "SYSTEM" ? "system" : "msg",
+        sender: message_type === "SYSTEM" ? undefined : "me",
         text: message.content,
         time: formatTime(message.created_at),
+        sentByUser: true, // 当前用户发送的消息
         senderInfo: {
           id: message.sender.id,
           username: message.sender.username,
@@ -454,7 +496,9 @@ export async function POST(
     if (!sessionUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const dbUser = { id: sessionUser.id, username: sessionUser.username } as const;
 
-    const { content, message_type = "TEXT" } = await request.json();
+    const { content, message_type = "TEXT", sentByUser } = await request.json();
+    
+    console.log("📥 Received message (regular conversation):", { content, message_type, conversationId });
 
     if (!content || content.trim().length === 0) {
       return NextResponse.json({ error: "Message content is required" }, { status: 400 });
@@ -510,9 +554,10 @@ export async function POST(
       message: {
         id: message.id.toString(),
         type: message.message_type === "SYSTEM" ? "system" : "msg",
-        sender: "me",
+        sender: message.message_type === "SYSTEM" ? undefined : "me",
         text: message.content,
         time: formatTime(message.created_at),
+        sentByUser: true, // 当前用户发送的消息
         senderInfo: {
           id: message.sender.id,
           username: message.sender.username,

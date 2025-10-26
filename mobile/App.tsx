@@ -47,7 +47,7 @@ export type RootStackParamList = {
   Main: undefined;
   Premium: NavigatorScreenParams<PremiumStackParamList> | undefined;
   Buy: undefined;
-  Review: { orderId: string };
+  Review: { orderId: string; reviewType?: "buyer" | "seller" };
   Notification: undefined;
   MutualReview: { orderId: string };
 };

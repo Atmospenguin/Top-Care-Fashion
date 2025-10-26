@@ -19,9 +19,12 @@ class ApiClient {
   private async loadStoredToken(): Promise<void> {
     try {
       const storedToken = await AsyncStorage.getItem('auth_token');
+      console.log("🔍 loadStoredToken - storedToken:", storedToken ? "present" : "null");
       if (storedToken) {
         this.authToken = storedToken;
-        console.log("🔍 API Client - Loaded stored token");
+        console.log("🔍 API Client - Loaded stored token:", storedToken.substring(0, 20) + "...");
+      } else {
+        console.log("🔍 API Client - No stored token found");
       }
     } catch (error) {
       console.log('🔍 API Client - Failed to load stored token:', error);
@@ -33,13 +36,25 @@ class ApiClient {
     this.authToken = token;
     AsyncStorage.setItem('auth_token', token);
     console.log("🔍 API Client - Token set and stored");
+    console.log("🔑 Full JWT Token:", token);
   }
 
-  // 清除认证 token
-  public clearAuthToken(): void {
-    this.authToken = null;
-    AsyncStorage.removeItem('auth_token');
-    console.log("🔍 API Client - Token cleared");
+  // 获取当前 token (调试用)
+  public async getCurrentToken(): Promise<string | null> {
+    if (this.authToken) {
+      console.log("🔑 Current JWT Token:", this.authToken);
+      return this.authToken;
+    }
+    try {
+      const storedToken = await AsyncStorage.getItem('auth_token');
+      if (storedToken) {
+        console.log("🔑 Stored JWT Token:", storedToken);
+        return storedToken;
+      }
+    } catch (e) {
+      console.log('🔍 API Client - No stored token available');
+    }
+    return null;
   }
 
   // 构建完整 URL
@@ -49,19 +64,27 @@ class ApiClient {
 
   // 获取认证头
   private async getAuthHeaders(): Promise<Record<string, string>> {
+    console.log("🔍 getAuthHeaders - this.authToken:", this.authToken ? "present" : "null");
+    
     // 仅使用本地存储的 token（来自 Web API 登录返回的 access_token）
     if (this.authToken) {
+      console.log("🔑 Using JWT Token for API request:", this.authToken);
       return { Authorization: `Bearer ${this.authToken}` };
     }
+    
     try {
       const storedToken = await AsyncStorage.getItem('auth_token');
+      console.log("🔍 getAuthHeaders - storedToken:", storedToken ? "present" : "null");
       if (storedToken) {
         this.authToken = storedToken;
+        console.log("🔑 Using stored JWT Token for API request:", storedToken);
         return { Authorization: `Bearer ${storedToken}` };
       }
     } catch (e) {
-      console.log('🔍 API Client - No auth token available');
+      console.log('🔍 API Client - Error reading stored token:', e);
     }
+    
+    console.log("❌ No auth token available, returning empty headers");
     return {};
   }
 

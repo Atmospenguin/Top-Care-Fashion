@@ -61,6 +61,7 @@ export class AuthService {
       if (response.data) {
         console.log('🔍 Web API login successful, user:', response.data.user.username);
         if (response.data.access_token) {
+          console.log("🔑 Current JWT Token:", response.data.access_token);
           apiClient.setAuthToken(response.data.access_token);
         }
         return response.data;

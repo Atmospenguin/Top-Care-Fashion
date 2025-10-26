@@ -213,6 +213,40 @@ export async function POST(
       }
     });
 
+    // 🔔 创建review notification
+    try {
+      // 获取商品信息
+      const orderWithListing = await prisma.orders.findUnique({
+        where: { id: orderId },
+        include: {
+          listing: {
+            select: {
+              id: true,
+              name: true,
+            }
+          }
+        }
+      });
+
+      if (orderWithListing && orderWithListing.listing) {
+        await prisma.notifications.create({
+          data: {
+            user_id: revieweeId, // 被review的用户收到通知
+            type: 'REVIEW',
+            title: `@${currentUser.username} left a review for your product`,
+            message: `${orderWithListing.listing.name} - ${rating} stars`,
+            image_url: currentUser.avatar_url,
+            listing_id: orderWithListing.listing.id,
+            related_user_id: currentUser.id,
+          },
+        });
+        console.log(`🔔 Review notification created for user ${revieweeId}`);
+      }
+    } catch (notificationError) {
+      console.error("❌ Error creating review notification:", notificationError);
+      // 不阻止review创建，即使notification创建失败
+    }
+
     return NextResponse.json(review, { status: 201 });
 
   } catch (error) {

@@ -58,6 +58,8 @@ export async function POST(req: Request) {
     // 转换condition字符串到ConditionType枚举
     const mapConditionToEnum = (conditionStr: string | undefined) => {
       if (!conditionStr) return "GOOD"; // 默认值
+      
+      // 🔥 标准化输入字符串
       const conditionMap: Record<string, "NEW" | "LIKE_NEW" | "GOOD" | "FAIR" | "POOR"> = {
         "Brand New": "NEW",
         "New": "NEW",
@@ -178,7 +180,7 @@ export async function POST(req: Request) {
       success: true,
       data: {
         id: listing.id.toString(),
-        title: listing.name, // 返回 name 作为 title
+        title: listing.name,
         description: listing.description,
         price: listing.price,
         brand: listing.brand,

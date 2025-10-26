@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,25 +7,103 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import Header from "../../../components/Header";
 import { useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../../../App";
 import { Ionicons } from "@expo/vector-icons";
+import { reviewsService, ordersService } from "../../../src/services";
 
 export default function ReviewScreen() {
   const route = useRoute<RouteProp<RootStackParamList, "Review">>();
-  const { orderId } = route.params;
+  const { orderId, reviewType } = route.params;
 
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [order, setOrder] = useState<any>(null);
+  const [reviewee, setReviewee] = useState<any>(null);
 
-  // mock 数据
-  const user = {
-    name: "seller111",
-    avatar: "https://i.pravatar.cc/100?img=12",
+  // 🔥 加载订单和用户信息
+  useEffect(() => {
+    const loadOrderData = async () => {
+      try {
+        setLoading(true);
+        const orderData = await ordersService.getOrder(parseInt(orderId));
+        setOrder(orderData);
+        
+        // 确定被评论的用户（买家评论卖家，卖家评论买家）
+        const currentUserId = orderData.buyer_id; // 这里需要从 auth 获取当前用户ID
+        const revieweeData = orderData.buyer_id === currentUserId ? orderData.seller : orderData.buyer;
+        setReviewee(revieweeData);
+      } catch (error) {
+        console.error("Error loading order data:", error);
+        Alert.alert("Error", "Failed to load order data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadOrderData();
+  }, [orderId]);
+
+  // 🔥 提交评论
+  const handleSubmitReview = async () => {
+    if (rating === 0) {
+      Alert.alert("Error", "Please select a rating");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await reviewsService.createReview(parseInt(orderId), {
+        rating,
+        comment: review.trim() || undefined
+      });
+      
+      Alert.alert("Success", "Review submitted successfully!", [
+        { text: "OK", onPress: () => {
+          // 返回上一页
+          const navigation = route.params as any;
+          if (navigation?.goBack) {
+            navigation.goBack();
+          }
+        }}
+      ]);
+    } catch (error) {
+      console.error("Error submitting review:", error);
+      Alert.alert("Error", "Failed to submit review. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <Header title="Leave Review" showBack />
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#000" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!order || !reviewee) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <Header title="Leave Review" showBack />
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>Failed to load order data</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -35,8 +113,13 @@ export default function ReviewScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         {/* 用户信息 */}
         <View style={styles.userSection}>
-          <Image source={{ uri: user.avatar }} style={styles.avatar} />
-          <Text style={styles.userName}>{user.name}</Text>
+          <Image 
+            source={{ 
+              uri: reviewee.avatar_url || reviewee.avatar_path || "https://via.placeholder.com/60x60" 
+            }} 
+            style={styles.avatar} 
+          />
+          <Text style={styles.userName}>{reviewee.username}</Text>
         </View>
 
         {/* 星星评分 */}
@@ -83,8 +166,16 @@ export default function ReviewScreen() {
 
       {/* 固定底部按钮 */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.sendBtn}>
-          <Text style={styles.sendText}>Send</Text>
+        <TouchableOpacity 
+          style={[styles.sendBtn, submitting && styles.sendBtnDisabled]}
+          onPress={handleSubmitReview}
+          disabled={submitting}
+        >
+          {submitting ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.sendText}>Send</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -148,4 +239,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   sendText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  sendBtnDisabled: { backgroundColor: "#ccc" },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: "#666",
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#666",
+  },
 });

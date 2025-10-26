@@ -19,6 +19,7 @@ import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
 import { messagesService, type Conversation } from "../../../src/services";
+import { notificationService } from "../../../src/services/notificationService";
 import { useAuth } from "../../../contexts/AuthContext";
 
 // 模拟多条对话（Support + Seller）
@@ -89,6 +90,7 @@ export default function InboxScreen() {
   const [selectedFilter, setSelectedFilter] = useState<string>("All");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
   const anim = useRef(new Animated.Value(0)).current;
   const filtersArr = ["All", "Unread", "From seller", "From buyer"];
@@ -96,13 +98,29 @@ export default function InboxScreen() {
   // 加载真实对话数据
   useEffect(() => {
     loadConversations();
+    loadUnreadNotificationCount();
   }, []);
+
+  // 加载未读notification计数
+  const loadUnreadNotificationCount = async () => {
+    try {
+      console.log("🔔 Loading unread notification count...");
+      const notifications = await notificationService.getNotifications();
+      const unreadCount = notifications.filter(n => !n.isRead).length;
+      setUnreadNotificationCount(unreadCount);
+      console.log("🔔 Unread notification count:", unreadCount);
+    } catch (error) {
+      console.error("❌ Error loading unread notification count:", error);
+      setUnreadNotificationCount(0);
+    }
+  };
 
   // 添加焦点监听，每次返回时刷新数据
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       console.log("🔍 InboxScreen focused, refreshing conversations...");
       loadConversations();
+      loadUnreadNotificationCount();
     });
 
     return unsubscribe;
@@ -200,8 +218,16 @@ export default function InboxScreen() {
             <TouchableOpacity
               accessibilityRole="button"
               onPress={() => navigation.navigate("Notification")}
+              style={styles.notificationButton}
             >
               <Icon name="notifications-outline" size={24} color="#111" />
+              {unreadNotificationCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         }
@@ -369,5 +395,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     marginLeft: 4,
+  },
+  notificationButton: {
+    position: "relative",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: "#F54B3D",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
   },
 });

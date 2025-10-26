@@ -44,7 +44,8 @@ export type MyTopStackParamList = {
   HelpSupport: undefined;
   TermsPolicies: undefined;
   Report: undefined;
-  OrderDetail: { id: string; source: "purchase" | "sold" };
+  OrderDetail: { id: string; source: "purchase" | "sold"; conversationId?: string };
+  Review: { orderId: string };
   ActiveListingDetail: { listingId: string };
   ManageListing: { listingId: string };
   EditListing: { listingId: string };

@@ -28,6 +28,7 @@ export interface Message {
   sender?: 'me' | 'other';
   text: string;
   time: string;
+  sentByUser?: boolean; // 🔥 添加 sentByUser 字段
   senderInfo?: {
     id: number;
     username: string;
@@ -59,6 +60,17 @@ export interface ConversationDetail {
     };
   };
   messages: Message[];
+  listing?: {
+    id: number;
+    name: string;
+    price: number;
+    image_url?: string;
+    image_urls?: string[];
+    size?: string;
+    description?: string;
+    brand?: string;
+    condition_type?: string;
+  };
   order?: {
     id: string;
     product: {
@@ -76,6 +88,7 @@ export interface ConversationDetail {
       avatar?: string;
     };
     status: string;
+    listing_id?: number; // 🔥 添加listing_id字段
   };
 }
 

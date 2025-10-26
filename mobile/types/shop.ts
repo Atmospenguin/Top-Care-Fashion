@@ -26,6 +26,10 @@ export type ListingItem = {
     rating: number;
     sales: number;
   };
+  // 🔥 添加订单相关字段（仅对sold商品）
+  orderStatus?: string | null;
+  orderId?: number | null;
+  conversationId?: string | null;
 };
 
 export type BagItem = {
