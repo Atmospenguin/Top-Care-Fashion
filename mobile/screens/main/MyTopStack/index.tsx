@@ -21,6 +21,8 @@ import AddSizeScreen from "./AddSizeScreen";
 import AddStyleScreen from "./AddStyleScreen";
 import EditBrandScreen from "./EditBrandScreen";
 import ManagePaymentsScreen from "./ManagePaymentsScreen";
+import type { ListingItem } from "../../../types/shop";
+import type { UserBenefitsPayload } from "../../../src/services";
 
 export type PreferenceSizes = {
   shoe?: string;
@@ -50,7 +52,13 @@ export type MyTopStackParamList = {
   ActiveListingDetail: { listingId: string };
   ManageListing: { listingId: string };
   EditListing: { listingId: string };
-  PromotionPlans: undefined;
+  PromotionPlans:
+    | {
+        selectedListingIds?: string[];
+        selectedListings?: ListingItem[];
+        benefitsSnapshot?: UserBenefitsPayload["benefits"] | null;
+      }
+    | undefined;
   MyBoostListings: undefined;
   BoostedListing: undefined;
   MyPreference:

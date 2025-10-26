@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   ImageBackground,
   ScrollView,
   StyleSheet,
@@ -8,8 +9,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RouteProp } from "@react-navigation/native";
 
 import Icon from "../../../components/Icon";
 import PlanOptionCard from "../../../components/PlanOptionCard";
@@ -18,6 +20,7 @@ import { PREMIUM_BG } from "../../../constants/assetUrls";
 import { LOGO_FULL_COLOR } from "../../../constants/assetUrls";
 import { benefitsService, type UserBenefitsPayload } from "../../../src/services";
 import { apiClient } from "../../../src/services/api";
+import type { ListingItem } from "../../../types/shop";
 const BACKGROUND_IMAGE = PREMIUM_BG;
 
 type PricingPlan = {
@@ -39,8 +42,16 @@ type DetailRow = {
 export default function PromotionPlansScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<PremiumStackParamList>>();
-  const [selectedPlan, setSelectedPlan] = useState<"free" | "premium">("free");
-  const [benefits, setBenefits] = useState<UserBenefitsPayload["benefits"] | null>(null);
+  const route = useRoute<RouteProp<PremiumStackParamList, "PromotionPlans">>();
+  const routeParams = route.params ?? {};
+  const preselectedListings = (routeParams.selectedListings as ListingItem[] | undefined) ?? [];
+  const selectedListingIdsParam = routeParams.selectedListingIds ?? [];
+  const initialBenefits = routeParams.benefitsSnapshot ?? null;
+
+  const [selectedPlan, setSelectedPlan] = useState<"free" | "premium">(
+    initialBenefits?.isPremium ? "premium" : "free"
+  );
+  const [benefits, setBenefits] = useState<UserBenefitsPayload["benefits"] | null>(initialBenefits);
   const [plans, setPlans] = useState<PricingPlan[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -92,6 +103,14 @@ export default function PromotionPlansScreen() {
 
   const freePlan = useMemo(() => plans.find((plan) => plan.type === "FREE"), [plans]);
   const premiumPlan = useMemo(() => plans.find((plan) => plan.type === "PREMIUM"), [plans]);
+  const selectedListings = useMemo(() => preselectedListings, [preselectedListings]);
+  const selectedListingIds = useMemo(() => {
+    if (selectedListings.length > 0) {
+      return selectedListings.map((item) => item.id);
+    }
+    return selectedListingIdsParam;
+  }, [selectedListingIdsParam, selectedListings]);
+  const selectionCount = selectedListings.length || selectedListingIds.length;
 
   const normalisePercent = (value?: number | null) => {
     if (typeof value !== "number" || Number.isNaN(value)) {
@@ -198,15 +217,37 @@ export default function PromotionPlansScreen() {
   const isPremiumMember = benefits?.isPremium === true;
   const isSelectingPremium = selectedPlan === "premium";
   const ctaLabel = isSelectingPremium
-    ? (isPremiumMember ? "MANAGE MEMBERSHIP" : "UPGRADE & BOOST")
-    : "CONTINUE WITH FREE PLAN";
+    ? (isPremiumMember ? "BOOST NOW" : "UPGRADE & BOOST")
+    : "CHECKOUT WITH FREE PLAN";
+
+  const isCtaDisabled = loading || selectionCount === 0;
 
   const handleCtaPress = () => {
+    if (selectionCount === 0) {
+      Alert.alert("No listings selected", "Choose at least one listing to boost.");
+      return;
+    }
+
     if (isSelectingPremium) {
+      if (isPremiumMember) {
+        navigation.navigate("BoostCheckout", {
+          plan: "premium",
+          listings: selectedListings,
+          listingIds: selectedListingIds,
+          benefitsSnapshot: benefits,
+        });
+        return;
+      }
       navigation.navigate("PremiumPlans");
       return;
     }
-    navigation.goBack();
+
+    navigation.navigate("BoostCheckout", {
+      plan: "free",
+      listings: selectedListings,
+      listingIds: selectedListingIds,
+      benefitsSnapshot: benefits,
+    });
   };
 
   return (
@@ -230,6 +271,26 @@ export default function PromotionPlansScreen() {
               <LOGO_FULL_COLOR width={150} height={60} />
             </View>
             <Text style={styles.heading}>Boost Plans</Text>
+
+            <View style={styles.selectionCard}>
+              <Text style={styles.selectionTitle}>
+                {selectionCount} listing{selectionCount === 1 ? "" : "s"} selected
+              </Text>
+              <Text style={styles.selectionSubtitle}>
+                3-day boost • {isSelectingPremium ? "Premium pricing applies" : "Standard pricing"}
+              </Text>
+              {selectedListings.length > 0 ? (
+                <Text style={styles.selectionMeta} numberOfLines={2}>
+                  {selectedListings
+                    .slice(0, 3)
+                    .map((item) => item.title || "Untitled listing")
+                    .join(", ")}
+                  {selectedListings.length > 3
+                    ? ` +${selectedListings.length - 3} more`
+                    : ""}
+                </Text>
+              ) : null}
+            </View>
 
             <View style={styles.planGroup}>
               <Text style={styles.planTitle}>
@@ -283,13 +344,23 @@ export default function PromotionPlansScreen() {
           </ScrollView>
 
           <TouchableOpacity
-            style={styles.ctaButton}
+            style={[styles.ctaButton, isCtaDisabled && { opacity: 0.6 }]}
             onPress={handleCtaPress}
+            disabled={isCtaDisabled}
           >
             <Text style={styles.ctaText}>
               {ctaLabel}
             </Text>
           </TouchableOpacity>
+
+          {isPremiumMember ? (
+            <TouchableOpacity
+              style={styles.secondaryLink}
+              onPress={() => navigation.navigate("MyPremium")}
+            >
+              <Text style={styles.secondaryLinkText}>Manage membership</Text>
+            </TouchableOpacity>
+          ) : null}
         </SafeAreaView>
       </View>
     </ImageBackground>
@@ -376,6 +447,30 @@ const styles = StyleSheet.create({
     color: "#F5D66F",
     fontWeight: "600",
   },
+  selectionCard: {
+    width: "100%",
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.25)",
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    marginTop: 16,
+    gap: 6,
+  },
+  selectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  selectionSubtitle: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.9)",
+  },
+  selectionMeta: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.7)",
+  },
   ctaButton: {
     marginTop: 18,
     backgroundColor: "#FFFFFF",
@@ -388,5 +483,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     color: "#141414",
+  },
+  secondaryLink: {
+    marginTop: 12,
+    alignItems: "center",
+  },
+  secondaryLinkText: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.85)",
+    fontWeight: "600",
+    textDecorationLine: "underline",
   },
 });
