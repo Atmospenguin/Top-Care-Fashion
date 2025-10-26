@@ -161,6 +161,7 @@ export function getUserBenefits(isPremium: boolean) {
     listingLimit: getListingLimit(isPremium),
     commissionRate: getCommissionRate(isPremium),
     promotionPrice: getPromotionPrice(isPremium),
+    promotionPricing: getPromotionPricing(isPremium),
     freePromotionLimit: getFreePromotionLimit(isPremium),
     mixMatchLimit: getMixMatchLimit(isPremium),
     badge: isPremium ? 'Premium' : null,

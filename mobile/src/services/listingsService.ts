@@ -29,6 +29,24 @@ export interface ListingsQueryParams {
   gender?: string;
 }
 
+export interface BoostedListingSummary {
+  id: number;
+  listingId: number;
+  title: string;
+  size: string | null;
+  price: number;
+  images: string[];
+  primaryImage: string | null;
+  status: string;
+  startedAt: string | null;
+  endsAt: string | null;
+  views: number;
+  clicks: number;
+  viewUpliftPercent: number;
+  clickUpliftPercent: number;
+  usedFreeCredit: boolean;
+}
+
 // 创建商品请求参数
 export interface CreateListingRequest {
   title: string;
@@ -217,6 +235,41 @@ export class ListingsService {
   // 按价格范围获取商品
   async getListingsByPriceRange(minPrice: number, maxPrice: number, params?: Omit<ListingsQueryParams, 'minPrice' | 'maxPrice'>): Promise<ListingItem[]> {
     return this.getListings({ ...params, minPrice, maxPrice });
+  }
+
+  async getBoostedListings(): Promise<BoostedListingSummary[]> {
+    try {
+      const response = await apiClient.get<{ success?: boolean; data?: BoostedListingSummary[] }>(
+        '/api/listings/boosted'
+      );
+
+      if (response.data?.data && Array.isArray(response.data.data)) {
+        return response.data.data.map((item) => ({
+          id: item.id,
+          listingId: item.listingId,
+          title: item.title,
+          size: item.size ?? null,
+          price: typeof item.price === 'number' ? item.price : Number(item.price) || 0,
+          images: Array.isArray(item.images) ? item.images : [],
+          primaryImage: item.primaryImage ?? null,
+          status: item.status,
+          startedAt: item.startedAt ?? null,
+          endsAt: item.endsAt ?? null,
+          views: typeof item.views === 'number' ? item.views : 0,
+          clicks: typeof item.clicks === 'number' ? item.clicks : 0,
+          viewUpliftPercent:
+            typeof item.viewUpliftPercent === 'number' ? item.viewUpliftPercent : 0,
+          clickUpliftPercent:
+            typeof item.clickUpliftPercent === 'number' ? item.clickUpliftPercent : 0,
+          usedFreeCredit: Boolean(item.usedFreeCredit),
+        }));
+      }
+
+      return [];
+    } catch (error) {
+      console.error('Error fetching boosted listings:', error);
+      throw error;
+    }
   }
 
   // 获取用户listings中实际使用的分类
