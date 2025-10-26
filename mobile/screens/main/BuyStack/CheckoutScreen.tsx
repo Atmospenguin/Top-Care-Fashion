@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View, TextInput, Alert, Modal } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -6,12 +6,13 @@ import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import PaymentSelector from "../../../components/PaymentSelector";
 import type { BuyStackParamList } from "./index";
 import {
   DEFAULT_PAYMENT_METHOD,
   DEFAULT_SHIPPING_ADDRESS,
 } from "../../../mocks/shop";
-import { ordersService } from "../../../src/services";
+import { ordersService, paymentMethodsService, type PaymentMethod } from "../../../src/services";
 import { messagesService } from "../../../src/services/messagesService";
 import { useAuth } from "../../../contexts/AuthContext";
 
@@ -36,6 +37,7 @@ export default function CheckoutScreen() {
   // 🔥 状态管理 - 地址和付款方式
   const [shippingAddress, setShippingAddress] = useState(DEFAULT_SHIPPING_ADDRESS);
   const [paymentMethod, setPaymentMethod] = useState(DEFAULT_PAYMENT_METHOD);
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(null);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   
   // 🔥 编辑状态管理
@@ -49,14 +51,34 @@ export default function CheckoutScreen() {
     state: '',
     postalCode: '',
     country: '',
-    paymentMethod: '',
-    cardNumber: '',
-    expiryDate: '',
-    cvv: ''
   });
 
   const total = useMemo(() => subtotal + shipping, [subtotal, shipping]);
   const deliveryEstimate = useMemo(() => getDeliveryEstimate(), []);
+
+  // 🔥 从后端加载用户默认支付方式（如果存在）
+  useEffect(() => {
+    let mounted = true;
+    const loadDefaultPayment = async () => {
+      try {
+        const def = await paymentMethodsService.getDefaultPaymentMethod();
+        if (!mounted) return;
+        if (def) {
+          setSelectedPaymentMethodId(def.id);
+          setPaymentMethod({
+            label: def.label,
+            brand: def.brand || 'Card',
+            last4: def.last4 || '0000',
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to load default payment method', err);
+      }
+    };
+
+    loadDefaultPayment();
+    return () => { mounted = false; };
+  }, []);
 
   // 🔥 格式化地址函数
   const formatCurrentAddress = () => {
@@ -82,10 +104,6 @@ export default function CheckoutScreen() {
       state: shippingAddress.state,
       postalCode: shippingAddress.postalCode,
       country: shippingAddress.country,
-      paymentMethod: paymentMethod.brand,
-      cardNumber: paymentMethod.last4,
-      expiryDate: '12/25',
-      cvv: '123'
     });
   };
 
@@ -102,12 +120,6 @@ export default function CheckoutScreen() {
         postalCode: editForm.postalCode,
         country: editForm.country
       });
-    } else if (editingField === 'payment') {
-      setPaymentMethod({
-        ...paymentMethod,
-        brand: editForm.paymentMethod,
-        last4: editForm.cardNumber
-      });
     }
     setEditingField(null);
   };
@@ -123,8 +135,23 @@ export default function CheckoutScreen() {
       return;
     }
 
+    // 🔥 验证支付方式
+    if (!selectedPaymentMethodId) {
+      Alert.alert("Missing Payment Method", "Please select a payment method");
+      return;
+    }
+
     try {
       setIsCreatingOrder(true);
+      
+      // 🔥 获取完整的支付方式数据
+      const methods = await paymentMethodsService.getPaymentMethods();
+      const fullPaymentMethod = methods.find(m => m.id === selectedPaymentMethodId);
+      
+      if (!fullPaymentMethod) {
+        Alert.alert("Error", "Selected payment method not found");
+        return;
+      }
       
       // 🔥 为每个商品创建订单
       const createdOrders = [];
@@ -141,12 +168,14 @@ export default function CheckoutScreen() {
           buyer_name: shippingAddress.name,
           buyer_phone: shippingAddress.phone,
           shipping_address: `${shippingAddress.line1}, ${shippingAddress.city}, ${shippingAddress.state} ${shippingAddress.postalCode}`,
-          payment_method: paymentMethod.brand,
+          payment_method: fullPaymentMethod.brand || 'Card',
+          payment_method_id: fullPaymentMethod.id, // 🔥 使用后端支付方式 ID
           payment_details: {
-            brand: paymentMethod.brand,
-            last4: paymentMethod.last4,
-            expiry: '12/25', // Mock expiry
-            cvv: '123' // Mock CVV
+            brand: fullPaymentMethod.brand,
+            last4: fullPaymentMethod.last4,
+            expiry: fullPaymentMethod.expiryMonth && fullPaymentMethod.expiryYear 
+              ? `${String(fullPaymentMethod.expiryMonth).padStart(2, '0')}/${fullPaymentMethod.expiryYear}` 
+              : 'N/A',
           }
         });
         
@@ -317,141 +346,84 @@ export default function CheckoutScreen() {
                 <TextInput
                   style={styles.textInput}
                   value={editForm.name}
-                  onChangeText={(text) => setEditForm({...editForm, name: text})}
+                  onChangeText={(text) => setEditForm({ ...editForm, name: text })}
                   placeholder="Enter your full name"
                 />
-                
+
                 <Text style={styles.inputLabel}>Phone Number</Text>
                 <TextInput
                   style={styles.textInput}
                   value={editForm.phone}
-                  onChangeText={(text) => setEditForm({...editForm, phone: text})}
+                  onChangeText={(text) => setEditForm({ ...editForm, phone: text })}
                   placeholder="Enter your phone number"
                   keyboardType="phone-pad"
                 />
-                
+
                 <Text style={styles.inputLabel}>Street Address</Text>
                 <TextInput
                   style={styles.textInput}
                   value={editForm.line1}
-                  onChangeText={(text) => setEditForm({...editForm, line1: text})}
+                  onChangeText={(text) => setEditForm({ ...editForm, line1: text })}
                   placeholder="Enter your street address"
                 />
-                
+
                 <Text style={styles.inputLabel}>Apartment, suite, etc. (Optional)</Text>
                 <TextInput
                   style={styles.textInput}
                   value={editForm.line2}
-                  onChangeText={(text) => setEditForm({...editForm, line2: text})}
+                  onChangeText={(text) => setEditForm({ ...editForm, line2: text })}
                   placeholder="Apartment, suite, unit, building, floor, etc."
                 />
-                
-                <View style={styles.addressRow}>
-                  <View style={styles.addressColumn}>
-                    <Text style={styles.inputLabel}>City</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={editForm.city}
-                      onChangeText={(text) => setEditForm({...editForm, city: text})}
-                      placeholder="City"
-                    />
-                  </View>
-                  
-                  <View style={styles.addressColumn}>
-                    <Text style={styles.inputLabel}>State</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={editForm.state}
-                      onChangeText={(text) => setEditForm({...editForm, state: text})}
-                      placeholder="State"
-                    />
-                  </View>
-                </View>
-                
-                <View style={styles.addressRow}>
-                  <View style={styles.addressColumn}>
-                    <Text style={styles.inputLabel}>Postal Code</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={editForm.postalCode}
-                      onChangeText={(text) => setEditForm({...editForm, postalCode: text})}
-                      placeholder="Postal Code"
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  
-                  <View style={styles.addressColumn}>
-                    <Text style={styles.inputLabel}>Country</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={editForm.country}
-                      onChangeText={(text) => setEditForm({...editForm, country: text})}
-                      placeholder="Country"
-                    />
-                  </View>
-                </View>
+
+                <Text style={styles.inputLabel}>City</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.city}
+                  onChangeText={(text) => setEditForm({ ...editForm, city: text })}
+                  placeholder="City"
+                />
+
+                <Text style={styles.inputLabel}>State</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.state}
+                  onChangeText={(text) => setEditForm({ ...editForm, state: text })}
+                  placeholder="State"
+                />
+
+                <Text style={styles.inputLabel}>Postal Code</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.postalCode}
+                  onChangeText={(text) => setEditForm({ ...editForm, postalCode: text })}
+                  placeholder="Postal Code"
+                  keyboardType="numeric"
+                />
+
+                <Text style={styles.inputLabel}>Country</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.country}
+                  onChangeText={(text) => setEditForm({ ...editForm, country: text })}
+                  placeholder="Country"
+                />
               </View>
             )}
 
             {editingField === 'payment' && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Payment Method</Text>
-                <View style={styles.paymentOptions}>
-                  <TouchableOpacity 
-                    style={[styles.paymentOption, editForm.paymentMethod === 'Visa' && styles.paymentOptionSelected]}
-                    onPress={() => setEditForm({...editForm, paymentMethod: 'Visa'})}
-                  >
-                    <Text style={styles.paymentOptionText}>Visa</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.paymentOption, editForm.paymentMethod === 'Mastercard' && styles.paymentOptionSelected]}
-                    onPress={() => setEditForm({...editForm, paymentMethod: 'Mastercard'})}
-                  >
-                    <Text style={styles.paymentOptionText}>Mastercard</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.paymentOption, editForm.paymentMethod === 'PayPal' && styles.paymentOptionSelected]}
-                    onPress={() => setEditForm({...editForm, paymentMethod: 'PayPal'})}
-                  >
-                    <Text style={styles.paymentOptionText}>PayPal</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.inputLabel}>Card Number (Last 4 digits)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={editForm.cardNumber}
-                  onChangeText={(text) => setEditForm({...editForm, cardNumber: text})}
-                  placeholder="1234"
-                  keyboardType="numeric"
-                  maxLength={4}
-                />
-
-                <Text style={styles.inputLabel}>Expiry Date</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={editForm.expiryDate}
-                  onChangeText={(text) => setEditForm({...editForm, expiryDate: text})}
-                  placeholder="MM/YY"
-                  keyboardType="numeric"
-                />
-
-                <Text style={styles.inputLabel}>CVV</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={editForm.cvv}
-                  onChangeText={(text) => setEditForm({...editForm, cvv: text})}
-                  placeholder="123"
-                  keyboardType="numeric"
-                  maxLength={3}
-                />
-
-                <View style={styles.paymentNote}>
-                  <Text style={styles.paymentNoteText}>
-                    🔒 This is a demo payment system for educational purposes. No real payment will be processed.
-                  </Text>
-                </View>
-              </View>
+              <PaymentSelector
+                selectedPaymentMethodId={selectedPaymentMethodId}
+                onSelect={(method) => {
+                  setSelectedPaymentMethodId(method?.id ?? null);
+                  if (method) {
+                    setPaymentMethod({
+                      label: method.label,
+                      brand: method.brand || 'Card',
+                      last4: method.last4 || '0000',
+                    });
+                  }
+                }}
+              />
             )}
           </ScrollView>
         </View>

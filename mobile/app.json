@@ -8,7 +8,7 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "extra": {
-      "EXPO_PUBLIC_API_URL": "http://192.168.100.107:3000"
+      "EXPO_PUBLIC_API_URL": "http://192.168.31.225:3000"
     },
     "splash": {
       "image": "./assets/splash-icon.png",

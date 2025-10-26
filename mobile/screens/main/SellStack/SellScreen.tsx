@@ -25,6 +25,7 @@ import Header from "../../../components/Header";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { SellStackParamList } from "./SellStackNavigator";
 import { listingsService, type CreateListingRequest } from "../../../src/services/listingsService";
+import { useAuth } from "../../../contexts/AuthContext";
 /** --- Options --- */
 const CATEGORY_OPTIONS = ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"];
 const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "Others"];
@@ -177,6 +178,7 @@ export default function SellScreen({
 }: {
   navigation: SellScreenNavigationProp;
 }) {
+  const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
@@ -450,6 +452,26 @@ export default function SellScreen({
 
   // 保存 listing
   const handlePostListing = async () => {
+    // Premium restriction: Free users can only have up to 2 active listings
+    try {
+      if (!user?.isPremium) {
+        const myActives = await listingsService.getUserListings({ status: 'active' });
+        if (Array.isArray(myActives) && myActives.length >= 2) {
+          Alert.alert(
+            'Upgrade to Premium',
+            'Free users can have up to 2 active listings. Upgrade to Premium for unlimited listings.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Upgrade', onPress: () => (navigation as any)?.getParent()?.getParent()?.navigate('Premium', { screen: 'PremiumPlans' }) }
+            ]
+          );
+          return;
+        }
+      }
+    } catch (e) {
+      // If restriction check fails silently continue (don’t block posting unexpectedly)
+      console.warn('Failed to check listing limit', e);
+    }
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       Alert.alert("Missing Information", "Please add a title");

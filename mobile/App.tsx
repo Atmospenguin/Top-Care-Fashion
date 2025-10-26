@@ -179,11 +179,21 @@ function MainTabs() {
         listeners={({ navigation, route }) => ({
           tabPress: () => {
             const now = Date.now();
+            const last = lastTabPressRef.current[route.name] || 0;
+            lastTabPressRef.current[route.name] = now;
+            const delta = now - last;
+            
+            // 只有在 isFocused 并且连续快速点击时才传递 tabPressTS 触发刷新
+            // 这样可以避免在子页面时重新打开主页
             if (navigation.isFocused && navigation.isFocused()) {
-              navigation.navigate("My TOP", {
-                screen: "MyTopMain",
-                params: { tabPressTS: now },
-              });
+              const focusedRoute = getFocusedRouteNameFromRoute(route);
+              // 只有当前就在 MyTopMain 页面时才触发刷新逻辑
+              if (!focusedRoute || focusedRoute === 'MyTopMain') {
+                navigation.navigate("My TOP", {
+                  screen: "MyTopMain",
+                  params: { tabPressTS: now },
+                });
+              }
             }
           },
         })}

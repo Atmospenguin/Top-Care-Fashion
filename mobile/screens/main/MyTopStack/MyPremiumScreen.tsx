@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Image,
   ScrollView,
@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import Header from "../../../components/Header";
@@ -16,6 +16,9 @@ import type { IconProps } from "../../../components/Icon";
 import type { PremiumStackParamList } from "../PremiumStack";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 import { PREMIUM_BG } from "../../../constants/assetUrls";
+import { useAuth } from "../../../contexts/AuthContext";
+import { premiumService } from "../../../src/services";
+import { apiClient } from "../../../src/services/api";
 
 const MEMBER_AVATAR = DEFAULT_AVATAR;
 
@@ -35,7 +38,7 @@ const BENEFITS: BenefitItem[] = [
     bgColor: "#E5F5FF",
     iconColor: "#2AB6B6",
     title: "Reduced commission",
-    subtitle: "& Promotion fee",
+    subtitle: "& Boost fee",
   },
   {
     id: "listing",
@@ -58,14 +61,70 @@ const BENEFITS: BenefitItem[] = [
 export default function MyPremiumScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<PremiumStackParamList>>();
-
-  const handlePromotionUpsell = () => {
-    navigation.navigate("PromotionPlans");
-  };
+  const { user, updateUser } = useAuth();
+  const [loading, setLoading] = useState(false); // cancel/loading
+  const [syncing, setSyncing] = useState(false); // fetch status
+  const [freeBoostUsed, setFreeBoostUsed] = useState<number | null>(null);
+  const [freeBoostLimit, setFreeBoostLimit] = useState<number | null>(null);
+  const [freeBoostRemaining, setFreeBoostRemaining] = useState<number | null>(null);
 
   const handleRenew = () => {
     navigation.navigate("PremiumPlans");
   };
+
+  const memberName = useMemo(() => user?.username ?? "Member", [user?.username]);
+  const memberStatus = useMemo(() => (user?.isPremium ? "Active" : "Inactive"), [user?.isPremium]);
+  const expireText = useMemo(() => {
+    if (!user?.premiumUntil) return "(No active premium)";
+    return `(Membership will expire on ${String(user.premiumUntil).slice(0, 10)})`;
+  }, [user?.premiumUntil]);
+
+  // Sync premium status from backend when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+      // if not logged in, skip
+      if (!user) return () => { isActive = false; };
+
+      const fetchStatus = async () => {
+        try {
+          setSyncing(true);
+          const status = await premiumService.getStatus();
+          if (!isActive) return;
+          updateUser({ ...(user as any), isPremium: status.isPremium, premiumUntil: status.premiumUntil });
+
+          // Fetch user benefits to get monthly free promotion (boost) counters
+          try {
+            const res = await apiClient.get<any>("/api/user/benefits");
+            const benefits = (res.data as any)?.data?.benefits;
+            if (benefits) {
+              setFreeBoostUsed(Number(benefits.freePromotionsUsed ?? 0));
+              // freePromotionLimit: number | null (premium: 3; free: null)
+              setFreeBoostLimit(
+                benefits.freePromotionLimit === null
+                  ? null
+                  : Number(benefits.freePromotionLimit)
+              );
+              setFreeBoostRemaining(
+                benefits.freePromotionsRemaining === null
+                  ? null
+                  : Number(benefits.freePromotionsRemaining)
+              );
+            }
+          } catch (err) {
+            console.log("Fetch user benefits failed", err);
+          }
+        } catch (e) {
+          console.error('Fetch premium status failed', e);
+        } finally {
+          if (isActive) setSyncing(false);
+        }
+      };
+
+      fetchStatus();
+      return () => { isActive = false; };
+    }, [user?.id])
+  );
 
   return (
     <View style={styles.container}>
@@ -79,30 +138,20 @@ export default function MyPremiumScreen() {
           <View style={styles.memberRow}>
             <Image source={MEMBER_AVATAR} style={styles.avatar} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.memberTitle}>Hi, Member ccc446981</Text>
-              <Text style={styles.memberMeta}>Member status: Active</Text>
+              <Text style={styles.memberTitle}>Hi, {memberName}</Text>
+              <Text style={styles.memberMeta}>Member status: {memberStatus}</Text>
               <Text style={styles.memberMeta}>
-                Monthly Free Promotion Credits: 1/3
+                {syncing
+                  ? 'Monthly Free Boost Credits: ...'
+                  : user?.isPremium
+                    ? `Monthly Free Boost Credits: ${
+                        (freeBoostRemaining ?? (freeBoostLimit ?? 0) - (freeBoostUsed ?? 0))
+                      }/${freeBoostLimit ?? 3}`
+                    : 'Monthly Free Boost Credits: 0/0'}
               </Text>
             </View>
           </View>
-          <Text style={styles.expiryText}>
-            (Membership will expire on 2025-10-05)
-          </Text>
-        </View>
-
-        <View style={styles.upsellCard}>
-          <View style={styles.upsellHeader}>
-            <View style={styles.upsellIconWrap}>
-              <Icon name="trending-up" size={18} color="#1E1E1E" />
-            </View>
-            <Text style={styles.upsellTitle}>
-              Promotion credits are Not enough?
-            </Text>
-          </View>
-          <TouchableOpacity onPress={handlePromotionUpsell}>
-            <Text style={styles.upsellLink}>Click To Get Promotion Adds on</Text>
-          </TouchableOpacity>
+          <Text style={styles.expiryText}>{syncing ? 'Syncing membership…' : expireText}</Text>
         </View>
 
         <View style={styles.benefitsCard}>
@@ -123,8 +172,22 @@ export default function MyPremiumScreen() {
         </View>
 
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.outlineButton}>
-            <Text style={styles.outlineText}>Cancel Membership</Text>
+          <TouchableOpacity
+            style={styles.outlineButton}
+            disabled={loading || !user?.isPremium}
+            onPress={async () => {
+              try {
+                setLoading(true);
+                const res = await premiumService.cancel();
+                updateUser({ ...(user as any), isPremium: res.isPremium, premiumUntil: res.premiumUntil });
+              } catch (e) {
+                console.error('Cancel premium failed', e);
+              } finally {
+                setLoading(false);
+              }
+            }}
+          >
+            <Text style={styles.outlineText}>{loading ? 'Cancelling...' : 'Cancel Membership'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.primaryButton} onPress={handleRenew}>
             <Text style={styles.primaryText}>Renew Membership</Text>
@@ -174,41 +237,6 @@ const styles = StyleSheet.create({
   expiryText: {
     fontSize: 13,
     color: "#2F3443",
-  },
-  upsellCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 18,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    elevation: 1,
-    rowGap: 8,
-  },
-  upsellHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    columnGap: 12,
-  },
-  upsellIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F2F4F8",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  upsellTitle: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1E1E1E",
-  },
-  upsellLink: {
-    fontSize: 14,
-    color: "#2A7BF4",
-    fontWeight: "600",
   },
   benefitsCard: {
     backgroundColor: "#FFFFFF",

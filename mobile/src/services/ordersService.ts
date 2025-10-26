@@ -119,6 +119,7 @@ export interface CreateOrderRequest {
   buyer_phone?: string;
   shipping_address?: string;
   payment_method?: string;
+  payment_method_id?: number; // 🔥 后端支付方式 ID
   payment_details?: {
     brand?: string;
     last4?: string;

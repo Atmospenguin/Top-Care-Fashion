@@ -20,6 +20,7 @@ import MyPreferenceScreen from "./MyPreferenceScreen";
 import AddSizeScreen from "./AddSizeScreen";
 import AddStyleScreen from "./AddStyleScreen";
 import EditBrandScreen from "./EditBrandScreen";
+import ManagePaymentsScreen from "./ManagePaymentsScreen";
 
 export type PreferenceSizes = {
   shoe?: string;
@@ -76,6 +77,7 @@ export type MyTopStackParamList = {
         source?: "discover" | "mytop";
       }
     | undefined;
+  ManagePayments: undefined;
 };
 
 const Stack = createNativeStackNavigator<MyTopStackParamList>();
@@ -112,6 +114,7 @@ export default function MyTopStackNavigator() {
       <Stack.Screen name="AddSize" component={AddSizeScreen} />
       <Stack.Screen name="AddStyle" component={AddStyleScreen} />
       <Stack.Screen name="EditBrand" component={EditBrandScreen} />
+      <Stack.Screen name="ManagePayments" component={ManagePaymentsScreen} />
     </Stack.Navigator>
   );
 }

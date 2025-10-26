@@ -57,6 +57,17 @@ class ApiClient {
     return null;
   }
 
+  // 清除认证 token
+  public clearAuthToken(): void {
+    this.authToken = null;
+    try {
+      AsyncStorage.removeItem('auth_token');
+      console.log('🔍 API Client - Cleared stored token');
+    } catch (e) {
+      console.log('🔍 API Client - Failed to clear stored token:', e);
+    }
+  }
+
   // 构建完整 URL
   private buildUrl(endpoint: string): string {
     return `${this.baseURL}${endpoint}`;

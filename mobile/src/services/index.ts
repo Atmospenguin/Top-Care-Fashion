@@ -1,16 +1,18 @@
 // 统一导出所有服务
 export { apiClient } from './api';
-export { listingsService, ListingsService } from './listingsService';
-export { authService, AuthService } from './authService';
-export { userService, UserService } from './userService';
-export { feedbackService, FeedbackService } from './feedbackService';
-export { ordersService, OrdersService } from './ordersService';
-export { likesService, LikesService } from './likesService';
-export { cartService, CartService } from './cartService';
-export { messagesService, MessagesService } from './messagesService';
-export { reviewsService, ReviewsService } from './reviewsService';
-export { notificationService, NotificationService } from './notificationService';
+export { listingsService } from './listingsService';
+export { authService } from './authService';
+export { userService } from './userService';
+export { feedbackService } from './feedbackService';
+export { ordersService } from './ordersService';
+export { likesService } from './likesService';
+export { cartService } from './cartService';
+export { messagesService } from './messagesService';
+export { reviewsService } from './reviewsService';
+export { notificationService } from './notificationService';
 export { NotificationHelper } from './notificationHelper';
+export { premiumService, type PremiumServiceType } from './premiumService';
+export { paymentMethodsService } from './paymentMethodsService';
 
 // 导出类型
 export type { ApiResponse, ApiError } from '../config/api';
@@ -46,4 +48,6 @@ export type {
   Notification, 
   NotificationParams 
 } from './notificationService';
+export type { PremiumStatus, PremiumUpgradeResponse, PremiumPlan } from './premiumService';
+export type { PaymentMethod, CreatePaymentMethodRequest, UpdatePaymentMethodRequest } from './paymentMethodsService';
 

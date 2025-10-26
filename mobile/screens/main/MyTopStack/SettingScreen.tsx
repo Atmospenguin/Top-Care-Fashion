@@ -26,6 +26,7 @@ export default function SettingScreen() {
         <Text style={styles.sectionTitle}>Account</Text>
         <View style={styles.sectionBox}>
           <SettingItem icon="person-outline" label="Edit profile" onPress={() => { console.log('Edit profile pressed'); navigation.navigate("EditProfile"); }} />
+          <SettingItem icon="card-outline" label="Payment methods" onPress={() => navigation.navigate("ManagePayments")} />
           <SettingItem icon="shield-outline" label="Security" onPress={() => { console.log('Security pressed - about to navigate'); navigation.navigate("Security"); setTimeout(() => console.log('After navigate call - current route should change if registered'), 50); }} />
           <SettingItem
             icon="notifications-outline"
