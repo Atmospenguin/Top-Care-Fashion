@@ -34,7 +34,15 @@ export async function POST(req: NextRequest) {
 
     const now = new Date();
     const months = plan === "1y" ? 12 : plan === "3m" ? 3 : 1;
-    const until = addMonths(now, months);
+
+    const existing = await prisma.users.findUnique({
+      where: { id: session.id },
+      select: { premium_until: true },
+    });
+
+    const currentExpiry = existing?.premium_until;
+    const baseDate = currentExpiry && currentExpiry > now ? currentExpiry : now;
+    const until = addMonths(baseDate, months);
 
     // 注意：如果 Prisma Client 还未根据新列生成类型，以下两个字段在类型层面会报错，运行时是有效的
     // free_promotions_used, free_promotions_reset_at
