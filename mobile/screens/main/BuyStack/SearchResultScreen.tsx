@@ -18,6 +18,7 @@ import FilterModal from "../../../components/FilterModal";
 import { fetchListings } from "../../../api";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
+import { authService } from "../../../src/services/authService";
 
 type SearchResultRoute = RouteProp<BuyStackParamList, "SearchResult">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
@@ -31,8 +32,43 @@ const MAIN_CATEGORIES = [
   "Outerwear",
   "Tops",
 ] as const;
-const SIZES = ["All", "My Size", "XS", "S", "M", "L", "XL", "XXL"] as const;
-const CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
+const APPAREL_SIZES = [
+  "All",
+  "My Size",
+  "XXS",
+  "XS",
+  "S",
+  "M",
+  "L",
+  "XL",
+  "XXL",
+] as const;
+const ACCESSORY_SIZES = [
+  "All",
+  "My Size",
+  "One Size",
+  "Small",
+  "Medium",
+  "Large",
+];
+const SHOE_SIZES = [
+  "All",
+  "My Size",
+  "35",
+  "36",
+  "37",
+  "38",
+  "39",
+  "40",
+  "41",
+  "42",
+  "43",
+  "44",
+  "45",
+  "46",
+  "47",
+] as const;
+const CONDITIONS = ["All", "New", "Like New", "Good", "Fair", "Poor"] as const;
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
 
 export default function SearchResultScreen() {
@@ -66,6 +102,19 @@ export default function SearchResultScreen() {
   const [headerVisible, setHeaderVisible] = useState(true);
 
   const [apiListings, setApiListings] = useState<ListingItem[]>([]);
+  const [mySizes, setMySizes] = useState<string[]>([]);
+  const tempSizeOptions = useMemo(() => {
+    const cat = tempCategory.toLowerCase();
+    if (cat === "footwear") return SHOE_SIZES;
+    if (cat === "accessories") return ACCESSORY_SIZES as readonly string[];
+    return APPAREL_SIZES;
+  }, [tempCategory]);
+  // Keep tempSize valid when switching category in modal
+  useEffect(() => {
+    if (!tempSizeOptions.includes(tempSize as any)) {
+      setTempSize("All");
+    }
+  }, [tempSizeOptions, tempSize]);
 
   const normalizedQuery = (query ?? "").trim();
   const lowerQuery = normalizedQuery.toLowerCase();
@@ -152,6 +201,35 @@ export default function SearchResultScreen() {
     };
   }, [isMainCategoryQuery, normalizedGender, normalizedQuery]);
 
+  // Load current user's preferred sizes for "My Size" filter
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const me = await authService.getCurrentUser();
+        if (!alive || !me) {
+          setMySizes([]);
+          return;
+        }
+        const sizes = [
+          me.preferred_size_top,
+          me.preferred_size_bottom,
+          me.preferred_size_shoe,
+        ]
+          .filter((s): s is string => Boolean(s))
+          .map((s) => String(s).trim().toUpperCase());
+        // Deduplicate
+        const uniq = Array.from(new Set(sizes));
+        setMySizes(uniq);
+      } catch {
+        setMySizes([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const sourceListings = apiListings;
 
   const filteredListings = useMemo(() => {
@@ -180,10 +258,17 @@ export default function SearchResultScreen() {
 
     if (selectedSize !== "All") {
       if (selectedSize === "My Size") {
-        const userPreferredSize = "M"; // TODO: pull from user settings
-        results = results.filter((item) => item.size === userPreferredSize);
+        if (mySizes.length > 0) {
+          results = results.filter((item) =>
+            mySizes.includes(String(item.size ?? "").trim().toUpperCase()),
+          );
+        }
+        // If no preferred sizes set, treat as no additional size filtering
       } else {
-        results = results.filter((item) => item.size === selectedSize);
+        const needle = String(selectedSize).trim().toUpperCase();
+        results = results.filter(
+          (item) => String(item.size ?? "").trim().toUpperCase() === needle,
+        );
       }
     }
 
@@ -212,6 +297,7 @@ export default function SearchResultScreen() {
     normalizedQuery,
     selectedCategory,
     selectedSize,
+    mySizes,
     selectedCondition,
     minPrice,
     maxPrice,
@@ -228,6 +314,16 @@ export default function SearchResultScreen() {
     if (sortBy !== "Latest") count++;
     return count;
   }, [selectedCategory, selectedSize, selectedCondition, minPrice, maxPrice, sortBy]);
+
+  const tempActiveFiltersCount = useMemo(() => {
+    let count = 0;
+    if (tempCategory !== "All") count++;
+    if (tempSize !== "All") count++;
+    if (tempCondition !== "All") count++;
+    if (tempMinPrice || tempMaxPrice) count++;
+    if (tempSortBy !== "Latest") count++;
+    return count;
+  }, [tempCategory, tempSize, tempCondition, tempMinPrice, tempMaxPrice, tempSortBy]);
 
   const handleOpenFilters = () => {
     // Sync temp filters with current applied filters
@@ -396,7 +492,7 @@ export default function SearchResultScreen() {
           {
             key: "size",
             title: "Size",
-            options: SIZES.map((size) => ({
+            options: tempSizeOptions.map((size) => ({
               label: size,
               value: size,
             })),
@@ -438,7 +534,7 @@ export default function SearchResultScreen() {
         onClose={() => setFilterModalVisible(false)}
         onClear={handleClearFilters}
         onApply={handleApplyFilters}
-        applyButtonLabel={`Apply Filters (${filteredListings.length})`}
+        applyButtonLabel={`Apply Filters (${tempActiveFiltersCount})`}
       />
     </View>
   );

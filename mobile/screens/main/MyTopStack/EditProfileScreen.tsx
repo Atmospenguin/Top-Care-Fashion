@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from 'expo-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
@@ -24,6 +25,9 @@ export default function EditProfileScreen() {
   const { user, updateUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  // 日期选择器状态
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dobDate, setDobDate] = useState<Date | null>(null);
   
   // 表单状态
   const [formData, setFormData] = useState({
@@ -35,6 +39,18 @@ export default function EditProfileScreen() {
     dob: user?.dob || '',
     gender: user?.gender || null,
   });
+
+  // 当 formData.dob 发生变更时，同步 dobDate
+  useEffect(() => {
+    if (formData.dob) {
+      const d = new Date(formData.dob);
+      if (!isNaN(d.getTime())) {
+        setDobDate(d);
+      }
+    } else {
+      setDobDate(null);
+    }
+  }, [formData.dob]);
   
   // 头像状态
   const [avatarUri, setAvatarUri] = useState<string | null>(user?.avatar_url || null);
@@ -43,6 +59,14 @@ export default function EditProfileScreen() {
   // 更新表单数据
   const updateFormData = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const formatDate = (d: Date | null) => {
+    if (!d) return '';
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   };
 
   // ✅ 检查当前权限状态（调试用）
@@ -117,7 +141,7 @@ export default function EditProfileScreen() {
 
       console.log("✅ Permissions granted, opening camera...");
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: 'Images', // ✅ 更简单的写法
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -160,7 +184,7 @@ export default function EditProfileScreen() {
 
       console.log("✅ Permissions granted, opening image picker...");
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'Images', // ✅ 更简单的写法
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -288,12 +312,36 @@ export default function EditProfileScreen() {
         />
 
         <Text style={styles.label}>Date of Birth</Text>
-        <TextInput 
-          style={styles.input} 
-          value={formData.dob}
-          onChangeText={(text) => updateFormData('dob', text)}
-          placeholder="YYYY-MM-DD"
-        />
+        <TouchableOpacity
+          style={[styles.input, styles.dateInput]}
+          onPress={() => setShowDatePicker(true)}
+        >
+          <Text style={{ color: formData.dob ? '#000' : '#999' }}>
+            {formData.dob ? formData.dob : 'YYYY-MM-DD'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* 系统日期选择器 */}
+        {showDatePicker && (
+          <DateTimePicker
+            value={dobDate || new Date()}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            maximumDate={new Date()}
+            onChange={(event: any, selectedDate?: Date) => {
+              // Android: selectedDate undefined when dismissed
+              const currentDate = selectedDate || dobDate || null;
+              if (Platform.OS === 'android') {
+                setShowDatePicker(false);
+              }
+              if (currentDate) {
+                setDobDate(currentDate);
+                const formatted = formatDate(currentDate);
+                updateFormData('dob', formatted);
+              }
+            }}
+          />
+        )}
 
         <Text style={styles.label}>Country/Region</Text>
         <TextInput 
@@ -358,6 +406,11 @@ const styles = StyleSheet.create({
     padding: 10,
     marginTop: 6,
     backgroundColor: "#fff",
+  },
+  dateInput: {
+    height: 44,
+    justifyContent: 'center',
+    paddingLeft: 8,
   },
   textArea: {
     height: 80,

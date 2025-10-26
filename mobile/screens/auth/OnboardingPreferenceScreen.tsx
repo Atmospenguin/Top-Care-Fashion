@@ -102,7 +102,7 @@ export default function OnboardingPreferenceScreen() {
   const [currentStep, setCurrentStep] = useState(0);
 
   // User preferences state
-  const [selectedGender, setSelectedGender] = useState<string>("Womenswear");
+  const [selectedGender, setSelectedGender] = useState<string>("Prefer not to say");
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [shoeSize, setShoeSize] = useState<string | null>(null);
   const [topSize, setTopSize] = useState<string | null>(null);
@@ -147,7 +147,12 @@ export default function OnboardingPreferenceScreen() {
 
   const handleFinish = async () => {
     // 将 Onboarding 偏好保存到后端（当前后端仅支持 gender 字段；size/style 可在后续扩展）
-    const genderValue = selectedGender === 'Womenswear' ? 'Female' : selectedGender === 'Menswear' ? 'Male' : null;
+    const genderValue =
+      selectedGender === "Female"
+        ? "Female"
+        : selectedGender === "Male"
+        ? "Male"
+        : "OTHER";
     try {
       console.log("Saving preferences:", {
         gender: selectedGender,
@@ -240,16 +245,16 @@ export default function OnboardingPreferenceScreen() {
     </Modal>
   );
 
-  // Step 1: Gender Interest
+  // Step 1: Gender
   const renderGenderStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>What are you interested in?</Text>
+      <Text style={styles.stepTitle}>What's your gender?</Text>
       <Text style={styles.stepSubtitle}>
-        This helps us show you relevant fashion items
+        This helps us show you the right recommendations
       </Text>
 
       <View style={styles.genderContainer}>
-        {["Menswear", "Mens & Womenswear", "Womenswear"].map((option) => (
+        {["Female", "Male", "Non-binary / Prefer not to say"].map((option) => (
           <TouchableOpacity
             key={option}
             style={[

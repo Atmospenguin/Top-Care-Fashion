@@ -44,8 +44,31 @@ const REPORT_CATEGORIES = [
 ];
 
 const SHOP_CATEGORIES = ["All", "Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"] as const;
-const SHOP_SIZES = ["All", "My Size", "XS", "S", "M", "L", "XL", "XXL"] as const;
-const SHOP_CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
+const SHOP_APPAREL_SIZES = [
+  "All",
+  "My Size",
+  "XXS",
+  "XS",
+  "S",
+  "M",
+  "L",
+  "XL",
+  "XXL",
+] as const;
+const SHOP_SHOE_SIZES = [
+  "All",
+  "My Size",
+  "35","36","37","38","39","40","41","42","43","44","45","46","47",
+] as const;
+const SHOP_ACCESSORY_SIZES = [
+  "All",
+  "My Size",
+  "One Size",
+  "Small",
+  "Medium",
+  "Large",
+] as const;
+const SHOP_CONDITIONS = ["All", "New", "Like New", "Good", "Fair", "Poor"] as const;
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
 
 const REVIEW_FILTERS = {
@@ -159,6 +182,17 @@ export default function UserProfileScreen() {
   const [tempShopSize, setTempShopSize] = useState<string>("All");
   const [tempShopCondition, setTempShopCondition] = useState<string>("All");
   const [tempShopSortBy, setTempShopSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
+  const tempShopSizeOptions = useMemo(() => {
+    const cat = tempShopCategory.toLowerCase();
+    if (cat === "footwear") return SHOP_SHOE_SIZES as readonly string[];
+    if (cat === "accessories") return SHOP_ACCESSORY_SIZES as readonly string[];
+    return SHOP_APPAREL_SIZES;
+  }, [tempShopCategory]);
+  useEffect(() => {
+    if (!tempShopSizeOptions.includes(tempShopSize as any)) {
+      setTempShopSize("All");
+    }
+  }, [tempShopSizeOptions, tempShopSize]);
 
   // Review Filter States
   const [reviewsFilterVisible, setReviewsFilterVisible] = useState(false);
@@ -335,6 +369,17 @@ export default function UserProfileScreen() {
   const following = userProfile?.followingCount || 0;
   const reviewsCount = reviews.length || userProfile?.reviewsCount || mockReviews.length;
 
+  const mySizes = useMemo(() => {
+    const sizes = [
+      currentUser?.preferred_size_top,
+      currentUser?.preferred_size_bottom,
+      currentUser?.preferred_size_shoe,
+    ]
+      .filter((s): s is string => Boolean(s))
+      .map((s) => String(s).trim().toUpperCase());
+    return Array.from(new Set(sizes));
+  }, [currentUser]);
+
   const filteredListings = useMemo(() => {
     let results = userListings;
 
@@ -344,10 +389,17 @@ export default function UserProfileScreen() {
 
     if (shopSize !== "All") {
       if (shopSize === "My Size") {
-        const userPreferredSize = "M"; // TODO: pull from user settings once available
-        results = results.filter((item) => item.size === userPreferredSize);
+        if (mySizes.length > 0) {
+          results = results.filter((item) =>
+            mySizes.includes(String(item.size ?? "").trim().toUpperCase()),
+          );
+        }
+        // If no preferred sizes, skip size filtering
       } else {
-        results = results.filter((item) => item.size === shopSize);
+        const needle = String(shopSize).trim().toUpperCase();
+        results = results.filter(
+          (item) => String(item.size ?? "").trim().toUpperCase() === needle,
+        );
       }
     }
 
@@ -362,7 +414,7 @@ export default function UserProfileScreen() {
     }
 
     return results;
-  }, [userListings, shopCategory, shopSize, shopCondition, shopSortBy]);
+  }, [userListings, shopCategory, shopSize, mySizes, shopCondition, shopSortBy]);
 
   const listingsData = useMemo(
     () => formatData(filteredListings, 3),
@@ -581,6 +633,15 @@ export default function UserProfileScreen() {
     if (shopSortBy !== "Latest") count++;
     return count;
   }, [shopCategory, shopSize, shopCondition, shopSortBy]);
+
+  const tempShopActiveFiltersCount = useMemo(() => {
+    let count = 0;
+    if (tempShopCategory !== "All") count++;
+    if (tempShopSize !== "All") count++;
+    if (tempShopCondition !== "All") count++;
+    if (tempShopSortBy !== "Latest") count++;
+    return count;
+  }, [tempShopCategory, tempShopSize, tempShopCondition, tempShopSortBy]);
 
   const reviewActiveFiltersCount = useMemo(() => {
     let count = 0;
@@ -811,6 +872,7 @@ export default function UserProfileScreen() {
                   ? "Items you like will appear here" 
                   : "This user hasn't liked any items yet"
                 }
+                    applyButtonLabel={`Apply Filters (${tempShopActiveFiltersCount})`}
               </Text>
             </View>
           ) : (
@@ -1095,7 +1157,7 @@ export default function UserProfileScreen() {
           {
             key: "size",
             title: "Size",
-            options: SHOP_SIZES.map((size) => ({
+            options: tempShopSizeOptions.map((size) => ({
               label: size,
               value: size,
             })),
@@ -1126,7 +1188,7 @@ export default function UserProfileScreen() {
         onClose={() => setShopFilterVisible(false)}
         onClear={handleClearShopFilters}
         onApply={handleApplyShopFilters}
-        applyButtonLabel={`Apply Filters (${filteredListings.length})`}
+        applyButtonLabel={`Apply Filters (${tempShopActiveFiltersCount})`}
       />
     </View>
   );

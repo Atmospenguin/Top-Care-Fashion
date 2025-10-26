@@ -103,7 +103,7 @@ mobile/
          import { Ionicons } from '@expo/vector-icons';
          <Ionicons name="person-circle" size={28} color="#F54B3D" />
          ```
-- Web design mockups/screenshots are stored in `web/public/TOPApp/` and its subdirectories, serving as UI references for the mobile app.
+- Web design mockups/screenshots are stored in Supabase storage and served remotely, serving as UI references for the mobile app.
 
 ### Brand Color
 The primary brand color used in the app is **#F54B3D**. Ensure consistency across all UI components.

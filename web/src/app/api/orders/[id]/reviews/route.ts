@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db';
 // GET /api/orders/[id]/reviews - Get reviews for an order
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
     const currentUser = await getSessionUser(request);
@@ -13,8 +13,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const resolvedParams = await params;
-    const orderId = parseInt(resolvedParams.id);
+  const orderId = parseInt(params.id);
     if (isNaN(orderId)) {
       return NextResponse.json(
         { error: 'Invalid order ID' },
@@ -82,7 +81,7 @@ export async function GET(
 // POST /api/orders/[id]/reviews - Create a review for an order
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
     const currentUser = await getSessionUser(request);
@@ -90,8 +89,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const resolvedParams = await params;
-    const orderId = parseInt(resolvedParams.id);
+  const orderId = parseInt(params.id);
     if (isNaN(orderId)) {
       return NextResponse.json(
         { error: 'Invalid order ID' },
@@ -142,11 +140,9 @@ export async function POST(
       );
     }
 
-    // Determine who the user is reviewing
-    const revieweeId = order.buyer_id === currentUser.id ? order.seller_id : order.buyer_id;
-    
-    // Determine reviewer type
-    const reviewerType = order.buyer_id === currentUser.id ? 'BUYER' : 'SELLER';
+    // Determine who the user is reviewing and reviewer type
+    const isBuyerReviewer = order.buyer_id === currentUser.id;
+    const revieweeId = isBuyerReviewer ? order.seller_id : order.buyer_id;
 
     // Check if user has already reviewed this order
     const existingReview = order.reviews.find(
@@ -163,13 +159,14 @@ export async function POST(
     // Create the review
     const review = await prisma.reviews.create({
       data: {
-        order_id: orderId,
-        reviewer_id: currentUser.id,
-        reviewee_id: revieweeId,
-        rating,
-        comment: comment || null,
-        images: images ? JSON.stringify(images) : null,
-        reviewer_type: reviewerType
+  order_id: orderId,
+  reviewer_id: currentUser.id,
+  reviewee_id: revieweeId,
+  rating,
+  comment: comment || null,
+  // store images as JSON array if provided
+  images: images ? (images as any) : null,
+  reviewer_type: isBuyerReviewer ? 'BUYER' : 'SELLER'
       },
       include: {
         reviewer: {
@@ -238,7 +235,7 @@ export async function POST(
             type: 'REVIEW',
             title: `@${currentUser.username} left a review for your product`,
             message: `${orderWithListing.listing.name} - ${rating} stars`,
-            image_url: currentUser.avatar_url,
+            image_url: (currentUser as any).avatar_url || null,
             listing_id: orderWithListing.listing.id,
             related_user_id: currentUser.id,
           },

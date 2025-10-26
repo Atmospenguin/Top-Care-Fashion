@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ 
         ok: false, 
         error: uploadError.message,
-        code: uploadError.statusCode,
+        code: (uploadError as any)?.statusCode ?? (uploadError as any)?.status ?? (uploadError as any)?.name ?? 'UNKNOWN',
         details: uploadError
       }, { status: 500 });
     }

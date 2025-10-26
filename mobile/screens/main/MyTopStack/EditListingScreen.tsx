@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,9 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from "react-native";
+import type { TextInput as RNTextInput } from "react-native";
 import * as ImagePicker from 'expo-image-picker';
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
@@ -27,6 +29,7 @@ import type { ListingItem } from "../../../types/shop";
 
 /** --- Options --- */
 const CATEGORY_OPTIONS = ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"];
+const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "Others"];
 const CONDITION_OPTIONS = ["Brand New", "Like new", "Good", "Fair", "Poor"];
 const SIZE_OPTIONS_CLOTHES = [
   "XXS",
@@ -40,16 +43,43 @@ const SIZE_OPTIONS_CLOTHES = [
   "Free Size",
   "Other",
 ];
+const SIZE_OPTIONS_SHOES = [
+  "35",
+  "36",
+  "37",
+  "38",
+  "39",
+  "40",
+  "41",
+  "42",
+  "43",
+  "44",
+  "45",
+  "Other",
+];
+const SIZE_OPTIONS_ACCESSORIES = [
+  "One Size",
+  "Small",
+  "Medium",
+  "Large",
+];
 const MATERIAL_OPTIONS = [
   "Cotton",
   "Polyester",
   "Denim",
   "Leather",
-  "Corduroy",
+  "Faux Leather",
   "Wool",
   "Silk",
   "Linen",
   "Nylon",
+  "Spandex / Elastane",
+  "Canvas",
+  "Suede",
+  "Velvet",
+  "Acrylic",
+  "Cashmere",
+  "Rayon / Viscose",
   "Other",
 ];
 const SHIPPING_OPTIONS = [
@@ -77,6 +107,8 @@ const DEFAULT_TAGS = [
   "Punk",
   "Cyberpunk",
 ];
+
+const PHOTO_LIMIT = 9;
 
 /** --- Picker modal --- */
 function OptionPicker({
@@ -140,18 +172,29 @@ export default function EditListingScreen() {
   // ✅ 表单状态
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState("Select");
   const [brand, setBrand] = useState("");
-  const [condition, setCondition] = useState("");
-  const [size, setSize] = useState("");
-  const [material, setMaterial] = useState("");
+  const [condition, setCondition] = useState("Select");
+  const [size, setSize] = useState("Select");
+  const [customSize, setCustomSize] = useState("");
+  const [material, setMaterial] = useState("Select");
+  const [customMaterial, setCustomMaterial] = useState("");
   const [price, setPrice] = useState("");
-  const [shippingOption, setShippingOption] = useState("");
+  const [shippingOption, setShippingOption] = useState("Select");
   const [shippingFee, setShippingFee] = useState("");
   const [location, setLocation] = useState("");
   const [images, setImages] = useState<string[]>([]);
-  const [gender, setGender] = useState("");
+  const [gender, setGender] = useState("Select");
   const [tags, setTags] = useState<string[]>([]);
+  const customSizeInputRef = useRef<RNTextInput | null>(null);
+  const customMaterialInputRef = useRef<RNTextInput | null>(null);
+  const brandCustomInputRef = useRef<RNTextInput | null>(null);
+  const shouldFocusSizeInput = useRef(false);
+  const shouldFocusMaterialInput = useRef(false);
+  const shouldFocusBrandInput = useRef(false);
+  const [brandCustom, setBrandCustom] = useState("");
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const scrollViewRef = useRef<RNScrollView>(null);
 
   // ✅ 获取listing数据
   useEffect(() => {
@@ -172,13 +215,40 @@ export default function EditListingScreen() {
           // ✅ 填充表单数据
           setTitle(listingData.title || "");
           setDescription(listingData.description || "");
-          setCategory(listingData.category || "");
+          setCategory(listingData.category || "Select");
           setBrand(listingData.brand || "");
-          setCondition(listingData.condition || "");
-          setSize(listingData.size || "");
-          setMaterial(listingData.material || "");
-          setPrice(listingData.price.toString());
-          setGender(listingData.gender || "Unisex");
+          setCondition(listingData.condition || "Select");
+
+          const incomingSize = listingData.size?.trim() ?? "";
+          if (incomingSize && !SIZE_OPTIONS_CLOTHES.includes(incomingSize)) {
+            setSize("Other");
+            setCustomSize(incomingSize);
+          } else if (incomingSize) {
+            setSize(incomingSize);
+            setCustomSize("");
+          } else {
+            setSize("Select");
+            setCustomSize("");
+          }
+
+          const incomingMaterial = listingData.material?.trim() ?? "";
+          if (incomingMaterial && !MATERIAL_OPTIONS.includes(incomingMaterial)) {
+            setMaterial("Other");
+            setCustomMaterial(incomingMaterial);
+          } else if (incomingMaterial) {
+            setMaterial(incomingMaterial);
+            setCustomMaterial("");
+          } else {
+            setMaterial("Select");
+            setCustomMaterial("");
+          }
+
+          setPrice(listingData.price != null ? listingData.price.toString() : "");
+          const normalizedGender = listingData.gender ? listingData.gender.toLowerCase() : "";
+          const matchedGender = GENDER_OPTIONS.find(
+            (opt) => opt.toLowerCase() === normalizedGender
+          );
+          setGender(matchedGender || "Unisex");
           setShippingOption(listingData.shippingOption || "Select");
           setShippingFee(listingData.shippingFee ? listingData.shippingFee.toString() : "");
           setLocation(listingData.location || "");
@@ -205,40 +275,148 @@ export default function EditListingScreen() {
   const handleSave = async () => {
     if (!listing) return;
 
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      Alert.alert("Missing Information", "Please add a title");
+      return;
+    }
+
+    const trimmedDescription = description.trim();
+    if (!trimmedDescription) {
+      Alert.alert("Missing Information", "Please add a description");
+      return;
+    }
+
+    if (!category || category === "Select") {
+      Alert.alert("Missing Information", "Please select a category");
+      return;
+    }
+
+    if (!condition || condition === "Select") {
+      Alert.alert("Missing Information", "Please select a condition");
+      return;
+    }
+
+    if (!price.trim()) {
+      Alert.alert("Missing Information", "Please enter a price");
+      return;
+    }
+
+    const parsedPrice = parseFloat(price);
+    if (Number.isNaN(parsedPrice) || parsedPrice <= 0) {
+      Alert.alert("Invalid Price", "Please enter a valid price");
+      return;
+    }
+
+    if (!shippingOption || shippingOption === "Select") {
+      Alert.alert("Missing Information", "Please select a shipping option");
+      return;
+    }
+
+    let resolvedSize = "N/A";
+    if (size === "Other") {
+      const trimmedCustomSize = customSize.trim();
+      if (!trimmedCustomSize) {
+        Alert.alert("Missing Information", "Please enter a custom size");
+        return;
+      }
+      resolvedSize = trimmedCustomSize;
+    } else if (size && size !== "Select") {
+      resolvedSize = size;
+    }
+
+    let resolvedMaterial = "Polyester";
+    if (material === "Other") {
+      const trimmedCustomMaterial = customMaterial.trim();
+      if (!trimmedCustomMaterial) {
+        Alert.alert("Missing Information", "Please enter a custom material");
+        return;
+      }
+      resolvedMaterial = trimmedCustomMaterial;
+    } else if (material && material !== "Select") {
+      resolvedMaterial = material;
+    }
+
+    const trimmedBrand = brand.trim();
+    const resolvedGender = gender && gender !== "Select" ? gender.toLowerCase() : "unisex";
+
+    let resolvedShippingFee: number | undefined;
+    if (shippingOption === "Buyer pays – fixed fee") {
+      if (!shippingFee.trim()) {
+        Alert.alert("Missing Information", "Please enter a shipping fee");
+        return;
+      }
+      resolvedShippingFee = parseFloat(shippingFee);
+      if (Number.isNaN(resolvedShippingFee) || resolvedShippingFee < 0) {
+        Alert.alert("Invalid Shipping Fee", "Please enter a valid shipping fee");
+        return;
+      }
+    } else if (shippingFee.trim()) {
+      const parsedFee = parseFloat(shippingFee);
+      if (!Number.isNaN(parsedFee)) {
+        resolvedShippingFee = parsedFee;
+      }
+    }
+
+    const trimmedLocation = location.trim();
+    if (shippingOption === "Meet-up" && !trimmedLocation) {
+      Alert.alert("Missing Information", "Please enter a meet-up location");
+      return;
+    }
+
+    const updateData = {
+      title: trimmedTitle,
+      description: trimmedDescription,
+      price: parsedPrice,
+      brand: trimmedBrand,
+      size: resolvedSize,
+      condition,
+      material: resolvedMaterial,
+      category,
+      gender: resolvedGender,
+      images,
+      tags,
+      shippingOption,
+      shippingFee: resolvedShippingFee,
+      location: shippingOption === "Meet-up" ? trimmedLocation : undefined,
+    };
+
     try {
       setSaving(true);
       console.log("📝 Saving listing changes:", listing.id);
-
-      // 🔥 自动提取预定义运费选项的费用
+      // If shipping option is one of the predefined presets, derive a numeric fee.
       let calculatedShippingFee: number | undefined;
-      if (shippingOption.includes("Buyer pays – $3")) {
-        calculatedShippingFee = 3;
-      } else if (shippingOption.includes("Buyer pays – $5")) {
-        calculatedShippingFee = 5;
-      } else if (shippingOption === "Buyer pays – fixed fee" && shippingFee) {
-        calculatedShippingFee = parseFloat(shippingFee);
-      } else if (shippingOption === "Free shipping" || shippingOption === "Meet-up") {
-        calculatedShippingFee = 0;
+      try {
+        if (typeof shippingOption === "string" && shippingOption.includes("$3")) {
+          calculatedShippingFee = 3;
+        } else if (typeof shippingOption === "string" && shippingOption.includes("$5")) {
+          calculatedShippingFee = 5;
+        } else if (shippingOption === "Buyer pays – fixed fee" && shippingFee) {
+          const parsed = parseFloat(shippingFee);
+          if (!Number.isNaN(parsed)) calculatedShippingFee = parsed;
+        } else if (shippingOption === "Free shipping" || shippingOption === "Meet-up") {
+          calculatedShippingFee = 0;
+        }
+      } catch (e) {
+        // conservative fallback: leave calculatedShippingFee undefined and rely on previously resolved value
+        console.warn("Failed to calculate preset shipping fee", e);
       }
 
-      const updateData = {
-        title: title.trim(),
-        description: description.trim(),
-        price: parseFloat(price),
-        brand: brand.trim() || "",
-        size: size.trim() || "N/A",
-        condition: condition || "Good",
-        material: material.trim() || "Polyester",
-        category: category,
-        gender: gender || "unisex",
-        images: images,
-        tags: tags,
-        shippingOption: shippingOption,
-        shippingFee: calculatedShippingFee,
-        location: shippingOption === "Meet-up" ? location.trim() : undefined,
+      // Merge the previously validated updateData with any calculated preset fee.
+      const payload = {
+        ...updateData,
+        // prefer explicit calculated preset fee when available, otherwise keep resolvedShippingFee
+        shippingFee: calculatedShippingFee !== undefined ? calculatedShippingFee : updateData.shippingFee,
+        // ensure trimmed/parsed fields are the same as the validated ones above
+        title: trimmedTitle,
+        description: trimmedDescription,
+        price: parsedPrice,
+        brand: trimmedBrand,
+        gender: resolvedGender,
+        location: shippingOption === "Meet-up" ? trimmedLocation : undefined,
       };
 
-      const updatedListing = await listingsService.updateListing(listing.id, updateData);
+      const updatedListing = await listingsService.updateListing(listing.id, payload);
       console.log("✅ Listing updated successfully:", updatedListing.id);
 
       Alert.alert("Success", "Listing updated successfully!", [
@@ -259,18 +437,61 @@ export default function EditListingScreen() {
   const [showMat, setShowMat] = useState(false);
   const [showShip, setShowShip] = useState(false);
   const [showGender, setShowGender] = useState(false);
+  const [showBrand, setShowBrand] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
 
+  useEffect(() => {
+    if (!showSize && size === "Other" && shouldFocusSizeInput.current) {
+      shouldFocusSizeInput.current = false;
+      const timer = setTimeout(() => {
+        customSizeInputRef.current?.focus();
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [showSize, size]);
+
+  useEffect(() => {
+    if (!showMat && material === "Other" && shouldFocusMaterialInput.current) {
+      shouldFocusMaterialInput.current = false;
+      const timer = setTimeout(() => {
+        customMaterialInputRef.current?.focus();
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [showMat, material]);
+
+  useEffect(() => {
+    if (brand === "Others" && shouldFocusBrandInput.current) {
+      shouldFocusBrandInput.current = false;
+      const timer = setTimeout(() => {
+        brandCustomInputRef.current?.focus();
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [brand]);
+
   const handleDelete = (index: number) => {
-    setImages(images.filter((_, i) => i !== index));
+    setImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSelectBrand = (selected: string) => {
+    setBrand(selected);
+    if (selected === "Others") {
+      shouldFocusBrandInput.current = true;
+    } else {
+      shouldFocusBrandInput.current = false;
+      setBrandCustom("");
+    }
   };
 
   // ✅ 添加图片上传功能
   const handleAddImage = async () => {
     try {
-      // 检查是否已达到最大图片数量
-      if (images.length >= 9) {
-        Alert.alert("Maximum Images", "You can only upload up to 9 images.");
+      if (images.length >= PHOTO_LIMIT) {
+        Alert.alert("Maximum Images", `You can only upload up to ${PHOTO_LIMIT} images.`);
         return;
       }
 
@@ -301,16 +522,23 @@ export default function EditListingScreen() {
       });
 
       if (!result.canceled && result.assets) {
-        const newImages = result.assets.map(asset => asset.uri);
-        
-        // 检查添加新图片后是否超过9张
-        if (images.length + newImages.length > 9) {
-          Alert.alert("Too Many Images", `You can only upload up to 9 images total. You currently have ${images.length} images.`);
+        const remainingSlots = PHOTO_LIMIT - images.length;
+        if (remainingSlots <= 0) {
+          Alert.alert("Maximum Images", `You can only upload up to ${PHOTO_LIMIT} images.`);
           return;
         }
 
-        setImages([...images, ...newImages]);
+        const assetsToAdd = result.assets.slice(0, remainingSlots);
+        const newImages = assetsToAdd.map((asset) => asset.uri);
+        setImages((prev) => [...prev, ...newImages]);
         console.log("📸 Added images:", newImages);
+
+        if (result.assets.length > assetsToAdd.length) {
+          Alert.alert(
+            "Too Many Images",
+            `Only ${PHOTO_LIMIT} photos are allowed. ${result.assets.length - assetsToAdd.length} image(s) were not added.`
+          );
+        }
       }
     } catch (error) {
       console.error("Error adding images:", error);
@@ -321,9 +549,8 @@ export default function EditListingScreen() {
   // ✅ 拍照功能
   const handleTakePhoto = async () => {
     try {
-      // 检查是否已达到最大图片数量
-      if (images.length >= 9) {
-        Alert.alert("Maximum Images", "You can only upload up to 9 images.");
+      if (images.length >= PHOTO_LIMIT) {
+        Alert.alert("Maximum Images", `You can only upload up to ${PHOTO_LIMIT} images.`);
         return;
       }
 
@@ -354,7 +581,7 @@ export default function EditListingScreen() {
 
       if (!result.canceled && result.assets[0]) {
         const newImage = result.assets[0].uri;
-        setImages([...images, newImage]);
+        setImages((prev) => [...prev, newImage]);
         console.log("📸 Took photo:", newImage);
       }
     } catch (error) {
@@ -365,6 +592,10 @@ export default function EditListingScreen() {
 
   // ✅ 显示图片选择选项
   const showImageOptions = () => {
+    if (images.length >= PHOTO_LIMIT) {
+      Alert.alert("Maximum Images", `You can only upload up to ${PHOTO_LIMIT} images.`);
+      return;
+    }
     Alert.alert(
       "Add Photos",
       "Choose how you'd like to add photos",
@@ -421,15 +652,24 @@ export default function EditListingScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             renderItem={({ item, index }) => (
-              <View style={styles.photoItem}>
+              <TouchableOpacity
+                style={styles.photoItem}
+                onPress={() => setPreviewIndex(index)}
+              >
                 <Image source={{ uri: item }} style={styles.photoImage} />
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(index)}>
+                <TouchableOpacity
+                  style={styles.deleteBtn}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleDelete(index);
+                  }}
+                >
                   <Text style={styles.deleteText}>✕</Text>
                 </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             )}
             ListFooterComponent={
-              images.length < 9 ? (
+              images.length < PHOTO_LIMIT ? (
                 <TouchableOpacity style={styles.addPhotoBox} onPress={showImageOptions}>
                   <Icon name="add" size={26} color="#999" />
                   <Text style={styles.addPhotoText}>Add Photo</Text>
@@ -467,7 +707,9 @@ export default function EditListingScreen() {
           {/* Category - 必填 */}
           <Text style={styles.sectionTitle}>Category <Text style={styles.requiredMark}>*</Text></Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCat(true)}>
-            <Text style={styles.selectValue}>{category}</Text>
+            <Text style={styles.selectValue}>
+              {category && category !== "Select" ? category : "Select"}
+            </Text>
           </TouchableOpacity>
 
           {/* Price - 必填 */}
@@ -483,7 +725,9 @@ export default function EditListingScreen() {
           {/* Shipping - 必填 */}
           <Text style={styles.sectionTitle}>Shipping <Text style={styles.requiredMark}>*</Text></Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowShip(true)}>
-            <Text style={styles.selectValue}>{shippingOption}</Text>
+            <Text style={styles.selectValue}>
+              {shippingOption && shippingOption !== "Select" ? shippingOption : "Select"}
+            </Text>
           </TouchableOpacity>
 
           {shippingOption === "Buyer pays – fixed fee" && (
@@ -514,32 +758,81 @@ export default function EditListingScreen() {
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Additional Details (Optional)</Text>
 
           <Text style={styles.fieldLabel}>Brand</Text>
-          <TextInput 
-            style={styles.input} 
-            value={brand} 
-            onChangeText={setBrand}
-            placeholder="Enter brand (e.g. Nike, Zara)"
-            placeholderTextColor="#999"
-          />
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowBrand(true)}>
+            <Text style={styles.selectValue}>
+              {brand === "Others"
+                ? brandCustom || "Enter brand"
+                : brand !== "Select"
+                ? brand
+                : "Select"}
+            </Text>
+          </TouchableOpacity>
+          {brand === "Others" && (
+            <TextInput
+              ref={brandCustomInputRef}
+              style={styles.input}
+              placeholder="Enter brand (eg. Nike, Zara)"
+              value={brandCustom}
+              onChangeText={setBrandCustom}
+            />
+          )}
 
           <Text style={styles.fieldLabel}>Condition</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCond(true)}>
-            <Text style={styles.selectValue}>{condition}</Text>
+            <Text style={styles.selectValue}>
+              {condition && condition !== "Select" ? condition : "Select"}
+            </Text>
           </TouchableOpacity>
 
           <Text style={styles.fieldLabel}>Size</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowSize(true)}>
-            <Text style={styles.selectValue}>{size}</Text>
+            <Text style={styles.selectValue}>
+              {size === "Other"
+                ? customSize || "Enter custom size"
+                : size && size !== "Select"
+                ? size
+                : "Select"}
+            </Text>
           </TouchableOpacity>
+          {size === "Other" && (
+            <TextInput
+              ref={customSizeInputRef}
+              style={styles.input}
+              placeholder="Enter custom size"
+              placeholderTextColor="#999"
+              value={customSize}
+              onChangeText={setCustomSize}
+              returnKeyType="done"
+            />
+          )}
 
           <Text style={styles.fieldLabel}>Material</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowMat(true)}>
-            <Text style={styles.selectValue}>{material}</Text>
+            <Text style={styles.selectValue}>
+              {material === "Other"
+                ? customMaterial || "Enter custom material"
+                : material && material !== "Select"
+                ? material
+                : "Select"}
+            </Text>
           </TouchableOpacity>
+          {material === "Other" && (
+            <TextInput
+              ref={customMaterialInputRef}
+              style={styles.input}
+              placeholder="Enter custom material"
+              placeholderTextColor="#999"
+              value={customMaterial}
+              onChangeText={setCustomMaterial}
+              returnKeyType="done"
+            />
+          )}
 
           <Text style={styles.fieldLabel}>Gender</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowGender(true)}>
-            <Text style={styles.selectValue}>{gender}</Text>
+            <Text style={styles.selectValue}>
+              {gender && gender !== "Select" ? gender : "Select"}
+            </Text>
           </TouchableOpacity>
 
           {/* Tags Section */}
@@ -593,6 +886,83 @@ export default function EditListingScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      {/* Image Preview Modal - 支持滑动切换 */}
+      <Modal
+        visible={previewIndex !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewIndex(null)}
+      >
+        <View style={styles.previewModalOverlay}>
+          <ScrollView
+            ref={scrollViewRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            contentOffset={{ x: (previewIndex ?? 0) * Dimensions.get("window").width, y: 0 }}
+            style={styles.previewScrollView}
+          >
+            {images.map((image) => (
+              <View key={image} style={styles.previewImageContainer}>
+                <Image
+                  source={{ uri: image }}
+                  style={styles.previewModalImage}
+                  resizeMode="contain"
+                />
+              </View>
+            ))}
+          </ScrollView>
+
+          {/* 顶部工具栏 */}
+          <View style={styles.previewTopBar}>
+            <View style={styles.previewIndicator}>
+              <Text style={styles.previewIndicatorText}>
+                {(previewIndex ?? 0) + 1} / {images.length}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.previewCloseBtn}
+              onPress={() => setPreviewIndex(null)}
+            >
+              <Icon name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {/* 底部缩略图导航 */}
+          {images.length > 1 && (
+            <View style={styles.previewBottomBar}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.thumbnailContainer}
+              >
+                {images.map((image, index) => (
+                  <TouchableOpacity
+                    key={image}
+                    style={[
+                      styles.thumbnail,
+                      index === previewIndex && styles.thumbnailActive,
+                    ]}
+                    onPress={() => {
+                      setPreviewIndex(index);
+                      scrollViewRef.current?.scrollTo({
+                        x: index * Dimensions.get("window").width,
+                        animated: true,
+                      });
+                    }}
+                  >
+                    <Image
+                      source={{ uri: image }}
+                      style={styles.thumbnailImage}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      </Modal>
+
       {/* Pickers */}
       <OptionPicker
         title="Select category"
@@ -613,10 +983,23 @@ export default function EditListingScreen() {
       <OptionPicker
         title="Select size"
         visible={showSize}
-        options={SIZE_OPTIONS_CLOTHES}
+        options={
+          category === "Footwear"
+            ? SIZE_OPTIONS_SHOES
+            : category === "Accessories"
+            ? SIZE_OPTIONS_ACCESSORIES
+            : SIZE_OPTIONS_CLOTHES
+        }
         value={size}
         onClose={() => setShowSize(false)}
-        onSelect={setSize}
+        onSelect={(value) => {
+          setSize(value);
+          if (value === "Other") {
+            shouldFocusSizeInput.current = true;
+          } else {
+            setCustomSize("");
+          }
+        }}
       />
       <OptionPicker
         title="Select material"
@@ -624,7 +1007,14 @@ export default function EditListingScreen() {
         options={MATERIAL_OPTIONS}
         value={material}
         onClose={() => setShowMat(false)}
-        onSelect={setMaterial}
+        onSelect={(value) => {
+          setMaterial(value);
+          if (value === "Other") {
+            shouldFocusMaterialInput.current = true;
+          } else {
+            setCustomMaterial("");
+          }
+        }}
       />
       <OptionPicker
         title="Select shipping option"
@@ -632,7 +1022,15 @@ export default function EditListingScreen() {
         options={SHIPPING_OPTIONS}
         value={shippingOption}
         onClose={() => setShowShip(false)}
-        onSelect={setShippingOption}
+        onSelect={(value) => {
+          setShippingOption(value);
+          if (value !== "Buyer pays – fixed fee") {
+            setShippingFee("");
+          }
+          if (value !== "Meet-up") {
+            setLocation("");
+          }
+        }}
       />
       <OptionPicker
         title="Select gender"
@@ -641,6 +1039,14 @@ export default function EditListingScreen() {
         value={gender}
         onClose={() => setShowGender(false)}
         onSelect={setGender}
+      />
+      <OptionPicker
+        title="Select brand"
+        visible={showBrand}
+        options={BRAND_OPTIONS}
+        value={brand}
+        onClose={() => setShowBrand(false)}
+        onSelect={handleSelectBrand}
       />
       {/* Tag Picker Modal */}
       <TagPickerModal
@@ -1040,4 +1446,82 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
+
+  // Image Preview Modal
+  previewModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+  },
+  previewScrollView: {
+    flex: 1,
+  },
+  previewImageContainer: {
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  previewModalImage: {
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height * 0.8,
+  },
+  previewTopBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  previewIndicator: {
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  previewIndicatorText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  previewCloseBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  previewBottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingVertical: 20,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  thumbnailContainer: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  thumbnail: {
+    width: 60,
+    height: 75,
+    borderRadius: 8,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  thumbnailActive: {
+    borderColor: "#fff",
+  },
+  thumbnailImage: {
+    width: "100%",
+    height: "100%",
+  },
+  // clearTiny removed (legacy back link)
 });

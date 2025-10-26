@@ -34,7 +34,7 @@ export async function POST() {
       return NextResponse.json({ 
         ok: false, 
         error: uploadError.message,
-        code: uploadError.statusCode,
+        code: (uploadError as any)?.statusCode ?? (uploadError as any)?.status ?? (uploadError as any)?.name ?? 'UNKNOWN',
         details: uploadError,
         suggestion: "This is likely due to RLS policies requiring authentication. The mobile app should work because it sends auth tokens."
       }, { status: 500 });
