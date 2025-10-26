@@ -233,16 +233,20 @@ model transactions {
 
 model reviews {
   id             Int          @id @default(autoincrement())
-  order_id       Int
+  transaction_id Int?
+  order_id       Int?
   reviewer_id    Int
   reviewee_id    Int
   rating         Int
-  comment        String
+  comment        String?
+  images         Json?
   reviewer_type  ReviewerType
   created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime?    @db.Timestamptz(6)
+  is_public      Boolean?     @default(true)
   reviewee       users        @relation("Reviewee", fields: [reviewee_id], references: [id], onDelete: Cascade)
   reviewer       users        @relation("Reviewer", fields: [reviewer_id], references: [id], onDelete: Cascade)
-  order          orders       @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  order          orders?      @relation(fields: [order_id], references: [id], onDelete: Cascade)
 
   @@unique([order_id, reviewer_id], name: "unique_order_reviewer")
   @@unique([order_id, reviewer_type], name: "unique_order_reviewer_type")

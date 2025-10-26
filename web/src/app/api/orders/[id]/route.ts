@@ -30,6 +30,7 @@ async function getCurrentUserWithLegacySupport(req: NextRequest) {
           is_premium: true,
           dob: true,
           gender: true,
+          avatar_url: true,
         },
       });
       if (legacyUser) {
@@ -42,6 +43,7 @@ async function getCurrentUserWithLegacySupport(req: NextRequest) {
           isPremium: Boolean(legacyUser.is_premium),
           dob: legacyUser.dob ? legacyUser.dob.toISOString().slice(0, 10) : null,
           gender: legacyUser.gender,
+          avatar_url: legacyUser.avatar_url,
         };
       }
     }
@@ -62,6 +64,7 @@ async function getCurrentUserWithLegacySupport(req: NextRequest) {
           is_premium: true,
           dob: true,
           gender: true,
+          avatar_url: true,
         },
       });
       if (dbUser) {
@@ -74,6 +77,7 @@ async function getCurrentUserWithLegacySupport(req: NextRequest) {
           isPremium: Boolean(dbUser.is_premium),
           dob: dbUser.dob ? dbUser.dob.toISOString().slice(0, 10) : null,
           gender: dbUser.gender,
+          avatar_url: dbUser.avatar_url,
         };
       }
     }
@@ -414,26 +418,28 @@ export async function PATCH(
           }
           break;
         case 'CANCELLED':
-          if (isSeller) {
-            notificationTitle = 'Order cancelled';
-            notificationMessage = `Order with @${existingOrder.buyer.username} has been cancelled.`;
-          } else {
-            notificationTitle = 'Order cancelled';
-            notificationMessage = `Order with @${existingOrder.seller.username} has been cancelled.`;
-          }
+          // 通知targetUser（对方）谁取消了订单
+          notificationTitle = 'Order cancelled';
+          notificationMessage = `@${currentUser.username} cancelled the order with you.`;
           break;
       }
       
       if (notificationTitle && targetUserId) {
+        // 对于CANCELLED状态，使用currentUser的头像
+        // 对于其他状态，使用对方的头像
+        const notificationImageUrl = status === 'CANCELLED' 
+          ? currentUser.avatar_url 
+          : (isSeller ? existingOrder.buyer.avatar_url : existingOrder.seller.avatar_url);
+        
         await prisma.notifications.create({
           data: {
             user_id: targetUserId,
             type: 'ORDER',
             title: notificationTitle,
             message: notificationMessage,
-            image_url: isSeller ? existingOrder.buyer.avatar_url : existingOrder.seller.avatar_url,
+            image_url: notificationImageUrl,
             order_id: orderId.toString(),
-            related_user_id: isSeller ? existingOrder.buyer_id : existingOrder.seller_id,
+            related_user_id: currentUser.id, // 发起操作的用户
           },
         });
         console.log(`🔔 Order status notification created for user ${targetUserId} (${status})`);

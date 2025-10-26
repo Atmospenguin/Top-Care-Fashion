@@ -96,6 +96,9 @@ export async function GET(request: NextRequest) {
           tags: tags,
           category: listing.category?.name || null,
           images: images,
+          shippingOption: listing.shipping_option || null,
+          shippingFee: listing.shipping_fee ? Number(listing.shipping_fee) : null,
+          location: listing.location || null,
           seller: {
             id: listing.seller.id,
             name: listing.seller.username,

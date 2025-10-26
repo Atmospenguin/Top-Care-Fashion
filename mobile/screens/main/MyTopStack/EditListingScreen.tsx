@@ -209,6 +209,18 @@ export default function EditListingScreen() {
       setSaving(true);
       console.log("📝 Saving listing changes:", listing.id);
 
+      // 🔥 自动提取预定义运费选项的费用
+      let calculatedShippingFee: number | undefined;
+      if (shippingOption.includes("Buyer pays – $3")) {
+        calculatedShippingFee = 3;
+      } else if (shippingOption.includes("Buyer pays – $5")) {
+        calculatedShippingFee = 5;
+      } else if (shippingOption === "Buyer pays – fixed fee" && shippingFee) {
+        calculatedShippingFee = parseFloat(shippingFee);
+      } else if (shippingOption === "Free shipping" || shippingOption === "Meet-up") {
+        calculatedShippingFee = 0;
+      }
+
       const updateData = {
         title: title.trim(),
         description: description.trim(),
@@ -222,7 +234,7 @@ export default function EditListingScreen() {
         images: images,
         tags: tags,
         shippingOption: shippingOption,
-        shippingFee: shippingFee ? parseFloat(shippingFee) : undefined,
+        shippingFee: calculatedShippingFee,
         location: shippingOption === "Meet-up" ? location.trim() : undefined,
       };
 

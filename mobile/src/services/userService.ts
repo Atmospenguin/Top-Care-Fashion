@@ -310,6 +310,29 @@ export class UserService {
       throw error;
     }
   }
+
+  // 获取用户的 reviews
+  async getUserReviews(username: string): Promise<any[]> {
+    try {
+      console.log("⭐ Fetching reviews for user:", username);
+      
+      const response = await apiClient.get<{ reviews: any[]; totalCount: number }>(
+        `/api/users/${username}/reviews`
+      );
+      
+      console.log("⭐ User reviews response:", response);
+      
+      if (response.data?.reviews) {
+        console.log(`✅ Found ${response.data.reviews.length} reviews for user`);
+        return response.data.reviews;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Error fetching user reviews:', error);
+      throw error;
+    }
+  }
 }
 
 export const userService = new UserService();

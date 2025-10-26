@@ -66,7 +66,12 @@ export default function BagScreen() {
       },
       0,
     );
-    const shippingFee = items.length > 0 ? 8 : 0;
+    // 🔥 使用真实的 shipping fee 数据
+    // 累加所有商品的 shipping fee（如果商品有运费的话）
+    const shippingFee = items.reduce((sum, current) => {
+      const fee = current.item.shippingFee ? Number(current.item.shippingFee) : 0;
+      return sum + fee;
+    }, 0);
     return {
       subtotal: computedSubtotal,
       shipping: shippingFee,

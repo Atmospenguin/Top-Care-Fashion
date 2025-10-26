@@ -86,6 +86,9 @@ export default function ListingDetailScreen() {
     // 调试：查看原始item数据
     console.log('🔍 Debug - Original item:', item);
     console.log('🔍 Debug - Original item.seller:', item.seller);
+    console.log('🔍 Debug - Original item.shippingFee:', item.shippingFee);
+    console.log('🔍 Debug - Original item.shippingOption:', item.shippingOption);
+    console.log('🔍 Debug - Original item.location:', item.location);
     
     const legacyImagesField = (item as { imageUrls?: unknown }).imageUrls;
     const legacyImages = Array.isArray(legacyImagesField)
@@ -101,6 +104,9 @@ export default function ListingDetailScreen() {
     // 调试：查看转换后的safeItem
     console.log('🔍 Debug - Converted safeItem:', result);
     console.log('🔍 Debug - Converted safeItem.seller:', result.seller);
+    console.log('🔍 Debug - Converted safeItem.shippingFee:', result.shippingFee);
+    console.log('🔍 Debug - Converted safeItem.shippingOption:', result.shippingOption);
+    console.log('🔍 Debug - Converted safeItem.location:', result.location);
     
     return result;
   }, [item]);
@@ -118,10 +124,21 @@ export default function ListingDetailScreen() {
   );
   // 🔥 使用真实的 shipping fee 数据
   const shippingFee = useMemo(() => {
-    if (!safeItem?.shippingFee) return 0;
-    return typeof safeItem.shippingFee === 'number' 
+    console.log('🔍 Debug - safeItem?.shippingFee:', safeItem?.shippingFee);
+    console.log('🔍 Debug - safeItem?.shippingOption:', safeItem?.shippingOption);
+    console.log('🔍 Debug - safeItem?.location:', safeItem?.location);
+    
+    if (!safeItem?.shippingFee) {
+      console.log('⚠️ Shipping fee is null or undefined, returning 0');
+      return 0;
+    }
+    
+    const fee = typeof safeItem.shippingFee === 'number' 
       ? safeItem.shippingFee 
       : Number(safeItem.shippingFee);
+    
+    console.log('✅ Using shipping fee:', fee);
+    return fee;
   }, [safeItem?.shippingFee]);
 
   const genderLabel = useMemo(() => formatGenderLabel(safeItem?.gender), [safeItem?.gender]);

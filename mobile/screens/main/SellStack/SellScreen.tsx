@@ -402,7 +402,19 @@ export default function SellScreen({
 
     setSaving(true);
     try {
-      const listingData: CreateListingRequest = {
+      // 🔥 自动提取预定义运费选项的费用
+    let calculatedShippingFee: number | undefined;
+    if (shippingOption.includes("Buyer pays – $3")) {
+      calculatedShippingFee = 3;
+    } else if (shippingOption.includes("Buyer pays – $5")) {
+      calculatedShippingFee = 5;
+    } else if (shippingOption === "Buyer pays – fixed fee" && shippingFee) {
+      calculatedShippingFee = parseFloat(shippingFee);
+    } else if (shippingOption === "Free shipping" || shippingOption === "Meet-up") {
+      calculatedShippingFee = 0;
+    }
+
+    const listingData: CreateListingRequest = {
         title: title.trim(),
         description: description.trim(),
         price: priceValue,
@@ -415,7 +427,7 @@ export default function SellScreen({
         gender: gender !== "Select" ? gender.toLowerCase() : "unisex",
         images: uploadedImages,
         shippingOption,
-        shippingFee: shippingFee ? parseFloat(shippingFee) : undefined,
+        shippingFee: calculatedShippingFee,
         location: shippingOption === "Meet-up" ? location.trim() : undefined,
       };
 

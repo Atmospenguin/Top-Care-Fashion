@@ -10,15 +10,19 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import Header from "../../../components/Header";
-import { useRoute } from "@react-navigation/native";
+import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../../../App";
 import { Ionicons } from "@expo/vector-icons";
-import { reviewsService, ordersService } from "../../../src/services";
+import { reviewsService, ordersService, listingsService } from "../../../src/services";
+import { useAuth } from "../../../contexts/AuthContext";
 
 export default function ReviewScreen() {
   const route = useRoute<RouteProp<RootStackParamList, "Review">>();
+  const navigation = useNavigation();
+  const { user } = useAuth();
   const { orderId, reviewType } = route.params;
 
   const [rating, setRating] = useState(0);
@@ -27,19 +31,31 @@ export default function ReviewScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [order, setOrder] = useState<any>(null);
   const [reviewee, setReviewee] = useState<any>(null);
+  const [photos, setPhotos] = useState<{ id: string; uri: string; uploadedUrl?: string }[]>([]);
 
   // 🔥 加载订单和用户信息
   useEffect(() => {
     const loadOrderData = async () => {
+      if (!user?.id) {
+        Alert.alert("Error", "Please log in to leave a review");
+        navigation.goBack();
+        return;
+      }
+
       try {
         setLoading(true);
         const orderData = await ordersService.getOrder(parseInt(orderId));
         setOrder(orderData);
         
-        // 确定被评论的用户（买家评论卖家，卖家评论买家）
-        const currentUserId = orderData.buyer_id; // 这里需要从 auth 获取当前用户ID
+        // 🔥 确定被评论的用户（买家评论卖家，卖家评论买家）
+        const currentUserId = user.id;
         const revieweeData = orderData.buyer_id === currentUserId ? orderData.seller : orderData.buyer;
         setReviewee(revieweeData);
+        
+        console.log('🔍 Review Screen - Current user ID:', currentUserId);
+        console.log('🔍 Review Screen - Order buyer ID:', orderData.buyer_id);
+        console.log('🔍 Review Screen - Order seller ID:', orderData.seller_id);
+        console.log('🔍 Review Screen - Reviewee:', revieweeData);
       } catch (error) {
         console.error("Error loading order data:", error);
         Alert.alert("Error", "Failed to load order data");
@@ -49,7 +65,73 @@ export default function ReviewScreen() {
     };
 
     loadOrderData();
-  }, [orderId]);
+  }, [orderId, user]);
+
+  // 🔥 添加图片
+  const handleAddPhoto = async () => {
+    if (photos.length >= 9) {
+      Alert.alert("Maximum Images", "You can only upload up to 9 images.");
+      return;
+    }
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission Required", "Please allow photo library access.");
+      return;
+    }
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        allowsMultipleSelection: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const newPhotos = result.assets.map((asset, index) => ({
+        id: `${Date.now()}-${index}`,
+        uri: asset.uri,
+      }));
+
+      setPhotos((prev) => [...prev, ...newPhotos]);
+    } catch (error) {
+      console.error("Error selecting photo:", error);
+      Alert.alert("Error", "Failed to select photo. Please try again.");
+    }
+  };
+
+  // 🔥 删除图片
+  const handleRemovePhoto = (id: string) => {
+    setPhotos((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  // 🔥 上传所有图片
+  const uploadAllPhotos = async () => {
+    const uploadedUrls: string[] = [];
+    
+    for (const photo of photos) {
+      if (!photo.uploadedUrl) {
+        try {
+          console.log('📸 Uploading photo:', photo.uri);
+          const remoteUrl = await listingsService.uploadListingImage(photo.uri);
+          uploadedUrls.push(remoteUrl);
+          console.log('✅ Photo uploaded:', remoteUrl);
+        } catch (error) {
+          console.error('❌ Error uploading photo:', error);
+          throw new Error('Failed to upload photos');
+        }
+      } else {
+        uploadedUrls.push(photo.uploadedUrl);
+      }
+    }
+
+    return uploadedUrls;
+  };
 
   // 🔥 提交评论
   const handleSubmitReview = async () => {
@@ -60,18 +142,29 @@ export default function ReviewScreen() {
 
     try {
       setSubmitting(true);
-      await reviewsService.createReview(parseInt(orderId), {
+      console.log('🔍 Submitting review for order:', orderId);
+      console.log('🔍 Rating:', rating);
+      console.log('🔍 Comment:', review);
+      
+      // 🔥 上传所有图片
+      let imageUrls: string[] = [];
+      if (photos.length > 0) {
+        console.log('📸 Uploading photos...');
+        imageUrls = await uploadAllPhotos();
+        console.log('✅ All photos uploaded:', imageUrls);
+      }
+
+      const result = await reviewsService.createReview(parseInt(orderId), {
         rating,
-        comment: review.trim() || undefined
+        comment: review.trim() || undefined,
+        images: imageUrls.length > 0 ? imageUrls : undefined
       });
+      
+      console.log('✅ Review submitted successfully:', result);
       
       Alert.alert("Success", "Review submitted successfully!", [
         { text: "OK", onPress: () => {
-          // 返回上一页
-          const navigation = route.params as any;
-          if (navigation?.goBack) {
-            navigation.goBack();
-          }
+          navigation.goBack();
         }}
       ]);
     } catch (error) {
@@ -154,13 +247,41 @@ export default function ReviewScreen() {
         />
         <Text style={styles.counter}>{review.length}/300</Text>
 
-        {/* 上传图片 (只有相机 icon) */}
-        <View style={styles.uploadRow}>
-          {[1, 2, 3].map((i) => (
-            <TouchableOpacity key={i} style={styles.uploadBox}>
-              <Ionicons name="camera-outline" size={28} color="#555" />
-            </TouchableOpacity>
-          ))}
+        {/* 上传图片 */}
+        <View style={styles.uploadSection}>
+          <Text style={styles.label}>PHOTOS (Optional)</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.uploadRow}>
+              {/* 显示已选中的图片 */}
+              {photos.map((photo) => (
+                <View key={photo.id} style={styles.photoContainer}>
+                  <Image source={{ uri: photo.uri }} style={styles.selectedPhoto} />
+                  <TouchableOpacity
+                    style={styles.removeBtn}
+                    onPress={() => handleRemovePhoto(photo.id)}
+                    hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+                  >
+                    <Ionicons name="close" size={16} color="#F54B3D" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              
+              {/* 添加图片按钮 */}
+              {photos.length < 9 && (
+                <TouchableOpacity
+                  style={styles.uploadBox}
+                  onPress={handleAddPhoto}
+                >
+                  <Ionicons name="camera-outline" size={28} color="#555" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </ScrollView>
+          {photos.length > 0 && (
+            <Text style={styles.photoHint}>
+              {photos.length}/9 photos • Tap to remove
+            </Text>
+          )}
         </View>
       </ScrollView>
 
@@ -207,10 +328,12 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   counter: { textAlign: "right", fontSize: 12, color: "#999", marginTop: 4 },
+  uploadSection: {
+    marginTop: 16,
+  },
   uploadRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 16,
+    columnGap: 12,
   },
   uploadBox: {
     width: 90,
@@ -220,6 +343,38 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#f9f9f9",
+  },
+  photoContainer: {
+    position: "relative",
+    marginRight: 12,
+  },
+  selectedPhoto: {
+    width: 90,
+    height: 90,
+    borderRadius: 8,
+  },
+  removeBtn: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  photoHint: {
+    fontSize: 12,
+    color: "#999",
+    marginTop: 8,
+    textAlign: "center",
   },
   footer: {
     position: "absolute",

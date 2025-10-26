@@ -331,41 +331,52 @@ export default function ChatScreen() {
     return unsubscribe;
   }, [navigation, route.params, conversationId, order, items]);
 
-  // 🔥 获取评论状态的辅助函数
-  const getReviewStatus = (orderData: any): string => {
-    // 检查订单是否有评论数据
-    const reviews = orderData.reviews || [];
+  // 🔥 获取评论状态（通过 API 检查）
+  const [reviewStatuses, setReviewStatuses] = useState<Record<string, {
+    userRole: 'buyer' | 'seller';
+    hasUserReviewed: boolean;
+    hasOtherReviewed: boolean;
+    userReview: any | null;
+    otherReview: any | null;
+  }>>({});
+
+  // 🔥 检查订单的评论状态
+  const checkOrderReviewStatus = async (orderId: string) => {
+    try {
+      const status = await ordersService.checkReviewStatus(parseInt(orderId));
+      setReviewStatuses(prev => ({
+        ...prev,
+        [orderId]: {
+          userRole: status.userRole,
+          hasUserReviewed: status.hasUserReviewed,
+          hasOtherReviewed: status.hasOtherReviewed,
+          userReview: status.userReview,
+          otherReview: status.otherReview,
+        }
+      }));
+      console.log("⭐ Review status updated for order", orderId, ":", status);
+    } catch (error) {
+      console.error("❌ Error checking review status:", error);
+    }
+  };
+
+  // 🔥 获取评论状态类型
+  const getReviewStatusType = (orderId: string, currentUserId: number, orderData: any): string => {
+    const status = reviewStatuses[orderId];
     
-    console.log("🔍 getReviewStatus - Order data:", orderData);
-    console.log("🔍 getReviewStatus - Reviews:", reviews);
-    console.log("🔍 getReviewStatus - Buyer ID:", orderData.buyer_id);
-    console.log("🔍 getReviewStatus - Seller ID:", orderData.seller_id);
-    
-    // 检查买家是否已经评论
-    const hasBuyerReview = reviews.some((review: any) => 
-      review.reviewer_id === orderData.buyer_id
-    );
-    
-    // 检查卖家是否已经评论
-    const hasSellerReview = reviews.some((review: any) => 
-      review.reviewer_id === orderData.seller_id
-    );
-    
-    console.log("🔍 getReviewStatus - Has buyer review:", hasBuyerReview);
-    console.log("🔍 getReviewStatus - Has seller review:", hasSellerReview);
-    
-    if (!hasBuyerReview && !hasSellerReview) {
-      console.log("🔍 getReviewStatus - Result: canReview");
-      return "canReview"; // 双方都可以评论
-    } else if (hasBuyerReview && !hasSellerReview) {
-      console.log("🔍 getReviewStatus - Result: canReply");
-      return "canReply"; // 买家已评论，卖家可以回复
-    } else if (!hasBuyerReview && hasSellerReview) {
-      console.log("🔍 getReviewStatus - Result: canReply");
-      return "canReply"; // 卖家已评论，买家可以回复
+    if (!status) {
+      // 如果没有检查过状态，返回默认值
+      return "unknown";
+    }
+
+    if (status.hasUserReviewed && status.hasOtherReviewed) {
+      return "mutualComplete";
+    } else if (status.hasUserReviewed && !status.hasOtherReviewed) {
+      return "waitingForOther";
+    } else if (!status.hasUserReviewed && status.hasOtherReviewed) {
+      return "canReply";
     } else {
-      console.log("🔍 getReviewStatus - Result: mutualComplete");
-      return "mutualComplete"; // 双方都已评论
+      return "canReview";
     }
   };
 
@@ -470,32 +481,14 @@ export default function ChatScreen() {
             time: new Date().toLocaleTimeString()
           });
           
-          // 🔥 检查评论状态并显示相应的CTA
-          const reviewStatus = getReviewStatus(orderData);
-          if (reviewStatus === "canReview") {
-            messages.push({
-              id: `cta-review-seller-${orderId}`,
-              type: "reviewCta",
-              text: "How was your experience with the buyer? Leave a review to help others.",
-              orderId: orderId,
-              reviewType: "seller"
-            });
-          } else if (reviewStatus === "canReply") {
-            messages.push({
-              id: `cta-reply-seller-${orderId}`,
-              type: "reviewReplyCta",
-              text: "Buyer has left a review. You can reply to their feedback.",
-              orderId: orderId,
-              reviewType: "seller"
-            });
-          } else if (reviewStatus === "mutualComplete") {
-            messages.push({
-              id: `cta-mutual-seller-${orderId}`,
-              type: "mutualReviewCta",
-              text: "Both reviews completed. View mutual feedback.",
-              orderId: orderId
-            });
-          }
+          // 🔥 添加评论 CTA（评论状态会在加载时异步检查）
+          messages.push({
+            id: `cta-review-seller-${orderId}`,
+            type: "reviewCta",
+            text: "How was your experience with the buyer? Leave a review to help others.",
+            orderId: orderId,
+            reviewType: "seller"
+          });
         } else {
           messages.push({
             id: `sys-received-buyer-${orderId}`,
@@ -504,32 +497,14 @@ export default function ChatScreen() {
             time: new Date().toLocaleTimeString()
           });
           
-          // 🔥 检查评论状态并显示相应的CTA
-          const reviewStatus = getReviewStatus(orderData);
-          if (reviewStatus === "canReview") {
-            messages.push({
-              id: `cta-review-buyer-${orderId}`,
-              type: "reviewCta",
-              text: "How was your experience? Leave a review to help others discover great items.",
-              orderId: orderId,
-              reviewType: "buyer"
-            });
-          } else if (reviewStatus === "canReply") {
-            messages.push({
-              id: `cta-reply-buyer-${orderId}`,
-              type: "reviewReplyCta",
-              text: "Seller has left a review. You can reply to their feedback.",
-              orderId: orderId,
-              reviewType: "buyer"
-            });
-          } else if (reviewStatus === "mutualComplete") {
-            messages.push({
-              id: `cta-mutual-buyer-${orderId}`,
-              type: "mutualReviewCta",
-              text: "Both reviews completed. View mutual feedback.",
-              orderId: orderId
-            });
-          }
+          // 🔥 添加评论 CTA（评论状态会在加载时异步检查）
+          messages.push({
+            id: `cta-review-buyer-${orderId}`,
+            type: "reviewCta",
+            text: "How was your experience? Leave a review to help others discover great items.",
+            orderId: orderId,
+            reviewType: "buyer"
+          });
         }
         break;
         
@@ -538,21 +513,17 @@ export default function ChatScreen() {
         break;
         
       case "CANCELLED":
-        if (isSeller) {
-          messages.push({
-            id: `sys-cancelled-seller-${orderId}`,
-            type: "system",
-            text: "Order has been cancelled by buyer.",
-            time: new Date().toLocaleTimeString()
-          });
-        } else {
-          messages.push({
-            id: `sys-cancelled-buyer-${orderId}`,
-            type: "system",
-            text: "Order has been cancelled.",
-            time: new Date().toLocaleTimeString()
-          });
-        }
+        // 🔥 需要根据订单的buyer_id和seller_id来判断谁取消了订单
+        // 暂时使用通用的"I've cancelled this order."格式，通过renderSystem动态转换
+        const cancelledMessage: ChatItem = {
+          id: `sys-cancelled-${orderId}`,
+          type: "system",
+          text: "I've cancelled this order.",
+          time: new Date().toLocaleTimeString(),
+          // 注意：senderInfo需要从order对象中获取实际取消者的信息
+          // 这里暂时不设置，让renderSystem通过order对象来判断
+        };
+        messages.push(cancelledMessage);
         break;
         
       case "REVIEWED":
@@ -914,23 +885,20 @@ export default function ChatScreen() {
         }
       
       case "CANCELLED":
-        if (isSeller) {
-          return {
-            id: `system-cancelled-seller-${Date.now()}`,
-            type: "system",
-            text: "Order has been cancelled by buyer.",
-            time: timestamp,
-            orderId: order.id
-          };
-        } else {
-          return {
-            id: `system-cancelled-buyer-${Date.now()}`,
-            type: "system",
-            text: "Order has been cancelled.",
-            time: timestamp,
-            orderId: order.id
-          };
-        }
+        // 🔥 使用统一的"I've cancelled this order."格式，通过renderSystem动态转换
+        return {
+          id: `system-cancelled-${Date.now()}`,
+          type: "system",
+          text: "I've cancelled this order.",
+          time: timestamp,
+          orderId: order.id,
+          senderInfo: {
+            // 需要根据实际情况设置，这里暂时不设置，让renderSystem处理
+            id: user?.id || 0,
+            username: user?.username || "",
+            avatar: user?.avatar_url || ""
+          }
+        };
       
       case "COMPLETED":
         if (isSeller) {
@@ -1261,6 +1229,10 @@ export default function ChatScreen() {
         if (orderCard && orderCard.type === "orderCard") {
           setLastOrderStatus(orderCard.order.status);
           console.log("🔍 Recorded order status:", orderCard.order.status);
+          
+          // 🔥 检查评论状态
+          const orderId = orderCard.order.id.toString();
+          checkOrderReviewStatus(orderId);
         }
       }
       
@@ -1428,13 +1400,19 @@ export default function ChatScreen() {
                   });
                   setItems(updatedItems);
                   
-                  // 发送系统消息
+                  // 发送系统消息 - 买家视角
                   const systemMessage: ChatItem = {
                     id: `system-cancel-${Date.now()}`,
                     type: "system",
-                    text: `Order #${o.id} has been cancelled.`,
+                    text: "I've cancelled this order.",
                     time: new Date().toLocaleTimeString(),
-                    orderId: o.id
+                    orderId: o.id,
+                    sentByUser: true,
+                    senderInfo: {
+                      id: user?.id || 0,
+                      username: user?.username || "",
+                      avatar: user?.avatar_url || ""
+                    }
                   };
                   setItems(prev => [...prev, systemMessage]);
                   
@@ -1520,22 +1498,26 @@ export default function ChatScreen() {
       console.log("⭐ Leave Review button pressed for order:", o.id);
       console.log("⭐ Order ID:", o.id);
       
-      const rootNavigation = (navigation as any).getParent?.();
-      if (rootNavigation) {
+      try {
+        // 获取 root navigation (需要通过多层 getParent)
+        let rootNav = navigation;
+        while ((rootNav as any).getParent) {
+          const parent = (rootNav as any).getParent();
+          if (parent) {
+            rootNav = parent;
+          } else {
+            break;
+          }
+        }
+        
         console.log("⭐ Root navigation found, navigating to Review screen");
-        // 直接导航到Review页面，不需要通过Main -> MyTop
-        rootNavigation.navigate("Review", { 
+        (rootNav as any).navigate("Review", { 
           orderId: o.id,
           reviewType: "buyer" // 买家视角
         });
-      } else {
-        console.error("❌ Root navigation not found");
-        // 尝试直接使用当前navigation
-        console.log("⭐ Trying direct navigation");
-        (navigation as any).navigate("Review", { 
-          orderId: o.id,
-          reviewType: "buyer"
-        });
+      } catch (error) {
+        console.error("❌ Error navigating to Review:", error);
+        Alert.alert("Error", "Failed to navigate to review screen");
       }
     };
 
@@ -1600,13 +1582,19 @@ export default function ChatScreen() {
                   });
                   setItems(updatedItems);
                   
-                  // 发送系统消息
+                  // 发送系统消息 - 卖家视角
                   const systemMessage: ChatItem = {
                     id: `system-cancel-sold-${Date.now()}`,
                     type: "system",
-                    text: `Order #${o.id} has been cancelled by seller.`,
+                    text: "I've cancelled this order.",
                     time: new Date().toLocaleTimeString(),
-                    orderId: o.id
+                    orderId: o.id,
+                    sentByUser: true,
+                    senderInfo: {
+                      id: user?.id || 0,
+                      username: user?.username || "",
+                      avatar: user?.avatar_url || ""
+                    }
                   };
                   setItems(prev => [...prev, systemMessage]);
                   
@@ -1960,19 +1948,32 @@ export default function ChatScreen() {
     }
     
     // 取消消息的动态转换
-    if (text === "I've cancelled this order.") {
+    if (text === "I've cancelled this order." || text.includes("cancelled")) {
       // 判断当前用户是否是发送者
       const isCurrentUserSender = senderInfo?.id === user?.id;
       
-      if (!isCurrentUserSender) {
+      if (isCurrentUserSender) {
+        // 如果是发送者，显示操作者视角
+        displayText = "I've cancelled this order.";
+      } else {
         // 如果不是发送者，显示接收者视角
-        // 需要判断发送者是买家还是卖家
-        const isSenderBuyer = senderInfo?.id === order?.buyer_id;
-        displayText = isSenderBuyer 
+        // 需要判断谁取消了订单：通过senderInfo或order对象
+        let isCancellerBuyer = false;
+        
+        if (senderInfo?.id) {
+          // 如果有senderInfo，使用senderInfo来判断
+          isCancellerBuyer = senderInfo.id === order?.buyer_id;
+        } else if (order) {
+          // 如果没有senderInfo但order存在，使用conversation信息判断
+          const isCurrentUserBuyer = (conversation?.conversation as any)?.initiator_id === user?.id;
+          // 如果当前用户是买家，取消者是卖家；反之亦然
+          isCancellerBuyer = !isCurrentUserBuyer;
+        }
+        
+        displayText = isCancellerBuyer 
           ? "Buyer has cancelled the order."
           : "Seller has cancelled the order.";
       }
-      // 如果是发送者，保持原文本 "I've cancelled this order."
     }
     
     // 发货消息的动态转换
@@ -2028,42 +2029,111 @@ export default function ChatScreen() {
     );
   };
 
-  const renderReviewCTA = (orderId: string, text: string, reviewType?: "buyer" | "seller") => (
-    <View style={styles.reviewBox}>
-      <Text style={styles.reviewHint}>{text}</Text>
-      <TouchableOpacity 
-        style={styles.reviewBtnCenter}
-        onPress={() => {
-          console.log("⭐ Leave Review button pressed for order:", orderId);
-          console.log("⭐ Review type:", reviewType || "buyer");
-          console.log("⭐ Navigation object:", navigation);
-          
-          const rootNavigation = (navigation as any).getParent?.();
-          if (rootNavigation) {
-            console.log("⭐ Root navigation found, navigating to Review screen");
-            console.log("⭐ OrderId:", orderId);
-            console.log("⭐ ReviewType:", reviewType || "buyer");
+  const renderReviewCTA = (orderId: string, text: string, reviewType?: "buyer" | "seller") => {
+    const status = reviewStatuses[orderId];
+    
+    // 如果用户已经评论过，显示 "Already Reviewed" 卡片
+    if (status?.hasUserReviewed) {
+      return (
+        <View style={styles.reviewBox}>
+          <Text style={styles.reviewHint}>✅ You already reviewed this transaction</Text>
+          <TouchableOpacity 
+            style={[styles.reviewBtnCenter, { backgroundColor: "#666" }]}
+            onPress={() => {
+              console.log("⭐ View Review pressed for order:", orderId);
+              // TODO: 导航到查看评论的页面
+              Alert.alert("View Review", "This will show your review");
+            }}
+          >
+            <Text style={styles.reviewBtnText}>View Your Review</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    
+    // 如果对方已经评论过，显示 "Reply to Review" 卡片
+    if (status?.hasOtherReviewed) {
+      // 🔥 获取对方用户名
+      const orderCard = items.find(item => item.type === "orderCard" && item.order.id === orderId);
+      let otherPersonName = "The other person";
+      
+      if (orderCard && orderCard.type === "orderCard") {
+        // 判断当前用户是 buyer 还是 seller
+        // 通过用户名匹配
+        const isBuyer = user?.username === orderCard.order.buyer?.name;
+        if (isBuyer) {
+          // 当前用户是买家，对方是卖家
+          otherPersonName = orderCard.order.seller?.name || "The seller";
+        } else {
+          // 当前用户是卖家，对方是买家
+          otherPersonName = orderCard.order.buyer?.name || "The buyer";
+        }
+      }
+      
+      return (
+        <View style={styles.reviewBox}>
+          <Text style={styles.reviewHint}>{otherPersonName} has reviewed this transaction</Text>
+          <TouchableOpacity 
+            style={styles.reviewBtnCenter}
+            onPress={() => {
+              console.log("⭐ Reply to Review button pressed for order:", orderId);
+              console.log("⭐ Review type:", reviewType || "buyer");
+              
+              const rootNavigation = (navigation as any).getParent?.();
+              if (rootNavigation) {
+                console.log("⭐ Root navigation found, navigating to Review screen");
+                rootNavigation.navigate("Review", { 
+                  orderId: orderId,
+                  reviewType: reviewType || "buyer",
+                  isReply: true
+                });
+              } else {
+                console.log("⭐ Trying direct navigation");
+                (navigation as any).navigate("Review", { 
+                  orderId: orderId,
+                  reviewType: reviewType || "buyer",
+                  isReply: true
+                });
+              }
+            }}
+          >
+            <Text style={styles.reviewBtnText}>Leave Review</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    
+    // 默认显示 "Leave Review" 卡片
+    return (
+      <View style={styles.reviewBox}>
+        <Text style={styles.reviewHint}>{text}</Text>
+        <TouchableOpacity 
+          style={styles.reviewBtnCenter}
+          onPress={() => {
+            console.log("⭐ Leave Review button pressed for order:", orderId);
+            console.log("⭐ Review type:", reviewType || "buyer");
             
-            // 直接导航到Review页面，不需要通过Main -> MyTop
-            rootNavigation.navigate("Review", { 
-              orderId: orderId,
-              reviewType: reviewType || "buyer"
-            });
-          } else {
-            console.error("❌ Root navigation not found");
-            // 尝试直接使用当前navigation
-            console.log("⭐ Trying direct navigation");
-            (navigation as any).navigate("Review", { 
-              orderId: orderId,
-              reviewType: reviewType || "buyer"
-            });
-          }
-        }}
-      >
-        <Text style={styles.reviewBtnText}>Leave Review</Text>
-      </TouchableOpacity>
-    </View>
-  );
+            const rootNavigation = (navigation as any).getParent?.();
+            if (rootNavigation) {
+              console.log("⭐ Root navigation found, navigating to Review screen");
+              rootNavigation.navigate("Review", { 
+                orderId: orderId,
+                reviewType: reviewType || "buyer"
+              });
+            } else {
+              console.log("⭐ Trying direct navigation");
+              (navigation as any).navigate("Review", { 
+                orderId: orderId,
+                reviewType: reviewType || "buyer"
+              });
+            }
+          }}
+        >
+          <Text style={styles.reviewBtnText}>Leave Review</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   // 🔥 渲染评论回复邀请卡片
   const renderReviewReplyCTA = (orderId: string, text: string, reviewType?: "buyer" | "seller") => (
@@ -2443,7 +2513,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
-  reviewHint: { color: "#555", fontSize: 14, marginBottom: 12, lineHeight: 20, textAlign: "left" },
+  reviewHint: { color: "#555", fontSize: 14, marginBottom: 12, lineHeight: 20, textAlign: "center" },
   reviewBtnCenter: {
     alignSelf: "center",
     backgroundColor: "#fff",

@@ -25,6 +25,7 @@ export interface Review {
 export interface CreateReviewRequest {
   rating: number;
   comment?: string;
+  images?: string[];
 }
 
 class ReviewsService {

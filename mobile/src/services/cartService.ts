@@ -18,6 +18,9 @@ export interface CartItem {
     tags?: string[];
     category?: string;
     images: string[];
+    shippingOption?: string | null;
+    shippingFee?: number | null;
+    location?: string | null;
     seller: {
       id: number;
       name: string;

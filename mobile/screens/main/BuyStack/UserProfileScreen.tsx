@@ -131,6 +131,8 @@ export default function UserProfileScreen() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [userListings, setUserListings] = useState<ListingItem[]>([]);
   const [likedListings, setLikedListings] = useState<LikedListing[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]); // 🔥 新增：存储真实的 reviews
+  const [reviewsLoading, setReviewsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [listingsLoading, setListingsLoading] = useState(false);
   const [likesLoading, setLikesLoading] = useState(false);
@@ -290,10 +292,48 @@ export default function UserProfileScreen() {
     checkFollowStatus();
   }, [userProfile, currentUser, isOwnProfile]);
 
+  // 🔥 新增：加载用户的 reviews
+  useEffect(() => {
+    const loadUserReviews = async () => {
+      if (!userProfile) return;
+      
+      try {
+        setReviewsLoading(true);
+        console.log("⭐ Loading reviews for user:", userProfile.username);
+        
+        const fetchedReviews = await userService.getUserReviews(userProfile.username);
+        
+        // 转换 API 数据格式以匹配 UI
+        const formattedReviews = fetchedReviews.map((review) => ({
+          id: `r-${review.id}`,
+          name: review.reviewer.name,
+          avatar: review.reviewer.avatar || "https://i.pravatar.cc/100?img=1",
+          rating: review.rating,
+          comment: review.comment || "",
+          time: review.time,
+          date: review.date,
+          type: review.type as "buyer" | "seller",
+          hasPhoto: review.hasPhoto || false,
+        }));
+        
+        setReviews(formattedReviews);
+        console.log(`✅ Loaded ${formattedReviews.length} reviews`);
+      } catch (error) {
+        console.error("❌ Error loading user reviews:", error);
+        // 使用 mock 数据作为 fallback
+        setReviews(mockReviews);
+      } finally {
+        setReviewsLoading(false);
+      }
+    };
+
+    loadUserReviews();
+  }, [userProfile]);
+
   // 使用真实的follow统计数据
   const followers = userProfile?.followersCount || 0;
   const following = userProfile?.followingCount || 0;
-  const reviewsCount = userProfile?.reviewsCount || mockReviews.length;
+  const reviewsCount = reviews.length || userProfile?.reviewsCount || mockReviews.length;
 
   const filteredListings = useMemo(() => {
     let results = userListings;
@@ -330,7 +370,9 @@ export default function UserProfileScreen() {
   );
 
   const filteredReviews = useMemo(() => {
-    let results = mockReviews;
+    // 🔥 使用真实的 reviews 数据，如果为空则使用 mock 数据
+    const dataSource = reviews.length > 0 ? reviews : mockReviews;
+    let results = dataSource;
 
     if (reviewRole === "From Buyer") {
       results = results.filter((review) => review.type === "buyer");
@@ -355,7 +397,7 @@ export default function UserProfileScreen() {
     }
 
     return results;
-  }, [reviewRole, reviewRating, showWithPhotos, showLatest]);
+  }, [reviews, reviewRole, reviewRating, showWithPhotos, showLatest]);
 
   const handleReport = () => {
     setReportModalVisible(true);

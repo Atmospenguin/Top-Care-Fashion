@@ -182,6 +182,22 @@ class OrdersService {
     return response.data;
   }
 
+  // Check review status for an order
+  async checkReviewStatus(orderId: number): Promise<{
+    orderId: number;
+    userRole: 'buyer' | 'seller';
+    hasUserReviewed: boolean;
+    hasOtherReviewed: boolean;
+    reviewsCount: number;
+    userReview: Review | null;
+    otherReview: Review | null;
+  }> {
+    console.log("⭐ Checking review status for order:", orderId);
+    const response = await apiClient.get(`${API_CONFIG.ENDPOINTS.ORDERS}/${orderId}/reviews/check`);
+    console.log("⭐ Review status response:", response.data);
+    return response.data;
+  }
+
   // Helper methods for common order operations
   async cancelOrder(orderId: number): Promise<Order> {
     return this.updateOrderStatus(orderId, { status: 'CANCELLED' });

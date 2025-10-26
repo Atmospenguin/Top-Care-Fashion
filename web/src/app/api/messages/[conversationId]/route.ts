@@ -218,7 +218,7 @@ export async function GET(
       sender: msg.message_type === "SYSTEM" ? undefined : (msg.sender_id === dbUser.id ? "me" : "other"),
       text: msg.content,
       time: formatTime(msg.created_at),
-      sentByUser: msg.message_type === "SYSTEM",
+      sentByUser: msg.sender_id === dbUser.id,  // 🔥 修复：判断sender_id来确定是否由当前用户发送
       senderInfo: {
         id: msg.sender.id,
         username: msg.sender.username,

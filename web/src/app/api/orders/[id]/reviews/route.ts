@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db';
 // GET /api/orders/[id]/reviews - Get reviews for an order
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const currentUser = await getSessionUser(request);
@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const orderId = parseInt(params.id);
+    const resolvedParams = await params;
+    const orderId = parseInt(resolvedParams.id);
     if (isNaN(orderId)) {
       return NextResponse.json(
         { error: 'Invalid order ID' },
@@ -51,16 +52,14 @@ export async function GET(
           select: {
             id: true,
             username: true,
-            avatar_url: true,
-            avatar_path: true
+            avatar_url: true
           }
         },
         reviewee: {
           select: {
             id: true,
             username: true,
-            avatar_url: true,
-            avatar_path: true
+            avatar_url: true
           }
         }
       },
@@ -83,7 +82,7 @@ export async function GET(
 // POST /api/orders/[id]/reviews - Create a review for an order
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const currentUser = await getSessionUser(request);
@@ -91,7 +90,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const orderId = parseInt(params.id);
+    const resolvedParams = await params;
+    const orderId = parseInt(resolvedParams.id);
     if (isNaN(orderId)) {
       return NextResponse.json(
         { error: 'Invalid order ID' },
@@ -100,7 +100,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { rating, comment } = body;
+    const { rating, comment, images } = body;
 
     if (!rating || rating < 1 || rating > 5) {
       return NextResponse.json(
@@ -144,6 +144,9 @@ export async function POST(
 
     // Determine who the user is reviewing
     const revieweeId = order.buyer_id === currentUser.id ? order.seller_id : order.buyer_id;
+    
+    // Determine reviewer type
+    const reviewerType = order.buyer_id === currentUser.id ? 'BUYER' : 'SELLER';
 
     // Check if user has already reviewed this order
     const existingReview = order.reviews.find(
@@ -164,23 +167,23 @@ export async function POST(
         reviewer_id: currentUser.id,
         reviewee_id: revieweeId,
         rating,
-        comment: comment || null
+        comment: comment || null,
+        images: images ? JSON.stringify(images) : null,
+        reviewer_type: reviewerType
       },
       include: {
         reviewer: {
           select: {
             id: true,
             username: true,
-            avatar_url: true,
-            avatar_path: true
+            avatar_url: true
           }
         },
         reviewee: {
           select: {
             id: true,
             username: true,
-            avatar_url: true,
-            avatar_path: true
+            avatar_url: true
           }
         }
       }
