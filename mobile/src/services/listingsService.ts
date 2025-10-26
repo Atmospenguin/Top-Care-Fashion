@@ -47,6 +47,17 @@ export interface BoostedListingSummary {
   usedFreeCredit: boolean;
 }
 
+export interface BoostListingsResponse {
+  createdCount: number;
+  promotionIds: number[];
+  freeCreditsUsed: number;
+  paidBoostCount: number;
+  totalCharge: number;
+  pricePerBoost: number;
+  currency: string;
+  alreadyPromotedIds?: number[];
+}
+
 // 创建商品请求参数
 export interface CreateListingRequest {
   title: string;
@@ -268,6 +279,46 @@ export class ListingsService {
       return [];
     } catch (error) {
       console.error('Error fetching boosted listings:', error);
+      throw error;
+    }
+  }
+
+  async boostListings(params: {
+    listingIds: string[];
+    plan: "free" | "premium";
+    paymentMethodId?: number | null;
+    useFreeCredits?: boolean;
+  }): Promise<BoostListingsResponse> {
+    try {
+      const payloadIds = params.listingIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0);
+
+      if (payloadIds.length === 0) {
+        throw new Error("No valid listing IDs provided for boosting");
+      }
+
+      const response = await apiClient.post<{
+        success?: boolean;
+        data?: BoostListingsResponse;
+        error?: string;
+      }>("/api/listings/boost", {
+        listingIds: payloadIds,
+        plan: params.plan,
+        paymentMethodId: params.paymentMethodId ?? undefined,
+        useFreeCredits:
+          typeof params.useFreeCredits === "boolean"
+            ? params.useFreeCredits
+            : true,
+      });
+
+      if (response.data?.data) {
+        return response.data.data;
+      }
+
+      throw new Error(response.data?.error || "Failed to boost listings");
+    } catch (error) {
+      console.error("Error creating listing boosts:", error);
       throw error;
     }
   }

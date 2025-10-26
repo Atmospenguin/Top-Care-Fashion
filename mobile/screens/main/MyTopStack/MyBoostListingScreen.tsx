@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import type { CompositeNavigationProp, NavigatorScreenParams } from "@react-navigation/native";
+import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
@@ -27,10 +27,6 @@ type Nav = CompositeNavigationProp<
   NativeStackNavigationProp<RootStackParamList>
 >;
 
-const promotionPlansRoute: NavigatorScreenParams<PremiumStackParamList> = {
-  screen: "PromotionPlans",
-};
-
 export default function BoostListingScreen() {
   const navigation = useNavigation<Nav>();
   const { user } = useAuth();
@@ -41,6 +37,8 @@ export default function BoostListingScreen() {
   const [loadingListings, setLoadingListings] = useState(false);
   const [listingsError, setListingsError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [boostedCount, setBoostedCount] = useState(0);
+  const [loadingBoosted, setLoadingBoosted] = useState(false);
 
   const loadScreenData = useCallback(
     async (isCancelled?: () => boolean) => {
@@ -54,6 +52,8 @@ export default function BoostListingScreen() {
         setListingsError(null);
         setLoadingBenefits(false);
         setLoadingListings(false);
+        setBoostedCount(0);
+        setLoadingBoosted(false);
         return;
       }
 
@@ -61,11 +61,13 @@ export default function BoostListingScreen() {
         setListingsError(null);
         setLoadingBenefits(true);
         setLoadingListings(true);
+        setLoadingBoosted(true);
       }
 
-      const [benefitsResult, listingsResult] = await Promise.allSettled([
+      const [benefitsResult, listingsResult, boostedResult] = await Promise.allSettled([
         benefitsService.getUserBenefits(),
         listingsService.getUserListings({ status: "active" }),
+        listingsService.getBoostedListings(),
       ]);
 
       if (isCancelled?.()) {
@@ -91,9 +93,20 @@ export default function BoostListingScreen() {
         setListingsError("Failed to load your active listings.");
       }
 
+      if (boostedResult.status === "fulfilled") {
+        setBoostedCount(boostedResult.value.length);
+      } else {
+        console.warn(
+          "Failed to load boosted listings for boost screen",
+          boostedResult.reason
+        );
+        setBoostedCount(0);
+      }
+
       if (!isCancelled?.()) {
         setLoadingBenefits(false);
         setLoadingListings(false);
+        setLoadingBoosted(false);
       }
     },
     [user]
@@ -135,6 +148,11 @@ export default function BoostListingScreen() {
   const selectedCount = useMemo(
     () => Object.keys(selected).length,
     [selected]
+  );
+
+  const selectedListings = useMemo(
+    () => listings.filter((item) => selected[item.id]),
+    [listings, selected]
   );
 
   const toggle = useCallback(
@@ -225,11 +243,26 @@ export default function BoostListingScreen() {
     };
   }, [benefits, loadingBenefits]);
 
-  const activeListingCount = listings.length;
-  const topCardText = loadingListings
-    ? "Loading your active listings…"
-    : `${activeListingCount} active listing${activeListingCount === 1 ? "" : "s"}`;
+  const topCardText = loadingBoosted
+    ? "Loading your boosted listings…"
+    : `${boostedCount} boosted listing${boostedCount === 1 ? "" : "s"}`;
   const canSubmitBoost = selectedCount > 0 && !loadingListings;
+
+  const handleSubmit = useCallback(() => {
+    if (!canSubmitBoost) {
+      return;
+    }
+
+    const listingIds = selectedListings.map((item) => item.id);
+    navigation.navigate("Premium", {
+      screen: "PromotionPlans",
+      params: {
+        selectedListingIds: listingIds,
+        selectedListings,
+        benefitsSnapshot: benefits,
+      },
+    });
+  }, [benefits, canSubmitBoost, navigation, selectedListings]);
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -326,7 +359,7 @@ export default function BoostListingScreen() {
             !canSubmitBoost && { opacity: 0.4 },
           ]}
           disabled={!canSubmitBoost}
-          onPress={() => navigation.navigate("Premium", promotionPlansRoute)}
+          onPress={handleSubmit}
         >
           <Text style={styles.primaryText}>
             Boost selected ({selectedCount})

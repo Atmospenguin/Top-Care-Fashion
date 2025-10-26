@@ -17,7 +17,7 @@ export { benefitsService, type BenefitsServiceType } from './benefitsService';
 
 // 导出类型
 export type { ApiResponse, ApiError } from '../config/api';
-export type { ListingsQueryParams, BoostedListingSummary } from './listingsService';
+export type { ListingsQueryParams, BoostedListingSummary, BoostListingsResponse } from './listingsService';
 export type { User, SignInRequest, SignUpRequest, AuthResponse } from './authService';
 export type { UpdateProfileRequest } from './userService';
 export type { Feedback, CreateFeedbackRequest } from './feedbackService';
