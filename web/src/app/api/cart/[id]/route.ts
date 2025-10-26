@@ -5,7 +5,7 @@ import { getSessionUser } from '@/lib/auth';
 // PUT /api/cart/[id] - Update cart item quantity
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getSessionUser(request);
@@ -13,7 +13,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const cartItemId = parseInt(params.id);
+    const { id } = await context.params;
+    const cartItemId = parseInt(id);
     const body = await request.json();
     const { quantity } = body;
 
@@ -74,7 +75,7 @@ export async function PUT(
 // DELETE /api/cart/[id] - Remove cart item
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getSessionUser(request);
@@ -82,7 +83,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const cartItemId = parseInt(params.id);
+    const { id } = await context.params;
+    const cartItemId = parseInt(id);
 
     // 检查购物车项目是否存在且属于当前用户
     const existingCartItem = await prisma.cart_items.findFirst({

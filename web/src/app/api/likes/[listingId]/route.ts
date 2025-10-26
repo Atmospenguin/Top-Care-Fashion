@@ -5,7 +5,7 @@ import { getSessionUser } from '@/lib/auth';
 // GET /api/likes/[listingId] - Check if user has liked a specific listing
 export async function GET(
   request: NextRequest,
-  { params }: { params: { listingId: string } }
+  context: { params: Promise<{ listingId: string }> }
 ) {
   try {
     const user = await getSessionUser(request);
@@ -13,7 +13,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { listingId } = params;
+    const { listingId } = await context.params;
 
     console.log('Checking like status for listing:', listingId, 'by user:', user.id);
 

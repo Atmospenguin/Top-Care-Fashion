@@ -29,7 +29,7 @@ export default function AppScreensCarousel({
   const slides = useMemo(() => {
     const list = images && images.length > 0
       ? images
-      : defaultRawFiles.map((f) => `/TOPApp/${f}`);
+      : [];
     return list.map((src) => {
       const safeSrc = src.replace(/ /g, "%20");
       const name = safeSrc.split("/").pop() || safeSrc;

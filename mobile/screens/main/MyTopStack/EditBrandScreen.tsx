@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
+  ActivityIndicator,
 } from "react-native";
 import Header from "../../../components/Header";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -13,6 +14,8 @@ import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { MyTopStackParamList } from "./index";
 import { userService } from "../../../src/services/userService";
+import { listingsService } from "../../../src/services/listingsService";
+import { useAuth } from "../../../contexts/AuthContext";
 
 const ALL_BRANDS = [
   "Nike",
@@ -35,55 +38,87 @@ const ALL_BRANDS = [
   "Off-White",
 ];
 
+const mergeBrandLists = (brands: string[]): string[] => {
+  const seen = new Set<string>();
+  return brands
+    .map((brand) => (typeof brand === "string" ? brand.trim() : ""))
+    .filter((brand) => {
+      if (!brand) return false;
+      const key = brand.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+
 type EditBrandNav = NativeStackNavigationProp<MyTopStackParamList, "EditBrand">;
 type EditBrandRoute = RouteProp<MyTopStackParamList, "EditBrand">;
 
 export default function EditBrandScreen() {
   const navigation = useNavigation<EditBrandNav>();
   const route = useRoute<EditBrandRoute>();
+  const { user, updateUser } = useAuth();
   const [saving, setSaving] = useState(false);
-  const brandOptions = useMemo(() => {
-    const fromRoute = route.params?.availableBrands;
-    // Always start with ALL_BRANDS, then merge in backend brands
-    const backendBrands = Array.isArray(fromRoute)
-      ? fromRoute
-          .map((brand) => (typeof brand === "string" ? brand.trim() : ""))
-          .filter(Boolean)
-      : [];
-    
-    // Combine ALL_BRANDS + backend brands, keeping unique entries (case-insensitive)
-    const combined = [...ALL_BRANDS, ...backendBrands];
-    const seen = new Set<string>();
-    const unique = combined.filter((brand) => {
-      const lower = brand.toLowerCase();
-      if (seen.has(lower)) return false;
-      seen.add(lower);
-      return true;
-    });
-    
-    return unique;
-  }, [route.params?.availableBrands]);
+  const initialRouteBrands = Array.isArray(route.params?.availableBrands)
+    ? mergeBrandLists(route.params?.availableBrands ?? [])
+    : [];
+  const [brandOptions, setBrandOptions] = useState<string[]>(
+    mergeBrandLists([...ALL_BRANDS, ...initialRouteBrands])
+  );
+  const [loadingBrands, setLoadingBrands] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const initialBrands = useMemo(() => {
-    const fromRoute = route.params?.selectedBrands;
-    if (Array.isArray(fromRoute) && fromRoute.length > 0) {
-      const filtered = fromRoute.filter((brand) =>
-        brandOptions.some((option) => option.toLowerCase() === brand.toLowerCase())
-      );
-      return filtered.length > 0 ? filtered : fromRoute;
+  const computeInitialSelection = () => {
+    if (Array.isArray(route.params?.selectedBrands) && route.params?.selectedBrands.length > 0) {
+      return mergeBrandLists(route.params?.selectedBrands ?? []);
     }
-    if (brandOptions.length > 0) {
-      return brandOptions.slice(0, Math.min(brandOptions.length, 3));
+    if (Array.isArray(user?.preferred_brands) && user?.preferred_brands.length > 0) {
+      return mergeBrandLists(user?.preferred_brands ?? []);
     }
-    return ["Nike", "Adidas", "Zara"];
-  }, [route.params?.selectedBrands, brandOptions]);
+    return [];
+  };
 
-  const [selectedBrands, setSelectedBrands] = useState<string[]>(initialBrands);
+  const [selectedBrands, setSelectedBrands] = useState<string[]>(computeInitialSelection());
   const [searchText, setSearchText] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setSelectedBrands(initialBrands);
-  }, [initialBrands]);
+    setSelectedBrands(computeInitialSelection());
+  }, [route.params?.selectedBrands, user]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchBrands = async () => {
+      setLoadingBrands(true);
+      setLoadError(null);
+      try {
+        const summaries = await listingsService.getBrandSummaries({ limit: 60 });
+        if (!isMounted) return;
+        const backendBrands = summaries
+          .map((brand) => (typeof brand.name === "string" ? brand.name.trim() : ""))
+          .filter(Boolean);
+        if (backendBrands.length > 0) {
+          setBrandOptions((prev) => mergeBrandLists([...prev, ...backendBrands]));
+        }
+      } catch (e) {
+        if (isMounted) {
+          console.error("Failed to fetch brands:", e);
+          setLoadError("Failed to load latest brands. Showing saved list.");
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingBrands(false);
+        }
+      }
+    };
+
+    fetchBrands();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const filteredBrands = useMemo(() => {
     const query = searchText.trim().toLowerCase();
@@ -96,33 +131,34 @@ export default function EditBrandScreen() {
   }, [brandOptions, searchText]);
 
   const toggleBrand = (brand: string) => {
-    if (selectedBrands.includes(brand)) {
-      setSelectedBrands(selectedBrands.filter((b) => b !== brand));
-    } else {
-      setSelectedBrands([...selectedBrands, brand]);
-    }
+    setSelectedBrands((prev) =>
+      prev.includes(brand) ? prev.filter((b) => b !== brand) : [...prev, brand]
+    );
   };
 
   const handleSave = async () => {
-    if (selectedBrands.length === 0 || saving) return;
-    const source = route.params?.source ?? "mytop";
-    if (source === "discover") {
-      try {
-        setSaving(true);
-        await userService.updateProfile({ preferredBrands: selectedBrands });
-        // Navigate back to Discover and trigger refresh
+    if (saving) return;
+    setError(null);
+    setSaving(true);
+    try {
+      const updatedUser = await userService.updateProfile({ preferredBrands: selectedBrands });
+      updateUser(updatedUser);
+      const source = route.params?.source ?? "mytop";
+      if (source === "discover") {
         navigation
           .getParent()
-          ?.navigate("Discover", { screen: "DiscoverMain", params: { refreshTS: Date.now() } });
-      } catch (e) {
-        // noop; could show a toast later
-      } finally {
-        setSaving(false);
+          ?.navigate("Discover", {
+            screen: "DiscoverMain",
+            params: { refreshTS: Date.now() },
+          });
+      } else {
+        navigation.goBack();
       }
-    } else {
-      navigation.navigate("MyPreference", {
-        selectedBrands,
-      });
+    } catch (e) {
+      console.error("Failed to save brands:", e);
+      setError("Failed to save brands. Please try again.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -169,6 +205,14 @@ export default function EditBrandScreen() {
           />
         </View>
 
+        {loadingBrands && (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator size="small" color="#111" />
+            <Text style={styles.loadingText}>Loading more brands...</Text>
+          </View>
+        )}
+        {loadError && <Text style={styles.errorText}>{loadError}</Text>}
+
         {/* 推荐品牌 */}
         <Text style={styles.sectionTitle}>SUGGESTED</Text>
         <View style={styles.brandGrid}>
@@ -207,15 +251,15 @@ export default function EditBrandScreen() {
 
       {/* 底部 Save 按钮 */}
       <View style={styles.footer}>
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
         <TouchableOpacity
           style={[
             styles.saveBtn,
             {
-              backgroundColor:
-                selectedBrands.length > 0 && !saving ? "#000" : "#ccc",
+              backgroundColor: saving ? "#ccc" : "#000",
             },
           ]}
-          disabled={selectedBrands.length === 0 || saving}
+          disabled={saving}
           onPress={handleSave}
         >
           <Text style={styles.saveText}>{saving ? "Saving..." : "Save"}</Text>
@@ -269,6 +313,23 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     fontSize: 15,
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    marginTop: 12,
+  },
+  loadingText: {
+    marginLeft: 8,
+    color: "#555",
+    fontSize: 13,
+  },
+  errorText: {
+    color: "#B91C1C",
+    paddingHorizontal: 16,
+    marginTop: 8,
+    fontSize: 13,
   },
   sectionTitle: {
     fontSize: 16,

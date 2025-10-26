@@ -15,12 +15,16 @@ export default function AssetLibraryManager({
   prefix = "assets/",
   onApply,
   initialSelectedUrls,
+  className = "",
+  displayMode = "grid",
 }: {
   title?: string;
   bucket?: string;
   prefix?: string;
   onApply?: (urls: string[]) => void;
   initialSelectedUrls?: string[];
+  className?: string;
+  displayMode?: "grid" | "list";
 }) {
   const [items, setItems] = useState<AssetItem[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -42,7 +46,7 @@ export default function AssetLibraryManager({
       const data = await res.json();
       setItems(data.files || []);
       setFolders((data.folders || []).filter((f: string) => f.startsWith(prefix)));
-    } catch {
+    } catch (e) {
       console.error(e);
       alert("Failed to load assets");
     } finally {
@@ -84,7 +88,7 @@ export default function AssetLibraryManager({
       }
       await fetchItems();
       alert(`Uploaded ${files.length} file(s)`);
-    } catch {
+    } catch (e) {
       console.error(e);
       alert("Upload failed");
     } finally {
@@ -109,7 +113,7 @@ export default function AssetLibraryManager({
       }
       await fetchItems();
       setSelected((prev) => prev.filter((p) => !paths.includes(p)));
-    } catch {
+    } catch (e) {
       console.error(e);
       alert("Delete failed");
     }
@@ -283,8 +287,10 @@ export default function AssetLibraryManager({
   const allPaths = items.map((i) => i.path);
   const isAllSelected = selected.length > 0 && selected.length === allPaths.length;
 
+  const isGridMode = displayMode === "grid";
+
   return (
-    <section className="w-full bg-white rounded-lg shadow-sm border p-6">
+    <section className={`w-full bg-white rounded-lg shadow-sm border p-6 ${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-gray-800">{title}</h2>
@@ -418,7 +424,7 @@ export default function AssetLibraryManager({
         </div>
       )}
 
-      {/* Image Grid */}
+      {/* Asset Listing */}
       {loading ? (
         <div className="py-20 text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600"></div>
@@ -430,7 +436,7 @@ export default function AssetLibraryManager({
           <div className="text-lg font-medium">No assets found</div>
           <div className="text-sm mt-2">Upload some images to get started</div>
         </div>
-      ) : (
+      ) : isGridMode ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
           {items.map((item, idx) => {
             const isSelected = selected.includes(item.path);
@@ -501,6 +507,51 @@ export default function AssetLibraryManager({
                       🗑️
                     </button>
                   </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {items.map((item, idx) => {
+            const isSelected = selected.includes(item.path);
+            const selectionOrder = isSelected ? selected.indexOf(item.path) + 1 : null;
+            return (
+              <div
+                key={item.path}
+                className={`flex items-center justify-between border rounded-md px-3 py-2 text-sm ${
+                  isSelected ? "border-blue-400 bg-blue-50" : "border-gray-200 bg-white"
+                }`}
+              >
+                <div className="flex flex-col min-w-0">
+                  <span className="font-medium truncate">{item.name}</span>
+                  <span className="text-xs text-gray-500 truncate">{item.path.replace(prefix, "")}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectionOrder && (
+                    <span className="text-xs font-semibold text-blue-600">#{selectionOrder}</span>
+                  )}
+                  <button
+                    onClick={() => toggleSelect(item.path)}
+                    className={`px-2 py-1 rounded text-xs font-medium ${
+                      isSelected ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"
+                    }`}
+                  >
+                    {isSelected ? "Selected" : "Select"}
+                  </button>
+                  <button
+                    onClick={() => openPreview(idx)}
+                    className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-700"
+                  >
+                    View
+                  </button>
+                  <button
+                    onClick={() => handleDelete([item.path])}
+                    className="px-2 py-1 rounded text-xs bg-red-50 text-red-600"
+                  >
+                    Del
+                  </button>
                 </div>
               </div>
             );

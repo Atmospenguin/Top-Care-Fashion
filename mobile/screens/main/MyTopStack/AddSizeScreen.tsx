@@ -7,13 +7,15 @@ import {
   ScrollView,
   StyleSheet,
   Pressable,
+  ActivityIndicator,
 } from "react-native";
 import Header from "../../../components/Header";
-import Icon from "../../../components/Icon";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { MyTopStackParamList } from "./index";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
+import { userService } from "../../../src/services/userService";
+import { useAuth } from "../../../contexts/AuthContext";
 
 type AddSizeNav = NativeStackNavigationProp<MyTopStackParamList, "AddSize">;
 type AddSizeRoute = RouteProp<MyTopStackParamList, "AddSize">;
@@ -21,6 +23,7 @@ type AddSizeRoute = RouteProp<MyTopStackParamList, "AddSize">;
 export default function AddSizeScreen() {
   const navigation = useNavigation<AddSizeNav>();
   const route = useRoute<AddSizeRoute>();
+  const { updateUser } = useAuth();
   const initialSizes = useMemo(
     () => route.params?.selectedSizes ?? {},
     [route.params]
@@ -35,6 +38,8 @@ export default function AddSizeScreen() {
   const [showShoePicker, setShowShoePicker] = useState(false);
   const [showTopPicker, setShowTopPicker] = useState(false);
   const [showBottomPicker, setShowBottomPicker] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const SIZE_OPTIONS_CLOTHES = [
     "XXS",
@@ -112,6 +117,30 @@ export default function AddSizeScreen() {
     </Modal>
   );
 
+  const buildPayload = () => ({
+    shoe: shoeSize !== "Select" ? shoeSize : null,
+    top: topSize !== "Select" ? topSize : null,
+    bottom: bottomSize !== "Select" ? bottomSize : null,
+  });
+
+  const handleSave = async () => {
+    if (saving) return;
+    setError(null);
+    setSaving(true);
+    try {
+      const updatedUser = await userService.updateProfile({
+        preferredSizes: buildPayload(),
+      });
+      updateUser(updatedUser);
+      navigation.goBack();
+    } catch (e) {
+      console.error("Failed to save sizes:", e);
+      setError("Failed to save sizes. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header title="Sizes" showBack />
@@ -154,26 +183,25 @@ export default function AddSizeScreen() {
 
       {/* Save Button */}
       <View style={styles.footer}>
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
         <TouchableOpacity
           style={[
             styles.saveBtn,
-            shoeSize !== "Select" ||
-            topSize !== "Select" ||
-            bottomSize !== "Select"
-              ? { backgroundColor: "#000" }
-              : { backgroundColor: "#ccc" },
+            {
+              backgroundColor: saving ? "#ccc" : "#000",
+            },
           ]}
-          onPress={() =>
-            navigation.navigate("MyPreference", {
-              selectedSizes: {
-                shoe: shoeSize !== "Select" ? shoeSize : undefined,
-                top: topSize !== "Select" ? topSize : undefined,
-                bottom: bottomSize !== "Select" ? bottomSize : undefined,
-              },
-            })
-          }
+          disabled={saving}
+          onPress={handleSave}
         >
-          <Text style={styles.saveText}>Save</Text>
+          {saving ? (
+            <View style={styles.saveLoadingRow}>
+              <ActivityIndicator size="small" color="#fff" />
+              <Text style={styles.saveLoadingText}>Saving...</Text>
+            </View>
+          ) : (
+            <Text style={styles.saveText}>Save</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -235,6 +263,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  saveLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveLoadingText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  errorText: {
+    color: "#B91C1C",
+    marginBottom: 8,
+    fontSize: 13,
+  },
   sheetMask: {
     position: "absolute",
     top: 0,

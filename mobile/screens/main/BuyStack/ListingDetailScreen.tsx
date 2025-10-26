@@ -159,6 +159,64 @@ export default function ListingDetailScreen() {
     );
   }, [safeItem?.images]);
 
+  const detailMetaCards = useMemo(() => {
+    if (!safeItem) return [];
+
+    const normalize = (value?: string | null) =>
+      typeof value === "string" ? value.trim() : "";
+
+    const cards: Array<{ id: string; label: string; value: string; placeholder?: boolean }> = [
+      {
+        id: "size",
+        label: "Size",
+        value:
+          safeItem.size && safeItem.size !== "N/A" && safeItem.size !== "Select"
+            ? safeItem.size
+            : "Not specified",
+      },
+      {
+        id: "condition",
+        label: "Condition",
+        value:
+          safeItem.condition && safeItem.condition !== "Select"
+            ? safeItem.condition
+            : "Not specified",
+      },
+      {
+        id: "gender",
+        label: "Gender",
+        value: genderLabel,
+      },
+    ];
+
+    const brandValue = normalize(safeItem.brand);
+    if (brandValue && brandValue !== "Select") {
+      cards.push({ id: "brand", label: "Brand", value: brandValue });
+    }
+
+    const materialValue = normalize(safeItem.material);
+    if (
+      materialValue &&
+      materialValue !== "Select" &&
+      materialValue !== "Polyester"
+    ) {
+      cards.push({ id: "material", label: "Material", value: materialValue });
+    }
+
+    if (!brandValue || brandValue === "Select") {
+      if (!materialValue || materialValue === "Select" || materialValue === "Polyester") {
+        cards.push({
+          id: "additional",
+          label: "Additional Details",
+          value: "Not provided by seller",
+          placeholder: true,
+        });
+      }
+    }
+
+    return cards;
+  }, [safeItem, genderLabel]);
+
   // 检查是否是自己的商品
   const isOwnListingFinalComputed = useMemo(() => {
     console.log('🔍 Debug - Current user:', user);
@@ -176,7 +234,7 @@ export default function ListingDetailScreen() {
     console.log('🔍 Debug - Converted Seller ID:', sellerId);
     console.log('🔍 Debug - IDs match:', userId && sellerId && userId === sellerId);
     
-    const result = userId && sellerId && userId === sellerId;
+    const result = !!(userId && sellerId && userId === sellerId);
     console.log('🔍 Debug - isOwnListingFinal result:', result);
     return result;
   }, [user, safeItem]);
@@ -508,58 +566,29 @@ export default function ListingDetailScreen() {
             </TouchableOpacity>
 
           </View>
-          <View style={styles.metaRow}>
-            <View style={styles.metaPill}>
-              <Text style={styles.metaLabel}>Size</Text>
-              <Text style={styles.metaValue}>
-                {safeItem?.size && safeItem.size !== "N/A" && safeItem.size !== "Select"
-                  ? safeItem.size
-                  : "Not specified"}
-              </Text>
-            </View>
-            <View style={styles.metaPill}>
-              <Text style={styles.metaLabel}>Condition</Text>
-              <Text style={styles.metaValue}>
-                {safeItem?.condition && safeItem.condition !== "Select"
-                  ? safeItem.condition
-                  : "Not specified"}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.metaRow}>
-            <View style={styles.metaPill}>
-              <Text style={styles.metaLabel}>Gender</Text>
-              <Text style={styles.metaValue}>{genderLabel}</Text>
-            </View>
-          </View>
-          <Text style={styles.description}>{safeItem?.description || 'No description available'}</Text>
-
-          <View style={styles.attributeRow}>
-            {/* 只在有值时显示 Brand */}
-            {safeItem?.brand && safeItem.brand !== '' && safeItem.brand !== 'Select' && (
-              <View style={styles.attributeBlock}>
-                <Text style={styles.attributeLabel}>Brand</Text>
-                <Text style={styles.attributeValue}>{safeItem.brand}</Text>
-              </View>
-            )}
-            {/* 只在有值时显示 Material */}
-            {safeItem?.material && safeItem.material !== 'Select' && safeItem.material !== 'Polyester' && (
-              <View style={styles.attributeBlock}>
-                <Text style={styles.attributeLabel}>Material</Text>
-                <Text style={styles.attributeValue}>{safeItem.material}</Text>
-              </View>
-            )}
-            {/* 如果 Brand 和 Material 都没有，显示占位信息 */}
-            {(!safeItem?.brand || safeItem.brand === '' || safeItem.brand === 'Select') && 
-             (!safeItem?.material || safeItem.material === 'Select' || safeItem.material === 'Polyester') && (
-              <View style={styles.attributeBlock}>
-                <Text style={styles.attributeLabel}>Additional Details</Text>
-                <Text style={[styles.attributeValue, { color: '#999', fontStyle: 'italic' }]}>
-                  Not provided by seller
+          <View style={styles.metaGrid}>
+            {detailMetaCards.map((info) => (
+              <View
+                key={info.id}
+                style={[
+                  styles.metaPill,
+                  info.placeholder ? styles.metaPillPlaceholder : undefined,
+                ]}
+              >
+                <Text style={styles.metaLabel}>{info.label}</Text>
+                <Text
+                  style={[
+                    styles.metaValue,
+                    info.placeholder ? styles.metaValuePlaceholder : undefined,
+                  ]}
+                >
+                  {info.value}
                 </Text>
               </View>
-            )}
+            ))}
           </View>
+
+          <Text style={styles.description}>{safeItem?.description || 'No description available'}</Text>
 
           {/* Tags Section */}
           {safeItem?.tags && Array.isArray(safeItem.tags) && safeItem.tags.length > 0 && (
@@ -593,15 +622,20 @@ export default function ListingDetailScreen() {
           <Text style={styles.sectionHeading}>Seller</Text>
           <View style={styles.sellerRow}>
             <TouchableOpacity
-              style={styles.sellerInfo}
-              onPress={() =>
-                safeItem?.seller && navigation.navigate("UserProfile", {
+              style={[
+                styles.sellerInfo,
+                isOwnListingFinal ? styles.sellerInfoDisabled : undefined,
+              ]}
+              disabled={isOwnListingFinal}
+              onPress={() => {
+                if (!safeItem?.seller || isOwnListingFinal) return;
+                navigation.navigate("UserProfile", {
                   username: safeItem.seller.name,
                   avatar: safeItem.seller.avatar,
                   rating: safeItem.seller.rating,
                   sales: safeItem.seller.sales,
-                })
-              }
+                });
+              }}
             >
               <Image 
                 source={
@@ -621,126 +655,144 @@ export default function ListingDetailScreen() {
                 </View>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.messageBtn}
-              onPress={async () => {
-                console.log("🔍 Message button pressed!");
-                console.log("🔍 SafeItem:", safeItem);
-                console.log("🔍 Seller:", safeItem?.seller);
-                console.log("🔍 messagesService:", messagesService);
-                console.log("🔍 messagesService methods:", Object.getOwnPropertyNames(Object.getPrototypeOf(messagesService)));
-                
-                // 🔥 确保seller ID和listing ID都是有效的数字
-                const sellerId = safeItem?.seller?.id ? Number(safeItem.seller.id) : null;
-                const listingId = safeItem?.id ? parseInt(safeItem.id) : null;
-                
-                console.log("🔍 Seller ID:", sellerId, "Type:", typeof sellerId);
-                console.log("🔍 Listing ID:", listingId, "Type:", typeof listingId);
-                
-                if (!sellerId || isNaN(sellerId) || !listingId || isNaN(listingId)) {
-                  console.log("❌ Invalid seller ID or listing ID!");
-                  console.log("❌ Seller ID:", sellerId, "Listing ID:", listingId);
-                  Alert.alert("Error", "Unable to find seller or listing information");
-                  return;
-                }
-                
-                try {
-                  // 创建或获取与卖家的对话
-                  console.log("🔍 Creating conversation with seller...");
-                  console.log("🔍 SafeItem details:", {
-                    id: safeItem.id,
-                    title: safeItem.title,
-                    seller: safeItem.seller
-                  });
-                  console.log("🔍 Final parameters:", {
-                    sellerId,
-                    listingId
-                  });
+            {!isOwnListingFinal ? (
+              <TouchableOpacity 
+                style={styles.messageBtn}
+                onPress={async () => {
+                  console.log("🔍 Message button pressed!");
+                  console.log("🔍 SafeItem:", safeItem);
+                  console.log("🔍 Seller:", safeItem?.seller);
+                  console.log("🔍 messagesService:", messagesService);
+                  console.log("🔍 messagesService methods:", Object.getOwnPropertyNames(Object.getPrototypeOf(messagesService)));
                   
-                  const conversation = await messagesService.getOrCreateSellerConversation(
-                    sellerId,
-                    listingId
-                  );
+                  // 🔥 确保seller ID和listing ID都是有效的数字
+                  const sellerId = safeItem?.seller?.id ? Number(safeItem.seller.id) : null;
+                  const listingId = safeItem?.id ? parseInt(safeItem.id) : null;
                   
-                  console.log("✅ Conversation created/found:", conversation);
+                  console.log("🔍 Seller ID:", sellerId, "Type:", typeof sellerId);
+                  console.log("🔍 Listing ID:", listingId, "Type:", typeof listingId);
                   
-                  // 导航到聊天界面
-                  console.log("🔍 Navigating to ChatScreen...");
+                  if (!sellerId || isNaN(sellerId) || !listingId || isNaN(listingId)) {
+                    console.log("❌ Invalid seller ID or listing ID!");
+                    console.log("❌ Seller ID:", sellerId, "Listing ID:", listingId);
+                    Alert.alert("Error", "Unable to find seller or listing information");
+                    return;
+                  }
                   
-             // 🔥 使用 CommonActions 重置导航栈到正确状态
-             const rootNavigation = (navigation as any).getParent?.();
-             if (rootNavigation) {
-               // 使用 CommonActions.reset 重置到 Main Tab 的 Inbox Stack
-               rootNavigation.dispatch({
-                 type: 'RESET',
-                 payload: {
-                   index: 0,
-                   routes: [
-                     {
-                       name: 'Main',
-                       state: {
-                         routes: [
-                           { name: 'Home' },
-                           { name: 'Discover' },
-                           { name: 'Sell' },
-                           {
-                             name: 'Inbox',
-                             state: {
-                               routes: [
-                                 { name: 'InboxMain' },
-                                 {
-                                   name: 'Chat',
-                                   params: {
-                                     sender: safeItem.seller.name || "Seller",
-                                     kind: "order",
-                                     conversationId: conversation.id,
-                                     order: {
-                                       id: safeItem.id || "new-order",
-                                       product: {
-                                         title: safeItem.title || "Item",
-                                         price: Number(safeItem.price) || 0,
-                                         size: safeItem.size,
-                                         image: safeItem.images?.[0] || ""
-                                       },
-                                       seller: {
-                                         name: safeItem.seller.name || "Seller",
-                                         avatar: safeItem.seller.avatar
-                                       },
-                                       buyer: {
-                                         name: "You",
-                                         avatar: "https://i.pravatar.cc/100?img=32"
-                                       },
-                                       status: "Inquiry"
-                                     }
-                                   }
-                                 }
-                               ],
-                               index: 1
-                             }
+                  try {
+                    // 创建或获取与卖家的对话
+                    console.log("🔍 Creating conversation with seller...");
+                    console.log("🔍 SafeItem details:", {
+                      id: safeItem.id,
+                      title: safeItem.title,
+                      seller: safeItem.seller
+                    });
+                    console.log("🔍 Final parameters:", {
+                      sellerId,
+                      listingId
+                    });
+                    
+                    const conversation = await messagesService.getOrCreateSellerConversation(
+                      sellerId,
+                      listingId
+                    );
+                    
+                    console.log("✅ Conversation created/found:", conversation);
+                    
+                    // 导航到聊天界面
+                    console.log("🔍 Navigating to ChatScreen...");
+                    
+               // 🔥 正确的导航方式：Buy Stack → Root Stack → Main Tab → Inbox Stack → Chat
+               try {
+                 // 方式1：通过根导航到 Main Tab，然后到 Inbox
+                 const rootNavigation = (navigation as any).getParent?.();
+                 if (rootNavigation) {
+                   rootNavigation.navigate("Main", {
+                     screen: "Inbox",
+                     params: {
+                       screen: "Chat",
+                       params: {
+                         sender: safeItem.seller.name || "Seller",
+                         kind: "order",
+                         conversationId: conversation.id,
+                         order: {
+                           id: safeItem.id || "new-order",
+                           product: {
+                             title: safeItem.title || "Item",
+                             price: Number(safeItem.price) || 0,
+                             size: safeItem.size,
+                             image: safeItem.images?.[0] || ""
                            },
-                           { name: 'My TOP' }
-                         ],
-                         index: 3
+                           seller: {
+                             name: safeItem.seller.name || "Seller",
+                             avatar: safeItem.seller.avatar
+                           },
+                           buyer: {
+                             name: "You",
+                             avatar: "https://i.pravatar.cc/100?img=32"
+                           },
+                           status: "Inquiry"
+                         }
                        }
                      }
-                   ]
+                   });
+                   console.log("✅ Navigation successful via Main Tab");
+                 } else {
+                   throw new Error("Root navigation not available");
                  }
-               });
-               
-               console.log("✅ Navigation successful via RESET to Main Tab → Inbox Stack → Chat");
-             } else {
-               console.error("❌ Root navigation not available");
-               Alert.alert("Navigation Error", "Unable to open chat. Please try again.");
-             }
-                } catch (error) {
-                  console.error("❌ Error creating conversation:", error);
-                  Alert.alert("Error", "Failed to start conversation. Please try again.");
-                }
-              }}
-            >
-              <Icon name="chatbubble-ellipses-outline" size={18} color="#000" />
-              <Text style={styles.messageText}>Message</Text>
-            </TouchableOpacity>
+               } catch (navError) {
+                 console.log("❌ Main Tab navigation failed:", navError);
+                 console.log("🔍 Trying alternative navigation...");
+                 
+                 // 方式2：尝试直接导航到 Inbox（可能不会工作，但作为 fallback）
+                 try {
+                   (navigation as any).navigate("Inbox", {
+                     screen: "Chat",
+                     params: {
+                       sender: safeItem.seller.name || "Seller",
+                       kind: "order",
+                       conversationId: conversation.id,
+                       order: {
+                         id: safeItem.id || "new-order",
+                         product: {
+                           title: safeItem.title || "Item",
+                           price: safeItem.price || 0,
+                           size: safeItem.size,
+                           image: safeItem.images?.[0] || ""
+                         },
+                         seller: {
+                           name: safeItem.seller.name || "Seller",
+                           avatar: safeItem.seller.avatar
+                         },
+                         buyer: {
+                           name: "You",
+                           avatar: "https://i.pravatar.cc/100?img=32"
+                         },
+                         status: "Inquiry"
+                       }
+                     }
+                   });
+                   console.log("✅ Navigation successful via direct");
+                 } catch (directError) {
+                   console.error("❌ Direct navigation also failed:", directError);
+                   Alert.alert("Navigation Error", "Unable to open chat. Please try again.");
+                 }
+               }
+                  } catch (error) {
+                    console.error("❌ Error creating conversation:", error);
+                    Alert.alert("Error", "Failed to start conversation. Please try again.");
+                  }
+                }}
+              >
+                <Icon name="chatbubble-ellipses-outline" size={18} color="#000" />
+                <Text style={styles.messageText}>Message</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.ownerBadge}>
+                <Icon name="information-circle-outline" size={16} color="#666" />
+                <Text style={styles.ownerBadgeText}>Your listing</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -970,16 +1022,20 @@ const styles = StyleSheet.create({
   mixChipTextDisabled: {
     color: "#999",
   },
-  metaRow: {
+  metaGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     columnGap: 12,
+    rowGap: 12,
   },
   metaPill: {
-    flex: 1,
+    width: "48%",
+    flexGrow: 1,
     paddingVertical: 10,
     borderRadius: 12,
     backgroundColor: "#f6f6f6",
     alignItems: "center",
+    justifyContent: "center",
   },
   metaLabel: {
     fontSize: 12,
@@ -987,27 +1043,21 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  metaValue: { fontSize: 14, fontWeight: "600", color: "#111", marginTop: 4 },
+  metaValue: { fontSize: 14, fontWeight: "600", color: "#111", marginTop: 4, textAlign: "center" },
+  metaPillPlaceholder: {
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    borderStyle: "dashed",
+    backgroundColor: "#fff",
+  },
+  metaValuePlaceholder: {
+    color: "#999",
+    fontStyle: "italic",
+  },
   description: {
     fontSize: 14,
     color: "#333",
     lineHeight: 20,
-  },
-  attributeRow: {
-    flexDirection: "row",
-    columnGap: 16,
-  },
-  attributeBlock: { flex: 1 },
-  attributeLabel: {
-    fontSize: 12,
-    color: "#999",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  attributeValue: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginTop: 4,
   },
   tagsSection: {
     marginTop: 16,
@@ -1066,6 +1116,9 @@ const styles = StyleSheet.create({
     flex: 1,
     columnGap: 12,
   },
+  sellerInfoDisabled: {
+    opacity: 0.5,
+  },
   sellerAvatar: {
     width: 48,
     height: 48,
@@ -1098,6 +1151,20 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 13,
+    fontWeight: "600",
+  },
+  ownerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "#f4f4f4",
+  },
+  ownerBadgeText: {
+    fontSize: 12,
+    color: "#666",
     fontWeight: "600",
   },
   bottomBar: {

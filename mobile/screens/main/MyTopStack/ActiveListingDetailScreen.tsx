@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Dimensions,
   Image,
@@ -22,6 +22,15 @@ import type { ListingItem } from "../../../types/shop";
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
 
+const formatGenderLabel = (value?: string | null) => {
+  if (!value) return "";
+  const lower = value.toLowerCase();
+  if (lower === "men" || lower === "male") return "Men";
+  if (lower === "women" || lower === "female") return "Women";
+  if (lower === "unisex") return "Unisex";
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+};
+
 export default function ActiveListingDetailScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
@@ -29,6 +38,72 @@ export default function ActiveListingDetailScreen() {
 
   const [listing, setListing] = useState<ListingItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const genderLabel = useMemo(
+    () => formatGenderLabel(listing?.gender),
+    [listing?.gender],
+  );
+  const detailMetaCards = useMemo(() => {
+    if (!listing) return [];
+
+    const normalize = (value?: string | null) =>
+      typeof value === "string" ? value.trim() : "";
+
+    const cards: Array<{
+      id: string;
+      label: string;
+      value: string;
+      placeholder?: boolean;
+    }> = [
+      {
+        id: "size",
+        label: "Size",
+        value:
+          listing.size && listing.size !== "N/A" && listing.size !== "Select"
+            ? listing.size
+            : "Not specified",
+      },
+      {
+        id: "condition",
+        label: "Condition",
+        value:
+          listing.condition && listing.condition !== "Select"
+            ? listing.condition
+            : "Not specified",
+      },
+      {
+        id: "gender",
+        label: "Gender",
+        value: genderLabel || "Not specified",
+      },
+    ];
+
+    const brandValue = normalize(listing.brand);
+    const hasBrand = !!(brandValue && brandValue !== "Select");
+    if (hasBrand) {
+      cards.push({ id: "brand", label: "Brand", value: brandValue });
+    }
+
+    const materialValue = normalize(listing.material);
+    const hasMaterial = !!(
+      materialValue &&
+      materialValue !== "Select" &&
+      materialValue !== "Polyester"
+    );
+    if (hasMaterial) {
+      cards.push({ id: "material", label: "Material", value: materialValue });
+    }
+
+    if (!hasBrand && !hasMaterial) {
+      cards.push({
+        id: "additional",
+        label: "Additional Details",
+        value: "Not provided by seller",
+        placeholder: true,
+      });
+    }
+
+    return cards;
+  }, [listing, genderLabel]);
 
   // ✅ 获取listing数据
   useEffect(() => {
@@ -130,52 +205,30 @@ export default function ActiveListingDetailScreen() {
             </View>
           </View>
 
-          {/* size / condition */}
-          <View style={styles.metaRow}>
-            <View style={styles.metaPill}>
-              <Text style={styles.metaLabel}>Size</Text>
-              <Text style={styles.metaValue}>
-                {listing.size && listing.size !== 'N/A' ? listing.size : 'Not specified'}
-              </Text>
-            </View>
-            <View style={styles.metaPill}>
-              <Text style={styles.metaLabel}>Condition</Text>
-              <Text style={styles.metaValue}>
-                {listing.condition || 'Not specified'}
-              </Text>
-            </View>
+          <View style={styles.metaGrid}>
+            {detailMetaCards.map((info) => (
+              <View
+                key={info.id}
+                style={[
+                  styles.metaPill,
+                  info.placeholder ? styles.metaPillPlaceholder : undefined,
+                ]}
+              >
+                <Text style={styles.metaLabel}>{info.label}</Text>
+                <Text
+                  style={[
+                    styles.metaValue,
+                    info.placeholder ? styles.metaValuePlaceholder : undefined,
+                  ]}
+                >
+                  {info.value}
+                </Text>
+              </View>
+            ))}
           </View>
 
           {/* 描述 */}
           <Text style={styles.description}>{listing.description}</Text>
-
-          {/* 只在有值时显示 Brand */}
-          {listing.brand && listing.brand !== '' && listing.brand !== 'Select' && (
-            <View style={styles.attributeRow}>
-              <View style={styles.attributeBlock}>
-                <Text style={styles.attributeLabel}>Brand</Text>
-                <Text style={styles.attributeValue}>{listing.brand}</Text>
-              </View>
-            </View>
-          )}
-
-          {/* 只在有值时显示 Material */}
-          {listing.material && listing.material !== 'Select' && listing.material !== 'Polyester' && (
-            <View style={styles.attributeRow}>
-              <View style={styles.attributeBlock}>
-                <Text style={styles.attributeLabel}>Material</Text>
-                <Text style={styles.attributeValue}>{listing.material}</Text>
-              </View>
-            </View>
-          )}
-
-          {/* 如果 Brand 和 Material 都没有，显示占位信息 */}
-          {(!listing.brand || listing.brand === '' || listing.brand === 'Select') && 
-           (!listing.material || listing.material === 'Select' || listing.material === 'Polyester') && (
-            <View style={styles.attributeRow}>
-              <Text style={styles.placeholderText}>Brand and material not provided by seller</Text>
-            </View>
-          )}
 
           {/* Tags Section */}
           {listing.tags && listing.tags.length > 0 && (
@@ -290,13 +343,20 @@ const styles = StyleSheet.create({
   price: { fontSize: 18, fontWeight: "700", color: "#111" },
 
 
-  metaRow: { flexDirection: "row", columnGap: 12 },
+  metaGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    columnGap: 12,
+    rowGap: 12,
+  },
   metaPill: {
-    flex: 1,
+    width: "48%",
+    flexGrow: 1,
     paddingVertical: 10,
     borderRadius: 12,
     backgroundColor: "#f6f6f6",
     alignItems: "center",
+    justifyContent: "center",
   },
   metaLabel: {
     fontSize: 12,
@@ -304,25 +364,26 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  metaValue: { fontSize: 14, fontWeight: "600", color: "#111", marginTop: 4 },
+  metaValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111",
+    marginTop: 4,
+    textAlign: "center",
+  },
+  metaPillPlaceholder: {
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    borderStyle: "dashed",
+    backgroundColor: "#fff",
+  },
+  metaValuePlaceholder: {
+    color: "#999",
+    fontStyle: "italic",
+  },
 
   description: { fontSize: 14, color: "#333", lineHeight: 20 },
 
-  attributeRow: { flexDirection: "row", columnGap: 16 },
-  attributeBlock: { flex: 1 },
-  attributeLabel: {
-    fontSize: 12,
-    color: "#999",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  attributeValue: { fontSize: 15, fontWeight: "600", marginTop: 4 },
-  placeholderText: { 
-    fontSize: 14, 
-    color: "#999", 
-    fontStyle: "italic",
-    textAlign: "center",
-  },
 
   // Tags
   tagsSection: {

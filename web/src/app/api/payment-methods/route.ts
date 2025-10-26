@@ -12,8 +12,7 @@ export async function GET() {
 
     const paymentMethods = await prisma.user_payment_methods.findMany({
       where: { 
-        user_id: user.id,
-        is_active: true
+        user_id: user.id
       },
       orderBy: [
         { is_default: "desc" },
@@ -30,9 +29,8 @@ export async function GET() {
       expiryMonth: method.expiry_month,
       expiryYear: method.expiry_year,
       isDefault: method.is_default,
-      isActive: method.is_active,
-      createdAt: method.created_at.toISOString(),
-      updatedAt: method.updated_at.toISOString()
+      createdAt: method.created_at ? method.created_at.toISOString() : null,
+      updatedAt: method.updated_at ? method.updated_at.toISOString() : null
     }));
 
     return NextResponse.json({ paymentMethods: formattedPaymentMethods });
@@ -105,9 +103,8 @@ export async function POST(req: NextRequest) {
         expiryMonth: paymentMethod.expiry_month,
         expiryYear: paymentMethod.expiry_year,
         isDefault: paymentMethod.is_default,
-        isActive: paymentMethod.is_active,
-        createdAt: paymentMethod.created_at.toISOString(),
-        updatedAt: paymentMethod.updated_at.toISOString()
+        createdAt: paymentMethod.created_at ? paymentMethod.created_at.toISOString() : null,
+        updatedAt: paymentMethod.updated_at ? paymentMethod.updated_at.toISOString() : null
       }
     });
   } catch (error) {
@@ -200,9 +197,8 @@ export async function PUT(req: NextRequest) {
         expiryMonth: paymentMethod.expiry_month,
         expiryYear: paymentMethod.expiry_year,
         isDefault: paymentMethod.is_default,
-        isActive: paymentMethod.is_active,
-        createdAt: paymentMethod.created_at.toISOString(),
-        updatedAt: paymentMethod.updated_at.toISOString()
+        createdAt: paymentMethod.created_at ? paymentMethod.created_at.toISOString() : null,
+        updatedAt: paymentMethod.updated_at ? paymentMethod.updated_at.toISOString() : null
       }
     });
   } catch (error) {
@@ -247,13 +243,9 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // 软删除 - 设置为不活跃
-    await prisma.user_payment_methods.update({
-      where: { id: parseInt(paymentMethodId) },
-      data: { 
-        is_active: false,
-        updated_at: new Date()
-      }
+    // 硬删除
+    await prisma.user_payment_methods.delete({
+      where: { id: parseInt(paymentMethodId) }
     });
 
     return NextResponse.json({

@@ -322,6 +322,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Resolve seller id (some schemas may have nullable seller_id)
+    const sellerId: number | null = (listing as any).seller_id ?? (listing as any).seller?.id ?? null;
+    if (sellerId === null || sellerId === undefined) {
+      return NextResponse.json(
+        { error: 'Listing has no seller associated' },
+        { status: 400 }
+      );
+    }
+
     // Create the order
     console.log("🔍 Orders API - Creating order with data:", {
       buyer_id: currentUser.id,
@@ -339,7 +348,7 @@ export async function POST(request: NextRequest) {
     const order = await prisma.orders.create({
       data: {
         buyer_id: currentUser.id,
-        seller_id: listing.seller_id,
+        seller_id: sellerId,
         listing_id: listing.id,
         order_number: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         status: 'IN_PROGRESS',

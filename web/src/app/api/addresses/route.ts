@@ -20,7 +20,7 @@ export async function GET() {
 
     const formattedAddresses = addresses.map(address => ({
       id: address.id,
-      type: address.type.toLowerCase(),
+      type: address.type ? address.type.toLowerCase() : null,
       name: address.name,
       phone: address.phone,
       line1: address.line1,
@@ -30,8 +30,8 @@ export async function GET() {
       postalCode: address.postal_code,
       country: address.country,
       isDefault: address.is_default,
-      createdAt: address.created_at.toISOString(),
-      updatedAt: address.updated_at.toISOString()
+      createdAt: address.created_at ? address.created_at.toISOString() : null,
+      updatedAt: address.updated_at ? address.updated_at.toISOString() : null
     }));
 
     return NextResponse.json({ addresses: formattedAddresses });
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       message: "Address created successfully",
       address: {
         id: address.id,
-        type: address.type.toLowerCase(),
+        type: address.type ? address.type.toLowerCase() : null,
         name: address.name,
         phone: address.phone,
         line1: address.line1,
@@ -113,8 +113,8 @@ export async function POST(req: NextRequest) {
         postalCode: address.postal_code,
         country: address.country,
         isDefault: address.is_default,
-        createdAt: address.created_at.toISOString(),
-        updatedAt: address.updated_at.toISOString()
+        createdAt: address.created_at ? address.created_at.toISOString() : null,
+        updatedAt: address.updated_at ? address.updated_at.toISOString() : null
       }
     });
   } catch (error) {
@@ -206,7 +206,7 @@ export async function PUT(req: NextRequest) {
       message: "Address updated successfully",
       address: {
         id: address.id,
-        type: address.type.toLowerCase(),
+        type: address.type ? address.type.toLowerCase() : null,
         name: address.name,
         phone: address.phone,
         line1: address.line1,
@@ -216,8 +216,8 @@ export async function PUT(req: NextRequest) {
         postalCode: address.postal_code,
         country: address.country,
         isDefault: address.is_default,
-        createdAt: address.created_at.toISOString(),
-        updatedAt: address.updated_at.toISOString()
+        createdAt: address.created_at ? address.created_at.toISOString() : null,
+        updatedAt: address.updated_at ? address.updated_at.toISOString() : null
       }
     });
   } catch (error) {

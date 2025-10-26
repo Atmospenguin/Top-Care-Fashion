@@ -5,7 +5,7 @@ import HomeScreen from "./HomeScreen";
 // Home stack only renders Home; buy flow is a root-level stack
 
 export type HomeStackParamList = {
-  HomeMain: { refreshTS?: number } | undefined;
+  HomeMain: { refreshTS?: number; scrollToTopTS?: number; tabPressTS?: number } | undefined;
 };
 
 const Stack = createNativeStackNavigator<HomeStackParamList>();
