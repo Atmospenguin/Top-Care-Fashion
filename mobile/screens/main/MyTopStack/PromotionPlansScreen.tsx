@@ -44,7 +44,7 @@ export default function PromotionPlansScreen() {
             <View style={{ alignItems: "flex-start", marginBottom: -10 }}>
               <LOGO_FULL_COLOR width={150} height={60} />
             </View>
-            <Text style={styles.heading}>Promotion Plan</Text>
+            <Text style={styles.heading}>Boost Plan</Text>
 
             <View style={styles.planGroup}>
               <Text style={styles.planTitle}>Plan1: For Free User</Text>

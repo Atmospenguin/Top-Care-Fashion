@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { verifyLegacyToken } from '@/lib/jwt';
 import { createSupabaseServer } from '@/lib/supabase';
+import { isPremiumUser, getCommissionRate, calculateCommission } from '@/lib/userPermissions';
 
 // 支持legacy token的getCurrentUser函数
 async function getCurrentUserWithLegacySupport(req: NextRequest) {
@@ -259,7 +260,8 @@ export async function POST(request: NextRequest) {
       buyer_name, 
       buyer_phone, 
       shipping_address, 
-      payment_method, 
+      payment_method,
+      payment_method_id, // 🔥 后端支付方式 ID
       payment_details 
     } = body;
 
@@ -331,17 +333,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 🔥 获取卖家信息以计算佣金
+    const seller = await prisma.users.findUnique({
+      where: { id: sellerId },
+      select: {
+        is_premium: true,
+        premium_until: true,
+      },
+    });
+
+    if (!seller) {
+      return NextResponse.json(
+        { error: 'Seller not found' },
+        { status: 400 }
+      );
+    }
+
+    // 🔥 计算佣金
+    const sellerIsPremium = isPremiumUser(seller);
+    const commissionRate = getCommissionRate(sellerIsPremium);
+    const orderAmount = Number(listing.price);
+    const commissionAmount = calculateCommission(orderAmount, sellerIsPremium);
+
+    console.log("💰 Commission calculation:", {
+      sellerIsPremium,
+      commissionRate,
+      orderAmount,
+      commissionAmount,
+    });
+
     // Create the order
     console.log("🔍 Orders API - Creating order with data:", {
       buyer_id: currentUser.id,
       seller_id: listing.seller_id,
       listing_id: listing.id,
       status: 'IN_PROGRESS',
-      total_amount: Number(listing.price),
+      total_amount: orderAmount,
+      commission_rate: commissionRate,
+      commission_amount: commissionAmount,
       buyer_name: buyer_name || null,
       buyer_phone: buyer_phone || null,
       shipping_address: shipping_address || null,
       payment_method: payment_method || null,
+      payment_method_id: payment_method_id || null, // 🔥 关联支付方式
       payment_details: payment_details || null
     });
     
@@ -352,12 +386,15 @@ export async function POST(request: NextRequest) {
         listing_id: listing.id,
         order_number: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         status: 'IN_PROGRESS',
-        total_amount: Number(listing.price),
+        total_amount: orderAmount,
+        commission_rate: commissionRate, // 🔥 记录佣金率
+        commission_amount: commissionAmount, // 🔥 记录佣金金额
         // 保存买家结账信息
         buyer_name: buyer_name || null,
         buyer_phone: buyer_phone || null,
         shipping_address: shipping_address || null,
         payment_method: payment_method || null,
+        payment_method_id: payment_method_id || null, // 🔥 关联支付方式
         payment_details: payment_details || null
       },
       include: {

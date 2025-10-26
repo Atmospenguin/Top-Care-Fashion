@@ -198,7 +198,7 @@ export default function ManageListingScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Promotion 卡片 */}
+        {/* Boost 卡片 */}
         <View style={styles.promoCard}>
           <View style={{ flexDirection: "row", alignItems: "center", columnGap: 8 }}>
             <Icon name="gift-outline" size={20} color="#111" />
@@ -210,7 +210,7 @@ export default function ManageListingScreen() {
             style={styles.promoLinkWrapper}
             onPress={() => navigation.navigate("Premium", promotionPlansRoute)}
           >
-            <Text style={styles.promoLink}>Click To Get Promotion</Text>
+            <Text style={styles.promoLink}>Click To Get Boost</Text>
           </TouchableOpacity>
         </View>
 
