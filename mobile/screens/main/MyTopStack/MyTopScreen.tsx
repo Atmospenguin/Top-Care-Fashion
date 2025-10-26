@@ -237,24 +237,32 @@ export default function MyTopScreen() {
     }
   };
 
-  // ✅ 刷新数据
-  const onRefresh = useCallback(async () => {
-    if (isRefreshingRef.current) return;
-    isRefreshingRef.current = true;
-    setRefreshing(true);
-    try {
-      await Promise.all([
-        refreshCurrentUser(), // ✅ 同步最新用户资料（头像/简介等）
-        fetchUserListings('active'),
-        fetchUserListings('sold'),
-        fetchFollowStats(),
-        fetchUserCategories(),
-      ]);
-    } finally {
-      setRefreshing(false);
-      isRefreshingRef.current = false;
-    }
-  }, []);
+  // ✅ 统一的刷新逻辑；支持静默刷新避免触发下拉形态
+  const refreshAll = useCallback(
+    async (opts?: { useSpinner?: boolean }) => {
+      const useSpinner = !!opts?.useSpinner;
+      if (isRefreshingRef.current) return;
+      isRefreshingRef.current = true;
+      if (useSpinner) setRefreshing(true); else setLoading(true);
+      try {
+        await Promise.all([
+          refreshCurrentUser(), // ✅ 同步最新用户资料（头像/简介等）
+          fetchUserListings('active'),
+          fetchUserListings('sold'),
+          fetchFollowStats(),
+          fetchUserCategories(),
+        ]);
+      } finally {
+        if (useSpinner) setRefreshing(false);
+        setLoading(false);
+        isRefreshingRef.current = false;
+      }
+    },
+    []
+  );
+
+  // 用于下拉手势或显式请求时的刷新（展示下拉刷新指示器）
+  const onRefresh = useCallback(() => refreshAll({ useSpinner: true }), [refreshAll]);
 
   // （移除初次挂载时的重复加载，统一在获得焦点时刷新）
 
@@ -270,11 +278,12 @@ export default function MyTopScreen() {
   useEffect(() => {
     if (refreshTrigger && lastRefreshRef.current !== refreshTrigger) {
       lastRefreshRef.current = refreshTrigger;
-      onRefresh();
+      // 显式触发刷新：保留下拉指示器以提供反馈
+      refreshAll({ useSpinner: true });
       // 处理完即清理，避免残留参数引发误判
       navigation.setParams({ refreshTS: undefined });
     }
-  }, [refreshTrigger, onRefresh, navigation]);
+  }, [refreshTrigger, refreshAll, navigation]);
 
   // 丝滑回到顶部（仅在 Shop 标签时才滚动）
   useEffect(() => {
@@ -292,13 +301,14 @@ export default function MyTopScreen() {
     if (tabPressTrigger && activeTab === "Shop") {
       const atTop = (listOffsetRef.current || 0) <= 2;
       if (atTop) {
-        onRefresh();
+        // 在顶部时进行带指示器的刷新（符合用户期望）
+        refreshAll({ useSpinner: true });
       } else {
         listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
       }
       navigation.setParams({ tabPressTS: undefined });
     }
-  }, [tabPressTrigger, activeTab, navigation, onRefresh]);
+  }, [tabPressTrigger, activeTab, navigation, refreshAll]);
 
   // ✅ 当屏幕获得焦点时刷新数据
   useFocusEffect(
@@ -312,18 +322,19 @@ export default function MyTopScreen() {
       let didRefresh = false;
       if (params?.refreshTS && lastRefreshRef.current !== params.refreshTS) {
         lastRefreshRef.current = params.refreshTS;
-        onRefresh();
+        // 显式请求：展示下拉指示器
+        refreshAll({ useSpinner: true });
         didRefresh = true;
       }
 
-      // 如果没有通过参数触发刷新，则执行一次隐式焦点刷新
+      // 若不是显式请求，则进行一次静默刷新，避免页面进入时自动“下拉”
       if (!didRefresh) {
-        onRefresh();
+        refreshAll({ useSpinner: false });
       }
 
       // 统一一次性清理参数，防止参数变化导致的回调重复执行
       navigation.setParams({ initialTab: undefined, refreshTS: undefined });
-    }, [navigation, onRefresh])
+    }, [navigation, refreshAll])
   );
 
   // ✅ 使用真实用户数据，提供默认值以防用户数据为空

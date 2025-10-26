@@ -136,7 +136,15 @@ export default function MyPremiumScreen() {
       >
         <View style={styles.membershipCard}>
           <View style={styles.memberRow}>
-            <Image source={MEMBER_AVATAR} style={styles.avatar} />
+            {/* 显示用户头像：优先使用远程 avatar_url，否则 fallback 到 DEFAULT_AVATAR */}
+            <Image
+              source={
+                user?.avatar_url
+                  ? { uri: String(user.avatar_url) }
+                  : MEMBER_AVATAR
+              }
+              style={styles.avatar}
+            />
             <View style={{ flex: 1 }}>
               <Text style={styles.memberTitle}>Hi, {memberName}</Text>
               <Text style={styles.memberMeta}>Member status: {memberStatus}</Text>
