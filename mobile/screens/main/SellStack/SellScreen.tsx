@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Pressable,
   ScrollView as RNScrollView,
   Alert,
+  type AlertButton,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -23,8 +24,11 @@ import * as ImageManipulator from "expo-image-manipulator";
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header"; 
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useFocusEffect } from "@react-navigation/native";
 import type { SellStackParamList } from "./SellStackNavigator";
 import { listingsService, type CreateListingRequest } from "../../../src/services/listingsService";
+import { benefitsService, type UserBenefitsPayload } from "../../../src/services";
+import { ApiError } from "../../../src/config/api";
 import { useAuth } from "../../../contexts/AuthContext";
 /** --- Options --- */
 const CATEGORY_OPTIONS = ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"];
@@ -179,6 +183,8 @@ export default function SellScreen({
   navigation: SellScreenNavigationProp;
 }) {
   const { user } = useAuth();
+  const [benefits, setBenefits] = useState<UserBenefitsPayload["benefits"] | null>(null);
+  const [loadingBenefits, setLoadingBenefits] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
@@ -209,6 +215,49 @@ export default function SellScreen({
   const shouldFocusSizeInput = useRef(false);
   const shouldFocusMaterialInput = useRef(false);
   const shouldFocusBrandInput = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+
+      const loadBenefits = async () => {
+        if (!user) {
+          if (mounted) {
+            setBenefits(null);
+          }
+          return;
+        }
+
+        try {
+          setLoadingBenefits(true);
+          const payload = await benefitsService.getUserBenefits();
+          if (!mounted) return;
+          setBenefits(payload.benefits);
+        } catch (err) {
+          console.warn("Failed to load benefits for sell screen", err);
+          if (mounted) {
+            setBenefits(null);
+          }
+        } finally {
+          if (mounted) {
+            setLoadingBenefits(false);
+          }
+        }
+      };
+
+      loadBenefits();
+      return () => {
+        mounted = false;
+      };
+    }, [user])
+  );
+
+  const listingLimitReached = benefits ? !benefits.canCreateListing : false;
+  const listingQuotaText = benefits
+    ? benefits.listingLimit === null
+      ? `Active listings: ${benefits.activeListingsCount} (Unlimited)`
+      : `Active listings: ${benefits.activeListingsCount}/${benefits.listingLimit}`
+    : null;
 
   // Shipping
   const [shippingOption, setShippingOption] = useState("Select");
@@ -452,25 +501,30 @@ export default function SellScreen({
 
   // 保存 listing
   const handlePostListing = async () => {
-    // Premium restriction: Free users can only have up to 2 active listings
-    try {
-      if (!user?.isPremium) {
-        const myActives = await listingsService.getUserListings({ status: 'active' });
-        if (Array.isArray(myActives) && myActives.length >= 2) {
-          Alert.alert(
-            'Upgrade to Premium',
-            'Free users can have up to 2 active listings. Upgrade to Premium for unlimited listings.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Upgrade', onPress: () => (navigation as any)?.getParent()?.getParent()?.navigate('Premium', { screen: 'PremiumPlans' }) }
-            ]
-          );
-          return;
-        }
-      }
-    } catch (e) {
-      // If restriction check fails silently continue (don’t block posting unexpectedly)
-      console.warn('Failed to check listing limit', e);
+    if (listingLimitReached) {
+      const listingLimit = benefits?.listingLimit;
+      const alertMessage = listingLimit === null
+        ? "You currently cannot post new listings."
+        : listingLimit === undefined
+        ? "You have reached the active listing limit for your plan. Remove an active listing or upgrade to Premium for unlimited listings."
+        : `You have reached the ${listingLimit} active listing limit for your plan. Remove an active listing or upgrade to Premium for unlimited listings.`;
+
+      const alertButtons: AlertButton[] | undefined = listingLimit === null
+        ? undefined
+        : [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Upgrade",
+              style: "default",
+              onPress: () =>
+                (navigation as any)?.getParent()?.getParent()?.navigate("Premium", {
+                  screen: "PremiumPlans",
+                }),
+            },
+          ];
+
+      Alert.alert("Listing limit reached", alertMessage, alertButtons);
+      return;
     }
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {

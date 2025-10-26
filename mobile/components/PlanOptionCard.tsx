@@ -4,6 +4,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 export type PlanOptionCardProps = {
   prefix: string;
   highlight: string;
+  note?: string;
   selected?: boolean;
   onPress?: () => void;
   disabled?: boolean;
@@ -12,6 +13,7 @@ export type PlanOptionCardProps = {
 const PlanOptionCard: React.FC<PlanOptionCardProps> = ({
   prefix,
   highlight,
+  note,
   selected = false,
   onPress,
   disabled,
@@ -26,10 +28,13 @@ const PlanOptionCard: React.FC<PlanOptionCardProps> = ({
       <View style={[styles.radio, selected && styles.radioSelected]}>
         {selected && <View style={styles.radioDot} />}
       </View>
-      <Text style={styles.label}>
-        {prefix}
-        <Text style={styles.highlight}>{highlight}</Text>
-      </Text>
+      <View style={styles.textCol}>
+        <Text style={styles.label}>
+          {prefix}
+          <Text style={styles.highlight}>{highlight}</Text>
+        </Text>
+        {note ? <Text style={styles.note}>{note}</Text> : null}
+      </View>
     </TouchableOpacity>
   );
 };
@@ -81,6 +86,15 @@ const styles = StyleSheet.create({
     fontSize: 19,
     fontWeight: "800",
     color: "#FFFFFF",
+  },
+  textCol: {
+    flex: 1,
+  },
+  note: {
+    marginTop: 4,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.8)",
+    fontWeight: "500",
   },
 });
 

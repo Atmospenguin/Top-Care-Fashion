@@ -17,8 +17,7 @@ import type { PremiumStackParamList } from "../PremiumStack";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 import { PREMIUM_BG } from "../../../constants/assetUrls";
 import { useAuth } from "../../../contexts/AuthContext";
-import { premiumService } from "../../../src/services";
-import { apiClient } from "../../../src/services/api";
+import { benefitsService, premiumService, type UserBenefitsPayload } from "../../../src/services";
 
 const MEMBER_AVATAR = DEFAULT_AVATAR;
 
@@ -31,7 +30,7 @@ type BenefitItem = {
   subtitle: string;
 };
 
-const BENEFITS: BenefitItem[] = [
+const DEFAULT_BENEFITS: BenefitItem[] = [
   {
     id: "commission",
     icon: "cash-outline",
@@ -50,7 +49,7 @@ const BENEFITS: BenefitItem[] = [
   },
   {
     id: "advice",
-    icon: "shirt-outline",
+    icon: "sparkles-outline",
     bgColor: "#F7F9D4",
     iconColor: "#8A6EFF",
     title: "Unlimited",
@@ -64,9 +63,7 @@ export default function MyPremiumScreen() {
   const { user, updateUser } = useAuth();
   const [loading, setLoading] = useState(false); // cancel/loading
   const [syncing, setSyncing] = useState(false); // fetch status
-  const [freeBoostUsed, setFreeBoostUsed] = useState<number | null>(null);
-  const [freeBoostLimit, setFreeBoostLimit] = useState<number | null>(null);
-  const [freeBoostRemaining, setFreeBoostRemaining] = useState<number | null>(null);
+  const [benefits, setBenefits] = useState<UserBenefitsPayload["benefits"] | null>(null);
 
   const handleRenew = () => {
     navigation.navigate("PremiumPlans");
@@ -78,6 +75,101 @@ export default function MyPremiumScreen() {
     if (!user?.premiumUntil) return "(No active premium)";
     return `(Membership will expire on ${String(user.premiumUntil).slice(0, 10)})`;
   }, [user?.premiumUntil]);
+
+  const boostSummary = useMemo(() => {
+    if (syncing) {
+      return "Monthly Free Boost Credits: ...";
+    }
+
+    if (!benefits) {
+      return user?.isPremium
+        ? "Monthly Free Boost Credits: --"
+        : "Monthly Free Boost Credits: 0/0";
+    }
+
+    if (!benefits.isPremium || benefits.freePromotionLimit === null) {
+      return "Monthly Free Boost Credits: 0/0";
+    }
+
+    const remaining = Math.max(0, benefits.freePromotionsRemaining ?? 0);
+    return `Monthly Free Boost Credits: ${remaining}/${benefits.freePromotionLimit}`;
+  }, [benefits, syncing, user?.isPremium]);
+
+  const benefitTiles = useMemo<BenefitItem[]>(() => {
+    if (!benefits) {
+      return DEFAULT_BENEFITS;
+    }
+
+    const commissionPercent = Math.round((benefits.commissionRate ?? 0) * 100);
+    const listingTitle = benefits.listingLimit === null
+      ? "Unlimited listings"
+      : `${benefits.listingLimit} listing limit`;
+    const listingSubtitle = benefits.listingLimit === null
+      ? "No cap on active items"
+      : "Active listings allowed";
+    const boostPrice = benefits.promotionPricing?.price ?? benefits.promotionPrice ?? 0;
+    const freeBoostSubtitle = benefits.isPremium
+      ? benefits.freePromotionLimit === null
+        ? "Unlimited free boosts"
+        : `${benefits.freePromotionLimit} free/month`
+      : "Upgrade for free boosts";
+
+    return [
+      {
+        id: "commission",
+        icon: "cash-outline" as const,
+        bgColor: "#E5F5FF",
+        iconColor: "#2AB6B6",
+        title: `${commissionPercent}% commission`,
+        subtitle: benefits.isPremium ? "Premium rate" : "Standard rate",
+      },
+      {
+        id: "listing",
+        icon: "albums-outline" as const,
+        bgColor: "#E7F4FF",
+        iconColor: "#4A8CFF",
+        title: listingTitle,
+        subtitle: listingSubtitle,
+      },
+      {
+        id: "boost",
+        icon: "sparkles-outline" as const,
+        bgColor: "#F7F9D4",
+        iconColor: "#8A6EFF",
+        title: `$${boostPrice.toFixed(2)} boost`,
+        subtitle: freeBoostSubtitle,
+      },
+    ];
+  }, [benefits]);
+
+  const usageRows = useMemo(() => {
+    if (!benefits) return null;
+
+    const listingValue = benefits.listingLimit === null
+      ? `${benefits.activeListingsCount} / Unlimited`
+      : `${benefits.activeListingsCount}/${benefits.listingLimit}`;
+    const mixMatchValue = benefits.mixMatchLimit === null
+      ? "Unlimited"
+      : `${Math.min(benefits.mixMatchUsedCount, benefits.mixMatchLimit)}/${benefits.mixMatchLimit}`;
+    const freeBoostValue = benefits.freePromotionLimit === null
+      ? (benefits.isPremium ? "Unlimited" : "0")
+      : `${Math.max(0, benefits.freePromotionsRemaining)}/${benefits.freePromotionLimit}`;
+    const boostPriceValue = `$${(benefits.promotionPricing?.price ?? benefits.promotionPrice ?? 0).toFixed(2)}`;
+
+    return [
+      { id: "listings", label: "Active listings", value: listingValue },
+      { id: "mixmatch", label: "Mix & Match uses", value: mixMatchValue },
+      { id: "freeBoost", label: "Free boosts remaining", value: freeBoostValue },
+      { id: "boostPrice", label: "Boost price (3 days)", value: boostPriceValue },
+    ];
+  }, [benefits]);
+
+  const benefitsTitle = useMemo(() => {
+    if (!benefits) {
+      return "Premium User can enjoy :";
+    }
+    return benefits.isPremium ? "Your premium benefits" : "Free plan limits";
+  }, [benefits]);
 
   // Sync premium status from backend when screen is focused
   useFocusEffect(
@@ -93,26 +185,20 @@ export default function MyPremiumScreen() {
           if (!isActive) return;
           updateUser({ ...(user as any), isPremium: status.isPremium, premiumUntil: status.premiumUntil });
 
-          // Fetch user benefits to get monthly free promotion (boost) counters
           try {
-            const res = await apiClient.get<any>("/api/user/benefits");
-            const benefits = (res.data as any)?.data?.benefits;
-            if (benefits) {
-              setFreeBoostUsed(Number(benefits.freePromotionsUsed ?? 0));
-              // freePromotionLimit: number | null (premium: 3; free: null)
-              setFreeBoostLimit(
-                benefits.freePromotionLimit === null
-                  ? null
-                  : Number(benefits.freePromotionLimit)
-              );
-              setFreeBoostRemaining(
-                benefits.freePromotionsRemaining === null
-                  ? null
-                  : Number(benefits.freePromotionsRemaining)
-              );
-            }
+            const payload = await benefitsService.getUserBenefits();
+            if (!isActive) return;
+            setBenefits(payload.benefits);
+            updateUser({
+              ...(user as any),
+              isPremium: payload.user.isPremium,
+              premiumUntil: payload.user.premiumUntil,
+            });
           } catch (err) {
             console.log("Fetch user benefits failed", err);
+            if (isActive) {
+              setBenefits(null);
+            }
           }
         } catch (e) {
           console.error('Fetch premium status failed', e);
@@ -148,24 +234,27 @@ export default function MyPremiumScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.memberTitle}>Hi, {memberName}</Text>
               <Text style={styles.memberMeta}>Member status: {memberStatus}</Text>
-              <Text style={styles.memberMeta}>
-                {syncing
-                  ? 'Monthly Free Boost Credits: ...'
-                  : user?.isPremium
-                    ? `Monthly Free Boost Credits: ${
-                        (freeBoostRemaining ?? (freeBoostLimit ?? 0) - (freeBoostUsed ?? 0))
-                      }/${freeBoostLimit ?? 3}`
-                    : 'Monthly Free Boost Credits: 0/0'}
-              </Text>
+              <Text style={styles.memberMeta}>{boostSummary}</Text>
             </View>
           </View>
           <Text style={styles.expiryText}>{syncing ? 'Syncing membership…' : expireText}</Text>
         </View>
 
+        {usageRows ? (
+          <View style={styles.usageCard}>
+            {usageRows.map((row) => (
+              <View key={row.id} style={styles.usageRow}>
+                <Text style={styles.usageLabel}>{row.label}</Text>
+                <Text style={styles.usageValue}>{row.value}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
         <View style={styles.benefitsCard}>
-          <Text style={styles.benefitsTitle}>Premium User can enjoy :</Text>
+          <Text style={styles.benefitsTitle}>{benefitsTitle}</Text>
           <View style={styles.benefitRow}>
-            {BENEFITS.map((benefit) => (
+            {benefitTiles.map((benefit: BenefitItem) => (
               <View key={benefit.id} style={styles.benefitItem}>
                 <View
                   style={[styles.benefitIconWrap, { backgroundColor: benefit.bgColor }]}
@@ -245,6 +334,29 @@ const styles = StyleSheet.create({
   expiryText: {
     fontSize: 13,
     color: "#2F3443",
+  },
+  usageCard: {
+    padding: 18,
+    backgroundColor: "#F6F8FF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E1E6FF",
+    rowGap: 4,
+  },
+  usageRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 6,
+  },
+  usageLabel: {
+    fontSize: 13,
+    color: "#3F4354",
+  },
+  usageValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1E1E1E",
   },
   benefitsCard: {
     backgroundColor: "#FFFFFF",

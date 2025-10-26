@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -6,8 +6,10 @@ import {
   FlatList,
   Image,
   TouchableOpacity,
+  RefreshControl,
+  ActivityIndicator,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { CompositeNavigationProp, NavigatorScreenParams } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Header from "../../../components/Header";
@@ -15,6 +17,10 @@ import Icon from "../../../components/Icon";
 import type { MyTopStackParamList } from "./index";
 import type { RootStackParamList } from "../../../App";
 import type { PremiumStackParamList } from "../PremiumStack";
+import { benefitsService, type UserBenefitsPayload } from "../../../src/services";
+import { listingsService } from "../../../src/services/listingsService";
+import type { ListingItem } from "../../../types/shop";
+import { useAuth } from "../../../contexts/AuthContext";
 
 type Nav = CompositeNavigationProp<
   NativeStackNavigationProp<MyTopStackParamList, "MyBoostListings">,
@@ -25,92 +31,205 @@ const promotionPlansRoute: NavigatorScreenParams<PremiumStackParamList> = {
   screen: "PromotionPlans",
 };
 
-const MOCK_ACTIVE: Array<{
-  id: string;
-  title: string;
-  price: number;
-  image: string;
-  boosted?: boolean;
-  oldPrice?: number;
-}> = [
-  {
-    id: "a1",
-    title: "Brandy top",
-    price: 50,
-    image:
-      "https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?q=80&w=600&auto=format&fit=crop",
-  },
-  {
-    id: "a2",
-    title: "White lace blouse",
-    price: 55,
-    image:
-      "https://images.unsplash.com/photo-1520975922284-5cb56b85c0a0?q=80&w=600&auto=format&fit=crop",
-  },
-  {
-    id: "a3",
-    title: "Green trousers",
-    price: 25.5,
-    image:
-      "https://images.unsplash.com/photo-1592878904946-b3cd6fd7d9f7?q=80&w=600&auto=format&fit=crop",
-  },
-  {
-    id: "a4",
-    title: "Blue dress",
-    price: 23.5,
-    image:
-      "https://images.unsplash.com/photo-1520975652208-8bdf0a1a3f3c?q=80&w=600&auto=format&fit=crop",
-  },
-  {
-    id: "a5",
-    title: "Cream cardigan",
-    price: 25.5,
-    image:
-      "https://images.unsplash.com/photo-1520975661595-645b57a5329b?q=80&w=600&auto=format&fit=crop",
-  },
-  {
-    id: "a6",
-    title: "Bucket hat (boosted)",
-    price: 33,
-    boosted: true,
-    image:
-      "https://images.unsplash.com/photo-1593030761757-71b4c1b1ff0e?q=80&w=600&auto=format&fit=crop",
-  },
-  // 再补几张占位
-  {
-    id: "a7",
-    title: "Brown jacket",
-    price: 45,
-    image:
-      "https://images.unsplash.com/photo-1520975867597-0f4a4e9a9f00?q=80&w=600&auto=format&fit=crop",
-  },
-  {
-    id: "a8",
-    title: "Cross-body bag",
-    price: 40,
-    image:
-      "https://images.unsplash.com/photo-1576485436509-cf4b2c2f58b1?q=80&w=600&auto=format&fit=crop",
-  },
-  {
-    id: "a9",
-    title: "Brown shirt",
-    price: 31,
-    image:
-      "https://images.unsplash.com/photo-1520976307980-4d8b4d4f6b6d?q=80&w=600&auto=format&fit=crop",
-  },
-];
-
 export default function BoostListingScreen() {
   const navigation = useNavigation<Nav>();
+  const { user } = useAuth();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [benefits, setBenefits] = useState<UserBenefitsPayload["benefits"] | null>(null);
+  const [loadingBenefits, setLoadingBenefits] = useState(false);
+  const [listings, setListings] = useState<ListingItem[]>([]);
+  const [loadingListings, setLoadingListings] = useState(false);
+  const [listingsError, setListingsError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadScreenData = useCallback(
+    async (isCancelled?: () => boolean) => {
+      if (!user) {
+        if (isCancelled?.()) {
+          return;
+        }
+        setBenefits(null);
+        setListings([]);
+        setSelected({});
+        setListingsError(null);
+        setLoadingBenefits(false);
+        setLoadingListings(false);
+        return;
+      }
+
+      if (!isCancelled?.()) {
+        setListingsError(null);
+        setLoadingBenefits(true);
+        setLoadingListings(true);
+      }
+
+      const [benefitsResult, listingsResult] = await Promise.allSettled([
+        benefitsService.getUserBenefits(),
+        listingsService.getUserListings({ status: "active" }),
+      ]);
+
+      if (isCancelled?.()) {
+        return;
+      }
+
+      if (benefitsResult.status === "fulfilled") {
+        setBenefits(benefitsResult.value.benefits);
+      } else {
+        console.warn(
+          "Failed to load benefits for boost screen",
+          benefitsResult.reason
+        );
+      }
+
+      if (listingsResult.status === "fulfilled") {
+        setListings(listingsResult.value);
+      } else {
+        console.warn(
+          "Failed to load listings for boost screen",
+          listingsResult.reason
+        );
+        setListingsError("Failed to load your active listings.");
+      }
+
+      if (!isCancelled?.()) {
+        setLoadingBenefits(false);
+        setLoadingListings(false);
+      }
+    },
+    [user]
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      loadScreenData(() => cancelled);
+      return () => {
+        cancelled = true;
+      };
+    }, [loadScreenData])
+  );
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadScreenData();
+    setRefreshing(false);
+  }, [loadScreenData]);
+
+  useEffect(() => {
+    setSelected((prev) => {
+      const retained: Record<string, boolean> = {};
+      listings.forEach((listing) => {
+        if (prev[listing.id]) {
+          retained[listing.id] = true;
+        }
+      });
+      const prevKeys = Object.keys(prev);
+      const retainedKeys = Object.keys(retained);
+      const isSame =
+        prevKeys.length === retainedKeys.length &&
+        prevKeys.every((key) => retained[key]);
+      return isSame ? prev : retained;
+    });
+  }, [listings]);
 
   const selectedCount = useMemo(
-    () => Object.values(selected).filter(Boolean).length,
+    () => Object.keys(selected).length,
     [selected]
   );
 
-  const toggle = (id: string) =>
-    setSelected((s) => ({ ...s, [id]: !s[id] }));
+  const toggle = useCallback(
+    (id: string) => {
+      setSelected((state) => {
+        if (!listings.some((item) => item.id === id)) {
+          return state;
+        }
+        const next = { ...state };
+        if (next[id]) {
+          delete next[id];
+        } else {
+          next[id] = true;
+        }
+        return next;
+      });
+    },
+    [listings]
+  );
+
+  const renderEmptyComponent = useCallback(() => {
+    if (loadingListings) {
+      return (
+        <View style={styles.emptyState}>
+          <ActivityIndicator color="#111" />
+          <Text style={styles.emptyStateText}>Loading your listings…</Text>
+        </View>
+      );
+    }
+
+    if (listingsError) {
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateText}>{listingsError}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
+            <Text style={styles.retryText}>Try again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyStateText}>
+          No active listings ready to boost yet.
+        </Text>
+      </View>
+    );
+  }, [handleRefresh, listingsError, loadingListings]);
+
+  const pricingSummary = useMemo(() => {
+    if (loadingBenefits) {
+      return {
+        headline: "Loading current pricing…",
+        priceLine: "Price: ...",
+        freeLine: "Free boosts: ...",
+        discountLine: undefined as string | undefined,
+      };
+    }
+
+    if (!benefits) {
+      return {
+        headline: "Boost pricing",
+        priceLine: "Price: $2.90 per 3-day boost",
+        freeLine: "Free boosts: 0",
+        discountLine: "Discount: None",
+      };
+    }
+
+    const price = benefits.promotionPricing?.price ?? benefits.promotionPrice ?? 0;
+    const priceLine = `Price: $${price.toFixed(2)} per 3-day boost`;
+
+    const freeLine = benefits.freePromotionLimit === null
+      ? (benefits.isPremium ? "Free boosts: Unlimited" : "Free boosts: 0")
+      : `Free boosts: ${Math.max(0, benefits.freePromotionsRemaining)}/${benefits.freePromotionLimit} left`;
+
+    const discountLine = benefits.promotionPricing
+      ? benefits.promotionPricing.discount > 0
+        ? `Discount: ${benefits.promotionPricing.discount}% off base price`
+        : benefits.isPremium ? "Discount: Member pricing" : "Discount: None"
+      : undefined;
+
+    return {
+      headline: benefits.isPremium ? "Premium pricing active" : "Free plan pricing",
+      priceLine,
+      freeLine,
+      discountLine,
+    };
+  }, [benefits, loadingBenefits]);
+
+  const activeListingCount = listings.length;
+  const topCardText = loadingListings
+    ? "Loading your active listings…"
+    : `${activeListingCount} active listing${activeListingCount === 1 ? "" : "s"}`;
+  const canSubmitBoost = selectedCount > 0 && !loadingListings;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -122,33 +241,63 @@ export default function BoostListingScreen() {
         onPress={() => navigation.navigate("BoostedListing")}
         activeOpacity={0.9}
       >
-        <View style={styles.rowCenter}>
-          <Icon name="flash-outline" size={18} color="#111" />
-          <Text style={styles.topCardTitle}>
-            {"  "}
-            2 live boosted listings
-          </Text>
+        <View style={styles.topCardTextGroup}>
+          <View style={styles.rowCenter}>
+            <Icon name="flash-outline" size={18} color="#111" />
+            <Text style={styles.topCardTitle}>{`  ${topCardText}`}</Text>
+          </View>
+          <Text style={styles.topCardSubtitle}>Tap to view boosted listings</Text>
         </View>
         <Icon name="chevron-forward" size={18} color="#666" />
       </TouchableOpacity>
 
+      <View style={styles.benefitBanner}>
+        <Text style={styles.benefitBannerTitle}>{pricingSummary.headline}</Text>
+        <Text style={styles.benefitBannerText}>{pricingSummary.priceLine}</Text>
+        <Text style={styles.benefitBannerText}>{pricingSummary.freeLine}</Text>
+        {pricingSummary.discountLine ? (
+          <Text style={styles.benefitBannerText}>{pricingSummary.discountLine}</Text>
+        ) : null}
+      </View>
+
       <Text style={styles.sectionHint}>Select listings to boost</Text>
 
       <FlatList
-        data={MOCK_ACTIVE}
+        data={listings}
         keyExtractor={(item) => item.id}
         numColumns={3}
-    contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 100 }}
-    columnWrapperStyle={{ gap: 12, marginBottom: 12 }}
+        contentContainerStyle={styles.listContent}
+        columnWrapperStyle={styles.columnWrapper}
+        ListEmptyComponent={renderEmptyComponent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor="#111"
+          />
+        }
         renderItem={({ item }) => {
           const isSelected = !!selected[item.id];
+          const price = Number(item.price ?? 0);
+          const primaryImage = item.images?.[0] ?? null;
+          const title = item.title || "Unnamed listing";
           return (
             <TouchableOpacity
               activeOpacity={0.9}
               onPress={() => toggle(item.id)}
               style={styles.card}
             >
-              <Image source={{ uri: item.image }} style={styles.cardImg} />
+              {primaryImage ? (
+                <Image
+                  source={{ uri: primaryImage }}
+                  style={styles.cardImg}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.cardPlaceholder}>
+                  <Icon name="image-outline" size={20} color="#999" />
+                </View>
+              )}
               {/* 右上角选择圆点 */}
               <View
                 style={[
@@ -158,20 +307,11 @@ export default function BoostListingScreen() {
               >
                 {isSelected ? <View style={styles.checkDotInner} /> : null}
               </View>
-              {/* Boosted 贴纸 */}
-              {item.boosted && (
-                <View style={styles.boostBadge}>
-                  <Text style={styles.boostBadgeText}>Boosted</Text>
-                </View>
-              )}
-
-              <View style={{ padding: 6 }}>
-                <Text numberOfLines={1} style={styles.priceText}>
-                  £{item.price.toFixed(2)}
+              <View style={styles.cardBody}>
+                <Text numberOfLines={1} style={styles.cardTitle}>
+                  {title}
                 </Text>
-                {!!item.oldPrice && (
-                  <Text style={styles.oldPrice}>£{item.oldPrice.toFixed(2)}</Text>
-                )}
+                <Text style={styles.priceText}>${price.toFixed(2)}</Text>
               </View>
             </TouchableOpacity>
           );
@@ -183,9 +323,9 @@ export default function BoostListingScreen() {
         <TouchableOpacity
           style={[
             styles.primaryBtn,
-            selectedCount === 0 && { opacity: 0.4 },
+            !canSubmitBoost && { opacity: 0.4 },
           ]}
-          disabled={selectedCount === 0}
+          disabled={!canSubmitBoost}
           onPress={() => navigation.navigate("Premium", promotionPlansRoute)}
         >
           <Text style={styles.primaryText}>
@@ -214,14 +354,46 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
+  benefitBanner: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    backgroundColor: "#111",
+    borderRadius: 12,
+    padding: 16,
+  },
+  benefitBannerTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  benefitBannerText: {
+    marginTop: 2,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.85)",
+  },
   rowCenter: { flexDirection: "row", alignItems: "center" },
+  topCardTextGroup: { flex: 1 },
   topCardTitle: { fontSize: 15, fontWeight: "700", color: "#111" },
+  topCardSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "#666",
+  },
   sectionHint: {
     marginTop: 12,
     marginBottom: 8,
     textAlign: "center",
     color: "#666",
     fontWeight: "600",
+  },
+  listContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 100,
+    flexGrow: 1,
+  },
+  columnWrapper: {
+    gap: 12,
+    marginBottom: 12,
   },
   card: {
     flex: 1,
@@ -230,7 +402,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
   },
-  cardImg: { width: "100%", height: "70%" },
+  cardImg: { width: "100%", height: "70%", backgroundColor: "#eaeaea" },
+  cardPlaceholder: {
+    width: "100%",
+    height: "70%",
+    backgroundColor: "#eaeaea",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   checkDot: {
     position: "absolute",
     top: 8,
@@ -250,23 +429,35 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "#111",
   },
-  boostBadge: {
-    position: "absolute",
-    bottom: 38,
-    left: 8,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+  cardBody: {
+    padding: 6,
   },
-  boostBadgeText: { color: "#fff", fontWeight: "800" },
-  priceText: { fontWeight: "700", color: "#111" },
-  oldPrice: {
-    marginTop: 2,
-    color: "#9b9b9b",
-    textDecorationLine: "line-through",
+  cardTitle: {
     fontSize: 12,
+    color: "#555",
+    marginBottom: 2,
   },
+  priceText: { fontWeight: "700", color: "#111", fontSize: 13 },
+  emptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  emptyStateText: {
+    marginTop: 8,
+    fontSize: 13,
+    color: "#666",
+    textAlign: "center",
+  },
+  retryButton: {
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: "#111",
+  },
+  retryText: { color: "#fff", fontWeight: "600" },
   bottomBar: {
     position: "absolute",
     left: 0,

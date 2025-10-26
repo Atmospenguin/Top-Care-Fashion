@@ -9,8 +9,8 @@ export async function GET() {
 
     const [plans]: any = await connection.execute(
       `SELECT plan_type, name, description, price_monthly, price_quarterly, price_annual,
-              listing_limit, promotion_price, promotion_discount, commission_rate,
-              features, is_popular
+        listing_limit, promotion_price, promotion_discount, commission_rate,
+        free_promotion_credits, features, is_popular
        FROM pricing_plans
        WHERE active = TRUE
        ORDER BY price_monthly ASC`
@@ -31,6 +31,7 @@ export async function GET() {
       promotionPrice: toNumber(plan.promotion_price) ?? 0,
       promotionDiscount: toNumber(plan.promotion_discount),
       commissionRate: toNumber(plan.commission_rate) ?? 0,
+  freePromotionCredits: toNumber(plan.free_promotion_credits),
       features: parseJson<FeatureList>(plan.features) ?? [],
       isPopular: toBoolean(plan.is_popular),
     }));

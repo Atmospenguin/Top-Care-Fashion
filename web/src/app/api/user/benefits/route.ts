@@ -52,17 +52,19 @@ export async function GET(req: Request) {
     // 🔥 检查是否需要重置免费 promotion 计数器
     const needsPromotionReset = shouldResetFreePromotions(user.free_promotions_reset_at);
     let freePromotionsUsed = user.free_promotions_used || 0;
-    
+    let freePromotionResetAt = user.free_promotions_reset_at ?? null;
+
     if (needsPromotionReset && isPremium) {
-      // 重置计数器
+      const resetTimestamp = new Date();
       await prisma.users.update({
         where: { id: user.id },
         data: {
           free_promotions_used: 0,
-          free_promotions_reset_at: new Date(),
+          free_promotions_reset_at: resetTimestamp,
         },
       });
       freePromotionsUsed = 0;
+      freePromotionResetAt = resetTimestamp;
     }
 
     // 🔥 获取 Mix & Match 使用次数
@@ -72,7 +74,7 @@ export async function GET(req: Request) {
     const freePromotionStatus = canUseFreePromotion(
       isPremium,
       freePromotionsUsed,
-      user.free_promotions_reset_at
+      freePromotionResetAt
     );
 
     // 获取用户权益
@@ -99,7 +101,11 @@ export async function GET(req: Request) {
           freePromotionsUsed,
           freePromotionsRemaining: freePromotionStatus.remaining,
           canUseFreePromotion: freePromotionStatus.canUse,
-          freePromotionResetAt: user.free_promotions_reset_at?.toISOString() || null,
+          freePromotionResetAt: freePromotionResetAt?.toISOString() || null,
+          promotionPricing: benefits.promotionPricing,
+          listingLimitRemaining: benefits.listingLimit === null 
+            ? null 
+            : Math.max(0, benefits.listingLimit - activeListingsCount),
         },
       },
     });
