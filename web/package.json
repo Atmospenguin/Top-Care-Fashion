@@ -10,26 +10,32 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@google-cloud/vision": "^5.3.4",
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.18.0",
     "@supabase/ssr": "0.7.0",
-    "@supabase/supabase-js": "2.58.0",
+    "@supabase/supabase-js": "^2.58.0",
+    "form-data": "^4.0.4",
     "geist": "^1.5.1",
-    "next": "15.5.2",
-    "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "next": "^15.5.2",
+    "node-fetch": "^3.3.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20.19.13",
-    "@types/react": "^19",
+    "@types/node": "^20.19.23",
+    "@types/react": "^19.2.2",
     "@types/react-dom": "^19",
     "dotenv": "^16.6.1",
-    "eslint": "^9",
+    "eslint": "^9.38.0",
     "eslint-config-next": "15.5.2",
+    "nodemon": "^3.1.10",
+    "prettier": "^3.6.2",
     "prisma": "^6.18.0",
     "tailwindcss": "^4",
-    "typescript": "^5",
+    "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }
 }
