@@ -1,12 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  ScrollView,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 
@@ -14,6 +7,7 @@ import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { RootStackParamList } from "../../../App";
 import { reviewsService } from "../../../src/services";
+import Avatar from "../../../components/Avatar";
 
 type ReviewSide = {
   name: string;
@@ -21,6 +15,7 @@ type ReviewSide = {
   role: "Buyer" | "Seller";
   rating: number;
   comment: string;
+  isPremium?: boolean;
 };
 
 const mockMutualReviews: Record<string, { buyer: ReviewSide; seller: ReviewSide }> =
@@ -106,6 +101,9 @@ export default function MutualReviewScreen() {
       role: "Buyer" as const,
       rating: buyerReview.rating,
       comment: buyerReview.comment || "",
+      isPremium: Boolean(
+        (buyerReview.reviewer as any).isPremium ?? (buyerReview.reviewer as any).is_premium ?? false,
+      ),
     },
     seller: {
       name: sellerReview.reviewer.username,
@@ -113,6 +111,9 @@ export default function MutualReviewScreen() {
       role: "Seller" as const,
       rating: sellerReview.rating,
       comment: sellerReview.comment || "",
+      isPremium: Boolean(
+        (sellerReview.reviewer as any).isPremium ?? (sellerReview.reviewer as any).is_premium ?? false,
+      ),
     }
   } : null;
 
@@ -151,7 +152,12 @@ function ReviewCard({ side }: { side: ReviewSide }) {
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
-        <Image source={{ uri: side.avatar }} style={styles.avatar} />
+        <Avatar
+          source={{ uri: side.avatar }}
+          style={styles.avatar}
+          isPremium={side.isPremium}
+          badgePosition="top-right"
+        />
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{side.name}</Text>
           <Text style={styles.role}>{side.role}</Text>

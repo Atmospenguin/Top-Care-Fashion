@@ -38,7 +38,7 @@ export class NotificationHelper {
       const notification = notificationService.generateLikeNotification(
         likerName,
         listingTitle,
-        likerAvatar,
+        likerAvatar ?? undefined,
         likerId.toString()
       );
       
@@ -64,7 +64,7 @@ export class NotificationHelper {
     try {
       const notification = notificationService.generateFollowNotification(
         followerName,
-        followerAvatar,
+        followerAvatar ?? undefined,
         followerId.toString()
       );
       
@@ -94,7 +94,7 @@ export class NotificationHelper {
         reviewerName,
         listingTitle,
         rating,
-        reviewerAvatar,
+        reviewerAvatar ?? undefined,
         reviewerId.toString()
       );
       

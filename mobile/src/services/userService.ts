@@ -3,12 +3,16 @@ import * as FileSystem from "expo-file-system/legacy";
 import { apiClient } from "./api";
 import { API_CONFIG } from "../config/api";
 import type { User } from "./authService";
+import { resolvePremiumFlag } from "./utils/premium";
 
 export interface UserProfile {
   id: string;
   username: string;
   email: string;
   bio?: string;
+  isPremium?: boolean;
+  premiumUntil?: string | null;
+  lastSignInAt?: string | null;
   location?: string;
   dob?: string;
   gender?: "Male" | "Female" | null;
@@ -37,6 +41,45 @@ export interface UpdateProfileRequest {
   preferredBrands?: string[] | null;
 }
 
+const normalizeAvatar = (primary?: string | null, secondary?: string | null): string | null => {
+  if (typeof primary === "string" && primary.trim()) return primary;
+  if (typeof secondary === "string" && secondary.trim()) return secondary;
+  return null;
+};
+
+const normalizeUser = (user: any): User => {
+  if (!user) {
+    return user;
+  }
+
+  const avatarUrl =
+    normalizeAvatar(user.avatar_url, normalizeAvatar(user.avatar, user.avatar_path)) ?? null;
+
+  return {
+    ...user,
+    avatar_url: avatarUrl,
+    isPremium: resolvePremiumFlag(user),
+    premiumUntil: user.premiumUntil ?? user.premium_until ?? null,
+  } as User;
+};
+
+const normalizeUserProfile = (profile: any): UserProfile => {
+  if (!profile) {
+    return profile;
+  }
+
+  const avatarUrl =
+    normalizeAvatar(profile.avatar_url, normalizeAvatar(profile.avatar, profile.avatar_path)) ?? undefined;
+
+  return {
+    ...profile,
+    avatar_url: avatarUrl,
+    isPremium: resolvePremiumFlag(profile),
+    premiumUntil: profile.premiumUntil ?? profile.premium_until ?? null,
+    lastSignInAt: profile.lastSignInAt ?? profile.last_sign_in_at ?? null,
+  } as UserProfile;
+};
+
 export class UserService {
   async getProfile(): Promise<User | null> {
     const res = await apiClient.get<{ success?: boolean; user?: User }>(
@@ -49,11 +92,11 @@ export class UserService {
     }
 
     if (typeof payload === "object" && "user" in payload && payload.user) {
-      return payload.user as User;
+      return normalizeUser(payload.user);
     }
 
     if ((payload as unknown as User).id) {
-      return payload as unknown as User;
+      return normalizeUser(payload as unknown as User);
     }
 
     return null;
@@ -73,7 +116,7 @@ export class UserService {
     if (!res.data?.user) throw new Error("Profile update failed");
     
     // ✅ 返回更新后的完整用户数据
-    return res.data.user;
+    return normalizeUser(res.data.user);
   }
 
   // ✅ 修复后的头像上传：统一处理拍照和图库，支持 FormData + base64 fallback
@@ -179,7 +222,7 @@ export class UserService {
       
       if (response.data?.success && response.data.user) {
         console.log("✅ User profile found:", response.data.user.username);
-        return response.data.user;
+        return normalizeUserProfile(response.data.user);
       }
       
       console.log("❌ No user profile data received");

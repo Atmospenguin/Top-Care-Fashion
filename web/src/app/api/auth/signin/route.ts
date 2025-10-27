@@ -107,31 +107,50 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "account suspended" }, { status: 403 });
     }
 
-    const dob = user.dob ? user.dob.toISOString().slice(0, 10) : null;
+    const now = new Date();
+    const updatedUser = await prisma.users.update({
+      where: { id: user.id },
+      data: { last_sign_in_at: now } as any,
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        status: true,
+        is_premium: true,
+        premium_until: true,
+        dob: true,
+        gender: true,
+      },
+    });
+
+    const dob = updatedUser.dob ? updatedUser.dob.toISOString().slice(0, 10) : null;
     const responseUser = {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: mapRole(user.role),
-      status: mapStatus(user.status),
+      id: updatedUser.id,
+      username: updatedUser.username,
+      email: updatedUser.email,
+      role: mapRole(updatedUser.role),
+      status: mapStatus(updatedUser.status),
       dob,
-      gender: mapGender(user.gender),
-      isPremium: Boolean(user.is_premium),
-      premiumUntil: user.premium_until ?? null,
+      gender: mapGender(updatedUser.gender),
+      isPremium: Boolean(updatedUser.is_premium),
+      premiumUntil: updatedUser.premium_until ?? null,
     };
 
     // 为移动端返回一个可用于 Bearer 的本地签名 token
-    const legacyAccessToken = signLegacyToken({ uid: user.id, kind: "legacy" }, { expiresIn: 60 * 60 * 24 * 7 });
+    const legacyAccessToken = signLegacyToken({ uid: updatedUser.id, kind: "legacy" }, { expiresIn: 60 * 60 * 24 * 7 });
     const resp = NextResponse.json({ user: responseUser, fallback: true, access_token: legacyAccessToken, token_type: 'legacy' });
-    resp.cookies.set("tc_session", String(user.id), { httpOnly: true, sameSite: "lax", path: "/" });
+    resp.cookies.set("tc_session", String(updatedUser.id), { httpOnly: true, sameSite: "lax", path: "/" });
     return resp;
   }
 
   // 2) 绑定 / 同步本地 users 表
   const userId = await ensureLocalUser(signInData.user.id, normalizedEmail);
 
-  const user = await prisma.users.findUnique({
+  const supabaseSignInAt = new Date();
+  const user = await prisma.users.update({
     where: { id: userId },
+    data: { last_sign_in_at: supabaseSignInAt } as any,
     select: {
       id: true,
       username: true,

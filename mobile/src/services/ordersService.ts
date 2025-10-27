@@ -23,14 +23,6 @@ export interface Order {
     id: number;
   }>;
   conversationId?: string | null;
-  // 评论信息
-  reviews?: Array<{
-    id: number;
-    reviewer_id: number;
-    rating: number;
-    comment: string;
-    created_at: string;
-  }>;
   buyer: {
     id: number;
     username: string;
@@ -38,6 +30,7 @@ export interface Order {
     avatar_path?: string;
     email?: string;
     phone_number?: string;
+    isPremium?: boolean;
   };
   seller: {
     id: number;
@@ -46,6 +39,7 @@ export interface Order {
     avatar_path?: string;
     email?: string;
     phone_number?: string;
+    isPremium?: boolean;
   };
   listing: {
     id: number;
@@ -61,7 +55,7 @@ export interface Order {
     weight?: number;
     dimensions?: string;
   };
-  reviews: Review[];
+  reviews?: Review[];
 }
 
 export interface Review {
@@ -77,12 +71,14 @@ export interface Review {
     username: string;
     avatar_url?: string;
     avatar_path?: string;
+    isPremium?: boolean;
   };
   reviewee: {
     id: number;
     username: string;
     avatar_url?: string;
     avatar_path?: string;
+    isPremium?: boolean;
   };
 }
 
@@ -147,39 +143,57 @@ class OrdersService {
     if (params.page) searchParams.append('page', params.page.toString());
     if (params.limit) searchParams.append('limit', params.limit.toString());
 
-    const response = await apiClient.get(`${API_CONFIG.ENDPOINTS.ORDERS}?${searchParams.toString()}`);
+    const response = await apiClient.get<OrdersResponse>(`${API_CONFIG.ENDPOINTS.ORDERS}?${searchParams.toString()}`);
+    if (!response.data) {
+      throw new Error('Failed to fetch orders');
+    }
     return response.data;
   }
 
   // Get a specific order
   async getOrder(orderId: number): Promise<Order> {
-    const response = await apiClient.get(`${API_CONFIG.ENDPOINTS.ORDERS}/${orderId}`);
+    const response = await apiClient.get<Order>(`${API_CONFIG.ENDPOINTS.ORDERS}/${orderId}`);
+    if (!response.data) {
+      throw new Error('Failed to fetch order');
+    }
     return response.data;
   }
 
   // Create a new order
   async createOrder(data: CreateOrderRequest): Promise<Order> {
     console.log("🔍 Creating order with data:", data);
-    const response = await apiClient.post(API_CONFIG.ENDPOINTS.ORDERS, data);
+    const response = await apiClient.post<Order>(API_CONFIG.ENDPOINTS.ORDERS, data);
     console.log("✅ Order created successfully:", response.data);
+    if (!response.data) {
+      throw new Error('Failed to create order');
+    }
     return response.data;
   }
 
   // Update order status
   async updateOrderStatus(orderId: number, data: UpdateOrderRequest): Promise<Order> {
-    const response = await apiClient.patch(`${API_CONFIG.ENDPOINTS.ORDERS}/${orderId}`, data);
+    const response = await apiClient.patch<Order>(`${API_CONFIG.ENDPOINTS.ORDERS}/${orderId}`, data);
+    if (!response.data) {
+      throw new Error('Failed to update order');
+    }
     return response.data;
   }
 
   // Get reviews for an order
   async getOrderReviews(orderId: number): Promise<Review[]> {
-    const response = await apiClient.get(`${API_CONFIG.ENDPOINTS.ORDERS}/${orderId}/reviews`);
+    const response = await apiClient.get<Review[]>(`${API_CONFIG.ENDPOINTS.ORDERS}/${orderId}/reviews`);
+    if (!response.data) {
+      throw new Error('Failed to fetch order reviews');
+    }
     return response.data;
   }
 
   // Create a review for an order
   async createReview(orderId: number, data: CreateReviewRequest): Promise<Review> {
-    const response = await apiClient.post(`${API_CONFIG.ENDPOINTS.ORDERS}/${orderId}/reviews`, data);
+    const response = await apiClient.post<Review>(`${API_CONFIG.ENDPOINTS.ORDERS}/${orderId}/reviews`, data);
+    if (!response.data) {
+      throw new Error('Failed to create review');
+    }
     return response.data;
   }
 
@@ -194,8 +208,19 @@ class OrdersService {
     otherReview: Review | null;
   }> {
     console.log("⭐ Checking review status for order:", orderId);
-    const response = await apiClient.get(`${API_CONFIG.ENDPOINTS.ORDERS}/${orderId}/reviews/check`);
+    const response = await apiClient.get<{
+      orderId: number;
+      userRole: 'buyer' | 'seller';
+      hasUserReviewed: boolean;
+      hasOtherReviewed: boolean;
+      reviewsCount: number;
+      userReview: Review | null;
+      otherReview: Review | null;
+    }>(`${API_CONFIG.ENDPOINTS.ORDERS}/${orderId}/reviews/check`);
     console.log("⭐ Review status response:", response.data);
+    if (!response.data) {
+      throw new Error('Failed to check review status');
+    }
     return response.data;
   }
 

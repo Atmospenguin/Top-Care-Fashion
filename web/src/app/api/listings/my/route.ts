@@ -99,6 +99,7 @@ export async function GET(req: NextRequest) {
             avatar_url: true,
             average_rating: true,
             total_reviews: true,
+            is_premium: true,
           },
         },
         category: {
@@ -153,34 +154,77 @@ export async function GET(req: NextRequest) {
       })
     );
 
-    const formattedListings = listingsWithConversations.map((listing) => ({
-      id: listing.id.toString(),
-      title: listing.name,
-      description: listing.description,
-      price: Number(listing.price),
-      brand: listing.brand,
-      size: listing.size,
-      condition: listing.condition_type.toLowerCase(),
-      material: listing.material,
-      tags: listing.tags ? JSON.parse(listing.tags as string) : [],
-      category: listing.category?.name || "Unknown",
-      images: listing.image_urls ? JSON.parse(listing.image_urls as string) : 
-              (listing.image_url ? [listing.image_url] : []),
-      seller: {
-        name: listing.seller?.username || "Unknown",
-        avatar: listing.seller?.avatar_url || "",
-        rating: Number(listing.seller?.average_rating) || 0,
-        sales: listing.seller?.total_reviews || 0,
-      },
-      listed: listing.listed,
-      sold: listing.sold,
-      createdAt: listing.created_at.toISOString(),
-      updatedAt: listing.updated_at?.toISOString() || null,
-      // 🔥 添加订单状态信息（仅对sold商品）
-      orderStatus: status === "sold" && listing.orders?.[0] ? listing.orders[0].status : null,
-      orderId: status === "sold" && listing.orders?.[0] ? listing.orders[0].id : null,
-      conversationId: listing.conversationId,
-    }));
+    const parseJsonArray = (value: unknown): string[] => {
+      if (!value) return [];
+      if (Array.isArray(value)) {
+        return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) {
+          return [];
+        }
+        try {
+          const parsed = JSON.parse(trimmed);
+          return Array.isArray(parsed)
+            ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+            : [];
+        } catch (error) {
+          if (/^https?:\/\//i.test(trimmed)) {
+            return [trimmed];
+          }
+          console.warn("Failed to parse JSON array field", { value: trimmed, error });
+          return [];
+        }
+      }
+      return [];
+    };
+
+    const formattedListings = listingsWithConversations.map((listing) => {
+      const images = (() => {
+        const parsed = parseJsonArray(listing.image_urls);
+        if (parsed.length > 0) {
+          return parsed;
+        }
+        if (typeof listing.image_url === "string" && listing.image_url.trim().length > 0) {
+          return [listing.image_url];
+        }
+        return [];
+      })();
+
+      const tags = parseJsonArray(listing.tags);
+
+      return {
+        id: listing.id.toString(),
+        title: listing.name,
+        description: listing.description,
+        price: Number(listing.price),
+        brand: listing.brand,
+        size: listing.size,
+        condition: listing.condition_type.toLowerCase(),
+        material: listing.material,
+        tags,
+        category: listing.category?.name || "Unknown",
+        images,
+        seller: {
+          id: listing.seller?.id ?? 0,
+          name: listing.seller?.username || "Unknown",
+          avatar: listing.seller?.avatar_url || "",
+          rating: Number(listing.seller?.average_rating) || 0,
+          sales: listing.seller?.total_reviews || 0,
+          isPremium: Boolean(listing.seller?.is_premium),
+          is_premium: Boolean(listing.seller?.is_premium),
+        },
+        listed: listing.listed,
+        sold: listing.sold,
+        createdAt: listing.created_at.toISOString(),
+        updatedAt: listing.updated_at?.toISOString() || null,
+        // 🔥 添加订单状态信息（仅对sold商品）
+        orderStatus: status === "sold" && listing.orders?.[0] ? listing.orders[0].status : null,
+        orderId: status === "sold" && listing.orders?.[0] ? listing.orders[0].id : null,
+        conversationId: listing.conversationId,
+      };
+    });
 
     console.log(`✅ Found ${formattedListings.length} listings for user ${user.id}`);
 

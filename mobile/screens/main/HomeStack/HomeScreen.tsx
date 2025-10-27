@@ -17,7 +17,7 @@ export default function HomeScreen() {
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const route = useRoute<RouteProp<HomeStackParamList, "HomeMain">>();
   const lastRefreshRef = useRef<number | null>(null);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<FlatList<ListingItem> | null>(null);
   const scrollOffsetRef = useRef(0);
   const [searchText, setSearchText] = useState("");
   const [featuredItems, setFeaturedItems] = useState<ListingItem[]>([]);
@@ -70,13 +70,8 @@ export default function HomeScreen() {
   const tabPressTrigger = route.params?.tabPressTS;
 
   useEffect(() => {
-    if (refreshTrigger && lastRefreshRef.current !== refreshTrigger) {
-      lastRefreshRef.current = refreshTrigger;
-      loadFeaturedItems({ isRefresh: true });
-      // 清理参数，避免残留
-      navigation.setParams({ refreshTS: undefined });
-    }
-  }, [refreshTrigger, loadFeaturedItems]);
+    // 移除自动刷新逻辑，回到页面不再自动刷新 featuredItems
+  }, [loadFeaturedItems]);
 
   // 单击 Tab：若在顶部则刷新，否则丝滑回顶
   useEffect(() => {
@@ -85,7 +80,8 @@ export default function HomeScreen() {
       if (atTop) {
         loadFeaturedItems({ isRefresh: true });
       } else {
-        scrollRef.current?.scrollTo({ y: 0, animated: true });
+        // FlatList uses scrollToOffset
+        scrollRef.current?.scrollToOffset?.({ offset: 0, animated: true });
       }
       navigation.setParams({ tabPressTS: undefined });
     }
@@ -94,17 +90,22 @@ export default function HomeScreen() {
   // 丝滑回到顶部
   useEffect(() => {
     if (scrollToTopTrigger) {
-      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      scrollRef.current?.scrollToOffset?.({ offset: 0, animated: true });
       navigation.setParams({ scrollToTopTS: undefined });
     }
   }, [scrollToTopTrigger]);
 
-  // Tab 单击滚到顶部
+  // Tab 单击滚到顶部（确保 ref 绑定到 FlatList）
   useScrollToTop(scrollRef);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
       <FlatList
+        ref={scrollRef as any}
+        onScroll={(e) => {
+          scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={16}
         style={styles.container}
         data={featuredItems}
         numColumns={2}

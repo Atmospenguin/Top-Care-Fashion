@@ -55,6 +55,7 @@ export async function GET(req: Request) {
             avatar_url: true,
             average_rating: true,
             total_reviews: true,
+            is_premium: true,
           },
         },
         category: {
@@ -177,8 +178,10 @@ export async function GET(req: Request) {
             avatar: listing.seller.avatar_url ?? "",
             rating: toNumber(listing.seller.average_rating),
             sales: listing.seller.total_reviews ?? 0,
+            isPremium: Boolean(listing.seller.is_premium),
+            is_premium: Boolean(listing.seller.is_premium),
           }
-        : { id: 0, name: "", avatar: "", rating: 0, sales: 0 };
+        : { id: 0, name: "", avatar: "", rating: 0, sales: 0, isPremium: false, is_premium: false };
 
       return {
         id: listing.id.toString(),

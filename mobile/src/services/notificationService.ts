@@ -12,6 +12,7 @@ export interface Notification {
   listingId?: string;
   userId?: string;
   username?: string;
+  isPremiumUser?: boolean;
 }
 
 export interface NotificationParams {
@@ -23,6 +24,7 @@ export interface NotificationParams {
   listingId?: string;
   userId?: string;
   username?: string;
+  isPremiumUser?: boolean;
 }
 
 class NotificationService {

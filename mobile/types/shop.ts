@@ -20,11 +20,12 @@ export type ListingItem = {
   createdAt?: string;
   updatedAt?: string;
   seller: {
-    id: number;
+    id?: number;
     name: string;
     avatar: string;
     rating: number;
     sales: number;
+    isPremium?: boolean;
   };
   // 🔥 添加订单相关字段（仅对sold商品）
   orderStatus?: string | null;

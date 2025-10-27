@@ -21,6 +21,7 @@ import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import Avatar from "../../../components/Avatar";
 import ASSETS from "../../../constants/assetUrls";
 import type { BagItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
@@ -651,13 +652,18 @@ export default function ListingDetailScreen() {
                 });
               }}
             >
-              <Image 
+              <Avatar
                 source={
-                  safeItem?.seller?.avatar && typeof safeItem.seller.avatar === 'string' && safeItem.seller.avatar.trim() !== '' && safeItem.seller.avatar.startsWith('http')
+                  safeItem?.seller?.avatar &&
+                  typeof safeItem.seller.avatar === "string" &&
+                  safeItem.seller.avatar.trim() !== "" &&
+                  safeItem.seller.avatar.startsWith("http")
                     ? { uri: safeItem.seller.avatar }
                     : ASSETS.avatars.default
-                } 
-                style={styles.sellerAvatar} 
+                }
+                style={styles.sellerAvatar}
+                isPremium={safeItem?.seller?.isPremium}
+                self={Boolean(isOwnListingFinal)}
               />
               <View style={{ flex: 1 }}>
                 <Text style={styles.sellerName}>{safeItem?.seller?.name || 'Unknown Seller'}</Text>
@@ -852,7 +858,16 @@ export default function ListingDetailScreen() {
                     seller: safeItem.seller
                   });
                   
-                  const sellerId = parseInt(safeItem.seller.id.toString());
+                  const sellerIdRaw = safeItem?.seller?.id;
+                  if (!sellerIdRaw) {
+                    Alert.alert("Error", "Unable to identify the seller for this listing.");
+                    return;
+                  }
+                  const sellerId = Number(sellerIdRaw);
+                  if (Number.isNaN(sellerId)) {
+                    Alert.alert("Error", "Invalid seller information for this listing.");
+                    return;
+                  }
                   const listingId = parseInt(safeItem.id);
                   
                   console.log("🔍 Final parameters:", {

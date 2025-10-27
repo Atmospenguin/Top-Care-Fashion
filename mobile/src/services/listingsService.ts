@@ -1,6 +1,7 @@
 import { apiClient } from './api';
 import { API_CONFIG } from '../config/api';
 import type { ListingCategory, ListingItem } from '../../types/shop';
+import { resolvePremiumFlag } from './utils/premium';
 
 export interface BrandSummary {
   name: string;
@@ -125,6 +126,55 @@ const sanitizeStringValue = (value?: string | null): string | null => {
   return trimmed;
 };
 
+const toBoolean = (value: any): boolean =>
+  value === true ||
+  value === "true" ||
+  value === 1 ||
+  value === "1";
+
+const extractAvatar = (source: any): string => {
+  const candidates = [
+    source?.avatar,
+    source?.avatar_url,
+    source?.avatar_path,
+    source?.profile_image,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate;
+    }
+  }
+  return "";
+};
+
+const normalizeSellerSummary = (seller: any): ListingItem["seller"] => {
+  const rawId =
+    seller?.id ?? seller?.user_id ?? seller?.seller_id ?? seller?.owner_id ?? seller?.participant_id;
+  const id =
+    typeof rawId === "number"
+      ? rawId
+      : rawId !== undefined
+      ? Number(rawId)
+      : undefined;
+
+  const rawRating =
+    seller?.rating ?? seller?.average_rating ?? seller?.avg_rating ?? seller?.rating_score ?? 0;
+  const rating = Number(rawRating) || 0;
+
+  const rawSales =
+    seller?.sales ?? seller?.salesCount ?? seller?.sales_count ?? seller?.total_sales ?? seller?.completed_orders ?? 0;
+  const sales = Number(rawSales) || 0;
+
+  return {
+    id,
+    name: seller?.name ?? seller?.username ?? "Seller",
+    avatar: extractAvatar(seller),
+    rating,
+    sales,
+    isPremium: resolvePremiumFlag(seller),
+  };
+};
+
 // 商品服务类
 export class ListingsService {
   private async convertImageToBase64(imageUri: string): Promise<string> {
@@ -180,6 +230,13 @@ export class ListingsService {
     ) {
       sanitized.category = cleanedCategory as ListingCategory;
     }
+
+    const rawSeller = (listing as any).seller ?? {};
+    sanitized.seller = normalizeSellerSummary({
+      ...rawSeller,
+      // 保留之前可能已存在的字段
+      ...sanitized.seller,
+    });
 
     return sanitized;
   }

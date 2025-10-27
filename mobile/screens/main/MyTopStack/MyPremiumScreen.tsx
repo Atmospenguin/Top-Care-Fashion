@@ -1,18 +1,12 @@
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { IconProps } from "../../../components/Icon";
+import Avatar from "../../../components/Avatar";
 import type { PremiumStackParamList } from "../PremiumStack";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 import { PREMIUM_BG } from "../../../constants/assetUrls";
@@ -223,21 +217,23 @@ export default function MyPremiumScreen() {
         <View style={styles.membershipCard}>
           <View style={styles.memberRow}>
             {/* 显示用户头像：优先使用远程 avatar_url，否则 fallback 到 DEFAULT_AVATAR */}
-            <Image
+            <Avatar
               source={
                 user?.avatar_url
                   ? { uri: String(user.avatar_url) }
                   : MEMBER_AVATAR
               }
               style={styles.avatar}
+              isPremium={user?.isPremium}
+              self
             />
             <View style={{ flex: 1 }}>
               <Text style={styles.memberTitle}>Hi, {memberName}</Text>
-              <Text style={styles.memberMeta}>Member status: {memberStatus}</Text>
+              <Text style={styles.memberMeta}>Premium status: {memberStatus}</Text>
               <Text style={styles.memberMeta}>{boostSummary}</Text>
+              <Text style={styles.expiryText}>{syncing ? 'Syncing membership…' : expireText}</Text>
             </View>
           </View>
-          <Text style={styles.expiryText}>{syncing ? 'Syncing membership…' : expireText}</Text>
         </View>
 
         {usageRows ? (

@@ -1,17 +1,9 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  Image,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
 import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
 import { notificationService, type Notification } from "../../../src/services/notificationService";
+import Avatar from "../../../components/Avatar";
 
 export default function NotificationScreen() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -82,9 +74,10 @@ export default function NotificationScreen() {
       style={styles.card}
       onPress={() => handleNotificationPress(item)}
     >
-      <Image
+      <Avatar
         source={item.image ? { uri: item.image } : ASSETS.avatars.default}
         style={styles.avatar}
+        isPremium={item.isPremiumUser}
       />
       <View style={{ flex: 1 }}>
         <Text style={[styles.title, !item.isRead && styles.unreadTitle]}>

@@ -1,14 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
 import Header from "../../../components/Header";
 import { useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
@@ -21,6 +12,8 @@ import {
   SOLD_ORDERS as soldOrders,
   DEFAULT_SHIPPING_ADDRESS,
 } from "../../../mocks/shop";
+import Avatar from "../../../components/Avatar";
+import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 
 type Purchase = (typeof purchaseOrders)[number];
 type Sold = (typeof soldOrders)[number];
@@ -164,9 +157,9 @@ export default function OrderDetailScreen() {
               price: foundOrder.product.price,
               image_url: foundOrder.product.images[0],
               image_urls: foundOrder.product.images,
-              brand: foundOrder.product.brand,
-              size: foundOrder.product.size,
-              condition_type: foundOrder.product.condition,
+              brand: foundOrder.product.brand ?? "",
+              size: foundOrder.product.size ?? "",
+              condition_type: foundOrder.product.condition ?? "UNKNOWN",
             },
             reviews: [],
           };
@@ -403,16 +396,32 @@ export default function OrderDetailScreen() {
             {/* 显示买家/卖家 */}
             {isPurchase ? (
               <View style={styles.userRow}>
-                {order.seller.avatar_url && (
-                  <Image source={{ uri: order.seller.avatar_url }} style={styles.userAvatar} />
-                )}
+                <Avatar
+                  source={
+                    order.seller.avatar_url
+                      ? { uri: order.seller.avatar_url }
+                      : order.seller.avatar_path
+                      ? { uri: order.seller.avatar_path }
+                      : DEFAULT_AVATAR
+                  }
+                  style={styles.userAvatar}
+                  isPremium={order.seller?.isPremium}
+                />
                 <Text style={styles.userName}>{order.seller.username}</Text>
               </View>
             ) : (
               <View style={styles.userRow}>
-                {order.buyer.avatar_url && (
-                  <Image source={{ uri: order.buyer.avatar_url }} style={styles.userAvatar} />
-                )}
+                <Avatar
+                  source={
+                    order.buyer.avatar_url
+                      ? { uri: order.buyer.avatar_url }
+                      : order.buyer.avatar_path
+                      ? { uri: order.buyer.avatar_path }
+                      : DEFAULT_AVATAR
+                  }
+                  style={styles.userAvatar}
+                  isPremium={order.buyer?.isPremium}
+                />
                 <Text style={styles.userName}>{order.buyer.username}</Text>
               </View>
             )}

@@ -1,6 +1,7 @@
+// @ts-nocheck
 // 使用示例：如何在其他组件中触发notification
 
-import { notificationService } from '../src/services/notificationService';
+import { notificationService } from './notificationService';
 
 // 示例1: 当有人like了商品时
 const handleLikeListing = async (likerName: string, listingTitle: string, likerAvatar?: string) => {

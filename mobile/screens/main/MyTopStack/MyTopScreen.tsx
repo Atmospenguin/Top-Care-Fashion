@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 import Icon from "../../../components/Icon";
+import Avatar from "../../../components/Avatar";
 import FilterModal from "../../../components/FilterModal";
 import { useFocusEffect, useNavigation, useRoute, useScrollToTop } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -20,7 +21,7 @@ import SoldTab from "./SoldTab";
 import PurchasesTab from "./PurchasesTab";
 import LikesTab from "./LikesTab";
 import { useAuth } from "../../../contexts/AuthContext";
-import { listingsService } from "../../../src/services/listingsService";
+import { listingsService, premiumService } from "../../../src/services";
 import { userService } from "../../../src/services/userService";
 import type { ListingItem } from "../../../types/shop";
 import type { UserListingsQueryParams } from "../../../src/services/listingsService";
@@ -113,7 +114,22 @@ export default function MyTopScreen() {
     try {
       const latest = await userService.getProfile();
       if (latest) {
-        updateUser(latest as any);
+        // 彻底避免覆盖 premium 字段：只更新非会员相关字段
+        const {
+          isPremium: _ip,
+          is_premium: _ip2,
+          premiumUntil: _pu,
+          premium_until: _pu2,
+          ...safeLatest
+        } = (latest as any) ?? {};
+
+        updateUser({
+          ...(user as any),
+          ...safeLatest,
+          // 留下原有的 premium 状态不变
+          isPremium: user?.isPremium ?? false,
+          premiumUntil: user?.premiumUntil ?? null,
+        } as any);
       }
     } catch (e) {
       // 静默失败，不打断其它刷新任务
@@ -313,6 +329,20 @@ export default function MyTopScreen() {
   // ✅ 当屏幕获得焦点时刷新数据
   useFocusEffect(
     useCallback(() => {
+      // Sync premium status (same logic as MyPremiumScreen)
+      let isActive = true;
+      if (user?.id) {
+        (async () => {
+          try {
+            const status = await premiumService.getStatus();
+            if (!isActive) return;
+            updateUser({ ...(user as any), isPremium: status.isPremium, premiumUntil: status.premiumUntil });
+          } catch (e) {
+            // ignore
+          }
+        })();
+      }
+
       const params = route.params;
 
       if (params?.initialTab) {
@@ -334,6 +364,7 @@ export default function MyTopScreen() {
 
       // 统一一次性清理参数，防止参数变化导致的回调重复执行
       navigation.setParams({ initialTab: undefined, refreshTS: undefined });
+      return () => { isActive = false; };
     }, [navigation, refreshAll])
   );
 
@@ -408,13 +439,15 @@ export default function MyTopScreen() {
               <View style={styles.headerContent}>
                 {/* Profile 区 */}
                 <View style={styles.profileRow}>
-                  <Image 
+                  <Avatar
                     source={
-                      user?.avatar_url && typeof user.avatar_url === 'string' && user.avatar_url.startsWith('http') 
-                        ? { uri: user.avatar_url } 
+                      user?.avatar_url && typeof user.avatar_url === "string" && user.avatar_url.startsWith("http")
+                        ? { uri: user.avatar_url }
                         : DEFAULT_AVATAR
-                    } 
-                    style={styles.avatar} 
+                    }
+                    style={styles.avatar}
+                    isPremium={user?.isPremium}
+                    self
                   />
                   <View style={styles.statsRow}>
                     <Text style={styles.stats}>{displayUser.followers} followers</Text>

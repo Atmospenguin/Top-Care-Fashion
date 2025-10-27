@@ -1,16 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  FlatList,
-  StyleSheet,
-  Image,
-  Modal,
-  Pressable,
-  Animated,
-  Alert,
-} from "react-native";
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, Modal, Pressable, Animated, Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Swipeable } from "react-native-gesture-handler";
@@ -21,6 +10,8 @@ import ASSETS from "../../../constants/assetUrls";
 import { messagesService, type Conversation } from "../../../src/services";
 import { notificationService } from "../../../src/services/notificationService";
 import { useAuth } from "../../../contexts/AuthContext";
+import { premiumService } from "../../../src/services";
+import Avatar from "../../../components/Avatar";
 
 // 模拟多条对话（Support + Seller）
 // added `unread` and `lastFrom` to support filtering
@@ -83,7 +74,7 @@ const mockThreads = [
 
 export default function InboxScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   
   // filter UI state (simple modal + selectedFilter)
   const [filterVisible, setFilterVisible] = useState(false);
@@ -118,6 +109,12 @@ export default function InboxScreen() {
   // 添加焦点监听，每次返回时刷新数据
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
+      // Reuse MyPremiumScreen logic: sync premium status on focus
+      if (user?.id) {
+        premiumService.getStatus()
+          .then((status) => updateUser({ ...(user as any), isPremium: status.isPremium, premiumUntil: status.premiumUntil }))
+          .catch(() => {});
+      }
       console.log("🔍 InboxScreen focused, refreshing conversations...");
       loadConversations();
       loadUnreadNotificationCount();
@@ -299,18 +296,20 @@ export default function InboxScreen() {
               >
                 {/* Avatar with unread indicator */}
                 <View style={styles.avatarContainer}>
-                  <Image 
+                  <Avatar
                     source={
-                      item.sender === "TOP Support" 
-                        ? ASSETS.avatars.top 
-                        : (item.avatar || ASSETS.avatars.default)
-                    } 
-                    style={styles.avatar} 
+                      item.sender === "TOP Support"
+                        ? ASSETS.avatars.top
+                        : item.avatar || ASSETS.avatars.default
+                    }
+                    style={styles.avatar}
+                    isPremium={item.sender === "TOP Support" ? false : item.isPremium}
+                    badgeScale={0.28}
                   />
-                  {/* Unread indicator */}
-                  {item.unread && (
-                    <View style={styles.unreadDot} />
-                  )}
+                {/* Unread indicator */}
+                {item.unread && (
+                  <View style={styles.unreadDot} />
+                )}
                 </View>
 
                 {/* Texts */}

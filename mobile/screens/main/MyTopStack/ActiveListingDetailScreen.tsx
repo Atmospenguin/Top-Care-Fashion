@@ -1,14 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import {
-  Dimensions,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  Alert,
-} from "react-native";
+import { Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -16,10 +7,13 @@ import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import Avatar from "../../../components/Avatar";
 import type { MyTopStackParamList } from "./index";
 import type { RootStackParamList } from "../../../App";
 import { listingsService } from "../../../src/services/listingsService";
 import type { ListingItem } from "../../../types/shop";
+import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
+
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
@@ -257,9 +251,14 @@ export default function ActiveListingDetailScreen() {
         <View style={styles.sectionCard}>
           <Text style={styles.sectionHeading}>Seller</Text>
           <View style={styles.sellerRow}>
-            <Image 
-              source={{ uri: listing.seller?.avatar || "" }} 
-              style={styles.sellerAvatar} 
+            <Avatar
+              source={
+                listing.seller?.avatar
+                  ? { uri: listing.seller.avatar }
+                  : DEFAULT_AVATAR
+              }
+              style={styles.sellerAvatar}
+              self
             />
             <View style={{ flex: 1 }}>
               <Text style={styles.sellerName}>{listing.seller?.name || "Unknown"}</Text>

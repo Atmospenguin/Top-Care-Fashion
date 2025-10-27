@@ -16,9 +16,98 @@ import type { RouteProp } from "@react-navigation/native";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { BuyStackParamList } from "./index";
-import type { HomeStackParamList } from "../HomeStack";
+import type { BagItem, ListingItem } from "../../../types/shop";
 import { DEFAULT_BAG_ITEMS } from "../../../mocks/shop";
 import { cartService, CartItem } from "../../../src/services";
+
+const BASE_DATE_ISO = new Date(0).toISOString();
+
+const normalizeListingItem = (item: ListingItem): ListingItem => ({
+  ...item,
+  brand: item.brand ?? null,
+  size: item.size ?? null,
+  condition: item.condition ?? null,
+  material: item.material ?? undefined,
+  gender: item.gender ?? undefined,
+  tags: item.tags ?? undefined,
+  category: item.category ?? null,
+  shippingOption: item.shippingOption ?? null,
+  shippingFee: item.shippingFee ?? null,
+  location: item.location ?? null,
+  seller: {
+    ...item.seller,
+    id: item.seller.id,
+  },
+});
+
+const cartItemToListingItem = (item: CartItem["item"]): ListingItem =>
+  normalizeListingItem({
+    id: item.id,
+    title: item.title,
+    price: item.price,
+    description: item.description,
+    brand: item.brand ?? null,
+    size: item.size ?? null,
+    condition: item.condition ?? null,
+    material: item.material ?? undefined,
+    gender: item.gender ?? undefined,
+    tags: item.tags ?? undefined,
+    images: item.images ?? [],
+    category: (item.category ?? null) as ListingItem["category"],
+    shippingOption: item.shippingOption ?? null,
+    shippingFee: item.shippingFee ?? null,
+    location: item.location ?? null,
+    seller: {
+      id: item.seller.id,
+      name: item.seller.name,
+      avatar: item.seller.avatar,
+      rating: item.seller.rating,
+      sales: item.seller.sales,
+    },
+  });
+
+const convertBagItemsToCartItems = (bagItems: BagItem[]): CartItem[] =>
+  bagItems.map((bagItem, index) => ({
+    id: -(index + 1),
+    quantity: bagItem.quantity,
+    created_at: BASE_DATE_ISO,
+    updated_at: BASE_DATE_ISO,
+    item: {
+      id: bagItem.item.id,
+      title: bagItem.item.title,
+      price: typeof bagItem.item.price === "number"
+        ? bagItem.item.price
+        : Number(bagItem.item.price || 0),
+      description: bagItem.item.description,
+      brand: bagItem.item.brand ?? "",
+      size: bagItem.item.size ?? "",
+      condition: bagItem.item.condition ?? "",
+      material: bagItem.item.material ?? undefined,
+      gender: bagItem.item.gender ?? undefined,
+      tags: bagItem.item.tags ?? undefined,
+      category: bagItem.item.category ?? undefined,
+      images: bagItem.item.images ?? [],
+      shippingOption: bagItem.item.shippingOption ?? null,
+      shippingFee: bagItem.item.shippingFee ?? null,
+      location: bagItem.item.location ?? null,
+      seller: {
+        id: bagItem.item.seller.id ?? -(index + 1),
+        name: bagItem.item.seller.name,
+        avatar: bagItem.item.seller.avatar,
+        rating: bagItem.item.seller.rating,
+        sales: bagItem.item.seller.sales,
+      },
+    },
+  }));
+
+const cartItemsToBagItems = (cartItems: CartItem[]): BagItem[] =>
+  cartItems.map((cartItem) => ({
+    item: cartItemToListingItem(cartItem.item),
+    quantity: cartItem.quantity,
+  }));
+
+const isCartItemEntry = (entry: CartItem | BagItem): entry is CartItem =>
+  typeof (entry as CartItem).created_at === "string";
 
 export default function BagScreen() {
   const navigation =
@@ -30,7 +119,16 @@ export default function BagScreen() {
   const [error, setError] = useState<string | null>(null);
 
   // 使用传入的items作为fallback，或者从API获取
-  const items = route.params?.items ?? cartItems;
+  const isReadOnly = Array.isArray(route.params?.items);
+  const displayItems: BagItem[] = useMemo(() => {
+    if (route.params?.items) {
+      return route.params.items.map((bagItem) => ({
+        item: normalizeListingItem(bagItem.item),
+        quantity: bagItem.quantity,
+      }));
+    }
+    return cartItemsToBagItems(cartItems);
+  }, [route.params?.items, cartItems]);
 
   // 加载购物车数据
   useEffect(() => {
@@ -44,7 +142,7 @@ export default function BagScreen() {
         console.error('Error loading cart items:', err);
         setError('Failed to load cart items');
         // 如果API失败，使用默认数据
-        setCartItems(DEFAULT_BAG_ITEMS);
+        setCartItems(convertBagItemsToCartItems(DEFAULT_BAG_ITEMS));
       } finally {
         setLoading(false);
       }
@@ -59,7 +157,7 @@ export default function BagScreen() {
   }, [route.params?.items]);
 
   const { subtotal, shipping, total } = useMemo(() => {
-    const computedSubtotal = items.reduce(
+    const computedSubtotal = displayItems.reduce(
       (sum, current) => {
         const price = typeof current.item.price === 'number' ? current.item.price : parseFloat(current.item.price || '0');
         return sum + price * current.quantity;
@@ -68,7 +166,7 @@ export default function BagScreen() {
     );
     // 🔥 使用真实的 shipping fee 数据
     // 累加所有商品的 shipping fee（如果商品有运费的话）
-    const shippingFee = items.reduce((sum, current) => {
+    const shippingFee = displayItems.reduce((sum, current) => {
       const fee = current.item.shippingFee ? Number(current.item.shippingFee) : 0;
       return sum + fee;
     }, 0);
@@ -77,10 +175,13 @@ export default function BagScreen() {
       shipping: shippingFee,
       total: computedSubtotal + shippingFee,
     };
-  }, [items]);
+  }, [displayItems]);
 
   // 更新商品数量
-  const updateQuantity = async (cartItemId: number, newQuantity: number) => {
+  const updateQuantity = async (cartItemId: number | undefined, newQuantity: number) => {
+    if (isReadOnly || cartItemId === undefined) {
+      return;
+    }
     if (newQuantity < 1) {
       await removeItem(cartItemId);
       return;
@@ -101,7 +202,10 @@ export default function BagScreen() {
   };
 
   // 删除商品
-  const removeItem = async (cartItemId: number) => {
+  const removeItem = async (cartItemId: number | undefined) => {
+    if (isReadOnly || cartItemId === undefined) {
+      return;
+    }
     try {
       await cartService.removeCartItem(cartItemId);
       // 更新本地状态
@@ -124,7 +228,7 @@ export default function BagScreen() {
     );
   }
 
-  if (error && items.length === 0) {
+  if (error && displayItems.length === 0) {
     return (
       <View style={styles.screen}>
         <Header title="My Bag" showBack />
@@ -152,7 +256,7 @@ export default function BagScreen() {
     <View style={styles.screen}>
       <Header title="My Bag" showBack />
 
-      {items.length === 0 ? (
+      {displayItems.length === 0 ? (
         <View style={styles.emptyState}>
           <Icon name="bag-handle-outline" size={42} color="#bbb" />
           <Text style={styles.emptyTitle}>Your bag is empty</Text>
@@ -179,35 +283,42 @@ export default function BagScreen() {
       ) : (
         <ScrollView contentContainerStyle={styles.container}>
           <View style={styles.itemsCard}>
-            {items.map((cartItem) => {
-              const { item, quantity, id } = cartItem;
+            {displayItems.map((bagItem, index) => {
+              const linkedCartItem = cartItems[index];
+              const cartId = linkedCartItem?.id;
+              const quantity = linkedCartItem?.quantity ?? bagItem.quantity;
+              const listing = bagItem.item;
+              const canModify = Boolean(linkedCartItem);
               return (
-                <View key={`${item.id}`} style={styles.itemRow}>
-                  <Image source={{ uri: item.images[0] }} style={styles.itemImage} />
+                <View key={`${listing.id}-${index}`} style={styles.itemRow}>
+                  <Image source={{ uri: listing.images[0] }} style={styles.itemImage} />
                   <View style={styles.itemInfo}>
-                    <Text style={styles.itemTitle}>{item.title}</Text>
+                    <Text style={styles.itemTitle}>{listing.title}</Text>
                     <Text style={styles.itemMeta}>
-                      Size {item.size} | {item.condition}
+                      Size {listing.size ?? "-"} | {listing.condition ?? "-"}
                     </Text>
-                    <Text style={styles.itemPrice}>${typeof item.price === 'number' ? item.price.toFixed(2) : parseFloat(item.price || '0').toFixed(2)}</Text>
+                    <Text style={styles.itemPrice}>${typeof listing.price === 'number' ? listing.price.toFixed(2) : parseFloat(listing.price || '0').toFixed(2)}</Text>
                   </View>
                   <View style={styles.quantityControls}>
                     <TouchableOpacity
                       style={styles.quantityBtn}
-                      onPress={() => updateQuantity(id, quantity - 1)}
+                      disabled={!canModify}
+                      onPress={() => updateQuantity(cartId, quantity - 1)}
                     >
-                      <Icon name="remove" size={16} color="#666" />
+                      <Icon name="remove" size={16} color={canModify ? "#666" : "#ccc"} />
                     </TouchableOpacity>
                     <Text style={styles.quantityText}>{quantity}</Text>
                     <TouchableOpacity
                       style={styles.quantityBtn}
-                      onPress={() => updateQuantity(id, quantity + 1)}
+                      disabled={!canModify}
+                      onPress={() => updateQuantity(cartId, quantity + 1)}
                     >
-                      <Icon name="add" size={16} color="#666" />
+                      <Icon name="add" size={16} color={canModify ? "#666" : "#ccc"} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.removeBtn}
-                      onPress={() => removeItem(id)}
+                      disabled={!canModify}
+                      onPress={() => removeItem(cartId)}
                     >
                       <Icon name="trash-outline" size={16} color="#F54B3D" />
                     </TouchableOpacity>
@@ -235,7 +346,7 @@ export default function BagScreen() {
         </ScrollView>
       )}
 
-      {items.length > 0 ? (
+      {displayItems.length > 0 ? (
         <View style={styles.bottomBar}>
           <TouchableOpacity
             style={styles.secondaryButton}
@@ -259,7 +370,7 @@ export default function BagScreen() {
             style={styles.primaryButton}
             onPress={() =>
               navigation.navigate("Checkout", {
-                items,
+                items: displayItems,
                 subtotal,
                 shipping,
               })

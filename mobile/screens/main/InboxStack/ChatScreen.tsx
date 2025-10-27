@@ -1,16 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from "react-native";
+import { View, Text, FlatList, StyleSheet, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { InboxStackParamList } from "./InboxStackNavigator";
@@ -19,7 +8,9 @@ import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
 import { messagesService, ordersService, type Message, type ConversationDetail } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
+import { premiumService } from "../../../src/services";
 import { API_CONFIG } from "../../../src/config/api";
+import Avatar from "../../../components/Avatar";
 
 type Order = {
   id: string;
@@ -43,6 +34,13 @@ type Order = {
   listing_id?: number;
 };
 
+type UserSummary = {
+  id: number;
+  username: string;
+  avatar: string | null;
+  isPremium?: boolean;
+};
+
 type ChatItem =
   | { 
       id: string; 
@@ -50,11 +48,7 @@ type ChatItem =
       sender: "me" | "other"; 
       text: string; 
       time?: string;
-      senderInfo?: {
-        id: number;
-        username: string;
-        avatar: string | null;
-      };
+      senderInfo?: UserSummary;
     }
   | {
       id: string;
@@ -64,11 +58,7 @@ type ChatItem =
       sentByUser?: boolean;
       avatar?: string;
       orderId?: string;
-      senderInfo?: {
-        id: number;
-        username: string;
-        avatar: string | null;
-      };
+      senderInfo?: UserSummary;
     }
   | { 
       id: string; 
@@ -116,7 +106,7 @@ export default function ChatScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<InboxStackParamList, "Chat">>();
   const route = useRoute<any>();
   const { sender = "TOP Support", kind = "support", order = null, conversationId = null, autoSendPaidMessage = false } = route.params || {};
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
 
   // 状态管理
   const [items, setItems] = useState<ChatItem[]>([]);
@@ -131,6 +121,12 @@ export default function ChatScreen() {
   // 🔥 监听路由参数变化，处理从CheckoutScreen返回的订单信息
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
+      // Sync premium status on focus (reuse MyPremiumScreen logic)
+      if (user?.id) {
+        premiumService.getStatus()
+          .then((status) => updateUser({ ...(user as any), isPremium: status.isPremium, premiumUntil: status.premiumUntil }))
+          .catch(() => {});
+      }
       console.log("🔍 ChatScreen focused, checking for new order data");
       console.log("🔍 Route params:", route.params);
       console.log("🔍 ConversationId:", conversationId);
@@ -165,7 +161,7 @@ export default function ChatScreen() {
             if (!hasPaidMessage) {
               console.log("🔍 Sending 'I've paid' message");
               
-              const paidMessage: ChatItem = {
+              const paidMessage: Extract<ChatItem, { type: "system" }> = {
                 id: `auto-paid-${Date.now()}`,
                 type: "system",
                 text: "I've paid, waiting for you to ship\nPlease pack the item and ship to the address I provided on TOP.",
@@ -173,7 +169,8 @@ export default function ChatScreen() {
                 senderInfo: {
                   id: user?.id || 0,
                   username: user?.username || "Buyer",
-                  avatar: user?.avatar_url || ""
+                  avatar: user?.avatar_url ?? null,
+                  isPremium: user?.isPremium ?? false,
                 }, // 🔥 重新添加 senderInfo 字段
                 time: new Date().toLocaleTimeString()
               };
@@ -410,7 +407,8 @@ export default function ChatScreen() {
               senderInfo: {
                 id: orderData.buyer?.id || 0,
                 username: orderData.buyer?.name || "Buyer",
-                avatar: orderData.buyer?.avatar || ""
+                avatar: orderData.buyer?.avatar ?? null,
+                isPremium: Boolean(orderData.buyer?.isPremium),
               }, // 🔥 添加 senderInfo 字段
               time: new Date().toLocaleTimeString()
             });
@@ -515,7 +513,7 @@ export default function ChatScreen() {
       case "CANCELLED":
         // 🔥 需要根据订单的buyer_id和seller_id来判断谁取消了订单
         // 暂时使用通用的"I've cancelled this order."格式，通过renderSystem动态转换
-        const cancelledMessage: ChatItem = {
+        const cancelledMessage: Extract<ChatItem, { type: "system" }> = {
           id: `sys-cancelled-${orderId}`,
           type: "system",
           text: "I've cancelled this order.",
@@ -556,7 +554,7 @@ export default function ChatScreen() {
       // 🔥 判断当前用户是否为买家
       const isBuyer = (conversation?.conversation as any)?.initiator_id === user?.id;
       
-      let userMessage: ChatItem;
+      let userMessage: Extract<ChatItem, { type: "system" }>;
       
       // 🔥 买家自动发送的卡片消息（卖家和买家都能看到）
       userMessage = {
@@ -896,7 +894,8 @@ export default function ChatScreen() {
             // 需要根据实际情况设置，这里暂时不设置，让renderSystem处理
             id: user?.id || 0,
             username: user?.username || "",
-            avatar: user?.avatar_url || ""
+            avatar: user?.avatar_url ?? null,
+            isPremium: user?.isPremium ?? false
           }
         };
       
@@ -1401,7 +1400,7 @@ export default function ChatScreen() {
                   setItems(updatedItems);
                   
                   // 发送系统消息 - 买家视角
-                  const systemMessage: ChatItem = {
+                  const systemMessage: Extract<ChatItem, { type: "system" }> = {
                     id: `system-cancel-${Date.now()}`,
                     type: "system",
                     text: "I've cancelled this order.",
@@ -1411,8 +1410,9 @@ export default function ChatScreen() {
                     senderInfo: {
                       id: user?.id || 0,
                       username: user?.username || "",
-                      avatar: user?.avatar_url || ""
-                    }
+                      avatar: user?.avatar_url ?? null,
+                      isPremium: user?.isPremium ?? false,
+                    },
                   };
                   setItems(prev => [...prev, systemMessage]);
                   
@@ -1462,7 +1462,7 @@ export default function ChatScreen() {
         setItems(updatedItems);
         
         // 🔥 发送正确的系统消息
-        const systemMessage: ChatItem = {
+        const systemMessage: Extract<ChatItem, { type: "system" }> = {
           id: `system-received-${Date.now()}`,
           type: "system",
           text: "I've confirmed received. Transaction completed.",
@@ -1540,7 +1540,7 @@ export default function ChatScreen() {
         setItems(updatedItems);
         
         // 发送系统消息
-        const systemMessage: ChatItem = {
+        const systemMessage: Extract<ChatItem, { type: "system" }> = {
           id: `system-shipped-${Date.now()}`,
           type: "system",
           text: `Order #${o.id} has been marked as shipped.`,
@@ -1583,7 +1583,7 @@ export default function ChatScreen() {
                   setItems(updatedItems);
                   
                   // 发送系统消息 - 卖家视角
-                  const systemMessage: ChatItem = {
+                  const systemMessage: Extract<ChatItem, { type: "system" }> = {
                     id: `system-cancel-sold-${Date.now()}`,
                     type: "system",
                     text: "I've cancelled this order.",
@@ -1593,7 +1593,8 @@ export default function ChatScreen() {
                     senderInfo: {
                       id: user?.id || 0,
                       username: user?.username || "",
-                      avatar: user?.avatar_url || ""
+                      avatar: user?.avatar_url ?? null,
+                      isPremium: user?.isPremium ?? false
                     }
                   };
                   setItems(prev => [...prev, systemMessage]);
@@ -1908,9 +1909,10 @@ export default function ChatScreen() {
           ]}>
             {/* 🔥 如果不是我的消息，在左侧显示发送者头像 */}
             {!isMine && (
-              <Image
+              <Avatar
                 source={avatarSource}
                 style={[styles.avatar, { marginRight: 6 }]}
+                showBadge={false}
               />
             )}
             <View style={bubbleStyle}>
@@ -1920,9 +1922,11 @@ export default function ChatScreen() {
             </View>
             {/* 🔥 如果是我的消息，在右侧显示我的头像 */}
             {isMine && (
-              <Image
+              <Avatar
                 source={avatarSource}
                 style={[styles.avatar, { marginLeft: 6 }]}
+                self
+                showBadge={false}
               />
             )}
           </View>
@@ -2256,15 +2260,16 @@ export default function ChatScreen() {
               <View style={[styles.messageRow, item.sender === "me" && { justifyContent: "flex-end" }]}>
                 {/* 🔥 对方头像：优先使用 senderInfo.avatar，否则使用默认头像 */}
                 {item.sender !== "me" && (
-                  <Image
+                  <Avatar
                     source={
                       sender === "TOP Support"
                         ? ASSETS.avatars.top
-                        : item.senderInfo?.avatar 
+                        : item.senderInfo?.avatar
                         ? { uri: item.senderInfo.avatar }
                         : ASSETS.avatars.default
                     }
                     style={[styles.avatar, { marginRight: 6 }]}
+                    showBadge={false}
                   />
                 )}
                 <View
@@ -2279,9 +2284,15 @@ export default function ChatScreen() {
                 </View>
                 {/* 我的头像 */}
                 {item.sender === "me" && (
-                  <Image
-                    source={item.senderInfo?.avatar ? { uri: item.senderInfo.avatar } : ASSETS.avatars.default}
+                  <Avatar
+                    source={
+                      item.senderInfo?.avatar
+                        ? { uri: item.senderInfo.avatar }
+                        : ASSETS.avatars.default
+                    }
                     style={[styles.avatar, { marginLeft: 6 }]}
+                    self
+                    showBadge={false}
                   />
                 )}
               </View>

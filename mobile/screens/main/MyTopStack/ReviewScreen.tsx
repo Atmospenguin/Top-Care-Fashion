@@ -18,6 +18,7 @@ import type { RootStackParamList } from "../../../App";
 import { Ionicons } from "@expo/vector-icons";
 import { reviewsService, ordersService, listingsService } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
+import Avatar from "../../../components/Avatar";
 
 export default function ReviewScreen() {
   const route = useRoute<RouteProp<RootStackParamList, "Review">>();
@@ -206,11 +207,15 @@ export default function ReviewScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         {/* 用户信息 */}
         <View style={styles.userSection}>
-          <Image 
-            source={{ 
-              uri: reviewee.avatar_url || reviewee.avatar_path || "https://via.placeholder.com/60x60" 
-            }} 
-            style={styles.avatar} 
+          <Avatar
+            source={{
+              uri:
+                reviewee.avatar_url ||
+                reviewee.avatar_path ||
+                "https://via.placeholder.com/60x60",
+            }}
+            style={styles.avatar}
+            isPremium={reviewee?.isPremium}
           />
           <Text style={styles.userName}>{reviewee.username}</Text>
         </View>

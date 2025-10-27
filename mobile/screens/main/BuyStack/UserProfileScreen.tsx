@@ -21,11 +21,13 @@ import type { RouteProp } from "@react-navigation/native";
 import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
 import Icon from "../../../components/Icon";
+import Avatar from "../../../components/Avatar";
 import FilterModal from "../../../components/FilterModal";
 import { MOCK_LISTINGS } from "../../../mocks/shop";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
 import { userService, type UserProfile } from "../../../src/services/userService";
+import { premiumService } from "../../../src/services";
 import { likesService, messagesService, type LikedListing } from "../../../src/services";
 import { authService } from "../../../src/services/authService";
 
@@ -90,6 +92,7 @@ const mockReviews = [
     id: "r-1",
     name: "Ava L.",
     avatar: "https://i.pravatar.cc/100?img=21",
+    isPremium: true,
     rating: 5,
     comment: "Loved the packaging and the dress was spotless. Would buy again!",
     time: "2 days ago",
@@ -101,6 +104,7 @@ const mockReviews = [
     id: "r-2",
     name: "Mina K.",
     avatar: "https://i.pravatar.cc/100?img=32",
+    isPremium: false,
     rating: 4,
     comment: "Quick shipper and item matched the description.",
     time: "Last week",
@@ -112,6 +116,7 @@ const mockReviews = [
     id: "r-3",
     name: "Sarah T.",
     avatar: "https://i.pravatar.cc/100?img=45",
+    isPremium: true,
     rating: 5,
     comment: "Great buyer! Easy communication and quick payment.",
     time: "3 days ago",
@@ -123,6 +128,7 @@ const mockReviews = [
     id: "r-4",
     name: "Emma R.",
     avatar: "https://i.pravatar.cc/100?img=28",
+    isPremium: false,
     rating: 2,
     comment: "Item arrived late and wasn't as described.",
     time: "1 week ago",
@@ -201,6 +207,11 @@ export default function UserProfileScreen() {
   const [reviewRole, setReviewRole] = useState<string>("All");
   const [reviewRating, setReviewRating] = useState<string>("All");
 
+  const parsedRouteRating =
+    typeof rating === "number" ? rating : rating ? Number(rating) || 0 : 0;
+  const parsedRouteSales =
+    typeof sales === "number" ? sales : sales ? Number(sales) || 0 : 0;
+
   // 获取当前用户信息
   useEffect(() => {
     const loadCurrentUser = async () => {
@@ -215,6 +226,18 @@ export default function UserProfileScreen() {
 
     loadCurrentUser();
   }, []);
+
+  // Sync premium status on focus, same as MyPremiumScreen
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (currentUser?.id) {
+        premiumService.getStatus()
+          .then((status) => authService.getCurrentUser().then((u) => u && setCurrentUser({ ...(u as any), isPremium: status.isPremium, premiumUntil: status.premiumUntil })))
+          .catch(() => {});
+      }
+    });
+    return unsubscribe;
+  }, [navigation, currentUser?.id]);
 
   // 加载用户信息
   useEffect(() => {
@@ -338,17 +361,29 @@ export default function UserProfileScreen() {
         const fetchedReviews = await userService.getUserReviews(userProfile.username);
         
         // 转换 API 数据格式以匹配 UI
-        const formattedReviews = fetchedReviews.map((review) => ({
-          id: `r-${review.id}`,
-          name: review.reviewer.name,
-          avatar: review.reviewer.avatar || "https://i.pravatar.cc/100?img=1",
-          rating: review.rating,
-          comment: review.comment || "",
-          time: review.time,
-          date: review.date,
-          type: review.type as "buyer" | "seller",
-          hasPhoto: review.hasPhoto || false,
-        }));
+        const formattedReviews = fetchedReviews.map((review) => {
+          const reviewer = review.reviewer ?? {};
+          const reviewerAvatar =
+            reviewer.avatar ||
+            reviewer.avatar_url ||
+            reviewer.avatar_path ||
+            null;
+
+          return {
+            id: `r-${review.id}`,
+            name: reviewer.name || reviewer.username || "Anonymous",
+            avatar: reviewerAvatar || "https://i.pravatar.cc/100?img=1",
+            rating: review.rating,
+            comment: review.comment || "",
+            time: review.time,
+            date: review.date,
+            type: review.type as "buyer" | "seller",
+            hasPhoto: review.hasPhoto || false,
+            isPremium: Boolean(
+              (reviewer as any).isPremium ?? (reviewer as any).is_premium ?? false,
+            ),
+          };
+        });
         
         setReviews(formattedReviews);
         console.log(`✅ Loaded ${formattedReviews.length} reviews`);
@@ -368,6 +403,161 @@ export default function UserProfileScreen() {
   const followers = userProfile?.followersCount || 0;
   const following = userProfile?.followingCount || 0;
   const reviewsCount = reviews.length || userProfile?.reviewsCount || mockReviews.length;
+  const ratingValueRaw = userProfile?.rating ?? parsedRouteRating;
+  const ratingValue = Number.isFinite(ratingValueRaw)
+    ? Math.max(0, Math.min(5, Number(ratingValueRaw)))
+    : 0;
+  const soldCount =
+    typeof userProfile?.soldListings === "number"
+      ? userProfile.soldListings
+      : parsedRouteSales;
+
+  const tabCounts = useMemo<Record<"Shop" | "Likes" | "Reviews", number>>(
+    () => ({
+      Shop: userListings.length,
+      Likes: likedListings.length,
+      Reviews: reviewsCount,
+    }),
+    [userListings.length, likedListings.length, reviewsCount]
+  );
+
+  const locationLabel = useMemo(() => {
+    const raw = typeof userProfile?.location === "string" ? userProfile.location : null;
+    if (!raw) {
+      return null;
+    }
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }, [userProfile?.location]);
+
+  const activityLabel = useMemo(() => {
+    const parseDate = (value: unknown): Date | null => {
+      if (!value) {
+        return null;
+      }
+      if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? null : value;
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) {
+          return null;
+        }
+        const parsed = new Date(trimmed);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+      }
+      const numeric = Number(value);
+      if (!Number.isNaN(numeric)) {
+        const parsed = new Date(numeric);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+      }
+      return null;
+    };
+
+    const candidateSources: Array<unknown> = [
+      userProfile?.lastSignInAt,
+      (userProfile as any)?.last_sign_in_at,
+      (userProfile as any)?.lastActiveAt,
+      (userProfile as any)?.last_active_at,
+      (userProfile as any)?.updatedAt,
+      (userProfile as any)?.updated_at,
+    ];
+
+    let activityDate: Date | null = null;
+    for (const candidate of candidateSources) {
+      activityDate = parseDate(candidate);
+      if (activityDate) {
+        break;
+      }
+    }
+
+    if (!activityDate) {
+      activityDate = parseDate(userProfile?.memberSince);
+    }
+
+    if (!activityDate) {
+      return "ACTIVE RECENTLY";
+    }
+
+    const now = new Date();
+    const diffMs = now.getTime() - activityDate.getTime();
+
+    if (!Number.isFinite(diffMs) || diffMs < 0) {
+      return "ACTIVE NOW";
+    }
+
+    const diffMinutes = Math.floor(diffMs / (60 * 1000));
+    const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
+    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+
+    // 小于1分钟
+    if (diffMinutes < 1) {
+      return "ACTIVE NOW";
+    }
+
+    // 小于1小时，显示分钟
+    if (diffMinutes < 60) {
+      return `ACTIVE ${diffMinutes} MINUTES AGO`;
+    }
+
+    // 小于24小时，显示小时
+    if (diffHours < 24) {
+      return `ACTIVE ${diffHours} HOURS AGO`;
+    }
+
+    // 1天
+    if (diffDays === 1) {
+      return "ACTIVE YESTERDAY";
+    }
+
+    // 小于7天
+    if (diffDays < 7) {
+      return `ACTIVE ${diffDays} DAYS AGO`;
+    }
+
+    // 小于4周
+    const diffWeeks = Math.floor(diffDays / 7);
+    if (diffWeeks === 1) {
+      return "ACTIVE 1 WEEK AGO";
+    }
+    if (diffWeeks < 5) {
+      return `ACTIVE ${diffWeeks} WEEKS AGO`;
+    }
+
+    // 小于12个月
+    const diffMonths = Math.floor(diffDays / 30);
+    if (diffMonths <= 1) {
+      return "ACTIVE 1 MONTH AGO";
+    }
+    if (diffMonths < 12) {
+      return `ACTIVE ${diffMonths} MONTH AGO`;
+    }
+
+    // 超过1年
+    const diffYears = Math.floor(diffDays / 365);
+    if (diffYears <= 1) {
+      return "ACTIVE 1 YEAR AGO";
+    }
+
+    const monthNames = [
+      "JAN",
+      "FEB",
+      "MAR",
+      "APR",
+      "MAY",
+      "JUN",
+      "JUL",
+      "AUG",
+      "SEP",
+      "OCT",
+      "NOV",
+      "DEC",
+    ];
+    const month = monthNames[activityDate.getMonth()] ?? "";
+    const day = String(activityDate.getDate()).padStart(2, "0");
+    const year = activityDate.getFullYear();
+    return `ACTIVE ${month} ${day}, ${year}`;
+  }, [userProfile?.lastSignInAt, userProfile?.memberSince]);
 
   const mySizes = useMemo(() => {
     const sizes = [
@@ -690,104 +880,146 @@ export default function UserProfileScreen() {
       />
 
       {/* Profile Section - Depop Style */}
-      <View style={styles.profileSection}>
-        {/* 头部：头像 + 右侧(名字/星星) */}
-        <View style={styles.headerRow}>
-          <Image 
+        <View style={styles.profileSection}>
+          {/* 头部：头像 + 右侧(名字/星星) */}
+          <View style={styles.headerRow}>
+          <Avatar
             source={
-              userProfile.avatar_url && typeof userProfile.avatar_url === 'string' && userProfile.avatar_url.startsWith('http')
+              userProfile.avatar_url && typeof userProfile.avatar_url === "string" && userProfile.avatar_url.startsWith("http")
                 ? { uri: userProfile.avatar_url }
-                : avatar && typeof avatar === 'string' && avatar.startsWith('http')
+                : avatar && typeof avatar === "string" && avatar.startsWith("http")
                 ? { uri: avatar }
                 : ASSETS.avatars.default
-            } 
-            style={styles.avatar} 
+            }
+            style={styles.avatar}
+            isPremium={userProfile?.isPremium}
+            self={isOwnProfile}
+            // 将徽章移到右上角并做微偏移，让位置更自然
+            badgePosition="bottom-right"
+            badgeOffset={{ x: 0, y: 0 }}
+            badgeScale={0.34}
           />
           <View style={styles.nameCol}>
-            <Text style={styles.shopName}>{userProfile.username}</Text>
-            <View style={styles.locationRow}>
-              <Icon name="location-outline" size={12} color="#666" />
-              <Text style={styles.locationText}>Singapore</Text>
+            <View style={styles.nameRow}>
+              <Text style={styles.shopName} numberOfLines={1} ellipsizeMode="tail">
+                {userProfile.username}
+              </Text>
             </View>
-            <View style={styles.starsRow}>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Icon key={i} name="star" size={14} color="#FFB800" />
-              ))}
+            <View style={styles.metaRow}>
+              <View style={styles.ratingRow}>
+                {Array.from({ length: 5 }).map((_, i) => {
+                  const threshold = i + 1;
+                  const iconName =
+                    ratingValue >= threshold
+                      ? "star"
+                      : ratingValue >= threshold - 0.5
+                      ? "star-half"
+                      : "star-outline";
+                  return (
+                    <Icon
+                      key={`rating-star-${i}`}
+                      name={iconName as any}
+                      size={18}
+                      color="#FFB800"
+                      style={styles.ratingStar}
+                    />
+                  );
+                })}
+                <Text style={styles.ratingValue}>{ratingValue.toFixed(1)}</Text>
+              </View>
+              <View style={styles.soldPill}>
+                <Icon name="checkmark-done-sharp" size={13} color="#F54B3D" />
+                <Text style={styles.soldText}>{soldCount} SOLD</Text>
+              </View>
             </View>
           </View>
         </View>
 
         {/* ↓↓↓ 这整块独立放在 headerRow 外面，才能和头像左边对齐 ↓↓↓ */}
         <View style={styles.belowBlock}>
-          <View style={styles.activityItem}>
-            <Icon name="flash" size={14} color="#007AFF" />
-            <Text style={styles.activityText}>ACTIVE THIS WEEK</Text>
-          </View>
-
-          <View style={styles.activityItem}>
-            <Icon name="diamond" size={14} color="#007AFF" />
-            <Text style={styles.activityText}>{userProfile.soldListings} SOLD</Text>
+          <View style={styles.activityRow}>
+            <View style={styles.activityItem}>
+              <Icon name="flash" size={14} color="#F54B3D" />
+              <Text style={styles.activityText}>{activityLabel}</Text>
+            </View>
+            {locationLabel ? (
+              <View
+                style={styles.inlineLocation}
+                accessibilityRole="text"
+                accessibilityLabel={`Location ${locationLabel}`}
+              >
+                <Icon
+                  name="location"
+                  size={13}
+                  color="#666"
+                  style={styles.locationIcon}
+                />
+                <Text
+                  style={styles.locationText}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {locationLabel}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           {userProfile.bio && <Text style={styles.bioText}>{userProfile.bio}</Text>}
 
           <View style={styles.socialRow}>
-            <View style={styles.statBlock}>
-              <Text style={styles.statNumber}>{followers}</Text>
-              <Text style={styles.statLabel}>followers</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 18 }}>
+              <View style={styles.statBlock}>
+                <Text style={styles.statNumber}>{followers}</Text>
+                <Text style={styles.statLabel}>followers</Text>
+              </View>
+              <View style={styles.statBlock}>
+                <Text style={styles.statNumber}>{following}</Text>
+                <Text style={styles.statLabel}>following</Text>
+              </View>
             </View>
-            <View style={styles.statBlock}>
-              <Text style={styles.statNumber}>{following}</Text>
-              <Text style={styles.statLabel}>following</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 10, marginLeft: 'auto' }}>
+              <TouchableOpacity
+                style={[styles.followBtn, isFollowing && styles.followBtnActive, isOwnProfile && styles.disabledBtn]}
+                onPress={isOwnProfile ? undefined : handleFollowToggle}
+                disabled={isOwnProfile}
+              >
+                <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive, isOwnProfile && styles.disabledBtnText]}>
+                  {isFollowing ? "Following" : "Follow"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.msgBtn, isOwnProfile && styles.disabledBtn]} 
+                onPress={isOwnProfile ? undefined : handleMessageUser}
+                disabled={isOwnProfile}
+              >
+                <Icon 
+                  name="mail-outline" 
+                  size={24} 
+                  color={isOwnProfile ? "#999" : "#F54B3D"} 
+                />
+              </TouchableOpacity>
             </View>
-
-            {/* Follow和Message按钮 - 始终显示，但自己的profile时禁用 */}
-            <TouchableOpacity
-              style={[
-                styles.followBtn, 
-                isFollowing && styles.followBtnActive,
-                isOwnProfile && styles.disabledBtn
-              ]}
-              onPress={isOwnProfile ? undefined : handleFollowToggle}
-              disabled={isOwnProfile}
-            >
-              <Text style={[
-                styles.followBtnText, 
-                isFollowing && styles.followBtnTextActive,
-                isOwnProfile && styles.disabledBtnText
-              ]}>
-                {isFollowing ? "Following" : "Follow"}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.msgBtn, isOwnProfile && styles.disabledBtn]} 
-              onPress={isOwnProfile ? undefined : handleMessageUser}
-              disabled={isOwnProfile}
-            >
-              <Icon 
-                name="mail-outline" 
-                size={24} 
-                color={isOwnProfile ? "#999" : "#F54B3D"} 
-              />
-            </TouchableOpacity>
           </View>
         </View>
       </View>
 
       <View style={styles.tabs}>
-        {(["Shop", "Likes", "Reviews"] as const).map((tab) => (
-          <View key={tab} style={{ alignItems: "center" }}>
-            <TouchableOpacity onPress={() => setActiveTab(tab)}>
-              <Text
-                style={[styles.tabLabel, activeTab === tab && styles.tabLabelActive]}
-              >
-                {tab}
-              </Text>
-            </TouchableOpacity>
-            {activeTab === tab && <View style={styles.tabIndicator} />}
-          </View>
-        ))}
+        {(["Shop", "Likes", "Reviews"] as const).map((tab) => {
+          const count = tabCounts[tab];
+          return (
+            <View key={tab} style={{ alignItems: "center" }}>
+              <TouchableOpacity onPress={() => setActiveTab(tab)}>
+                <Text
+                  style={[styles.tabLabel, activeTab === tab && styles.tabLabelActive]}
+                >
+                  {`${tab} ${count}`}
+                </Text>
+              </TouchableOpacity>
+              {activeTab === tab && <View style={styles.tabIndicator} />}
+            </View>
+          );
+        })}
       </View>
 
       <View style={{ flex: 1 }}>
@@ -888,35 +1120,87 @@ export default function UserProfileScreen() {
               numColumns={3}
               contentContainerStyle={styles.gridContent}
               renderItem={({ item }) =>
-                item.empty || !item.likedListing ? (
-                  <View style={[styles.gridItem, styles.gridItemInvisible]} />
-                ) : (
-                  <TouchableOpacity 
-                    style={styles.gridItem}
-                    onPress={() => {
-                      const listing = item.likedListing.item;
-                      
-                      // 转换数据格式以匹配ListingDetailScreen的期望格式
+                item.empty || !item.likedListing
+                  ? (
+                      <View style={[styles.gridItem, styles.gridItemInvisible]} />
+                    )
+                  : (() => {
+                      const listing = item.likedListing.listing;
+                      const rawSeller = listing?.seller ?? {};
+
+                      let images: string[] = [];
+                      if (Array.isArray(listing?.images)) {
+                        images = [...listing.images];
+                      } else if (typeof listing?.image_url === "string" && listing.image_url.trim()) {
+                        images = [listing.image_url];
+                      } else if (listing?.image_urls) {
+                        try {
+                          const parsed =
+                            typeof listing.image_urls === "string"
+                              ? JSON.parse(listing.image_urls)
+                              : listing.image_urls;
+                          images = Array.isArray(parsed)
+                            ? parsed.filter(
+                                (value: unknown): value is string =>
+                                  typeof value === 'string' && value.trim().length > 0
+                              )
+                            : [];
+                        } catch (error) {
+                          console.warn("Failed to parse image_urls for liked listing", error);
+                          images = [];
+                        }
+                      }
+
+                      const previewImage = images.find((uri) => typeof uri === 'string' && uri.trim())
+                        || (typeof listing?.image_url === "string" && listing.image_url.trim() ? listing.image_url : null);
+
+                      const sellerAvatar =
+                        typeof rawSeller.avatar === "string" && rawSeller.avatar.trim()
+                          ? rawSeller.avatar
+                          : typeof rawSeller.avatar_url === "string" && rawSeller.avatar_url.trim()
+                          ? rawSeller.avatar_url
+                          : typeof rawSeller.avatar_path === "string" && rawSeller.avatar_path.trim()
+                          ? rawSeller.avatar_path
+                          : undefined;
+
+                      const sellerName =
+                        rawSeller.username ?? rawSeller.name ?? (rawSeller as any)?.displayName ?? "Seller";
+
                       const listingData = {
                         ...listing,
-                        // seller数据已经是正确的格式，不需要转换
+                        title: listing?.title ?? listing?.name,
+                        images,
+                        seller: rawSeller
+                          ? {
+                              ...rawSeller,
+                              name: sellerName,
+                              avatar: sellerAvatar,
+                              isPremium: Boolean(
+                                rawSeller.isPremium ?? (rawSeller as any)?.is_premium ?? false
+                              ),
+                            }
+                          : rawSeller,
                       };
-                      
-                      navigation.navigate("ListingDetail", { item: listingData });
-                    }}
-                  >
-                    <Image 
-                      source={{ 
-                        uri: item.likedListing?.item?.images?.[0] || 
-                             'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop'
-                      }} 
-                      style={styles.gridImage} 
-                    />
-                    <View style={styles.likeBadge}>
-                      <Icon name="heart" size={16} color="#f54b3d" />
-                    </View>
-                  </TouchableOpacity>
-                )
+
+                      return (
+                        <TouchableOpacity
+                          style={styles.gridItem}
+                          onPress={() => navigation.navigate("ListingDetail", { item: listingData })}
+                        >
+                          <Image
+                            source={{
+                              uri:
+                                previewImage ??
+                                'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop',
+                            }}
+                            style={styles.gridImage}
+                          />
+                          <View style={styles.likeBadge}>
+                            <Icon name="heart" size={16} color="#f54b3d" />
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })()
               }
             />
           )
@@ -930,27 +1214,7 @@ export default function UserProfileScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.reviewFiltersScroll}
               >
-                <TouchableOpacity
-                  style={[
-                    styles.reviewFilterChip,
-                    showLatest && styles.reviewFilterChipActive,
-                  ]}
-                  onPress={() => setShowLatest(!showLatest)}
-                >
-                  <Icon
-                    name={showLatest ? "checkmark-circle" : "checkmark-circle-outline"}
-                    size={16}
-                    color={showLatest ? "#fff" : "#666"}
-                  />
-                  <Text
-                    style={[
-                      styles.reviewFilterChipText,
-                      showLatest && styles.reviewFilterChipTextActive,
-                    ]}
-                  >
-                    Latest
-                  </Text>
-                </TouchableOpacity>
+                {/* Latest 筛选按钮已移除 */}
                 <TouchableOpacity
                   style={[
                     styles.reviewFilterChip,
@@ -1026,7 +1290,12 @@ export default function UserProfileScreen() {
               contentContainerStyle={styles.reviewList}
               renderItem={({ item }) => (
                 <View style={styles.reviewCard}>
-                  <Image source={{ uri: item.avatar }} style={styles.reviewAvatar} />
+                  <Avatar
+                    source={item.avatar ? { uri: item.avatar } : ASSETS.avatars.default}
+                    style={styles.reviewAvatar}
+                    isPremium={item.isPremium}
+                    badgePosition="top-right"
+                  />
                   <View style={{ flex: 1 }}>
                     <View style={styles.reviewHeader}>
                       <Text style={styles.reviewName}>{item.name}</Text>
@@ -1217,43 +1486,99 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   nameCol: {
-    height: 70,
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
     alignItems: "flex-start",
-    paddingVertical: 2,
+    paddingVertical: 0,
+    paddingLeft: 6,
     flexShrink: 1,
+    marginTop: -3,
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    columnGap: 0,
+    flexWrap: "wrap",
+    flexShrink: 1,
+    marginBottom: -4,
   },
   shopName: {
-    fontSize: 18,
+    fontSize: 40,
     fontWeight: "700",
     color: "#111",
     maxWidth: "100%",
+    flexShrink: 1,
   },
-  locationRow: {
+  inlineLocation: {
     flexDirection: "row",
     alignItems: "center",
     columnGap: 4,
+    flexShrink: 1,
+  },
+  locationIcon: {
+    marginTop: 0,
   },
   locationText: {
     fontSize: 12,
     color: "#666",
+    fontWeight: "500",
+    maxWidth: "100%",
   },
-  starsRow: {
+  metaRow: {
     flexDirection: "row",
-    columnGap: 2,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    marginTop: 3,
+    columnGap: 12,
+  },
+  soldPill: {
+  flexDirection: "row",
+  alignItems: "baseline",
+  columnGap: 6,
+  backgroundColor: "#f54c3d1a",
+  paddingHorizontal: 10,
+  paddingVertical: 4,
+  borderRadius: 999,
+  },
+  soldText: {
+  fontSize: 12,
+  fontWeight: "600",
+  color: "#F54B3D",
+  letterSpacing: 0.4,
+  verticalAlign: "middle",
+  },
+  ratingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: "auto",
+  },
+  ratingStar: {
+    marginHorizontal: 1,
+    marginTop: -1
+  },
+  ratingValue: {
+    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#555",
   },
   belowBlock: {
     marginTop: 6,
+  },
+  activityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 8,
+    marginBottom: 6,
+    flexWrap: "wrap",
   },
   activityItem: {
     flexDirection: "row",
     alignItems: "center",
     columnGap: 6,
-    marginBottom: 6,
   },
   activityText: {
     fontSize: 12,
-    color: "#007AFF",
+    color: "#F54B3D",
     fontWeight: "600",
     letterSpacing: 0.3,
   },
@@ -1268,7 +1593,7 @@ const styles = StyleSheet.create({
   socialRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
     columnGap: 18,
   },
   statBlock: {
@@ -1285,24 +1610,29 @@ const styles = StyleSheet.create({
     color: "#555",
   },
   followBtn: {
-    backgroundColor: "#F54B3D",
-    paddingVertical: 8,
-    paddingHorizontal: 40,
-    borderRadius: 6,
-    minWidth: 140,
-    alignItems: "center",
-    justifyContent: "center",
+  flexDirection: "row",
+  alignItems: "center",
+  columnGap: 6,
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: "#ddd",
+  backgroundColor: "#fff",
+  minWidth: 100,
+  justifyContent: "center",
   },
   followBtnActive: {
-    backgroundColor: "#999",
+  backgroundColor: "#eee",
+  borderColor: "#bbb",
   },
   followBtnText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "600",
+  color: "#111",
+  fontSize: 13,
+  fontWeight: "600",
   },
   followBtnTextActive: {
-    color: "#fff",
+  color: "#999",
   },
   msgBtn: {
     width: 44,
@@ -1436,7 +1766,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#e5e5e5",
@@ -1447,6 +1776,7 @@ const styles = StyleSheet.create({
     columnGap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    marginLeft: 16,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#ddd",
@@ -1472,6 +1802,7 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   resultCount: {
+    marginRight: 16,
     fontSize: 13,
     color: "#666",
   },

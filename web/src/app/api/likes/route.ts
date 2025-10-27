@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
                 avatar_url: true,
                 average_rating: true,
                 total_reviews: true,
+                is_premium: true,
               },
             },
           },
@@ -40,11 +41,25 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: likedListings.map(like => ({
-        id: like.id,
-        listing: like.listing,
-        created_at: like.created_at,
-      })),
+      data: likedListings.map((like) => {
+        const listing = like.listing
+          ? {
+              ...like.listing,
+              seller: like.listing.seller
+                ? {
+                    ...like.listing.seller,
+                    isPremium: Boolean(like.listing.seller.is_premium),
+                  }
+                : null,
+            }
+          : null;
+
+        return {
+          id: like.id,
+          listing,
+          created_at: like.created_at,
+        };
+      }),
     });
   } catch (error) {
     console.error('Error getting liked listings:', error);

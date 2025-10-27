@@ -132,14 +132,20 @@ function MainTabs() {
         name="Home"
         component={HomeStackNavigator}
         listeners={({ navigation, route }) => ({
-          tabPress: () => {
+          tabPress: (e) => {
             const now = Date.now();
-            if (navigation.isFocused && navigation.isFocused()) {
-              // 已聚焦：交给屏幕判断是不是在顶部——在顶部就刷新，否则丝滑回顶
-              navigation.navigate("Home", {
-                screen: "HomeMain",
-                params: { tabPressTS: now },
-              });
+            // 只有当当前 Home tab 已经聚焦时（再次点击）才触发 Home 内部的刷新/回顶逻辑。
+            // 这样从其他 tab 切回 Home 时，不会把用户强制导航到 HomeMain，仍保留原有的堆栈页面。
+            try {
+              if (typeof navigation.isFocused === 'function' && navigation.isFocused()) {
+                navigation.navigate("Home", {
+                  screen: "HomeMain",
+                  params: { tabPressTS: now },
+                });
+              }
+            } catch (err) {
+              // 保守处理：如果 navigation.isFocused 调用失败，不做任何额外导航
+              console.warn('tabPress Home listener error', err);
             }
           },
         })}
