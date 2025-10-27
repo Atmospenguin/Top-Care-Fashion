@@ -25,6 +25,7 @@ import Header from "../../../components/Header";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { SellStackParamList } from "./SellStackNavigator";
 import { listingsService, type CreateListingRequest } from "../../../src/services/listingsService";
+import { useAutoClassify } from "../../../src/hooks/useAutoClassify";
 /** --- Options --- */
 const CATEGORY_OPTIONS = ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"];
 const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "Others"];
@@ -111,6 +112,8 @@ const DEFAULT_TAGS = [
 
 const PHOTO_LIMIT = 9;
 
+
+
 /** --- Bottom Sheet Picker --- */
 type OptionPickerProps = {
   title: string;
@@ -175,7 +178,7 @@ type SellScreenNavigationProp = NativeStackNavigationProp<
 export default function SellScreen({
   navigation,
 }: {
-  navigation: SellScreenNavigationProp;
+  navigation: NativeStackNavigationProp<SellStackParamList, "SellMain">;
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -260,6 +263,25 @@ export default function SellScreen({
     return undefined;
   }, [brand]);
 
+  /** ---------- 🧠 AI hook integration ---------- */
+  const aiUris = React.useMemo(() => photos.map(p => p.localUri), [photos]);
+  const [autoDescribe, setAutoDescribe] = useState(false);
+  const {
+    items: aiItems,
+    running: aiRunning,
+    start: aiStart,
+    cancel: aiCancel,
+    progress: aiProgress,
+    requeueAll,
+    requeueOne,
+  } = useAutoClassify(aiUris, { autoDescribe, concurrency: 2 });
+
+  // auto-start AI after new photos appear
+  useEffect(() => {
+    if (aiUris.length > 0 && !aiRunning) aiStart();
+  }, [aiUris.length, aiRunning, aiStart]);
+
+  // Permissions
   const ensureMediaPermissions = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
@@ -435,18 +457,44 @@ export default function SellScreen({
     }
   };
 
-  // 模拟 AI
   const generateDescription = async () => {
-    setLoading(true);
-    setAiDesc(null);
-    try {
-      await new Promise((r) => setTimeout(r, 1000));
-      setAiDesc("Stylish mini skirt featuring a pleated design and a decorative belt. The skirt has a unique layered design with a floral print on the bottom layer.");
-    } catch (err) {
-      console.error("AI generation failed:", err);
+  if (category === "Select") {
+    Alert.alert("Missing category", "Please choose a category first.");
+    return;
+  }
+
+  setLoading(true);
+  setAiDesc(null);
+
+  try {
+    // Gather top Vision labels (if available)
+    const labels = aiItems
+      .flatMap(item => item.description?.labels || [])
+      .filter(Boolean)
+      .slice(0, 10);
+
+    const res = await fetch("https://top-care-fashion-cyan.vercel.app/api/ai/describe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category,
+        labels: labels.length ? labels : ["fashion", "clothing"],
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
     }
+
+    const data = await res.json();
+    setAiDesc(data.blurb || "No description returned");
+  } catch (err) {
+    console.error("AI describer failed:", err);
+    Alert.alert("AI Error", "Could not generate description. Please try again.");
+  } finally {
     setLoading(false);
-  };
+  }
+};
 
   // 保存 listing
   const handlePostListing = async () => {

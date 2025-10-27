@@ -68,7 +68,7 @@ async function tryGemini(category: string, labels: string[]) {
   if (!mod?.GoogleGenerativeAI) return { ok: false, attempts: 0, blurb: "", reason: "sdk_missing" as const };
 
   const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = mod;
-  const models = [GEMINI_MODEL, "gemini-1.5-flash"];
+  const models = [GEMINI_MODEL, "gemini-2.5-flash"];
   let attempts = 0;
 
   for (const mdl of models) {

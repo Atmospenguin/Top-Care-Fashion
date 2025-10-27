@@ -5,9 +5,10 @@
   "scripts": {
     "dev": "prisma generate && next dev --turbopack -H 0.0.0.0 -p 3000",
     "build": "prisma generate && next build --turbopack",
-    "start": "next start",
+    "start": "EXPO_PUBLIC_API_BASE_URL=https://top-care-fashion-cyan.vercel.app expo start",
     "lint": "eslint",
     "test": "vitest run"
+    
   },
   "dependencies": {
     "@google-cloud/vision": "^5.3.4",
