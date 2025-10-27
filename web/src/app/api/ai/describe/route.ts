@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 // ---------- Config ----------
 const GEMINI_API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "";
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 const MAX_LLM_ATTEMPTS = 3;
 const TIMEOUT_MS = 10_000; // per attempt
 const MAX_LABELS = 12;
