@@ -5,14 +5,14 @@ export type ListingItem = {
   title: string;
   price: number;
   description: string;
-  brand: string;
-  size: string;
-  condition: string;
-  material?: string;
-  gender?: string;
+  brand: string | null;
+  size: string | null;
+  condition: string | null;
+  material?: string | null;
+  gender?: string | null;
   tags?: string[]; // 添加用户自定义标签
   images: string[];
-  category?: ListingCategory;
+  category?: ListingCategory | null;
   shippingOption?: string | null;
   shippingFee?: number | null;
   location?: string | null;

@@ -21,8 +21,10 @@ import AddSizeScreen from "./AddSizeScreen";
 import AddStyleScreen from "./AddStyleScreen";
 import EditBrandScreen from "./EditBrandScreen";
 import ManagePaymentsScreen from "./ManagePaymentsScreen";
+import ConfirmSellScreen from "./ConfirmSellScreen";
 import type { ListingItem } from "../../../types/shop";
 import type { UserBenefitsPayload } from "../../../src/services";
+import type { CreateListingRequest } from "../../../src/services/listingsService";
 
 export type PreferenceSizes = {
   shoe?: string;
@@ -61,6 +63,24 @@ export type MyTopStackParamList = {
     | undefined;
   MyBoostListings: undefined;
   BoostedListing: undefined;
+  ConfirmSell:
+    | {
+        mode: "markSold";
+        listingId: string;
+        listingSnapshot?: ListingItem;
+      }
+    | {
+        mode: "create";
+        draft: CreateListingRequest;
+        benefitsSnapshot?: UserBenefitsPayload["benefits"] | null;
+      }
+    | {
+        mode: "update";
+        listingId: string;
+        draft: Partial<CreateListingRequest>;
+        listingSnapshot?: ListingItem;
+        benefitsSnapshot?: UserBenefitsPayload["benefits"] | null;
+      };
   MyPreference:
     | {
         selectedStyles?: string[];
@@ -115,9 +135,10 @@ export default function MyTopStackNavigator() {
       <Stack.Screen name="ActiveListingDetail" component={ActiveListingDetailScreen} />
       <Stack.Screen name="ManageListing" component={ManageListingScreen} />
       <Stack.Screen name="EditListing" component={EditListingScreen} />
-      <Stack.Screen name="PromotionPlans" component={PromotionPlansScreen} />
-      <Stack.Screen name="MyBoostListings" component={MyBoostListingScreen} />
-      <Stack.Screen name="BoostedListing" component={BoostedListingScreen} />
+    <Stack.Screen name="PromotionPlans" component={PromotionPlansScreen} />
+    <Stack.Screen name="MyBoostListings" component={MyBoostListingScreen} />
+    <Stack.Screen name="BoostedListing" component={BoostedListingScreen} />
+    <Stack.Screen name="ConfirmSell" component={ConfirmSellScreen} />
       <Stack.Screen name="MyPreference" component={MyPreferenceScreen} />
       <Stack.Screen name="AddSize" component={AddSizeScreen} />
       <Stack.Screen name="AddStyle" component={AddStyleScreen} />

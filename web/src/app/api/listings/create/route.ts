@@ -142,7 +142,7 @@ export async function POST(req: Request) {
         description,
         price: parseFloat(price),
         brand: brand || "",
-        size: size || "N/A",
+        size: size ?? null,
         condition_type: mapConditionToEnum(condition),
         material: material || null,
         tags: tags ? JSON.stringify(tags) : Prisma.JsonNull,
@@ -176,8 +176,8 @@ export async function POST(req: Request) {
       },
     });
 
-    const mapSizeToDisplay = (sizeValue: string | null) => {
-      if (!sizeValue) return "N/A";
+    const mapSizeToDisplay = (sizeValue: string | null): string | null => {
+      if (!sizeValue) return null;
       
       // 处理复杂的尺码字符串（如 "M / EU 38 / UK 10 / US 6"）
       if (sizeValue.includes("/")) {
@@ -216,9 +216,9 @@ export async function POST(req: Request) {
         "Extra Large": "Extra Large",
         
         // 通用选项
-        "Other": "Other", "N/A": "N/A"
+        "Other": "Other"
       };
-      
+
       return sizeMap[sizeValue] || sizeValue;
     };
 

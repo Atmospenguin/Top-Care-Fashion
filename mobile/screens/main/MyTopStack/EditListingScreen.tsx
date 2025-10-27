@@ -313,7 +313,7 @@ export default function EditListingScreen() {
       return;
     }
 
-    let resolvedSize = "N/A";
+    let resolvedSize: string | null = null;
     if (size === "Other") {
       const trimmedCustomSize = customSize.trim();
       if (!trimmedCustomSize) {

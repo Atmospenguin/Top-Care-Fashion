@@ -77,28 +77,11 @@ export default function ManageListingScreen() {
   // ✅ 处理标记为已售
   const handleMarkAsSold = () => {
     if (!listing) return;
-    
-    Alert.alert(
-      "Mark as Sold",
-      "Are you sure you want to mark this item as sold?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Mark as Sold",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await listingsService.updateListing(listing.id, { sold: true, listed: false });
-              Alert.alert("Success", "Item marked as sold");
-              navigation.goBack();
-            } catch (error) {
-              console.error("❌ Error marking as sold:", error);
-              Alert.alert("Error", "Failed to mark as sold");
-            }
-          },
-        },
-      ]
-    );
+    navigation.navigate("ConfirmSell", {
+      mode: "markSold",
+      listingId: listing.id,
+      listingSnapshot: listing,
+    });
   };
 
   // ✅ 处理删除listing

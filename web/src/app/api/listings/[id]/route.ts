@@ -19,8 +19,8 @@ const mapConditionToDisplay = (conditionEnum: string) => {
 /**
  * 映射尺码显示值
  */
-const mapSizeToDisplay = (sizeValue: string | null) => {
-  if (!sizeValue) return "N/A";
+const mapSizeToDisplay = (sizeValue: string | null): string | null => {
+  if (!sizeValue) return null;
   
   // 处理复杂的尺码字符串（如 "M / EU 38 / UK 10 / US 6"）
   if (sizeValue.includes("/")) {
@@ -59,9 +59,9 @@ const mapSizeToDisplay = (sizeValue: string | null) => {
     "Extra Large": "Extra Large",
     
     // 通用选项
-    "Other": "Other", "N/A": "N/A"
+    "Other": "Other"
   };
-  
+
   return sizeMap[sizeValue] || sizeValue;
 };
 

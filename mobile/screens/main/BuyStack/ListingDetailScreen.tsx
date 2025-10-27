@@ -186,10 +186,7 @@ export default function ListingDetailScreen() {
       {
         id: "size",
         label: "Size",
-        value:
-          safeItem.size && safeItem.size !== "N/A" && safeItem.size !== "Select"
-            ? safeItem.size
-            : "Not specified",
+        value: safeItem.size ? safeItem.size : "Not specified",
       },
       {
         id: "condition",

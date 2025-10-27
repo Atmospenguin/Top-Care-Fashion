@@ -278,6 +278,45 @@ export default function SellScreen({
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
+    // Reset all input states back to initial values
+    const resetForm = useCallback(() => {
+      setTitle("");
+      setDescription("");
+      setAiDesc(null);
+      setGender("Select");
+      setCategory("Select");
+      setCondition("Select");
+      setSize("Select");
+      setCustomSize("");
+      setMaterial("Select");
+      setCustomMaterial("");
+      setBrand("Select");
+      setBrandCustom("");
+      setPrice("");
+      setPhotos([]);
+      setPreviewIndex(null);
+      setShippingOption("Select");
+      setShippingFee("");
+      setLocation("");
+      setTags([]);
+      setShowGender(false);
+      setShowCat(false);
+      setShowCond(false);
+      setShowSize(false);
+      setShowMaterial(false);
+      setShowBrand(false);
+      setShowShip(false);
+      setShowTagPicker(false);
+      setShowGuide(false);
+    }, []);
+    // When leaving this screen (e.g., to ConfirmSell/Checkout), clear the form so it's fresh on return
+    useEffect(() => {
+      const unsubscribe = navigation.addListener("blur", () => {
+        resetForm();
+      });
+      return unsubscribe;
+    }, [navigation, resetForm]);
+    
   useEffect(() => {
     if (!showSize && size === "Other" && shouldFocusSizeInput.current) {
       shouldFocusSizeInput.current = false;
@@ -622,7 +661,8 @@ export default function SellScreen({
       .map((photo) => photo.remoteUrl!)
       .slice(0, PHOTO_LIMIT);
 
-    const resolvedSize = size === "Other" ? customSizeValue : size !== "Select" ? size : "N/A";
+    const resolvedSize =
+      size === "Other" ? customSizeValue : size !== "Select" ? size : null;
     const resolvedMaterial =
       material === "Other"
         ? customMaterialValue
@@ -668,46 +708,22 @@ export default function SellScreen({
         // prefer calculated preset fee when available, otherwise use the resolvedShippingFee (user-entered or parsed)
         shippingFee: calculatedShippingFee !== undefined ? calculatedShippingFee : resolvedShippingFee,
         location: shippingOption === "Meet-up" ? trimmedLocation : undefined,
+        listed: true,
+        sold: false,
       };
 
-      const createdListing = await listingsService.createListing(listingData);
-      
-      Alert.alert(
-        "Success!",
-        "Your listing has been posted successfully!",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              // 重置表单
-              setTitle("");
-              setDescription("");
-              setGender("Select");
-              setCategory("Select");
-              setCondition("Select");
-              setSize("Select");
-              setCustomSize("");
-              setMaterial("Select");
-              setCustomMaterial("");
-              setBrand("Select");
-              setBrandCustom("");
-              // brand two-line mode: no toggle state to reset
-              setPrice("");
-              setPhotos([]);
-              setTags([]);
-              setShippingOption("Select");
-              setShippingFee("");
-              setLocation("");
-              // 导航到用户主页或 Discover
-              const parentNav = navigation.getParent();
-              (parentNav as any)?.navigate("My TOP", { screen: "ActiveListings" });
-            },
-          },
-        ]
-      );
+      const rootNavigator = navigation.getParent();
+      (rootNavigator as any)?.navigate("My TOP", {
+        screen: "ConfirmSell",
+        params: {
+          mode: "create",
+          draft: listingData,
+          benefitsSnapshot: benefits,
+        },
+      });
     } catch (error) {
-      console.error("Error posting listing:", error);
-      Alert.alert("Error", "Failed to post listing. Please try again.");
+      console.error("Error preparing listing draft:", error);
+      Alert.alert("Error", "Failed to prepare your listing. Please try again.");
     } finally {
       setSaving(false);
     }

@@ -1,6 +1,6 @@
 import { apiClient } from './api';
 import { API_CONFIG } from '../config/api';
-import type { ListingItem } from '../../types/shop';
+import type { ListingCategory, ListingItem } from '../../types/shop';
 
 export interface BrandSummary {
   name: string;
@@ -64,7 +64,7 @@ export interface CreateListingRequest {
   description: string;
   price: number;
   brand: string;
-  size: string;
+  size: string | null;
   condition: string;
   material?: string;
   tags?: string[];
@@ -74,6 +74,8 @@ export interface CreateListingRequest {
   shippingOption?: string;
   shippingFee?: number;
   location?: string;
+  listed?: boolean;
+  sold?: boolean;
 }
 
 // 分类数据结构
@@ -82,6 +84,46 @@ export interface CategoryData {
   women: Record<string, string[]>;
   unisex: Record<string, string[]>;
 }
+
+const VALID_LISTING_CATEGORIES: ListingCategory[] = [
+  "Accessories",
+  "Bottoms",
+  "Footwear",
+  "Outerwear",
+  "Tops",
+];
+
+const PLACEHOLDER_STRING_TOKENS = new Set([
+  "",
+  "n",
+  "na",
+  "notavailable",
+  "notapplicable",
+  "none",
+  "null",
+  "undefined",
+]);
+
+const normalizeToken = (value: string) =>
+  value.replace(/[^a-z0-9]/gi, "").toLowerCase();
+
+const sanitizeStringValue = (value?: string | null): string | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const normalized = normalizeToken(trimmed);
+  if (PLACEHOLDER_STRING_TOKENS.has(normalized)) {
+    return null;
+  }
+
+  return trimmed;
+};
 
 // 商品服务类
 export class ListingsService {
@@ -101,6 +143,45 @@ export class ListingsService {
   private extractFileName(uri: string): string {
     const segments = uri.split("/").filter(Boolean);
     return segments.length ? segments[segments.length - 1] : `listing-${Date.now()}.jpg`;
+  }
+
+  private sanitizeListingItem(listing: ListingItem): ListingItem {
+    const sanitized: ListingItem = {
+      ...listing,
+      brand: sanitizeStringValue(listing.brand),
+      size: sanitizeStringValue(listing.size),
+      condition: sanitizeStringValue(listing.condition),
+      material: sanitizeStringValue(listing.material),
+      gender: sanitizeStringValue(listing.gender),
+      shippingOption: sanitizeStringValue(listing.shippingOption),
+      location: sanitizeStringValue(listing.location),
+      description:
+        typeof listing.description === "string"
+          ? listing.description.trim()
+          : listing.description,
+    };
+
+    if (Array.isArray(listing.tags)) {
+      const cleanedTags = listing.tags
+        .map((tag) => sanitizeStringValue(tag))
+        .filter((tag): tag is string => Boolean(tag));
+      sanitized.tags = cleanedTags;
+    }
+
+    const cleanedCategory = sanitizeStringValue(
+      (listing.category as string | null) ?? null
+    );
+    if (cleanedCategory === null && listing.category !== undefined) {
+      sanitized.category = null;
+    } else if (
+      cleanedCategory &&
+      cleanedCategory !== listing.category &&
+      VALID_LISTING_CATEGORIES.includes(cleanedCategory as ListingCategory)
+    ) {
+      sanitized.category = cleanedCategory as ListingCategory;
+    }
+
+    return sanitized;
   }
 
   async getBrandSummaries(params?: { limit?: number; search?: string }): Promise<BrandSummary[]> {
@@ -153,13 +234,18 @@ export class ListingsService {
       console.log("📝 Creating listing with data:", JSON.stringify(listingData, null, 2));
       console.log("📝 API endpoint:", '/api/listings/create');
       
-      const response = await apiClient.post<{ data: ListingItem }>('/api/listings/create', listingData);
+      const payload: CreateListingRequest = {
+        ...listingData,
+        size: sanitizeStringValue(listingData.size),
+      };
+      
+      const response = await apiClient.post<{ data: ListingItem }>('/api/listings/create', payload);
       
       console.log("📝 Create listing response:", response);
       
       if (response.data?.data) {
         console.log("✅ Listing created successfully:", response.data.data.id);
-        return response.data.data;
+        return this.sanitizeListingItem(response.data.data);
       }
       
       throw new Error('No listing data received');
@@ -199,7 +285,9 @@ export class ListingsService {
       );
       
       if (response.data?.success && response.data.data?.items) {
-        return response.data.data.items;
+        return response.data.data.items.map((item) =>
+          this.sanitizeListingItem(item)
+        );
       }
       
       throw new Error('No listings data received');
@@ -222,7 +310,7 @@ export class ListingsService {
       
       if (response.data?.listing) {
         console.log("✅ Listing found:", response.data.listing.title);
-        return response.data.listing;
+        return this.sanitizeListingItem(response.data.listing);
       }
       
       console.log("❌ No listing data received");
@@ -371,7 +459,9 @@ export class ListingsService {
       
       if (response.data?.listings) {
         console.log(`✅ Found ${response.data.listings.length} user listings`);
-        return response.data.listings;
+        return response.data.listings.map((item) =>
+          this.sanitizeListingItem(item)
+        );
       }
       
       throw new Error('No listings data received');
@@ -386,16 +476,24 @@ export class ListingsService {
     try {
       console.log("📝 Updating listing:", id, "with data:", JSON.stringify(updateData, null, 2));
       
+      const payload: Partial<CreateListingRequest> = {
+        ...updateData,
+      };
+
+      if (Object.prototype.hasOwnProperty.call(updateData, "size")) {
+        payload.size = sanitizeStringValue(updateData.size ?? null);
+      }
+      
       const response = await apiClient.patch<{ listing: ListingItem }>(
         `/api/listings/${id}`,
-        updateData
+        payload
       );
       
       console.log("📝 Update listing response:", response);
       
       if (response.data?.listing) {
         console.log("✅ Listing updated successfully:", response.data.listing.id);
-        return response.data.listing;
+        return this.sanitizeListingItem(response.data.listing);
       }
       
       throw new Error('No updated listing data received');

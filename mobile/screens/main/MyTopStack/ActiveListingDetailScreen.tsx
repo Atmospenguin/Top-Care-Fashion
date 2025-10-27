@@ -63,10 +63,7 @@ export default function ActiveListingDetailScreen() {
       {
         id: "size",
         label: "Size",
-        value:
-          listing.size && listing.size !== "N/A" && listing.size !== "Select"
-            ? listing.size
-            : "Not specified",
+        value: listing.size ? listing.size : "Not specified",
       },
       {
         id: "condition",
