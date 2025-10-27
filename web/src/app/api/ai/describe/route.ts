@@ -37,9 +37,7 @@ const toErrorLike = (e: unknown): ErrorLike =>
     : {};
 
 const BANNED_TOKENS = [
-  "nike","adidas","gucci","coach","louis vuitton","prada","balenciaga",
-  "off-white","off white","dior","chanel","hermes","hermès",
-  "@","instagram","wechat","whatsapp","phone","email",
+  "@","instagram","wechat","whatsapp","phone","email"
 ];
 
 function redact(input: string): string {
@@ -77,12 +75,6 @@ async function tryGemini(category: string, labels: string[]) {
     const genAI = new GoogleGenerativeAI(key);
     const model = genAI.getGenerativeModel({
       model: mdl,
-      safetySettings: [
-        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,       threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-        { category: HarmCategory.HARM_CATEGORY_HARASSMENT,         threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,  threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-      ],
       generationConfig: {
         temperature: 0.3,
         maxOutputTokens: 64,
@@ -93,9 +85,9 @@ async function tryGemini(category: string, labels: string[]) {
     });
 
     const prompt = [
-      "You write short, brand-safe product blurbs for a fashion marketplace.",
+      "You are a Fashion writer of 10 years write short, brand-safe product blurbs for a fashion marketplace.",
       "Rules:",
-      "- 1–2 sentences, neutral tone, no hype.",
+      "- 3-4 sentences, neutral tone, no hype.",
       "- No brand names or contact info.",
       "- Avoid claims; describe material, silhouette, use case.",
       "",
