@@ -63,33 +63,36 @@ function fallbackCopy(category: string, labels: string[]): string {
 }
 
 async function tryGemini(category: string, labels: string[]) {
-  if (!GEMINI_API_KEY) return { ok: false, attempts: 0, blurb: "", reason: "missing_key" as const };
+  const key = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  if (!key) return { ok: false, attempts: 0, blurb: "", reason: "missing_key" as const };
 
-  // Lazy import to keep cold starts smaller
   const mod = await import("@google/generative-ai").catch(() => null as any);
   if (!mod?.GoogleGenerativeAI) return { ok: false, attempts: 0, blurb: "", reason: "sdk_missing" as const };
 
   const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = mod;
-  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_MODEL,
-    safetySettings: [
-      { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-      { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,       threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-      { category: HarmCategory.HARM_CATEGORY_HARASSMENT,         threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-      { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,  threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    ],
-    generationConfig: {
-      temperature: 0.3,
-      maxOutputTokens: 64,
-      topP: 0.9,
-      topK: 40,
-      candidateCount: 1,
-    },
-  });
+  const models = [GEMINI_MODEL, "gemini-1.5-flash"];
+  let attempts = 0;
 
-  const prompt =
-    [
+  for (const mdl of models) {
+    const genAI = new GoogleGenerativeAI(key);
+    const model = genAI.getGenerativeModel({
+      model: mdl,
+      safetySettings: [
+        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,       threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+        { category: HarmCategory.HARM_CATEGORY_HARASSMENT,         threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,  threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+      ],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 64,
+        topP: 0.9,
+        topK: 40,
+        candidateCount: 1,
+      },
+    });
+
+    const prompt = [
       "You write short, brand-safe product blurbs for a fashion marketplace.",
       "Rules:",
       "- 1–2 sentences, neutral tone, no hype.",
@@ -102,43 +105,43 @@ async function tryGemini(category: string, labels: string[]) {
       "Return ONLY the blurb text.",
     ].join("\n");
 
-  let attempts = 0;
-  for (attempts = 1; attempts <= MAX_LLM_ATTEMPTS; attempts++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    try {
-      const resp = await model.generateContent(
-        { contents: [{ role: "user", parts: [{ text: prompt }] }] } as any,
-        { signal: controller.signal as any }
-      );
-      clearTimeout(timer);
+    for (let i = 1; i <= MAX_LLM_ATTEMPTS; i++) {
+      attempts++;
+      const jitter = Math.floor(Math.random() * 150);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      try {
+        const resp = await model.generateContent(
+          { contents: [{ role: "user", parts: [{ text: prompt }] }] } as any,
+          { signal: controller.signal as any }
+        );
+        clearTimeout(timer);
 
-      const text = resp?.response?.text?.() ?? "";
-      const cleaned = redact(text).replace(/\s+/g, " ").trim();
-      if (cleaned) return { ok: true, attempts, blurb: cleaned };
-
-      await new Promise(r => setTimeout(r, attempts * 250));
-    } catch (e) {
-      clearTimeout(timer);
-      const err = toErrorLike(e);
-      const status = err.statusCode ?? err.status;
-      // Retry on transient conditions
-      if (status === 429 || status === 503) {
-        await new Promise(r => setTimeout(r, attempts * 300));
-        continue;
+        const text = resp?.response?.text?.() ?? "";
+        const cleaned = redact(text).replace(/\s+/g, " ").trim();
+        if (cleaned) return { ok: true, attempts, blurb: cleaned, model: mdl };
+        await new Promise(r => setTimeout(r, i * 300 + jitter));
+      } catch (e: any) {
+        clearTimeout(timer);
+        const status = (e?.statusCode ?? e?.status) as number | undefined;
+        if (status === 429 || status === 503) {
+          await new Promise(r => setTimeout(r, i * 400 + jitter));
+          continue;
+        }
+        await new Promise(r => setTimeout(r, i * 250 + jitter));
       }
-      // Retry once more on other noisy errors
-      await new Promise(r => setTimeout(r, attempts * 250));
     }
+    // try next model
   }
-  return { ok: false, attempts: attempts - 1, blurb: "", reason: "exhausted" as const };
+  return { ok: false, attempts, blurb: "", reason: "exhausted" as const };
 }
 
-// ---------- CORS helper ----------
+// ---------- CORS + cache ----------
 function withCORS(res: NextResponse) {
   res.headers.set("Access-Control-Allow-Origin", "*");
-  res.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.headers.set("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
   res.headers.set("Access-Control-Allow-Headers", "Content-Type, Accept");
+  res.headers.set("Cache-Control", "no-store");
   return res;
 }
 
@@ -146,7 +149,7 @@ export async function OPTIONS() {
   return withCORS(NextResponse.json({ ok: true }));
 }
 
-// ---------- Handler ----------
+// ---------- POST ----------
 export async function POST(req: NextRequest) {
   const t0 = Date.now();
   try {
@@ -163,7 +166,12 @@ export async function POST(req: NextRequest) {
           category,
           labels,
           blurb: gem.blurb,
-          meta: { source: "gemini", model: GEMINI_MODEL, attempts: gem.attempts, latency_ms: Date.now() - t0 },
+          meta: {
+            source: "gemini",
+            model: gem.model ?? GEMINI_MODEL,
+            attempts: gem.attempts,
+            latency_ms: Date.now() - t0,
+          },
         })
       );
     }
@@ -181,9 +189,66 @@ export async function POST(req: NextRequest) {
     const err = toErrorLike(e);
     const message = err.message ?? "Failed to generate description";
     return withCORS(
+      NextResponse.json({ ok: false, error: message, code: "BAD_REQUEST" }, { status: 400 })
+    );
+  }
+}
+
+// ---------- GET (status + optional live ping) ----------
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  const ping = url.searchParams.get("ping") === "1";
+  const token = url.searchParams.get("token");
+  const requireToken = process.env.NODE_ENV === "production";
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+
+  // E) Lightweight readiness without hitting Gemini
+  if (!ping) {
+    const keyPresent = !!(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY);
+    return withCORS(
+      NextResponse.json({
+        ok: true,
+        gemini: keyPresent ? "key_present" : "missing_key",
+        model,
+        hint: "Add ?ping=1 to perform a live Gemini ping.",
+      })
+    );
+  }
+
+  // Optional token gate for live ping in prod
+  if (requireToken && token !== process.env.HEALTH_TOKEN) {
+    return withCORS(NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }));
+  }
+
+  // Live ping (very small request)
+  try {
+    const mod = await import("@google/generative-ai");
+    const { GoogleGenerativeAI } = mod;
+    const key = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY!;
+    const genAI = new GoogleGenerativeAI(key);
+    const mdl = genAI.getGenerativeModel({
+      model,
+      generationConfig: { temperature: 0.1, maxOutputTokens: 8, candidateCount: 1 },
+    });
+
+    const r = await mdl.generateContent({
+      contents: [{ role: "user", parts: [{ text: "ping" }] }],
+    } as any);
+
+    const text = r?.response?.text?.() ?? "";
+    return withCORS(
+      NextResponse.json({
+        ok: true,
+        gemini: text ? "ok" : "empty",
+        model,
+        sample: text,
+      })
+    );
+  } catch (e: any) {
+    return withCORS(
       NextResponse.json(
-        { ok: false, error: message, code: "BAD_REQUEST" },
-        { status: 400 }
+        { ok: false, gemini: "fail", model, error: String(e?.message || e) },
+        { status: 500 }
       )
     );
   }
