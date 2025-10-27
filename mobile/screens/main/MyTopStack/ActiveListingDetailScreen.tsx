@@ -10,12 +10,14 @@ import {
   Alert,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { MyTopStackParamList } from "./index";
+import type { RootStackParamList } from "../../../App";
 import { listingsService } from "../../../src/services/listingsService";
 import type { ListingItem } from "../../../types/shop";
 
@@ -31,9 +33,13 @@ const formatGenderLabel = (value?: string | null) => {
   return lower.charAt(0).toUpperCase() + lower.slice(1);
 };
 
+type Nav = CompositeNavigationProp<
+  NativeStackNavigationProp<MyTopStackParamList, "ActiveListingDetail">,
+  NativeStackNavigationProp<RootStackParamList>
+>;
+
 export default function ActiveListingDetailScreen() {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
+  const navigation = useNavigation<Nav>();
   const route = useRoute<RouteProp<MyTopStackParamList, "ActiveListingDetail">>();
 
   const [listing, setListing] = useState<ListingItem | null>(null);
@@ -147,9 +153,14 @@ export default function ActiveListingDetailScreen() {
 
   // ✅ 处理Boost Listing点击
   const handleBoostListing = () => {
-    if (listing) {
-      navigation.navigate("PromotionPlans");
-    }
+    if (!listing) return;
+    navigation.navigate("Premium", {
+      screen: "PromotionPlans",
+      params: {
+        selectedListingIds: [listing.id],
+        selectedListings: [listing],
+      },
+    });
   };
 
   if (loading) {

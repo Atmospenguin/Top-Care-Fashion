@@ -11,7 +11,6 @@ import {
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type {
   CompositeNavigationProp,
-  NavigatorScreenParams,
 } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
@@ -21,7 +20,7 @@ import type { MyTopStackParamList } from "./index";
 import type { RootStackParamList } from "../../../App";
 import type { PremiumStackParamList } from "../PremiumStack";
 import { listingsService } from "../../../src/services/listingsService";
-import type { ListingItem } from "../../../src/types/shop";
+import type { ListingItem } from "../../../types/shop";
 
 export default function ManageListingScreen() {
   const navigation = useNavigation<
@@ -136,8 +135,18 @@ export default function ManageListingScreen() {
     }
   };
 
-  const promotionPlansRoute: NavigatorScreenParams<PremiumStackParamList> = {
-    screen: "PromotionPlans",
+  const handleOpenPromotionPlans = () => {
+    if (!listing) {
+      return;
+    }
+
+    navigation.navigate("Premium", {
+      screen: "PromotionPlans",
+      params: {
+        selectedListingIds: [listing.id],
+        selectedListings: [listing],
+      },
+    });
   };
 
   // 模拟数据（你确认过的数字）
@@ -208,7 +217,7 @@ export default function ManageListingScreen() {
           </View>
           <TouchableOpacity
             style={styles.promoLinkWrapper}
-            onPress={() => navigation.navigate("Premium", promotionPlansRoute)}
+            onPress={handleOpenPromotionPlans}
           >
             <Text style={styles.promoLink}>Click To Get Boost</Text>
           </TouchableOpacity>
