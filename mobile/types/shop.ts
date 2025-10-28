@@ -29,6 +29,8 @@ export type ListingItem = {
   // 🔥 添加订单相关字段（仅对sold商品）
   orderStatus?: string | null;
   orderId?: number | null;
+  buyerId?: number | null;
+  sellerId?: number | null;
   conversationId?: string | null;
 };
 

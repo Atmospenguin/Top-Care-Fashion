@@ -3,12 +3,16 @@ import { View, Text } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import InboxScreen from "./InboxScreen";
 import ChatScreen from "./ChatScreen";
+import ViewYourReviewScreen from "./ViewYourReviewScreen";
+import MutualReviewScreen from "./MutualReviewScreen";
 import Header from "../../../components/Header";
 
 export type InboxStackParamList = {
   InboxMain: undefined;
   Chat: { sender: string; kind?: string; order?: any };
   LeaveReview: { orderId: string };
+  ViewYourReview: { orderId: number; reviewId?: number };
+  MutualReview: { orderId: number };
 };
 
 const Stack = createNativeStackNavigator<InboxStackParamList>();
@@ -36,6 +40,8 @@ export default function InboxStackNavigator() {
       />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="LeaveReview" component={LeaveReviewScreen} />
+      <Stack.Screen name="ViewYourReview" component={ViewYourReviewScreen} />
+      <Stack.Screen name="MutualReview" component={MutualReviewScreen} />
     </Stack.Navigator>
   );
 }

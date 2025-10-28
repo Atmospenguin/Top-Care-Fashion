@@ -21,6 +21,7 @@ import {
   SOLD_ORDERS as soldOrders,
   DEFAULT_SHIPPING_ADDRESS,
 } from "../../../mocks/shop";
+import { useAuth } from "../../../contexts/AuthContext";
 
 type Purchase = (typeof purchaseOrders)[number];
 type Sold = (typeof soldOrders)[number];
@@ -93,6 +94,7 @@ const formatBuyerPaymentDetails = (paymentDetails: any) => {
 export default function OrderDetailScreen() {
   const route = useRoute<RouteProp<MyTopStackParamList, "OrderDetail">>();
   const navigation = useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
+  const { user } = useAuth();
 
   const params = (route.params as { id?: string; source?: "purchase" | "sold"; conversationId?: string } | undefined) ?? {};
   const id = params.id;
@@ -101,7 +103,6 @@ export default function OrderDetailScreen() {
   
   console.log("🔍 OrderDetailScreen params:", params);
   console.log("🔍 OrderDetailScreen source:", source);
-  console.log("🔍 OrderDetailScreen isPurchase:", source === "purchase");
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -141,19 +142,19 @@ export default function OrderDetailScreen() {
           // Convert mock data to API format for compatibility
           const mockOrder: Order = {
             id: parseInt(foundOrder.id) || 1,
-            buyer_id: source === "purchase" ? 1 : 2,
-            seller_id: source === "purchase" ? 2 : 1,
+            buyer_id: source === "purchase" ? user?.id || 1 : (order?.buyer_id || 1),
+            seller_id: source === "purchase" ? (order?.seller_id || 2) : user?.id || 2,
             listing_id: 1,
             status: mapMockStatusToApiStatus(foundOrder.status),
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             buyer: {
-              id: source === "purchase" ? 1 : 2,
+              id: source === "purchase" ? user?.id || 1 : (order?.buyer_id || 1),
               username: source === "purchase" ? "You" : (foundOrder as Sold).buyer?.name || "Buyer",
               avatar_url: source === "purchase" ? undefined : (foundOrder as Sold).buyer?.avatar,
             },
             seller: {
-              id: source === "purchase" ? 2 : 1,
+              id: source === "purchase" ? (order?.seller_id || 2) : user?.id || 2,
               username: source === "purchase" ? (foundOrder as Purchase).seller?.name || "Seller" : "You",
               avatar_url: source === "purchase" ? (foundOrder as Purchase).seller?.avatar : undefined,
             },
@@ -205,21 +206,62 @@ export default function OrderDetailScreen() {
     );
   }
 
-  const isPurchase = source === "purchase";
-  
+  // 🔥 根据登录用户与订单信息判定视角
+  let isPurchase = false;
+  if (order) {
+    if (user?.id && order.buyer_id && user.id === order.buyer_id) {
+      isPurchase = true;
+    } else if (user?.id && order.seller_id && user.id === order.seller_id) {
+      isPurchase = false;
+    } else if (source === "purchase") {
+      isPurchase = true;
+    } else if (source === "sold") {
+      isPurchase = false;
+    }
+  } else {
+    isPurchase = source !== "sold";
+  }
+
+  console.log("========== OrderDetailScreen 视角判断 ==========");
+  console.log("🔍 Order ID:", order?.id);
+  console.log("🔍 Order status:", order?.status);
+  console.log("🔍 Current user:", { id: user?.id, username: user?.username });
+  console.log("🔍 Order buyer:", { id: order?.buyer_id, username: order?.buyer?.username });
+  console.log("🔍 Order seller:", { id: order?.seller_id, username: order?.seller?.username });
+  console.log("🔍 Source param:", source);
+  console.log("🔍 Result - isPurchase (买家视角):", isPurchase);
+  console.log("🔍 Result - isSeller (卖家视角):", !isPurchase);
+  console.log("===============================================");
+
   console.log("🔍 OrderDetailScreen order status:", order?.status);
   console.log("🔍 OrderDetailScreen should show TO_SHIP buttons:", !isPurchase && order?.status === "TO_SHIP");
 
   // 🔥 判断评论状态
   const getReviewStatus = () => {
-    if (!order?.reviews) return { hasReviews: false, isMutualComplete: false };
+    if (!order?.reviews || !user?.id) return { 
+      hasReviews: false, 
+      hasUserReviewed: false, 
+      hasOtherReviewed: false, 
+      isMutualComplete: false 
+    };
     
     const reviews = order.reviews;
+    const currentUserId = user.id;
     const hasBuyerReview = reviews.some(review => review.reviewer_id === order.buyer_id);
     const hasSellerReview = reviews.some(review => review.reviewer_id === order.seller_id);
     
+    // 判断当前用户是否已评论
+    const hasUserReviewed = reviews.some(review => review.reviewer_id === currentUserId);
+    
+    // 判断对方是否已评论
+    const hasOtherReviewed = isPurchase 
+      ? hasSellerReview  // 买家视角：对方是卖家
+      : hasBuyerReview;  // 卖家视角：对方是买家
+    
     return {
       hasReviews: reviews.length > 0,
+      hasUserReviewed,
+      hasOtherReviewed,
       hasBuyerReview,
       hasSellerReview,
       isMutualComplete: hasBuyerReview && hasSellerReview
@@ -295,23 +337,7 @@ export default function OrderDetailScreen() {
     try {
       const updatedOrder = await ordersService.markAsShipped(order.id);
       setOrder(updatedOrder);
-      
-      // 🔥 发送系统消息到 ChatScreen
-      if (conversationId) {
-        try {
-          console.log("🔍 OrderDetailScreen - Sending system message to conversationId:", conversationId);
-          await messagesService.sendMessage(conversationId, {
-            content: "Seller has shipped your parcel.", // 🔥 保持原消息，ChatScreen会动态转换
-            message_type: "SYSTEM"
-          });
-          console.log("✅ System message sent: Seller has shipped your parcel");
-        } catch (messageError) {
-          console.error("❌ Failed to send system message:", messageError);
-        }
-      } else {
-        console.log("❌ OrderDetailScreen - No conversationId available for system message");
-      }
-      
+
       Alert.alert("Order marked as shipped", "Your buyer will be notified.");
     } catch (error) {
       console.error("Error marking order as shipped:", error);
@@ -325,20 +351,6 @@ export default function OrderDetailScreen() {
     try {
       const updatedOrder = await ordersService.cancelOrder(order.id);
       setOrder(updatedOrder);
-      
-      // 🔥 发送系统消息到 ChatScreen - 根据用户角色发送不同视角的消息
-      if (conversationId) {
-        try {
-          // 卖家取消订单：发送操作者视角的消息
-          await messagesService.sendMessage(conversationId, {
-            content: "I've cancelled this order.", // 卖家视角：我取消了订单
-            message_type: "SYSTEM"
-          });
-          console.log("✅ System message sent: I've cancelled this order.");
-        } catch (messageError) {
-          console.error("❌ Failed to send system message:", messageError);
-        }
-      }
       
       Alert.alert("Order cancelled", "You have cancelled this order.");
     } catch (error) {
@@ -354,22 +366,6 @@ export default function OrderDetailScreen() {
       // 将订单状态更新为 DELIVERED（已送达）
       const updatedOrder = await ordersService.updateOrderStatus(order.id, { status: "DELIVERED" });
       setOrder(updatedOrder);
-      
-      // 🔥 发送系统消息到 ChatScreen
-      if (conversationId) {
-        try {
-          console.log("🔍 OrderDetailScreen - Sending Mark as Arrived system message to conversationId:", conversationId);
-          await messagesService.sendMessage(conversationId, {
-            content: "Parcel arrived. Waiting for buyer to confirm received.",
-            message_type: "SYSTEM"
-          });
-          console.log("✅ System message sent: Parcel arrived. Waiting for buyer to confirm received.");
-        } catch (messageError) {
-          console.error("❌ Failed to send Mark as Arrived system message:", messageError);
-        }
-      } else {
-        console.log("❌ OrderDetailScreen - No conversationId available for Mark as Arrived system message");
-      }
       
       Alert.alert("Package Arrived", "Your buyer has been notified that the package has arrived.");
     } catch (error) {
@@ -547,58 +543,124 @@ export default function OrderDetailScreen() {
             </View>
           )}
 
-          {/* 🟣 COMPLETED → Review */}
-          {order.status === "COMPLETED" && (
+          {/* 🟣 COMPLETED/REVIEWED → Review (根据评论状态显示不同按钮) */}
+          {(order.status === "COMPLETED" || order.status === "REVIEWED") && (
             <View style={styles.footer}>
-              <TouchableOpacity
-                style={styles.feedbackBtn}
-                onPress={() =>
-                  (navigation as any).navigate("Review", { orderId: order.id })
-                }
-              >
-                <Text style={styles.feedbackText}>Leave Review</Text>
-              </TouchableOpacity>
+              {reviewStatus.isMutualComplete ? (
+                // 两个人都评论了 -> View Mutual Review
+                <TouchableOpacity
+                  style={[styles.feedbackBtn, { backgroundColor: "#2d7ef0" }]}
+                  onPress={() => {
+                    let rootNav: any = navigation;
+                    while (rootNav.getParent && typeof rootNav.getParent === 'function') {
+                      const parent = rootNav.getParent();
+                      if (!parent) break;
+                      rootNav = parent;
+                    }
+                    try {
+                      rootNav.navigate("MutualReview", { orderId: order.id });
+                    } catch (err) {
+                      console.error("❌ Failed to navigate to MutualReview:", err);
+                    }
+                  }}
+                >
+                  <Text style={styles.feedbackText}>View Mutual Review</Text>
+                </TouchableOpacity>
+              ) : reviewStatus.hasUserReviewed ? (
+                // 只有我评论了 -> View Your Review
+                <TouchableOpacity
+                  style={styles.feedbackBtn}
+                  onPress={() => {
+                    let rootNav: any = navigation;
+                    while (rootNav.getParent && typeof rootNav.getParent === 'function') {
+                      const parent = rootNav.getParent();
+                      if (!parent) break;
+                      rootNav = parent;
+                    }
+                    try {
+                      rootNav.navigate("ViewReview", { orderId: order.id });
+                    } catch (err) {
+                      console.error("❌ Failed to navigate to ViewReview:", err);
+                    }
+                  }}
+                >
+                  <Text style={styles.feedbackText}>View Your Review</Text>
+                </TouchableOpacity>
+              ) : (
+                // 还没评论 -> Leave Review
+                <TouchableOpacity
+                  style={styles.feedbackBtn}
+                  onPress={() =>
+                    (navigation as any).navigate("Review", { orderId: order.id })
+                  }
+                >
+                  <Text style={styles.feedbackText}>Leave Review</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </>
       )}
 
-      {/* 🔥 COMPLETED 状态 - 根据评论状态显示不同按钮 */}
-      {!isPurchase && order.status === "COMPLETED" && (
+      {/* 🔥 COMPLETED/REVIEWED 状态 - 根据评论状态显示不同按钮 */}
+      {!isPurchase && (order.status === "COMPLETED" || order.status === "REVIEWED") && (
         <View style={styles.footer}>
-          {!reviewStatus.isMutualComplete ? (
-            // 还没有互评完成 - 显示 Leave Feedback 按钮
+          {reviewStatus.isMutualComplete ? (
+            // 两个人都评论了 -> View Mutual Review
+            <TouchableOpacity
+              style={[styles.feedbackBtn, { backgroundColor: "#2d7ef0" }]}
+              onPress={() => {
+                let rootNav: any = navigation;
+                while (rootNav.getParent && typeof rootNav.getParent === 'function') {
+                  const parent = rootNav.getParent();
+                  if (!parent) break;
+                  rootNav = parent;
+                }
+                try {
+                  rootNav.navigate("MutualReview", { orderId: order.id });
+                } catch (err) {
+                  console.error("❌ Failed to navigate to MutualReview:", err);
+                }
+              }}
+            >
+              <Text style={styles.feedbackText}>View Mutual Review</Text>
+            </TouchableOpacity>
+          ) : reviewStatus.hasUserReviewed ? (
+            // 只有我评论了 -> View Your Review
+            <TouchableOpacity
+              style={styles.feedbackBtn}
+              onPress={() => {
+                let rootNav: any = navigation;
+                while (rootNav.getParent && typeof rootNav.getParent === 'function') {
+                  const parent = rootNav.getParent();
+                  if (!parent) break;
+                  rootNav = parent;
+                }
+                try {
+                  rootNav.navigate("ViewReview", { orderId: order.id });
+                } catch (err) {
+                  console.error("❌ Failed to navigate to ViewReview:", err);
+                }
+              }}
+            >
+              <Text style={styles.feedbackText}>View Your Review</Text>
+            </TouchableOpacity>
+          ) : (
+            // 还没评论 -> Leave Review
             <TouchableOpacity
               style={styles.feedbackBtn}
               onPress={() =>
                 (navigation as any).navigate("Review", { orderId: order.id })
               }
             >
-              <Text style={styles.feedbackText}>Leave Feedback</Text>
-            </TouchableOpacity>
-          ) : (
-            // 互评完成 - 显示 View Mutual Review 按钮
-            <TouchableOpacity
-              style={[styles.feedbackBtn, { backgroundColor: "#2d7ef0" }]}
-              onPress={() => {
-                // 🔥 MutualReview 在 InboxStack 中，需要使用根导航
-                (navigation as any).navigate("Main", {
-                  screen: "Inbox",
-                  params: {
-                    screen: "MutualReview",
-                    params: { orderId: order.id }
-                  }
-                });
-              }}
-            >
-              <Text style={styles.feedbackText}>View Mutual Review</Text>
+              <Text style={styles.feedbackText}>Leave Review</Text>
             </TouchableOpacity>
           )}
         </View>
       )}
 
       {/* 卖家视图操作区 - 只有 IN_PROGRESS 状态（卖家视角的TO_SHIP） */}
-      {!isPurchase && order.status === "IN_PROGRESS" && (
+      {!isPurchase && ["IN_PROGRESS", "TO_SHIP"].includes(order.status) && (
         <View style={styles.footer}>
           <TouchableOpacity
             style={[styles.feedbackBtn, { backgroundColor: "black" }]}

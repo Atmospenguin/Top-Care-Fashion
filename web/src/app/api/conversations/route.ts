@@ -116,8 +116,16 @@ export async function GET(request: NextRequest) {
           let displayMessage = lastMessage.content;
           let displayTime = formatTime(lastMessage.created_at);
           
+          // 🔥 重要：检查 lastMessage 是否是系统消息
+          // 如果是用户发送的真实消息，就不要覆盖
+          const isLastMessageSystem = lastMessage.message_type === "SYSTEM";
+          const isLastMessageFromCurrentUser = lastMessage.sender_id === dbUser.id;
+          
+          // 只有当最后一条消息是系统消息，或者是来自对方的消息时，才考虑用订单状态覆盖
+          const shouldOverrideWithOrderStatus = isLastMessageSystem || !isLastMessageFromCurrentUser;
+          
           // 如果是订单对话，检查订单状态并生成相应的最新消息
-          if (kind === "order" && conv.listing) {
+          if (kind === "order" && conv.listing && shouldOverrideWithOrderStatus) {
             // 查询订单状态
             const order = await prisma.orders.findFirst({
               where: {
@@ -132,8 +140,39 @@ export async function GET(request: NextRequest) {
             
             if (order) {
               // 根据订单状态生成相应的最新消息
-              if (order.status === "COMPLETED") {
-                displayMessage = "How was your experience? Leave a review to help others discover great items.";
+              if (order.status === "REVIEWED") {
+                // 检查评论状态
+                const reviews = await prisma.reviews.findMany({
+                  where: { order_id: order.id }
+                });
+                
+                const hasBuyerReview = reviews.some(r => r.reviewer_id === order.buyer_id);
+                const hasSellerReview = reviews.some(r => r.reviewer_id === order.seller_id);
+                
+                if (hasBuyerReview && hasSellerReview) {
+                  displayMessage = "Both parties reviewed each other.";
+                } else if (hasBuyerReview || hasSellerReview) {
+                  displayMessage = "One party has left a review.";
+                } else {
+                  displayMessage = "How was your experience? Leave a review to help others discover great items.";
+                }
+                displayTime = formatTime(order.updated_at || order.created_at);
+              } else if (order.status === "COMPLETED") {
+                // 检查评论状态
+                const reviews = await prisma.reviews.findMany({
+                  where: { order_id: order.id }
+                });
+                
+                const hasBuyerReview = reviews.some(r => r.reviewer_id === order.buyer_id);
+                const hasSellerReview = reviews.some(r => r.reviewer_id === order.seller_id);
+                
+                if (hasBuyerReview && hasSellerReview) {
+                  displayMessage = "Both parties reviewed each other.";
+                } else if (hasBuyerReview || hasSellerReview) {
+                  displayMessage = "One party has left a review.";
+                } else {
+                  displayMessage = "How was your experience? Leave a review to help others discover great items.";
+                }
                 displayTime = formatTime(order.updated_at || order.created_at);
               } else if (order.status === "DELIVERED") {
                 displayMessage = "Parcel arrived. Waiting for buyer to confirm received.";

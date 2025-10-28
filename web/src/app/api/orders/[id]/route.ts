@@ -281,7 +281,14 @@ export async function PATCH(
     let canUpdate = false;
     
     if (status === 'CANCELLED') {
-      // Only buyer can cancel before shipping, seller can cancel anytime
+      // ✅ 状态机守卫：只能在 IN_PROGRESS 或 TO_SHIP 状态取消订单
+      if (!['IN_PROGRESS', 'TO_SHIP'].includes(existingOrder.status)) {
+        return NextResponse.json(
+          { error: 'Cannot cancel order after shipping' },
+          { status: 400 }
+        );
+      }
+      // Only buyer or seller can cancel before shipping
       canUpdate = existingOrder.buyer_id === currentUser.id || 
                   existingOrder.seller_id === currentUser.id;
     } else if (status === 'TO_SHIP' || status === 'SHIPPED') {
@@ -469,8 +476,9 @@ export async function PATCH(
       // 🔔 创建系统消息到对话中（如果找到 conversation）
       if (conversation) {
         try {
-          // 🔥 根据状态和用户角色生成不同的系统消息内容
+          // 🔥 根据状态生成统一的系统消息内容（前端会动态转换显示）
           let systemMessage = '';
+          let messageStatus = status;
           
           switch (status) {
             case 'SHIPPED':
@@ -480,9 +488,10 @@ export async function PATCH(
               systemMessage = 'Parcel arrived. Waiting for buyer to confirm received.';
               break;
             case 'RECEIVED':
-              systemMessage = isSeller 
-                ? '@Buyer confirmed received. Transaction completed.' 
-                : 'You confirmed received. Transaction completed successfully.';
+            case 'COMPLETED':
+              // ✅ 统一使用 COMPLETED 作为状态
+              systemMessage = 'Order confirmed received. Transaction completed.';
+              messageStatus = 'COMPLETED';
               break;
             case 'CANCELLED':
               systemMessage = '@User cancelled the order.';
@@ -493,13 +502,13 @@ export async function PATCH(
           
           if (systemMessage) {
             // 🔥 Use postSystemMessageOnce to prevent duplicates
-            const actorName = isSeller ? existingOrder.seller.username : existingOrder.buyer.username;
+            const actorName = currentUser.username;
             await postSystemMessageOnce({
               conversationId: conversation.id,
               senderId: currentUser.id,
               receiverId: targetUserId,
               orderId: orderId,
-              status: status,
+              status: messageStatus,
               content: systemMessage,
               actorName: actorName,
             });

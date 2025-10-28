@@ -421,9 +421,10 @@ export async function POST(request: NextRequest) {
       // 查找买家和卖家之间的对话
       let conversation = await prisma.conversations.findFirst({
         where: {
+          listing_id: listing.id,
           OR: [
-            { participant_1_id: currentUser.id, participant_2_id: sellerId, listing_id: listing.id },
-            { participant_1_id: sellerId, participant_2_id: currentUser.id, listing_id: listing.id }
+            { initiator_id: currentUser.id, participant_id: sellerId },
+            { initiator_id: sellerId, participant_id: currentUser.id }
           ]
         }
       });
@@ -432,8 +433,8 @@ export async function POST(request: NextRequest) {
       if (!conversation) {
         conversation = await prisma.conversations.create({
           data: {
-            participant_1_id: currentUser.id,
-            participant_2_id: sellerId,
+            initiator_id: currentUser.id,
+            participant_id: sellerId,
             listing_id: listing.id,
             type: 'ORDER'
           }

@@ -115,6 +115,8 @@ export async function GET(req: NextRequest) {
             status: true,
             created_at: true,
             updated_at: true,
+            buyer_id: true,
+            seller_id: true,
           },
           orderBy: { created_at: "desc" },
           take: 1, // 只取最新的订单
@@ -130,19 +132,28 @@ export async function GET(req: NextRequest) {
       listings.map(async (listing) => {
         let conversationId = null;
         if (status === "sold" && listing.orders?.[0]) {
-          // 通过 listing_id 和用户 ID 查找对应的 conversation
+          const latestOrder = listing.orders[0];
+
+          // 通过 listing_id 和订单参与双方查找对应 conversation，避免命中其他买家的对话
           const conversation = await prisma.conversations.findFirst({
             where: {
               listing_id: listing.id,
               OR: [
-                { initiator_id: user.id },
-                { participant_id: user.id }
-              ]
+                {
+                  initiator_id: latestOrder.buyer_id,
+                  participant_id: latestOrder.seller_id,
+                },
+                {
+                  initiator_id: latestOrder.seller_id,
+                  participant_id: latestOrder.buyer_id,
+                },
+              ],
             },
             select: {
-              id: true
-            }
+              id: true,
+            },
           });
+
           conversationId = conversation?.id?.toString() || null;
         }
         
@@ -179,6 +190,8 @@ export async function GET(req: NextRequest) {
       // 🔥 添加订单状态信息（仅对sold商品）
       orderStatus: status === "sold" && listing.orders?.[0] ? listing.orders[0].status : null,
       orderId: status === "sold" && listing.orders?.[0] ? listing.orders[0].id : null,
+      buyerId: status === "sold" && listing.orders?.[0] ? listing.orders[0].buyer_id : null,
+      sellerId: status === "sold" && listing.orders?.[0] ? listing.orders[0].seller_id : null,
       conversationId: listing.conversationId,
     }));
 
