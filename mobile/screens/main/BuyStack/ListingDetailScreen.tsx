@@ -25,7 +25,7 @@ import Avatar from "../../../components/Avatar";
 import ASSETS from "../../../constants/assetUrls";
 import type { BagItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
-import { likesService, cartService, messagesService } from "../../../src/services";
+import { likesService, cartService, messagesService, reportsService } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
@@ -76,6 +76,7 @@ export default function ListingDetailScreen() {
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [reportDetails, setReportDetails] = useState("");
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [isLoadingLike, setIsLoadingLike] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
@@ -315,7 +316,11 @@ export default function ListingDetailScreen() {
     setReportModalVisible(true);
   };
 
-  const handleSubmitReport = () => {
+  const handleSubmitReport = async () => {
+    if (!safeItem) {
+      Alert.alert("Error", "Unable to submit report for this listing. Please try again later.");
+      return;
+    }
     if (!selectedCategory) {
       Alert.alert("Notice", "Please select a report category");
       return;
@@ -324,22 +329,44 @@ export default function ListingDetailScreen() {
       Alert.alert("Notice", "Please fill in report details");
       return;
     }
-    
-    // TODO: Submit report to backend
-    Alert.alert(
-      "Report Submitted",
-      "Thank you for your feedback. We will review it shortly.",
-      [
-        {
-          text: "OK",
-          onPress: () => {
-            setReportModalVisible(false);
-            setSelectedCategory(null);
-            setReportDetails("");
+
+    try {
+      setIsSubmittingReport(true);
+      await reportsService.submitReport({
+        targetType: "listing",
+        targetId: String(safeItem.id ?? ""),
+        category: selectedCategory,
+        details: reportDetails,
+        reportedListingId: safeItem.id ?? undefined,
+        reportedUsername:
+          typeof safeItem.seller?.id !== "undefined"
+            ? String(safeItem.seller?.id)
+            : safeItem.seller?.name,
+      });
+      Alert.alert(
+        "Report Submitted",
+        "Thank you for your feedback. We will review it shortly.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              setReportModalVisible(false);
+              setSelectedCategory(null);
+              setReportDetails("");
+            },
           },
-        },
-      ]
-    );
+        ],
+      );
+    } catch (error) {
+      console.error("Error submitting report:", error);
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to submit report. Please try again.";
+      Alert.alert("Error", message);
+    } finally {
+      setIsSubmittingReport(false);
+    }
   };
 
   const handleCancelReport = () => {
@@ -476,10 +503,17 @@ export default function ListingDetailScreen() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.submitButton]}
+                  style={[
+                    styles.modalButton,
+                    styles.submitButton,
+                    isSubmittingReport ? { opacity: 0.6 } : undefined,
+                  ]}
                   onPress={handleSubmitReport}
+                  disabled={isSubmittingReport}
                 >
-                  <Text style={styles.submitButtonText}>Submit Report</Text>
+                  <Text style={styles.submitButtonText}>
+                    {isSubmittingReport ? "Submitting..." : "Submit Report"}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>

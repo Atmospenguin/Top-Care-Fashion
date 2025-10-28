@@ -14,6 +14,7 @@ export { NotificationHelper } from './notificationHelper';
 export { premiumService, type PremiumServiceType } from './premiumService';
 export { paymentMethodsService } from './paymentMethodsService';
 export { benefitsService, type BenefitsServiceType } from './benefitsService';
+export { reportsService } from './reportsService';
 
 // 导出类型
 export type { ApiResponse, ApiError } from '../config/api';

@@ -28,7 +28,7 @@ import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
 import { userService, type UserProfile } from "../../../src/services/userService";
 import { premiumService } from "../../../src/services";
-import { likesService, messagesService, type LikedListing } from "../../../src/services";
+import { likesService, messagesService, reportsService, type LikedListing } from "../../../src/services";
 import { authService } from "../../../src/services/authService";
 
 type UserProfileParam = RouteProp<BuyStackParamList, "UserProfile">;
@@ -175,6 +175,7 @@ export default function UserProfileScreen() {
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [reportDetails, setReportDetails] = useState("");
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
   // Shop Filter States (Applied filters)
   const [shopCategory, setShopCategory] = useState<string>("All");
@@ -645,7 +646,11 @@ export default function UserProfileScreen() {
     setReportModalVisible(true);
   };
 
-  const handleSubmitReport = () => {
+  const handleSubmitReport = async () => {
+    if (!userProfile) {
+      Alert.alert("Error", "Unable to submit report for this user. Please try again later.");
+      return;
+    }
     if (!selectedCategory) {
       Alert.alert("Notice", "Please select a report category");
       return;
@@ -654,22 +659,40 @@ export default function UserProfileScreen() {
       Alert.alert("Notice", "Please fill in report details");
       return;
     }
-    
-    // TODO: Submit report to backend
-    Alert.alert(
-      "Report Submitted",
-      "Thank you for your feedback. We will review it shortly.",
-      [
-        {
-          text: "OK",
-          onPress: () => {
-            setReportModalVisible(false);
-            setSelectedCategory(null);
-            setReportDetails("");
+
+    try {
+      setIsSubmittingReport(true);
+      await reportsService.submitReport({
+        targetType: "user",
+        targetId: String(userProfile.id ?? username ?? ""),
+        category: selectedCategory,
+        details: reportDetails,
+        reportedUsername: userProfile.username ?? username,
+      });
+      Alert.alert(
+        "Report Submitted",
+        "Thank you for helping keep our community safe.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              setReportModalVisible(false);
+              setSelectedCategory(null);
+              setReportDetails("");
+            },
           },
-        },
-      ]
-    );
+        ],
+      );
+    } catch (error) {
+      console.error("Error submitting user report:", error);
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to submit report. Please try again.";
+      Alert.alert("Error", message);
+    } finally {
+      setIsSubmittingReport(false);
+    }
   };
 
   const handleCancelReport = () => {
@@ -1398,10 +1421,17 @@ export default function UserProfileScreen() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.submitButton]}
+                  style={[
+                    styles.modalButton,
+                    styles.submitButton,
+                    isSubmittingReport ? { opacity: 0.6 } : undefined,
+                  ]}
                   onPress={handleSubmitReport}
+                  disabled={isSubmittingReport}
                 >
-                  <Text style={styles.submitButtonText}>Submit Report</Text>
+                  <Text style={styles.submitButtonText}>
+                    {isSubmittingReport ? "Submitting..." : "Submit Report"}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1635,11 +1665,14 @@ const styles = StyleSheet.create({
   color: "#999",
   },
   msgBtn: {
-    width: 44,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "transparent",
+  width: 44,
+  height: 34,
+  alignItems: "center",
+  justifyContent: "center",
+  backgroundColor: "#fff",
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: "#ddd",
   },
   disabledBtn: {
     opacity: 0.5,

@@ -25,6 +25,7 @@ export const API_CONFIG = {
     FEEDBACK: '/api/feedback',
     FAQ: '/api/faq',
     SITE_STATS: '/api/site-stats',
+    REPORTS: '/api/reports',
   },
   
   // 请求配置
