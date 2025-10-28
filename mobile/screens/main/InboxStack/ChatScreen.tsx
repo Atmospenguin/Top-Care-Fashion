@@ -246,183 +246,9 @@ export default function ChatScreen() {
           await loadConversationData();
         }
         
-        // 🔥 数据加载完成后，检查是否需要发送 "I've paid" 消息
-        setTimeout(() => {
-          // 🔥 检查是否需要发送 "I've paid" 消息
-          // 条件：1. 有订单 2. 订单状态是 IN_PROGRESS 3. 还没有发送过消息
-          if (order && order.status === "IN_PROGRESS") {
-            console.log("🔍 Order found with IN_PROGRESS status, checking for paid message");
-            
-            // 🔥 检查本地消息中是否已经有 "I've paid" 消息
-            const hasPaidMessage = items.some(item => 
-              item.type === "system" && 
-              item.sentByUser === true && 
-              item.text.includes("I've paid, waiting for you to ship")
-            );
-            
-            console.log("🔍 Has paid message:", hasPaidMessage);
-            
-            if (!hasPaidMessage) {
-              console.log("🔍 Sending 'I've paid' message");
-              
-              const paidMessage: ChatItem = {
-                id: `auto-paid-${Date.now()}`,
-                type: "system",
-                text: "I've paid, waiting for you to ship\nPlease pack the item and ship to the address I provided on TOP.",
-                sentByUser: true,
-                senderInfo: {
-                  id: user?.id || 0,
-                  username: user?.username || "Buyer",
-                  avatar: user?.avatar_url || ""
-                }, // 🔥 重新添加 senderInfo 字段
-                time: new Date().toLocaleTimeString()
-              };
-              
-              setItems(prev => mergeMessages(prev, [paidMessage]));
-              
-              // 🔥 异步发送消息到后端
-              const sendMessageToBackend = async () => {
-                if (conversationId) {
-                  try {
-                    await messagesService.sendMessage(conversationId, {
-                      content: paidMessage.text,
-                      message_type: "SYSTEM"
-                    });
-                    console.log("✅ 'I've paid' message sent to backend via focus listener");
-                  } catch (error) {
-                    console.error("❌ Failed to send 'I've paid' message to backend:", error);
-                  }
-                } else {
-                  console.log("⚠️ No conversationId, trying to create conversation and send message");
-                  
-                  // 🔥 尝试创建对话并发送消息
-                  try {
-                    // 如果有订单信息，尝试创建对话
-                    if (order && order.seller) {
-                      console.log("🔍 Creating conversation for order:", order.id);
-                      console.log("🔍 Seller:", order.seller);
-                      console.log("🔍 Buyer:", user);
-                      
-                      // 🔥 创建对话
-                      const sellerId = order.seller.id || order.seller.user_id;
-                      const listingId = order.listing_id || order.product?.listing_id;
-                      
-                      console.log("🔍 Seller ID:", sellerId);
-                      console.log("🔍 Listing ID:", listingId);
-                      
-                      if (!sellerId) {
-                        console.error("❌ No seller ID found in order:", order);
-                        return;
-                      }
-                      
-                      const newConversation = await messagesService.createConversation({
-                        participant_id: sellerId,
-                        listing_id: listingId,
-                        type: 'ORDER'
-                      });
-                      
-                      console.log("✅ New conversation created:", newConversation);
-                      
-                      // 🔥 发送消息到新创建的对话
-                      if (newConversation && newConversation.id) {
-                        console.log("🔍 Attempting to send message to conversation:", newConversation.id);
-                        console.log("🔍 Message content:", paidMessage.text);
-                        console.log("🔍 Message type: SYSTEM");
-                        
-                        try {
-                          const sentMessage = await messagesService.sendMessage(newConversation.id.toString(), {
-                            content: paidMessage.text,
-                            message_type: "SYSTEM"
-                          });
-                          console.log("✅ 'I've paid' message sent successfully:", sentMessage);
-                          
-                          // 🔥 更新 conversationId 状态
-                          console.log("🔍 Conversation ID updated to:", newConversation.id);
-                        } catch (sendError) {
-                          console.error("❌ Failed to send message to conversation:", sendError);
-                          console.error("❌ Send error details:", {
-                            conversationId: newConversation.id,
-                            messageContent: paidMessage.text,
-                            messageType: "SYSTEM"
-                          });
-                        }
-                      } else {
-                        console.error("❌ No conversation ID available for sending message");
-                        console.error("❌ New conversation data:", newConversation);
-                      }
-                    }
-                  } catch (error) {
-                    console.error("❌ Failed to create conversation:", error);
-                  }
-                }
-              };
-              
-              sendMessageToBackend();
-              
-              setTimeout(() => {
-                listRef.current?.scrollToEnd({ animated: true });
-              }, 100);
-            }
-          }
-          
-          // 🔥 检查是否需要发送其他状态变化的系统消息
-          if (order && conversationId) {
-            console.log("🔍 Checking for other order status changes, current status:", order.status);
-            console.log("🔍 Order object:", order);
-            console.log("🔍 Conversation object:", conversation);
-            console.log("🔍 User object:", user);
-            
-            // 🔥 检查本地消息中是否已经有对应状态的系统消息
-            const hasStatusMessage = items.some(item => 
-              item.type === "system" && 
-              item.text.includes("confirmed received") && 
-              item.text.includes("Transaction completed")
-            );
-            
-            console.log("🔍 Has status message for COMPLETED:", hasStatusMessage);
-            console.log("🔍 Current items:", items.map(item => ({ 
-              type: item.type, 
-              text: item.type === "system" || item.type === "msg" ? item.text : "N/A" 
-            })));
-            
-            // 🔥 如果订单状态是 COMPLETED 且没有对应的系统消息，生成并发送
-            if (order.status === "COMPLETED" && !hasStatusMessage) {
-              console.log("🔍 Order is COMPLETED, generating system message");
-              
-              // 🔥 判断当前用户是否为卖家
-              const isSeller = (conversation?.conversation as any)?.participant_id === user?.id;
-              console.log("🔍 isSeller:", isSeller);
-              console.log("🔍 conversation.participant_id:", (conversation?.conversation as any)?.participant_id);
-              console.log("🔍 user.id:", user?.id);
-              
-              // 🔥 使用 generateOrderSystemMessages 生成完整的系统消息（包括 review CTA）
-              const systemMessages = generateOrderSystemMessages(order, isSeller, true); // skipPaidMessage = true
-              console.log("🔍 Generated system messages:", systemMessages);
-              
-              // 🔥 添加系统消息到聊天列表
-              setItems(prev => mergeMessages(prev, systemMessages));
-              
-              // 🔥 异步发送消息到后端
-              const sendStatusMessageToBackend = async () => {
-                try {
-                  // 只发送主要的系统消息，不发送 review CTA（因为 CTA 是本地生成的）
-                  const mainMessage = systemMessages.find(msg => msg.type === "system");
-                  if (mainMessage) {
-                    await messagesService.sendMessage(conversationId, {
-                      content: mainMessage.text,
-                      message_type: "SYSTEM"
-                    });
-                    console.log("✅ Status message sent to backend:", mainMessage.text);
-                  }
-                } catch (error) {
-                  console.error("❌ Failed to send status message to backend:", error);
-                }
-              };
-              
-              sendStatusMessageToBackend();
-            }
-          }
-        }, 1000); // 🔥 延迟1秒确保数据加载完成
+        // ✅ 后端会自动创建订单状态相关的系统消息
+        // 前端只需要重新加载对话数据即可
+        console.log("✅ Conversation data reloaded, backend system messages will be displayed automatically");
       };
       
       reloadData();
@@ -1492,32 +1318,13 @@ export default function ChatScreen() {
                   });
                   setItems(updatedItems);
                   
-                  // 发送系统消息 - 买家视角
-                  const systemMessage: ChatItem = {
-                    id: `system-cancel-${Date.now()}`,
-                    type: "system",
-                    text: "I've cancelled this order.",
-                    time: new Date().toLocaleTimeString(),
-                    orderId: o.id,
-                    sentByUser: true,
-                    senderInfo: {
-                      id: user?.id || 0,
-                      username: user?.username || "",
-                      avatar: user?.avatar_url || ""
-                    }
-                  };
-                  setItems(prev => mergeMessages(prev, [systemMessage]));
-                  
-                  // 🔥 保存 Cancel 系统消息到数据库
+                  // ✅ 后端会自动创建系统消息，重新加载对话获取最新消息
                   if (conversationId) {
                     try {
-                      await messagesService.sendMessage(conversationId.toString(), {
-                        content: systemMessage.text,
-                        message_type: "SYSTEM"
-                      });
-                      console.log("✅ Cancel system message saved to database");
+                      await loadConversationData();
+                      console.log("✅ Reloaded conversation with backend system message");
                     } catch (error) {
-                      console.error("❌ Failed to save cancel system message:", error);
+                      console.error("❌ Failed to reload conversation:", error);
                     }
                   }
                   
@@ -1631,15 +1438,15 @@ export default function ChatScreen() {
         });
         setItems(updatedItems);
         
-        // 发送系统消息
-        const systemMessage: ChatItem = {
-          id: `system-shipped-${Date.now()}`,
-          type: "system",
-          text: `Order #${o.id} has been marked as shipped.`,
-          time: new Date().toLocaleTimeString(),
-          orderId: o.id
-        };
-        setItems(prev => mergeMessages(prev, [systemMessage]));
+        // ✅ 后端会自动创建系统消息，重新加载对话获取最新消息
+        if (conversationId) {
+          try {
+            await loadConversationData();
+            console.log("✅ Reloaded conversation with backend system message");
+          } catch (error) {
+            console.error("❌ Failed to reload conversation:", error);
+          }
+        }
         
         Alert.alert("Success", "Order has been marked as shipped.");
       } catch (error) {
@@ -1674,32 +1481,13 @@ export default function ChatScreen() {
                   });
                   setItems(updatedItems);
                   
-                  // 发送系统消息 - 卖家视角
-                  const systemMessage: ChatItem = {
-                    id: `system-cancel-sold-${Date.now()}`,
-                    type: "system",
-                    text: "I've cancelled this order.",
-                    time: new Date().toLocaleTimeString(),
-                    orderId: o.id,
-                    sentByUser: true,
-                    senderInfo: {
-                      id: user?.id || 0,
-                      username: user?.username || "",
-                      avatar: user?.avatar_url || ""
-                    }
-                  };
-                  setItems(prev => mergeMessages(prev, [systemMessage]));
-                  
-                  // 🔥 保存 Cancel 系统消息到数据库
+                  // ✅ 后端会自动创建系统消息，重新加载对话获取最新消息
                   if (conversationId) {
                     try {
-                      await messagesService.sendMessage(conversationId.toString(), {
-                        content: systemMessage.text,
-                        message_type: "SYSTEM"
-                      });
-                      console.log("✅ Cancel system message saved to database");
+                      await loadConversationData();
+                      console.log("✅ Reloaded conversation with backend system message");
                     } catch (error) {
-                      console.error("❌ Failed to save cancel system message:", error);
+                      console.error("❌ Failed to reload conversation:", error);
                     }
                   }
                   
