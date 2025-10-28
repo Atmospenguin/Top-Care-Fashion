@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma, parseJson } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { ConditionType, Prisma, TxStatus } from "@prisma/client";
 import { toNumber } from "@/lib/db";
@@ -100,7 +100,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
     brand: listing.brand ?? null,
     size: listing.size ?? null,
     conditionType: mapConditionOut(listing.condition_type),
-    tags: (listing.tags as unknown) ?? null,
+    tags: parseJson<string[]>(listing.tags) ?? [],
     createdAt: listing.created_at.toISOString(),
     soldAt: listing.sold_at ? listing.sold_at.toISOString() : null,
     sellerName: seller?.username ?? null,
@@ -143,7 +143,26 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   if (brand !== undefined) data.brand = brand ?? null;
   if (size !== undefined) data.size = size ?? null;
   if (conditionType !== undefined) data.condition_type = normalizeConditionIn(conditionType);
-  if (tags !== undefined) data.tags = tags ?? null;
+  if (tags !== undefined) {
+    if (Array.isArray(tags)) {
+      data.tags = tags.length ? JSON.stringify(tags) : null;
+    } else if (typeof tags === "string") {
+      const trimmed = tags.trim();
+      if (!trimmed) {
+        data.tags = null;
+      } else if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+        data.tags = trimmed;
+      } else {
+        const pieces = trimmed
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        data.tags = pieces.length ? JSON.stringify(pieces) : null;
+      }
+    } else {
+      data.tags = tags ?? null;
+    }
+  }
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });
@@ -185,7 +204,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       brand: listing.brand ?? null,
       size: listing.size ?? null,
       conditionType: mapConditionOut(listing.condition_type),
-      tags: (listing.tags as unknown) ?? null,
+      tags: parseJson<string[]>(listing.tags) ?? [],
       createdAt: listing.created_at.toISOString(),
     });
   } catch (error) {

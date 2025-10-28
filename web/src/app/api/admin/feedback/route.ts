@@ -28,7 +28,8 @@ export async function GET() {
 
   const feedbacks = (rows as any[]).map((feedback) => ({
     ...feedback,
-    id: Number(feedback.id),
+    id: String(feedback.id),
+    userId: feedback.userId !== undefined && feedback.userId !== null ? String(feedback.userId) : undefined,
     rating: toNumber(feedback.rating),
     tags: parseJson<TagList>(feedback.tags) ?? [],
     featured: toBoolean(feedback.featured),
