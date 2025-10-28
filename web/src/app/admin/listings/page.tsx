@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthContext";
 import type { Listing } from "@/types/admin";
 import Link from "next/link";
@@ -8,7 +8,34 @@ import Link from "next/link";
 type EditingListing = Listing;
 
 type ViewMode = "grid" | "table";
-type FilterType = "all" | "listed" | "unlisted";
+type FilterType = "all" | "listed" | "unlisted" | "sold";
+type SortOption =
+  | "date-desc"
+  | "date-asc"
+  | "price-desc"
+  | "price-asc"
+  | "name-asc"
+  | "name-desc";
+
+function getPrimaryImage(listing: Listing): string | null {
+  if (listing.imageUrl) return listing.imageUrl;
+  if (listing.imageUrls && listing.imageUrls.length > 0) {
+    return listing.imageUrls.find((url) => Boolean(url)) ?? listing.imageUrls[0] ?? null;
+  }
+  return null;
+}
+
+function formatCurrency(amount: number | null | undefined): string {
+  if (amount === null || amount === undefined || Number.isNaN(amount)) return "$0.00";
+  return `$${Number(amount).toFixed(2)}`;
+}
+
+function formatDate(value?: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString();
+}
 
 function getTxColor(status?: string) {
   switch (status) {
@@ -35,8 +62,19 @@ export default function ListingManagementPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [filter, setFilter] = useState<FilterType>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortOption, setSortOption] = useState<SortOption>("date-desc");
 
   const isAdmin = user?.actor === "Admin";
+
+  const stats = useMemo(() => {
+    const listedCount = items.filter((item) => item.listed).length;
+    const soldCount = items.filter((item) => item.sold).length;
+    return {
+      total: items.length,
+      listed: listedCount,
+      sold: soldCount,
+    };
+  }, [items]);
 
   const loadListings = useCallback(async () => {
     try {
@@ -68,11 +106,63 @@ export default function ListingManagementPage() {
   }, [loadListings]);
   // Editing moved to Listing Details page; no inline edit via query string.
 
-  const filteredItems = items.filter(item => {
-    if (filter !== "all" && item.listed !== (filter === "listed")) return false;
-    if (searchTerm && !item.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-    return true;
-  });
+  const filteredItems = useMemo(() => {
+    const normalized = searchTerm.trim().toLowerCase();
+    return items.filter((item) => {
+      if (filter === "listed" && !item.listed) return false;
+      if (filter === "unlisted" && item.listed) return false;
+      if (filter === "sold" && !item.sold) return false;
+
+      if (normalized) {
+        const matchesFields = [
+          item.name,
+          item.brand,
+          item.sellerName,
+          item.description,
+          item.categoryId,
+        ].some((field) => typeof field === "string" && field.toLowerCase().includes(normalized));
+
+        const matchesTags = item.tags?.some((tag) => tag.toLowerCase().includes(normalized));
+
+        if (!matchesFields && !matchesTags) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [items, filter, searchTerm]);
+
+  const sortedItems = useMemo(() => {
+    const sorted = [...filteredItems];
+    switch (sortOption) {
+      case "price-desc":
+        sorted.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+        break;
+      case "price-asc":
+        sorted.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+        break;
+      case "name-asc":
+        sorted.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+        break;
+      case "name-desc":
+        sorted.sort((a, b) => (b.name || "").localeCompare(a.name || ""));
+        break;
+      case "date-asc":
+        sorted.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        break;
+      case "date-desc":
+      default:
+        sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
+    }
+    return sorted;
+  }, [filteredItems, sortOption]);
+
+  const applyTagFilter = (tag: string) => {
+    setFilter("all");
+    setSearchTerm(tag);
+  };
 
   const deleteListing = async (id: string) => {
     if (!confirm('Are you sure you want to delete this listing?')) return;
@@ -142,31 +232,39 @@ export default function ListingManagementPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Listing Management</h1>
           <p className="text-sm text-gray-600 mt-1">
-            {filteredItems.length} of {items.length} listings
+            Showing {sortedItems.length} of {stats.total} listings
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+          <dl className="flex items-center gap-4 text-sm text-gray-600">
+            <div>
+              <dt className="uppercase text-xs tracking-wide">Listed</dt>
+              <dd className="font-semibold text-gray-900">{stats.listed}</dd>
+            </div>
+            <div>
+              <dt className="uppercase text-xs tracking-wide">Sold</dt>
+              <dd className="font-semibold text-gray-900">{stats.sold}</dd>
+            </div>
+          </dl>
           {isAdmin && (
-            <>
-              <div className="flex border rounded-md">
-                <button
-                  onClick={() => setViewMode("grid")}
-                  className={`px-3 py-1 text-sm ${viewMode === "grid" ? "bg-gray-100" : ""}`}
-                >
-                  Grid
-                </button>
-                <button
-                  onClick={() => setViewMode("table")}
-                  className={`px-3 py-1 text-sm ${viewMode === "table" ? "bg-gray-100" : ""}`}
-                >
-                  Table
-                </button>
-              </div>
-            </>
+            <div className="flex border rounded-md self-start">
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`px-3 py-1 text-sm ${viewMode === "grid" ? "bg-gray-100" : ""}`}
+              >
+                Grid
+              </button>
+              <button
+                onClick={() => setViewMode("table")}
+                className={`px-3 py-1 text-sm ${viewMode === "table" ? "bg-gray-100" : ""}`}
+              >
+                Table
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -182,7 +280,7 @@ export default function ListingManagementPage() {
             className="w-full px-3 py-2 border rounded-md"
           />
         </div>
-        <div>
+        <div className="flex gap-2">
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as FilterType)}
@@ -192,6 +290,20 @@ export default function ListingManagementPage() {
             <option value="all">All Listings</option>
             <option value="listed">Listed Only</option>
             <option value="unlisted">Unlisted Only</option>
+            <option value="sold">Sold</option>
+          </select>
+          <select
+            value={sortOption}
+            onChange={(e) => setSortOption(e.target.value as SortOption)}
+            className="px-3 py-2 border rounded-md"
+            title="Sort listings"
+          >
+            <option value="date-desc">Newest first</option>
+            <option value="date-asc">Oldest first</option>
+            <option value="price-desc">Price: high to low</option>
+            <option value="price-asc">Price: low to high</option>
+            <option value="name-asc">Name: A → Z</option>
+            <option value="name-desc">Name: Z → A</option>
           </select>
         </div>
       </div>
@@ -199,25 +311,28 @@ export default function ListingManagementPage() {
       {/* Content */}
       {viewMode === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredItems.map((listing) => (
+          {sortedItems.map((listing) => (
             <ListingCard
               key={listing.id}
               listing={listing}
               isAdmin={isAdmin}
               onDelete={deleteListing}
               onToggleListing={toggleListing}
+              onTagFilter={applyTagFilter}
             />
           ))}
         </div>
       ) : (
         <ListingTable
-          listings={filteredItems}
+          listings={sortedItems}
           isAdmin={isAdmin}
           onDelete={deleteListing}
+          onToggleListing={toggleListing}
+          onTagFilter={applyTagFilter}
         />
       )}
 
-      {filteredItems.length === 0 && (
+      {sortedItems.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           {searchTerm || filter !== "all" 
             ? "No listings match your search criteria."
@@ -233,77 +348,153 @@ export default function ListingManagementPage() {
 }
 
 // Components
-function ListingCard({ 
-  listing, 
-  isAdmin, 
-  onDelete, 
-  onToggleListing, 
+function ListingCard({
+  listing,
+  isAdmin,
+  onDelete,
+  onToggleListing,
+  onTagFilter,
 }: {
   listing: EditingListing;
   isAdmin: boolean;
   onDelete: (id: string) => void;
   onToggleListing: (id: string, listed: boolean) => void;
+  onTagFilter?: (tag: string) => void;
 }) {
+  const coverImage = getPrimaryImage(listing);
+  const gallery = (listing.imageUrls ?? [])
+    .filter((url) => Boolean(url) && url !== coverImage)
+    .slice(0, 4);
+  const totalImages = (listing.imageUrls?.filter((url) => Boolean(url)).length ?? 0) - (coverImage ? 1 : 0);
+  const remainingImages = Math.max(0, totalImages - gallery.length);
+
   return (
     <div className="bg-white border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-      {listing.imageUrl && (
-        <div className="aspect-square overflow-hidden">
-          <img 
-            src={listing.imageUrl} 
-            alt={listing.name}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-        </div>
-      )}
-      
-      <div className="p-4">
-        <div className="flex items-start justify-between mb-2">
-          <h3 className="font-medium text-sm truncate flex-1">{listing.name}</h3>
-          <div className="flex items-center gap-2">
-            {listing.txStatus && (
-              <span className={`px-2 py-1 text-xs rounded-full ${getTxColor(listing.txStatus)}`}>
-                {listing.txStatus}
+      <div className="relative">
+        {coverImage ? (
+          <div className="aspect-square overflow-hidden">
+            <img
+              src={coverImage}
+              alt={listing.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          </div>
+        ) : (
+          <div className="aspect-square bg-gray-100 flex items-center justify-center text-gray-400 text-sm">
+            No image available
+          </div>
+        )}
+
+        <div className="absolute inset-x-0 top-3 flex justify-between px-3 pointer-events-none">
+          <div className="flex flex-wrap gap-2">
+            <span
+              className={`px-2 py-1 text-xs rounded-full ${
+                listing.listed ? "bg-green-100 text-green-800" : "bg-gray-200 text-gray-700"
+              }`}
+            >
+              {listing.listed ? "Listed" : "Unlisted"}
+            </span>
+            {listing.sold && (
+              <span className="px-2 py-1 text-xs rounded-full bg-red-600 text-white shadow">
+                Sold
               </span>
             )}
-            <span className={`px-2 py-1 text-xs rounded-full ${
-              listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-            }`}>
-              {listing.listed ? 'Listed' : 'Unlisted'}
-            </span>
           </div>
-        </div>
-        
-        <p className="text-2xl font-bold text-[var(--brand-color)] mb-2">
-          ${listing.price?.toFixed(2)}
-        </p>
-        
-        <div className="text-xs text-gray-600 space-y-1">
-          {listing.brand && <div>Brand: {listing.brand}</div>}
-          {listing.size && <div>Size: {listing.size}</div>}
-          {listing.conditionType && (
-            <div>Condition: {listing.conditionType.replace('_', ' ')}</div>
+          {listing.txStatus && (
+            <span className={`px-2 py-1 text-xs rounded-full ${getTxColor(listing.txStatus)}`}>
+              {listing.txStatus}
+            </span>
           )}
         </div>
+      </div>
 
-        {/* Seller Information */}
+      {gallery.length > 0 && (
+        <div className="flex gap-2 px-4 pt-3 overflow-x-auto">
+          {gallery.map((url, index) => (
+            <img
+              key={`${listing.id}-gallery-${index}`}
+              src={url}
+              alt={`${listing.name} preview ${index + 1}`}
+              className="h-12 w-12 rounded object-cover border"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          ))}
+          {remainingImages > 0 && (
+            <div className="h-12 w-12 rounded border border-dashed border-gray-300 flex items-center justify-center text-xs text-gray-500">
+              +{remainingImages}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h3 className="font-medium text-sm truncate">{listing.name}</h3>
+            <div className="mt-1 text-xs text-gray-600 space-x-2">
+              {listing.brand && <span>Brand: {listing.brand}</span>}
+              {listing.size && <span>Size: {listing.size}</span>}
+            </div>
+            {listing.conditionType && (
+              <div className="text-xs text-gray-500">
+                Condition: {listing.conditionType.replace("_", " ")}
+              </div>
+            )}
+          </div>
+          <div className="text-right">
+            <div className="text-xl font-bold text-[var(--brand-color)]">
+              {formatCurrency(listing.price)}
+            </div>
+            {listing.sold && (
+              <div className="text-xs text-gray-500">Sold {formatDate(listing.soldAt)}</div>
+            )}
+          </div>
+        </div>
+
         {listing.sellerId && (
-          <div className="mt-2 flex items-center space-x-2">
-            <span className="text-xs text-gray-500">Seller:</span>
+          <div className="flex items-center gap-2 text-xs text-gray-600">
+            <span className="text-gray-500">Seller:</span>
             <Link
               href={`/admin/users/${listing.sellerId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-blue-600 hover:text-blue-800 underline"
+              className="text-blue-600 hover:text-blue-800"
             >
               {listing.sellerName || `User ${listing.sellerId}`}
             </Link>
           </div>
         )}
 
-        <div className="flex gap-2 mt-4">
+        <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+          <div>
+            <div className="text-gray-400">Created</div>
+            <div className="font-medium text-gray-700">{formatDate(listing.createdAt)}</div>
+          </div>
+          <div>
+            <div className="text-gray-400">Sold</div>
+            <div className="font-medium text-gray-700">{formatDate(listing.soldAt)}</div>
+          </div>
+        </div>
+
+        {listing.tags && listing.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {listing.tags.map((tag) => (
+              <button
+                key={`${listing.id}-tag-${tag}`}
+                type="button"
+                onClick={() => onTagFilter?.(tag)}
+                className="px-2 py-1 text-xs rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700"
+              >
+                #{tag}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-2">
           <Link
             href={`/admin/listings/${listing.id}`}
             className="flex-1 px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded text-center"
@@ -315,12 +506,12 @@ function ListingCard({
               <button
                 onClick={() => onToggleListing(listing.id, listing.listed)}
                 className={`px-3 py-1 text-xs rounded ${
-                  listing.listed 
-                    ? 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800' 
-                    : 'bg-green-100 hover:bg-green-200 text-green-800'
+                  listing.listed
+                    ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800"
+                    : "bg-green-100 hover:bg-green-200 text-green-800"
                 }`}
               >
-                {listing.listed ? 'Unlist' : 'List'}
+                {listing.listed ? "Unlist" : "List"}
               </button>
               <button
                 onClick={() => onDelete(listing.id)}
@@ -336,14 +527,18 @@ function ListingCard({
   );
 }
 
-function ListingTable({ 
-  listings, 
-  isAdmin, 
-  onDelete 
+function ListingTable({
+  listings,
+  isAdmin,
+  onDelete,
+  onToggleListing,
+  onTagFilter,
 }: {
   listings: EditingListing[];
   isAdmin: boolean;
   onDelete: (id: string) => void;
+  onToggleListing: (id: string, listed: boolean) => void;
+  onTagFilter?: (tag: string) => void;
 }) {
   return (
     <div className="bg-white border rounded-lg overflow-hidden">
@@ -351,11 +546,12 @@ function ListingTable({
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Listing</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Seller</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Brand</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condition</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sold</th>
               {isAdmin && <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>}
             </tr>
           </thead>
@@ -366,6 +562,8 @@ function ListingTable({
                 listing={listing}
                 isAdmin={isAdmin}
                 onDelete={onDelete}
+                onToggleListing={onToggleListing}
+                onTagFilter={onTagFilter}
               />
             ))}
           </tbody>
@@ -375,61 +573,120 @@ function ListingTable({
   );
 }
 
-function ListingTableRow({ 
-  listing, 
-  isAdmin, 
-  onDelete, 
+function ListingTableRow({
+  listing,
+  isAdmin,
+  onDelete,
+  onToggleListing,
+  onTagFilter,
 }: {
   listing: EditingListing;
   isAdmin: boolean;
   onDelete: (id: string) => void;
+  onToggleListing: (id: string, listed: boolean) => void;
+  onTagFilter?: (tag: string) => void;
 }) {
+  const coverImage = getPrimaryImage(listing);
+
   return (
     <tr>
-      <td className="px-4 py-3">
-        <div className="flex items-center">
-          {listing.imageUrl && (
-            <img 
-              src={listing.imageUrl} 
+      <td className="px-4 py-3 align-top">
+        <div className="flex items-start gap-3">
+          {coverImage && (
+            <img
+              src={coverImage}
               alt={listing.name}
-              className="w-8 h-8 rounded object-cover mr-3"
+              className="w-12 h-12 rounded object-cover border"
               onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
+                (e.target as HTMLImageElement).style.display = "none";
               }}
             />
           )}
-          <span className="text-sm font-medium">{listing.name}</span>
+          <div className="min-w-0">
+            <Link
+              href={`/admin/listings/${listing.id}`}
+              className="text-sm font-medium text-blue-600 hover:text-blue-800 block truncate"
+            >
+              {listing.name}
+            </Link>
+            <div className="mt-1 text-xs text-gray-500 space-x-2">
+              {listing.brand && <span>Brand: {listing.brand}</span>}
+              {listing.size && <span>Size: {listing.size}</span>}
+              {listing.conditionType && <span>{listing.conditionType.replace("_", " ")}</span>}
+            </div>
+            {listing.tags && listing.tags.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {listing.tags.slice(0, 4).map((tag) => (
+                  <button
+                    key={`${listing.id}-table-tag-${tag}`}
+                    type="button"
+                    onClick={() => onTagFilter?.(tag)}
+                    className="px-2 py-0.5 text-[11px] rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700"
+                  >
+                    #{tag}
+                  </button>
+                ))}
+                {listing.tags.length > 4 && (
+                  <span className="text-[11px] text-gray-400">+{listing.tags.length - 4}</span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </td>
-      <td className="px-4 py-3 text-sm">${listing.price?.toFixed(2)}</td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-2">
+      <td className="px-4 py-3 align-top text-sm">
+        {listing.sellerId ? (
+          <Link href={`/admin/users/${listing.sellerId}`} className="text-blue-600 hover:text-blue-800">
+            {listing.sellerName || `User ${listing.sellerId}`}
+          </Link>
+        ) : (
+          "—"
+        )}
+      </td>
+      <td className="px-4 py-3 align-top text-sm font-medium">{formatCurrency(listing.price)}</td>
+      <td className="px-4 py-3 align-top text-sm">
+        <div className="flex flex-wrap gap-1">
+          <span
+            className={`px-2 py-0.5 text-xs rounded-full ${
+              listing.listed ? "bg-green-100 text-green-800" : "bg-gray-200 text-gray-700"
+            }`}
+          >
+            {listing.listed ? "Listed" : "Unlisted"}
+          </span>
+          {listing.sold && (
+            <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700">Sold</span>
+          )}
           {listing.txStatus && (
-            <span className={`px-2 py-1 text-xs rounded-full ${getTxColor(listing.txStatus)}`}>
+            <span className={`px-2 py-0.5 text-xs rounded-full ${getTxColor(listing.txStatus)}`}>
               {listing.txStatus}
             </span>
           )}
-          <span className={`px-2 py-1 text-xs rounded-full ${
-            listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-          }`}>
-            {listing.listed ? 'Listed' : 'Unlisted'}
-          </span>
         </div>
       </td>
-      <td className="px-4 py-3 text-sm">{listing.brand || '-'}</td>
-      <td className="px-4 py-3 text-sm capitalize">{listing.conditionType?.replace('_', ' ') || 'Good'}</td>
+      <td className="px-4 py-3 align-top text-sm text-gray-600">{formatDate(listing.createdAt)}</td>
+      <td className="px-4 py-3 align-top text-sm text-gray-600">{formatDate(listing.soldAt)}</td>
       {isAdmin && (
-        <td className="px-4 py-3">
-          <div className="flex gap-3">
+        <td className="px-4 py-3 align-top text-sm">
+          <div className="flex flex-wrap gap-2">
             <Link
               href={`/admin/listings/${listing.id}`}
-              className="text-gray-600 hover:text-gray-800 text-sm"
+              className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded"
             >
               Details
             </Link>
             <button
+              onClick={() => onToggleListing(listing.id, listing.listed)}
+              className={`px-2 py-1 text-xs rounded ${
+                listing.listed
+                  ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800"
+                  : "bg-green-100 hover:bg-green-200 text-green-800"
+              }`}
+            >
+              {listing.listed ? "Unlist" : "List"}
+            </button>
+            <button
               onClick={() => onDelete(listing.id)}
-              className="text-red-600 hover:text-red-800 text-sm"
+              className="px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-800 rounded"
             >
               Delete
             </button>
@@ -439,4 +696,3 @@ function ListingTableRow({
     </tr>
   );
 }
-

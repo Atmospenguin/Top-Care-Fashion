@@ -48,6 +48,36 @@ function mapTxStatus(value: TxStatus | null | undefined):
   return value.toString().toLowerCase() as any;
 }
 
+function ensureStringArray(value: unknown): string[] {
+  if (!value) return [];
+  const parsed = Array.isArray(value) ? (value as unknown[]) : parseJson<string[]>(value);
+  if (!parsed || !Array.isArray(parsed)) return [];
+  return parsed.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function normalizeJsonInput(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (Array.isArray(value)) {
+    const cleaned = value.filter((item): item is string => typeof item === "string" && item.length > 0);
+    return cleaned;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item: unknown): item is string => typeof item === "string" && item.length > 0);
+      }
+      return parsed;
+    } catch {
+      return trimmed;
+    }
+  }
+  return value;
+}
+
 export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const params = await context.params;
   const admin = await requireAdmin();
@@ -96,11 +126,11 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
     sold: Boolean(listing.sold),
     price: toNumber(listing.price) ?? 0,
     imageUrl: listing.image_url ?? null,
-    imageUrls: (listing.image_urls as unknown) ?? null,
+    imageUrls: ensureStringArray(listing.image_urls),
     brand: listing.brand ?? null,
     size: listing.size ?? null,
     conditionType: mapConditionOut(listing.condition_type),
-    tags: parseJson<string[]>(listing.tags) ?? [],
+    tags: ensureStringArray(listing.tags),
     createdAt: listing.created_at.toISOString(),
     soldAt: listing.sold_at ? listing.sold_at.toISOString() : null,
     sellerName: seller?.username ?? null,
@@ -139,7 +169,12 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   if (listed !== undefined) data.listed = Boolean(listed);
   if (price !== undefined) data.price = Number(price);
   if (imageUrl !== undefined) data.image_url = imageUrl ?? null;
-  if (imageUrls !== undefined) data.image_urls = imageUrls ?? null;
+  if (imageUrls !== undefined) {
+    const normalized = normalizeJsonInput(imageUrls);
+    if (normalized !== undefined) {
+      data.image_urls = normalized;
+    }
+  }
   if (brand !== undefined) data.brand = brand ?? null;
   if (size !== undefined) data.size = size ?? null;
   if (conditionType !== undefined) data.condition_type = normalizeConditionIn(conditionType);
@@ -187,6 +222,8 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
         condition_type: true,
         tags: true,
         created_at: true,
+        sold: true,
+        sold_at: true,
       },
     });
     if (!listing) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -199,13 +236,15 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       sellerId: listing.seller_id ? String(listing.seller_id) : null,
       price: toNumber(listing.price) ?? 0,
       listed: Boolean(listing.listed),
+      sold: Boolean(listing.sold),
       imageUrl: listing.image_url ?? null,
-      imageUrls: (listing.image_urls as unknown) ?? null,
+      imageUrls: ensureStringArray(listing.image_urls),
       brand: listing.brand ?? null,
       size: listing.size ?? null,
       conditionType: mapConditionOut(listing.condition_type),
-      tags: parseJson<string[]>(listing.tags) ?? [],
+      tags: ensureStringArray(listing.tags),
       createdAt: listing.created_at.toISOString(),
+      soldAt: listing.sold_at ? listing.sold_at.toISOString() : null,
     });
   } catch (error) {
     console.error("Error updating listing:", error);

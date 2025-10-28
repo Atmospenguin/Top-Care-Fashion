@@ -15,6 +15,7 @@ type DbUser = {
   average_rating: unknown;
   total_reviews: unknown;
   createdAt: Date | string;
+  avatar_url?: string | null;
 };
 
 function mapRoleOut(value: unknown): "User" | "Admin" {
@@ -89,6 +90,7 @@ function formatUser(row: DbUser) {
     average_rating: toNumber(row.average_rating),
     total_reviews: toNumber(row.total_reviews) ?? 0,
     createdAt: toIso(row.createdAt) ?? new Date().toISOString(),
+    avatar_url: row.avatar_url ?? null,
   };
 }
 
@@ -98,7 +100,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const conn = await getConnection();
   const [rows]: any = await conn.execute(
-    "SELECT id, username, email, status, role, is_premium, premium_until, dob, gender, average_rating, total_reviews, created_at AS \"createdAt\" FROM users WHERE id = ?",
+    "SELECT id, username, email, status, role, is_premium, premium_until, dob, gender, average_rating, total_reviews, avatar_url, created_at AS \"createdAt\" FROM users WHERE id = ?",
     [Number(params.id)]
   );
   await conn.end();
@@ -124,7 +126,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       const conn = await getConnection();
       await conn.execute("UPDATE users SET status = ? WHERE id = ?", [normalized, userId]);
       const [rows]: any = await conn.execute(
-        "SELECT id, username, email, status, role, is_premium, premium_until, dob, gender, average_rating, total_reviews, created_at AS \"createdAt\" FROM users WHERE id = ?",
+        "SELECT id, username, email, status, role, is_premium, premium_until, dob, gender, average_rating, total_reviews, avatar_url, created_at AS \"createdAt\" FROM users WHERE id = ?",
         [userId]
       );
       await conn.end();
@@ -169,7 +171,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     await conn.execute(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, values);
 
     const [rows]: any = await conn.execute(
-      "SELECT id, username, email, status, role, is_premium, premium_until, dob, gender, average_rating, total_reviews, created_at AS \"createdAt\" FROM users WHERE id = ?",
+      "SELECT id, username, email, status, role, is_premium, premium_until, dob, gender, average_rating, total_reviews, avatar_url, created_at AS \"createdAt\" FROM users WHERE id = ?",
       [userId]
     );
     await conn.end();

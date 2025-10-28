@@ -5,6 +5,33 @@ import { useParams, useRouter } from "next/navigation";
 import type { Listing } from "@/types/admin";
 import Link from "next/link";
 
+function toImageArray(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.filter((url): url is string => typeof url === "string" && url.trim().length > 0);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return Array.isArray(parsed)
+          ? parsed.filter((url: unknown): url is string => typeof url === "string" && url.trim().length > 0)
+          : [];
+      } catch {
+        return [];
+      }
+    }
+    return [trimmed];
+  }
+  if (typeof value === "object" && value !== null) {
+    const maybeArray = (value as { imageUrls?: unknown }).imageUrls;
+    return toImageArray(maybeArray);
+  }
+  return [];
+}
+
 export default function ListingDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -32,17 +59,27 @@ export default function ListingDetailPage() {
         const res = await fetch(`/api/admin/listings/${listingId}`, { cache: "no-store" });
         if (res.ok) {
           const listingData = await res.json();
-          setListing(listingData);
+          const normalizedImages = toImageArray(listingData.imageUrls ?? listingData.imageUrl ?? listingData.image_url);
+          const normalizedListing: Listing = {
+            ...listingData,
+            imageUrls: normalizedImages,
+            imageUrl: listingData.imageUrl ?? listingData.image_url ?? normalizedImages[0] ?? null,
+          };
+          setListing(normalizedListing);
           setForm({
-            name: listingData.name || "",
-            description: listingData.description || "",
-            price: Number(listingData.price) || 0,
-            brand: listingData.brand || "",
-            size: listingData.size || "",
-            conditionType: listingData.conditionType || 'good',
-            imageUrl: listingData.imageUrl || "",
-            listed: !!listingData.listed,
-            tags: Array.isArray(listingData.tags) ? listingData.tags : (listingData.tags ? [String(listingData.tags)] : []),
+            name: normalizedListing.name || "",
+            description: normalizedListing.description || "",
+            price: Number(normalizedListing.price) || 0,
+            brand: normalizedListing.brand || "",
+            size: normalizedListing.size || "",
+            conditionType: normalizedListing.conditionType || "good",
+            imageUrl: normalizedListing.imageUrl || "",
+            listed: !!normalizedListing.listed,
+            tags: Array.isArray(normalizedListing.tags)
+              ? normalizedListing.tags
+              : normalizedListing.tags
+              ? [String(normalizedListing.tags)]
+              : [],
           });
         } else if (res.status === 404) {
           setError("Listing not found");
@@ -95,6 +132,10 @@ export default function ListingDetailPage() {
     );
   }
 
+  const images = toImageArray(listing.imageUrls);
+  const coverImage = listing.imageUrl || images[0] || null;
+  const gallery = coverImage ? images.filter((url) => url !== coverImage) : images;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -107,11 +148,16 @@ export default function ListingDetailPage() {
                 {listing.txStatus}
               </span>
             )}
-            <span className={`px-2 py-0.5 text-xs rounded-full ${
-              listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-            }`}>
+            <span
+              className={`px-2 py-0.5 text-xs rounded-full ${
+                listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+              }`}
+            >
               {listing.listed ? 'Listed' : 'Unlisted'}
             </span>
+            {listing.sold && (
+              <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700">Sold</span>
+            )}
           </div>
         </div>
         <Link
@@ -123,20 +169,38 @@ export default function ListingDetailPage() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Listing Image */}
-        {listing.imageUrl && (
-          <div className="bg-white border rounded-lg p-6">
-            <img 
-              src={listing.imageUrl} 
+        <div className="bg-white border rounded-lg p-6 space-y-4">
+          {coverImage ? (
+            <img
+              src={coverImage}
               alt={listing.name}
               className="w-full rounded-lg"
               onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
+                (e.target as HTMLImageElement).style.display = "none";
               }}
             />
-          </div>
-        )}
-        
+          ) : (
+            <div className="w-full h-64 flex items-center justify-center rounded-lg bg-gray-100 text-gray-400">
+              No image available
+            </div>
+          )}
+          {gallery.length > 0 && (
+            <div className="flex flex-wrap gap-3">
+              {gallery.map((url, idx) => (
+                <img
+                  key={`${listing.id}-gallery-${idx}`}
+                  src={url}
+                  alt={`${listing.name} image ${idx + 2}`}
+                  className="w-20 h-20 rounded object-cover border"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Listing Information */}
         <div className="bg-white border rounded-lg p-6">
           <h3 className="text-lg font-semibold mb-4">Listing Information</h3>
@@ -175,26 +239,24 @@ export default function ListingDetailPage() {
               )}
             </div>
             
-            <div>
-              <span className="text-sm text-gray-500">Status:</span>
-              {editing ? (
-                <label className="flex items-center gap-2 mt-1">
-                  <input
-                    type="checkbox"
-                    checked={form.listed}
-                    onChange={(e) => setForm({ ...form, listed: e.target.checked })}
-                  />
-                  <span className="text-sm">Listed</span>
-                </label>
-              ) : (
-                <div className="flex items-center">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <span className="text-sm text-gray-500">Status:</span>
+                <div className="mt-1 flex items-center gap-2">
                   <span className={`px-2 py-1 text-xs rounded-full ${
                     listing.listed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                   }`}>
                     {listing.listed ? 'Listed' : 'Unlisted'}
                   </span>
+                  {listing.sold && (
+                    <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700">Sold</span>
+                  )}
                 </div>
-              )}
+              </div>
+              <div>
+                <span className="text-sm text-gray-500">Sold At:</span>
+                <div className="text-sm text-gray-700">{listing.soldAt ? new Date(listing.soldAt).toLocaleString() : "—"}</div>
+              </div>
             </div>
 
             <div>

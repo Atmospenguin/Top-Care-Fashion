@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { Transaction } from "@/types/admin";
 import Link from "next/link";
 
@@ -12,6 +12,10 @@ export default function TransactionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterType>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const statusOptions: Transaction["status"][] = ["pending", "paid", "shipped", "completed", "cancelled"];
 
   useEffect(() => {
     const loadTransactions = async () => {
@@ -32,15 +36,64 @@ export default function TransactionsPage() {
     loadTransactions();
   }, []);
 
-  const filteredTransactions = transactions.filter(transaction => {
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+
+  const filteredTransactions = transactions.filter((transaction) => {
     if (filter !== "all" && transaction.status !== filter) return false;
-    if (searchTerm && !transaction.listingName?.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !transaction.buyerName?.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !transaction.sellerName?.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
+
+    if (normalizedSearch) {
+      const matchesCore = [
+        transaction.listingName,
+        transaction.buyerName,
+        transaction.sellerName,
+        transaction.buyerEmail,
+        transaction.sellerEmail,
+      ].some((value) => typeof value === "string" && value.toLowerCase().includes(normalizedSearch));
+
+      if (!matchesCore) {
+        return false;
+      }
     }
+
     return true;
   });
+
+  const toggleExpand = (id: string) => {
+    setExpandedId((current) => (current === id ? null : id));
+  };
+
+  const updateTransactionStatus = async (id: string, status: Transaction["status"]) => {
+    const current = transactions.find((transaction) => transaction.id === id);
+    if (!current || current.status === status) return;
+
+    try {
+      setUpdatingId(id);
+      const res = await fetch(`/api/admin/transactions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        const serverMessage = payload?.error || payload?.message || `HTTP ${res.status}`;
+        console.warn("Failed to update transaction status", serverMessage);
+        alert(serverMessage);
+        return;
+      }
+
+      setTransactions((prev) =>
+        prev.map((transaction) =>
+          transaction.id === id ? { ...transaction, status } : transaction
+        )
+      );
+    } catch (err) {
+      console.error("Failed to update transaction status", err);
+      alert(err instanceof Error ? err.message : "Failed to update transaction");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -115,6 +168,7 @@ export default function TransactionsPage() {
             value={filter}
             onChange={(e) => setFilter(e.target.value as FilterType)}
             className="px-3 py-2 border rounded-md"
+            aria-label="Filter transactions by status"
           >
             <option value="all">All Transactions</option>
             <option value="pending">Pending</option>
@@ -145,55 +199,147 @@ export default function TransactionsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredTransactions.map((transaction) => (
-                  <tr key={transaction.id}>
-                    <td className="px-4 py-3 text-sm font-mono">{transaction.id}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <Link
-                        href={`/admin/listings/${transaction.listingId}`}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        {transaction.listingName || `Listing ${transaction.listingId}`}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      <Link
-                        href={`/admin/users/${transaction.buyerId}`}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        {transaction.buyerName || `User ${transaction.buyerId}`}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      <Link
-                        href={`/admin/users/${transaction.sellerId}`}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        {transaction.sellerName || `User ${transaction.sellerId}`}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-sm">{transaction.quantity}</td>
-                    <td className="px-4 py-3 text-sm font-medium">
-                      ${((transaction.priceEach || 0) * transaction.quantity).toFixed(2)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(transaction.status)}`}>
-                        {transaction.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {new Date(transaction.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/admin/transactions/${transaction.id}`}
-                        className="text-blue-600 hover:text-blue-800 text-sm"
-                      >
-                        View Details
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {filteredTransactions.map((transaction) => {
+                  const total = ((transaction.priceEach || 0) * transaction.quantity).toFixed(2);
+                  const isExpanded = expandedId === transaction.id;
+
+                  return (
+                    <Fragment key={transaction.id}>
+                      <tr className="align-top">
+                        <td className="px-4 py-3 text-sm font-mono">{transaction.id}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <Link
+                            href={`/admin/listings/${transaction.listingId}`}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            {transaction.listingName || `Listing ${transaction.listingId}`}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <Link
+                            href={`/admin/users/${transaction.buyerId}`}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            {transaction.buyerName || `User ${transaction.buyerId}`}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <Link
+                            href={`/admin/users/${transaction.sellerId}`}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            {transaction.sellerName || `User ${transaction.sellerId}`}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-sm">{transaction.quantity}</td>
+                        <td className="px-4 py-3 text-sm font-medium">${total}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(transaction.status)}`}>
+                              {transaction.status}
+                            </span>
+                            <select
+                              value={transaction.status}
+                              onChange={(e) => updateTransactionStatus(transaction.id, e.target.value as Transaction["status"])}
+                              disabled={updatingId === transaction.id}
+                              className="text-xs border rounded px-2 py-1 focus:outline-none"
+                              aria-label="Update transaction status"
+                            >
+                              {statusOptions.map((option) => (
+                                <option key={option} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {new Date(transaction.createdAt).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <Link
+                              href={`/admin/transactions/${transaction.id}`}
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              View
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => toggleExpand(transaction.id)}
+                              className="text-sm text-gray-600 hover:text-gray-900"
+                            >
+                              {isExpanded ? "Hide" : "Details"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={9} className="px-4 py-4 bg-gray-50 text-sm">
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <div className="flex gap-3">
+                                {transaction.listingImageUrl && (
+                                  <img
+                                    src={transaction.listingImageUrl}
+                                    alt={transaction.listingName || "Listing image"}
+                                    className="w-24 h-24 rounded object-cover border"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).style.display = "none";
+                                    }}
+                                  />
+                                )}
+                                <div className="space-y-1">
+                                  <div className="font-medium text-gray-900">
+                                    {transaction.listingName || `Listing ${transaction.listingId}`}
+                                  </div>
+                                  {transaction.listingBrand && <div>Brand: {transaction.listingBrand}</div>}
+                                  {transaction.listingSize && <div>Size: {transaction.listingSize}</div>}
+                                  {transaction.listingCondition && (
+                                    <div>Condition: {transaction.listingCondition}</div>
+                                  )}
+                                  {transaction.listingDescription && (
+                                    <p className="text-gray-600 text-sm leading-snug">
+                                      {transaction.listingDescription}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="grid gap-3 text-sm">
+                                <div>
+                                  <div className="text-xs uppercase text-gray-500">Buyer</div>
+                                  <div className="font-medium text-gray-900">
+                                    {transaction.buyerName || `User ${transaction.buyerId}`}
+                                  </div>
+                                  {transaction.buyerEmail && (
+                                    <div className="text-xs text-gray-500">{transaction.buyerEmail}</div>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="text-xs uppercase text-gray-500">Seller</div>
+                                  <div className="font-medium text-gray-900">
+                                    {transaction.sellerName || `User ${transaction.sellerId}`}
+                                  </div>
+                                  {transaction.sellerEmail && (
+                                    <div className="text-xs text-gray-500">{transaction.sellerEmail}</div>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="text-xs uppercase text-gray-500">Quantity</div>
+                                  <div className="text-gray-800">{transaction.quantity}</div>
+                                </div>
+                                <div>
+                                  <div className="text-xs uppercase text-gray-500">Total</div>
+                                  <div className="text-gray-800">${total}</div>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

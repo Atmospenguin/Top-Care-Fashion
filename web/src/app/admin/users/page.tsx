@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { UserAccount } from "@/types/admin";
 
@@ -9,6 +9,14 @@ interface ExtendedUser extends UserAccount {
 }
 
 type FilterType = "all" | "active" | "suspended" | "premium" | "admin";
+type SortOption =
+  | "created-desc"
+  | "created-asc"
+  | "name-asc"
+  | "name-desc"
+  | "status"
+  | "role"
+  | "premium";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<ExtendedUser[]>([]);
@@ -18,6 +26,43 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<ExtendedUser | null>(null);
   const [filter, setFilter] = useState<FilterType>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortOption, setSortOption] = useState<SortOption>("created-desc");
+
+  const AvatarCircle = ({
+    name,
+    url,
+    size = 48,
+  }: {
+    name?: string | null;
+    url?: string | null;
+    size?: number;
+  }) => {
+    const dimension = { width: size, height: size };
+    const initials = (name || "?").trim().charAt(0).toUpperCase() || "?";
+    return (
+      <span
+        style={dimension}
+        className="inline-flex items-center justify-center rounded-full bg-gray-200 text-gray-600 font-semibold border border-gray-200 overflow-hidden"
+      >
+        {url ? (
+          <img
+            src={url}
+            alt={name || "User avatar"}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              const parent = (e.target as HTMLImageElement).parentElement;
+              if (parent) {
+                parent.textContent = initials;
+                parent.classList.remove("overflow-hidden");
+              }
+            }}
+          />
+        ) : (
+          initials
+        )}
+      </span>
+    );
+  };
 
   const load = async () => {
     setLoading(true);
@@ -37,39 +82,65 @@ export default function UsersPage() {
     load();
   }, []);
 
-  const filteredUsers = users.filter(user => {
-    // Filter by status/type
-    if (filter !== "all") {
-      switch (filter) {
-        case "active":
-          if (user.status !== "active") return false;
-          break;
-        case "suspended":
-          if (user.status !== "suspended") return false;
-          break;
-        case "premium":
-          if (!user.is_premium) return false;
-          break;
-        case "admin":
-          if (user.role !== "Admin") return false;
-          break;
+  const filteredUsers = useMemo(() => {
+    const normalized = searchTerm.trim().toLowerCase();
+    return users.filter((user) => {
+      if (filter !== "all") {
+        switch (filter) {
+          case "active":
+            if (user.status !== "active") return false;
+            break;
+          case "suspended":
+            if (user.status !== "suspended") return false;
+            break;
+          case "premium":
+            if (!user.is_premium) return false;
+            break;
+          case "admin":
+            if (user.role !== "Admin") return false;
+            break;
+        }
       }
-    }
-    
-    // Filter by search term
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      if (
-        !user.username?.toLowerCase().includes(searchLower) &&
-        !user.email?.toLowerCase().includes(searchLower) &&
-        !user.role?.toLowerCase().includes(searchLower)
-      ) {
-        return false;
+
+      if (normalized) {
+        const matched = [user.username, user.email, user.role]
+          .filter(Boolean)
+          .some((value) => value!.toLowerCase().includes(normalized));
+        if (!matched) return false;
       }
+
+      return true;
+    });
+  }, [users, filter, searchTerm]);
+
+  const sortedUsers = useMemo(() => {
+    const list = [...filteredUsers];
+    switch (sortOption) {
+      case "name-asc":
+        list.sort((a, b) => (a.username || "").localeCompare(b.username || ""));
+        break;
+      case "name-desc":
+        list.sort((a, b) => (b.username || "").localeCompare(a.username || ""));
+        break;
+      case "created-asc":
+        list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        break;
+      case "status":
+        list.sort((a, b) => a.status.localeCompare(b.status));
+        break;
+      case "role":
+        list.sort((a, b) => a.role.localeCompare(b.role));
+        break;
+      case "premium":
+        list.sort((a, b) => Number(b.is_premium) - Number(a.is_premium));
+        break;
+      case "created-desc":
+      default:
+        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
     }
-    
-    return true;
-  });
+    return list;
+  }, [filteredUsers, sortOption]);
 
   const startEdit = (id: string) => {
     setUsers(users.map(user => ({ 
@@ -174,7 +245,7 @@ export default function UsersPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">User Management</h2>
         <div className="text-sm text-gray-600">
-          {filteredUsers.length} of {users.length} users • {users.filter(u => u.status === 'active').length} active
+          {sortedUsers.length} of {users.length} users • {users.filter(u => u.status === 'active').length} active
         </div>
       </div>
 
@@ -189,7 +260,7 @@ export default function UsersPage() {
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as FilterType)}
@@ -202,11 +273,26 @@ export default function UsersPage() {
             <option value="premium">Premium</option>
             <option value="admin">Admins</option>
           </select>
-          {(searchTerm || filter !== "all") && (
+          <select
+            value={sortOption}
+            onChange={(e) => setSortOption(e.target.value as SortOption)}
+            aria-label="Sort users"
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="created-desc">Newest first</option>
+            <option value="created-asc">Oldest first</option>
+            <option value="name-asc">Name A → Z</option>
+            <option value="name-desc">Name Z → A</option>
+            <option value="status">Status</option>
+            <option value="role">Role</option>
+            <option value="premium">Premium first</option>
+          </select>
+          {(searchTerm || filter !== "all" || sortOption !== "created-desc") && (
             <button
               onClick={() => {
                 setSearchTerm("");
                 setFilter("all");
+                setSortOption("created-desc");
               }}
               className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
             >
@@ -217,11 +303,18 @@ export default function UsersPage() {
       </div>
 
       <div className="grid gap-4">
-        {filteredUsers.map((user) => (
+        {sortedUsers.map((user) => (
           <div key={user.id} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
             {user.editing ? (
               // Edit Mode
               <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <AvatarCircle name={user.username} url={user.avatar_url} size={64} />
+                  <div>
+                    <div className="text-base font-semibold text-gray-900">{user.username}</div>
+                    <div className="text-sm text-gray-500">{user.email}</div>
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor={`username-${user.id}`} className="block text-sm font-medium text-gray-700 mb-1">Username</label>
@@ -303,31 +396,34 @@ export default function UsersPage() {
             ) : (
               // View Mode
               <div className="space-y-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3">
-                      <h3 className="text-lg font-medium">{user.username}</h3>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        user.status === 'active' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {user.status}
-                      </span>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        user.role === 'Admin' 
-                          ? 'bg-purple-100 text-purple-800' 
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {user.role}
-                      </span>
-                      {user.is_premium && (
-                        <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
-                          Premium
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 flex-1">
+                    <AvatarCircle name={user.username} url={user.avatar_url} size={64} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-medium text-gray-900 truncate">{user.username}</h3>
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          user.status === 'active' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {user.status}
                         </span>
-                      )}
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          user.role === 'Admin' 
+                            ? 'bg-purple-100 text-purple-800' 
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {user.role}
+                        </span>
+                        {user.is_premium && (
+                          <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
+                            Premium
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-gray-600 mt-2 break-all">{user.email}</p>
                     </div>
-                    <p className="text-gray-600 mt-1">{user.email}</p>
                   </div>
                 </div>
 
@@ -388,9 +484,11 @@ export default function UsersPage() {
         ))}
       </div>
 
-      {users.length === 0 && (
+      {sortedUsers.length === 0 && (
         <div className="text-center py-12 text-gray-500">
-          No users found. Users will appear here once they register.
+          {users.length === 0
+            ? "No users found. Users will appear here once they register."
+            : "No users match the current filters."}
         </div>
       )}
 
@@ -408,6 +506,13 @@ export default function UsersPage() {
               </button>
             </div>
             <div className="space-y-3 text-sm">
+              <div className="flex items-center gap-3">
+                <AvatarCircle name={selectedUser.username} url={selectedUser.avatar_url} size={56} />
+                <div>
+                  <div className="text-base font-semibold text-gray-900">{selectedUser.username}</div>
+                  <div className="text-xs text-gray-500 break-all">{selectedUser.email}</div>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="font-medium text-gray-700">User ID:</span>

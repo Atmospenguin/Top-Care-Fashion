@@ -19,6 +19,42 @@ export default function UserDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const AvatarCircle = ({
+    name,
+    url,
+    size = 72,
+  }: {
+    name?: string | null;
+    url?: string | null;
+    size?: number;
+  }) => {
+    const dimension = { width: size, height: size };
+    const initials = (name || "?").trim().charAt(0).toUpperCase() || "?";
+    return (
+      <span
+        style={dimension}
+        className="inline-flex items-center justify-center rounded-full bg-gray-200 text-gray-600 font-semibold border border-gray-200 overflow-hidden"
+      >
+        {url ? (
+          <img
+            src={url}
+            alt={name || "User avatar"}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              const parent = (e.target as HTMLImageElement).parentElement;
+              if (parent) {
+                parent.textContent = initials;
+                parent.classList.remove("overflow-hidden");
+              }
+            }}
+          />
+        ) : (
+          initials
+        )}
+      </span>
+    );
+  };
+
   useEffect(() => {
     const loadUserDetails = async () => {
       try {
@@ -132,11 +168,12 @@ export default function UserDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">User Details</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            User ID: {userId}
-          </p>
+        <div className="flex items-center gap-4">
+          <AvatarCircle name={user.username} url={user.avatar_url} />
+          <div>
+            <h1 className="text-2xl font-semibold">User Details</h1>
+            <p className="text-sm text-gray-600 mt-1">User ID: {userId}</p>
+          </div>
         </div>
         <Link
           href="/admin/users"
@@ -150,7 +187,7 @@ export default function UserDetailPage() {
         {/* User Information */}
         <div className="bg-white border rounded-lg p-6">
           <h3 className="text-lg font-semibold mb-4">User Information</h3>
-          
+
           <div className="space-y-4">
             <div>
               <span className="text-sm text-gray-500">Username:</span>

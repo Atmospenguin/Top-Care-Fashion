@@ -89,7 +89,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
     const normalizedStatus = normalizeStatusIn(status);
 
-    await conn.execute("UPDATE transactions SET status = ? WHERE id = ?", [normalizedStatus, Number(params.id)]);
+    await conn.execute(
+      'UPDATE transactions SET status = CAST(? AS "TxStatus") WHERE id = ?',
+      [normalizedStatus, Number(params.id)]
+    );
 
     if (normalizedStatus === "COMPLETED") {
       await conn.execute(

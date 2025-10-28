@@ -108,13 +108,35 @@ export default function TransactionDetailPage() {
               
               <div>
                 <span className="text-sm text-gray-500">Listing:</span>
-                <div>
-                  <Link
-                    href={`/admin/listings/${transaction.listingId}`}
-                    className="text-blue-600 hover:text-blue-800"
-                  >
-                    {transaction.listingName || `Listing ${transaction.listingId}`}
-                  </Link>
+                <div className="mt-1 flex items-start gap-3">
+                  {transaction.listingImageUrl && (
+                    <img
+                      src={transaction.listingImageUrl}
+                      alt={transaction.listingName || "Listing preview"}
+                      className="w-16 h-16 rounded object-cover border"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  )}
+                  <div>
+                    <Link
+                      href={`/admin/listings/${transaction.listingId}`}
+                      className="text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      {transaction.listingName || `Listing ${transaction.listingId}`}
+                    </Link>
+                    <div className="mt-1 text-xs text-gray-500 space-x-2">
+                      {transaction.listingBrand && <span>Brand: {transaction.listingBrand}</span>}
+                      {transaction.listingSize && <span>Size: {transaction.listingSize}</span>}
+                      {transaction.listingCondition && <span>Condition: {transaction.listingCondition}</span>}
+                    </div>
+                    {transaction.listingDescription && (
+                      <p className="mt-2 text-sm text-gray-600 leading-snug">
+                        {transaction.listingDescription}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -156,6 +178,9 @@ export default function TransactionDetailPage() {
                     {transaction.buyerName || `User ${transaction.buyerId}`}
                   </Link>
                 </div>
+                {transaction.buyerEmail && (
+                  <div className="text-xs text-gray-500">{transaction.buyerEmail}</div>
+                )}
               </div>
 
               <div>
@@ -168,6 +193,9 @@ export default function TransactionDetailPage() {
                     {transaction.sellerName || `User ${transaction.sellerId}`}
                   </Link>
                 </div>
+                {transaction.sellerEmail && (
+                  <div className="text-xs text-gray-500">{transaction.sellerEmail}</div>
+                )}
               </div>
 
               <hr className="my-4" />
