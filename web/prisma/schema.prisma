@@ -478,6 +478,7 @@ model messages {
   message_type    MessageType @default(TEXT)
   is_read         Boolean  @default(false)
   created_at      DateTime @default(now()) @db.Timestamptz(6)
+  idempotencyKey  String?  @unique
 
   conversation conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
   sender      users @relation("MessageSender", fields: [sender_id], references: [id], onDelete: Cascade)

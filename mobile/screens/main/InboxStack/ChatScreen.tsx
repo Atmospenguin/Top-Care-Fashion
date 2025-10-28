@@ -33,14 +33,20 @@ type Order = {
   seller: { 
     name: string;
     avatar?: string;
+    id?: number | string;
+    user_id?: number | string;
   };
   buyer?: {
     name: string;
     avatar?: string;
+    id?: number | string;
+    user_id?: number | string;
   };
   status: string;
   // 🔥 添加listing_id字段用于BuyNow功能
   listing_id?: number;
+  seller_id?: number | string;
+  buyer_id?: number | string;
 };
 
 type ChatItem =
@@ -112,6 +118,100 @@ const getDisplayStatus = (status: string): string => {
   }
     };
 
+    const resolveOrderId = (raw: any, fallback?: string): string => {
+      const candidate =
+        raw?.id ??
+        raw?.order_id ??
+        raw?.orderId ??
+        raw?.listing_id ??
+        raw?.listingId ??
+        fallback ??
+        null;
+
+      if (candidate === null || candidate === undefined) {
+        return `order-${Date.now()}`;
+      }
+
+      return String(candidate);
+    };
+
+    const normalizeOrder = (raw: any): Order => {
+      const sellerId = raw?.seller?.id ?? raw?.seller_id ?? raw?.sellerId ?? raw?.seller_user_id;
+      const buyerId = raw?.buyer?.id ?? raw?.buyer_id ?? raw?.buyerId ?? raw?.buyer_user_id;
+      const listingIdRaw = raw?.listing_id ?? raw?.product?.listing_id ?? raw?.listingId;
+      const priceRaw = raw?.product?.price ?? raw?.price ?? raw?.product_price ?? 0;
+      const shippingRaw =
+        raw?.product?.shippingFee ??
+        raw?.product?.shipping_fee ??
+        raw?.shippingFee ??
+        raw?.shipping_fee;
+
+      const statusRaw = raw?.status ?? raw?.order_status ?? "Inquiry";
+      const normalizedStatus = statusRaw === "Active" ? "COMPLETED" : statusRaw;
+
+      return {
+        id: resolveOrderId(raw),
+        product: {
+          title: raw?.product?.title ?? raw?.title ?? "",
+          price: Number(priceRaw) || 0,
+          size: raw?.product?.size ?? raw?.size,
+          image:
+            raw?.product?.image ??
+            raw?.product?.image_url ??
+            raw?.image ??
+            null,
+          shippingFee: shippingRaw !== undefined ? Number(shippingRaw) || 0 : undefined,
+        },
+        seller: {
+          name: raw?.seller?.name ?? raw?.seller_name ?? "Seller",
+          avatar: raw?.seller?.avatar ?? raw?.seller?.avatar_url ?? raw?.seller_avatar ?? undefined,
+          id: sellerId,
+          user_id: raw?.seller?.user_id ?? raw?.seller_user_id ?? undefined,
+        },
+        buyer:
+          raw?.buyer || raw?.buyer_name || buyerId !== undefined
+            ? {
+                name: raw?.buyer?.name ?? raw?.buyer_name ?? "Buyer",
+                avatar: raw?.buyer?.avatar ?? raw?.buyer?.avatar_url ?? raw?.buyer_avatar ?? undefined,
+                id: buyerId,
+                user_id: raw?.buyer?.user_id ?? raw?.buyer_user_id ?? undefined,
+              }
+            : undefined,
+        listing_id:
+          listingIdRaw !== undefined && listingIdRaw !== null
+            ? Number(listingIdRaw) || undefined
+            : undefined,
+        seller_id: sellerId,
+        buyer_id: buyerId,
+        status: normalizedStatus,
+      };
+
+    };
+
+const getErrorStatusCode = (error: unknown): number | undefined => {
+  if (error && typeof error === "object") {
+    const withResponse = error as { response?: { status?: number } }; // API client error shape
+    const directStatus = (error as { status?: number }).status;
+    return withResponse.response?.status ?? directStatus;
+  }
+  return undefined;
+};
+
+// 🔥 Helper function to merge messages and remove duplicates by id
+function mergeMessages(prev: ChatItem[], incoming: ChatItem[]): ChatItem[] {
+  const merged = [...prev];
+  
+  for (const newMsg of incoming) {
+    // Check if message already exists by id
+    const exists = merged.some(m => m.id === newMsg.id);
+    if (!exists) {
+      merged.push(newMsg);
+    }
+  }
+  
+  return merged;
+}
+
 export default function ChatScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<InboxStackParamList, "Chat">>();
   const route = useRoute<any>();
@@ -178,7 +278,7 @@ export default function ChatScreen() {
                 time: new Date().toLocaleTimeString()
               };
               
-              setItems(prev => [...prev, paidMessage]);
+              setItems(prev => mergeMessages(prev, [paidMessage]));
               
               // 🔥 异步发送消息到后端
               const sendMessageToBackend = async () => {
@@ -300,7 +400,7 @@ export default function ChatScreen() {
               console.log("🔍 Generated system messages:", systemMessages);
               
               // 🔥 添加系统消息到聊天列表
-              setItems(prev => [...prev, ...systemMessages]);
+              setItems(prev => mergeMessages(prev, systemMessages));
               
               // 🔥 异步发送消息到后端
               const sendStatusMessageToBackend = async () => {
@@ -356,6 +456,13 @@ export default function ChatScreen() {
       }));
       console.log("⭐ Review status updated for order", orderId, ":", status);
     } catch (error) {
+      const statusCode = getErrorStatusCode(error);
+
+      if (statusCode === 403) {
+        console.log("⚠️ Review status check skipped for order", orderId, "due to 403 (forbidden).");
+        return;
+      }
+
       console.error("❌ Error checking review status:", error);
     }
   };
@@ -568,7 +675,7 @@ export default function ChatScreen() {
       };
       
       // 添加到消息列表
-      setItems(prev => [...prev, userMessage]);
+      setItems(prev => mergeMessages(prev, [userMessage]));
       
       // 🔥 发送到服务器（如果需要）
       if (conversation?.conversation?.id) {
@@ -710,9 +817,10 @@ export default function ChatScreen() {
           setConversation(conversationData);
           
           // 获取当前订单状态
-          const orderCard = conversationData.messages.find(item => item.type === "orderCard");
-          if (orderCard && orderCard.type === "orderCard" && orderCard.order) {
-            const currentStatus = orderCard.order.status;
+          const orderCardMessage = conversationData.messages.find(item => item.type === "orderCard");
+          if (orderCardMessage && orderCardMessage.type === "orderCard" && orderCardMessage.order) {
+            const normalizedOrder = normalizeOrder(orderCardMessage.order);
+            const currentStatus = normalizedOrder.status;
             console.log("🔍 Current order status:", currentStatus);
             console.log("🔍 Last order status:", lastOrderStatus);
             
@@ -720,11 +828,11 @@ export default function ChatScreen() {
             if (lastOrderStatus && lastOrderStatus !== currentStatus) {
               console.log("🔄 Order status changed from", lastOrderStatus, "to", currentStatus);
               
-              const systemMessage = generateSystemMessage(lastOrderStatus, currentStatus, orderCard.order);
+              const systemMessage = generateSystemMessage(lastOrderStatus, currentStatus, normalizedOrder);
               if (systemMessage) {
                 // 🔥 更新订单卡片状态
                 setItems(prev => prev.map(item => {
-                  if (item.type === "orderCard" && item.order.id === orderCard.order!.id) {
+                  if (item.type === "orderCard" && resolveOrderId(item.order) === normalizedOrder.id) {
                     return {
                       ...item,
                       order: {
@@ -737,7 +845,7 @@ export default function ChatScreen() {
                 }));
                 
                 // 🔥 添加系统消息
-                setItems(prev => [...prev, systemMessage]);
+                setItems(prev => mergeMessages(prev, [systemMessage]));
                 setTimeout(() => {
                   listRef.current?.scrollToEnd({ animated: true });
                 }, 100);
@@ -948,17 +1056,18 @@ export default function ChatScreen() {
       // 如果没有 conversationId，但有订单信息，显示订单卡片
       if (kind === "order" && order) {
         console.log("🔍 No conversationId but have order, showing order card");
+        const normalizedOrder = normalizeOrder(order);
         const orderCard: ChatItem = {
-          id: `order-card-${order.id}`,
+          id: `order-card-${normalizedOrder.id}`,
           type: "orderCard",
-          order: order
+          order: normalizedOrder
         };
         
         // 🔥 根据订单状态生成系统消息
         const isSeller = false; // 从CheckoutScreen进入的都是买家
-        const systemMessages = generateOrderSystemMessages(order, isSeller);
+        const systemMessages = generateOrderSystemMessages(normalizedOrder, isSeller);
         
-        setItems([orderCard, ...systemMessages]);
+        setItems(mergeMessages([], [orderCard, ...systemMessages]));
         
         // 🔥 尝试创建对话并保存系统消息
         const createConversationAndSaveMessages = async () => {
@@ -1061,7 +1170,7 @@ export default function ChatScreen() {
           return {
             id: msg.id,
             type: "orderCard",
-            order: msg.order
+            order: normalizeOrder(msg.order)
           };
         } else {
           // Fallback for unknown types - 确保所有消息都显示
@@ -1091,37 +1200,19 @@ export default function ChatScreen() {
         console.log("🔍 订单聊天，添加商品卡片和系统消息");
         
         // 优先使用 route.params.order，如果没有则使用 conversation.order
-        const orderData = order || conversation?.order;
+        const rawOrderData = order || conversation?.order;
         console.log("🔍 Order 数据来源:", order ? "route.params" : "conversation");
-        console.log("🔍 Order 数据:", JSON.stringify(orderData, null, 2));
+        console.log("🔍 Order 数据:", JSON.stringify(rawOrderData, null, 2));
         
-        if (orderData) {
+        if (rawOrderData) {
+          const orderData = normalizeOrder(rawOrderData);
           // 🔥 判断当前用户是否为卖家
           const isSeller = (conversation?.conversation as any)?.participant_id === user?.id;
           
           const orderCard: ChatItem = {
             id: "order-card-" + orderData.id,
             type: "orderCard",
-            order: {
-              id: orderData.id,
-              product: {
-                title: orderData.product.title,
-                price: orderData.product.price,
-                size: orderData.product.size,
-                image: orderData.product.image,
-                shippingFee: orderData.product.shippingFee
-              },
-              seller: {
-                name: orderData.seller.name,
-                avatar: orderData.seller.avatar
-              },
-              buyer: orderData.buyer ? {
-                name: orderData.buyer.name,
-                avatar: orderData.buyer.avatar
-              } : undefined,
-              status: orderData.status === "Active" ? "COMPLETED" : (orderData.status || "Inquiry"),
-              listing_id: orderData.listing_id
-            }
+            order: orderData
           };
           
           // 🔥 根据订单状态生成系统消息
@@ -1143,7 +1234,7 @@ export default function ChatScreen() {
               id: `review-cta-${orderData.id}`,
               type: "reviewCta",
               text: "How was your experience? Leave a review to help others discover great items.",
-              orderId: orderData.id.toString(),
+              orderId: resolveOrderId(orderData),
               reviewType: isSeller ? "seller" : "buyer"
             };
             systemMessages.push(reviewCtaMessage);
@@ -1195,7 +1286,7 @@ export default function ChatScreen() {
           text: `Hey @${user?.username || 'user'}, Welcome to TOP! 👋`,
           time: new Date().toLocaleString()
         };
-        setItems([welcomeMessage]);
+        setItems(mergeMessages([], [welcomeMessage]));
         console.log("🔍 Added welcome message for new user");
       } else {
         console.log("🔍 Final items before setItems:", finalItems);
@@ -1215,14 +1306,14 @@ export default function ChatScreen() {
             id: `review-cta-${orderCard.order.id}`,
             type: "reviewCta",
             text: "How was your experience? Leave a review to help others discover great items.",
-            orderId: orderCard.order.id.toString(),
+            orderId: resolveOrderId(orderCard.order),
             reviewType: isCurrentUserSeller ? "seller" : "buyer"
           };
           finalItems.push(reviewCtaMessage);
           console.log("🔍 Added missing Review CTA after detecting Transaction complete:", reviewCtaMessage);
         }
         
-        setItems(finalItems);
+        setItems(mergeMessages([], finalItems));
         console.log("🔍 Loaded", finalItems.length, "messages from API");
         
         // 🔥 记录当前订单状态
@@ -1231,8 +1322,10 @@ export default function ChatScreen() {
           console.log("🔍 Recorded order status:", orderCard.order.status);
           
           // 🔥 检查评论状态
-          const orderId = orderCard.order.id.toString();
-          checkOrderReviewStatus(orderId);
+          const normalizedOrderId = resolveOrderId(orderCard.order);
+          if (normalizedOrderId) {
+            checkOrderReviewStatus(normalizedOrderId);
+          }
         }
       }
       
@@ -1248,9 +1341,9 @@ export default function ChatScreen() {
           text: `Hey @${user?.username || 'user'}, Welcome to TOP! 👋`,
           time: new Date().toLocaleString()
         };
-        setItems([welcomeMessage]);
+        setItems(mergeMessages([], [welcomeMessage]));
       } else {
-        setItems([]);
+        setItems(mergeMessages([], []));
       }
     } finally {
       setIsLoading(false);
@@ -1291,17 +1384,16 @@ export default function ChatScreen() {
         senderInfo: newMessage.senderInfo
       };
 
-      setItems((prev) => [...prev, chatItem]);
+      setItems((prev) => mergeMessages(prev, [chatItem]));
       setInput("");
       
       console.log("🔍 Message sent successfully");
     } catch (error) {
       console.error("❌ Error sending message:", error);
       // 即使发送失败，也添加到本地状态
-      setItems((prev) => [
-        ...prev,
+      setItems((prev) => mergeMessages(prev, [
         { id: String(Date.now()), type: "msg", sender: "me", text: input, time: "Now" },
-      ]);
+      ]));
       setInput("");
     }
   };
@@ -1414,7 +1506,7 @@ export default function ChatScreen() {
                       avatar: user?.avatar_url || ""
                     }
                   };
-                  setItems(prev => [...prev, systemMessage]);
+                  setItems(prev => mergeMessages(prev, [systemMessage]));
                   
                   // 🔥 保存 Cancel 系统消息到数据库
                   if (conversationId) {
@@ -1469,7 +1561,7 @@ export default function ChatScreen() {
           time: new Date().toLocaleTimeString(),
           orderId: o.id
         };
-        setItems(prev => [...prev, systemMessage]);
+        setItems(prev => mergeMessages(prev, [systemMessage]));
         
         // 🔥 发送Review CTA卡片
         const reviewCtaMessage: ChatItem = {
@@ -1481,7 +1573,7 @@ export default function ChatScreen() {
         };
         console.log("🔍 Adding Review CTA message:", reviewCtaMessage);
         setItems(prev => {
-          const newItems = [...prev, reviewCtaMessage];
+          const newItems = mergeMessages(prev, [reviewCtaMessage]);
           console.log("🔍 Updated items count:", newItems.length);
           console.log("🔍 Last item type:", newItems[newItems.length - 1]?.type);
           return newItems;
@@ -1547,7 +1639,7 @@ export default function ChatScreen() {
           time: new Date().toLocaleTimeString(),
           orderId: o.id
         };
-        setItems(prev => [...prev, systemMessage]);
+        setItems(prev => mergeMessages(prev, [systemMessage]));
         
         Alert.alert("Success", "Order has been marked as shipped.");
       } catch (error) {
@@ -1596,7 +1688,7 @@ export default function ChatScreen() {
                       avatar: user?.avatar_url || ""
                     }
                   };
-                  setItems(prev => [...prev, systemMessage]);
+                  setItems(prev => mergeMessages(prev, [systemMessage]));
                   
                   // 🔥 保存 Cancel 系统消息到数据库
                   if (conversationId) {
@@ -2198,21 +2290,12 @@ export default function ChatScreen() {
         showBack 
         onBackPress={() => {
           console.log("🔙 Back button pressed in ChatScreen");
-          
-          // 🔍 调试：检查当前导航状态
-          const state = navigation.getState();
-          console.log("🔍 Current navigation state:", JSON.stringify(state, null, 2));
-          console.log("🔍 Current route name:", state.routes[state.index]?.name);
-          console.log("🔍 Can go back:", navigation.canGoBack());
-          
-          // 🔥 兜底逻辑：确保能正确返回到 InboxScreen
-          if (navigation.canGoBack()) {
-            console.log("🔙 Going back via navigation.goBack()");
-            navigation.goBack(); // ✅ 正常返回到 InboxScreen
-          } else {
-            console.log("🔙 Cannot go back, navigating to InboxMain");
-            navigation.navigate("InboxMain"); // ✅ 兜底跳转到 InboxMain
-          }
+
+          // � 始终重置到 InboxMain，避免在其他入口陷入循环
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "InboxMain" }],
+          });
         }}
       />
 

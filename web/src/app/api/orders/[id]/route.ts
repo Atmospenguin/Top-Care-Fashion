@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { verifyLegacyToken } from '@/lib/jwt';
 import { createSupabaseServer } from '@/lib/supabase';
+import { postSystemMessageOnce } from '@/lib/messages';
 
 // 支持legacy token的getCurrentUser函数
 async function getCurrentUserWithLegacySupport(req: NextRequest) {
@@ -265,8 +266,8 @@ export async function PATCH(
       where: { id: orderId },
       include: {
         buyer: true,
-        seller: true
-      }
+        seller: true,
+      },
     });
 
     if (!existingOrder) {
@@ -372,6 +373,26 @@ export async function PATCH(
       const isSeller = currentUser.id === existingOrder.seller_id;
       const targetUserId = isSeller ? existingOrder.buyer_id : existingOrder.seller_id;
       const targetUser = isSeller ? existingOrder.buyer : existingOrder.seller;
+
+      // 🔥 查找正确的 conversation
+      const conversation = await prisma.conversations.findFirst({
+        where: {
+          listing_id: existingOrder.listing_id,
+          OR: [
+            {
+              initiator_id: existingOrder.buyer_id,
+              participant_id: existingOrder.seller_id,
+            },
+            {
+              initiator_id: existingOrder.seller_id,
+              participant_id: existingOrder.buyer_id,
+            },
+          ],
+        },
+        select: {
+          id: true,
+        },
+      });
       
       let notificationTitle = '';
       let notificationMessage = '';
@@ -443,6 +464,50 @@ export async function PATCH(
           },
         });
         console.log(`🔔 Order status notification created for user ${targetUserId} (${status})`);
+      }
+      
+      // 🔔 创建系统消息到对话中（如果找到 conversation）
+      if (conversation) {
+        try {
+          // 🔥 根据状态和用户角色生成不同的系统消息内容
+          let systemMessage = '';
+          
+          switch (status) {
+            case 'SHIPPED':
+              systemMessage = 'Seller has shipped your parcel.';
+              break;
+            case 'DELIVERED':
+              systemMessage = 'Parcel arrived. Waiting for buyer to confirm received.';
+              break;
+            case 'RECEIVED':
+              systemMessage = isSeller 
+                ? '@Buyer confirmed received. Transaction completed.' 
+                : 'You confirmed received. Transaction completed successfully.';
+              break;
+            case 'CANCELLED':
+              systemMessage = '@User cancelled the order.';
+              break;
+            default:
+              systemMessage = notificationMessage;
+          }
+          
+          if (systemMessage) {
+            // 🔥 Use postSystemMessageOnce to prevent duplicates
+            const actorName = isSeller ? existingOrder.seller.username : existingOrder.buyer.username;
+            await postSystemMessageOnce({
+              conversationId: conversation.id,
+              senderId: currentUser.id,
+              receiverId: targetUserId,
+              orderId: orderId,
+              status: status,
+              content: systemMessage,
+              actorName: actorName,
+            });
+            console.log(`📨 System message created in conversation ${conversation.id}: ${systemMessage}`);
+          }
+        } catch (messageError) {
+          console.error('❌ Error creating system message:', messageError);
+        }
       }
     } catch (notificationError) {
       console.error("❌ Error creating order status notification:", notificationError);
