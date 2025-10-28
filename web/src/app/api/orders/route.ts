@@ -444,13 +444,14 @@ export async function POST(request: NextRequest) {
       }
 
       // 发送 PAID 系统消息（使用幂等逻辑）
+      // 前端会根据当前用户身份动态转换显示内容
       await postSystemMessageOnce({
         conversationId: conversation.id,
         senderId: currentUser.id,
         receiverId: sellerId,
         orderId: order.id,
         status: 'PAID',
-        content: "I've paid, waiting for you to ship\nPlease pack the item and ship to the address I provided on TOP.",
+        content: "@Buyer has paid for the order.\nPlease pack the item and ship to the address provided on TOP.",
         actorName: currentUser.username
       });
       console.log(`✅ PAID system message created for order ${order.id} in conversation ${conversation.id}`);

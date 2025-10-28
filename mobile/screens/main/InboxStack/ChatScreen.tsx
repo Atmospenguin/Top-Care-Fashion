@@ -1813,8 +1813,8 @@ export default function ChatScreen() {
     // 🔥 动态转换系统消息的显示内容
     let displayText = text;
     
-    // 订单创建消息的动态转换
-    if (text.includes("I've paid, waiting for you to ship")) {
+    // 订单创建消息的动态转换（PAID 状态）
+    if (text.includes("has paid for the order") || text.includes("I've paid, waiting for you to ship")) {
       // 判断当前用户是否是发送者（买家）
       const isCurrentUserSender = senderInfo?.id === user?.id;
       
