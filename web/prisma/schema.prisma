@@ -486,6 +486,10 @@ model saved_outfits {
   created_at      DateTime   @default(now()) @db.Timestamptz(6)
   updated_at      DateTime   @default(now()) @db.Timestamptz(6)
   
+  // ⭐ NEW: AI rating fields
+  ai_rating       Int?       // AI-generated outfit rating (1-10)
+  style_name      String?    @db.VarChar(100) // AI-suggested style name (e.g., "Casual Chic")
+  
   user            users      @relation(fields: [user_id], references: [id], onDelete: Cascade)
   base_item       listings?  @relation("SavedOutfitBase", fields: [base_item_id], references: [id], onDelete: SetNull)
   top_item        listings?  @relation("SavedOutfitTop", fields: [top_item_id], references: [id], onDelete: SetNull)

@@ -123,6 +123,10 @@ export default function ViewOutfitScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveOutfitModalVisible, setSaveOutfitModalVisible] = useState(false);
   const [isSavingOutfit, setIsSavingOutfit] = useState(false);
+  
+  // ⭐ NEW: Store AI feedback rating and style name
+  const [aiRating, setAiRating] = useState<number | null>(null);
+  const [styleName, setStyleName] = useState<string | null>(null);
 
   const composedSelection: BagItem[] = useMemo(() => {
     const unique = new Map<string, ListingItem>();
@@ -204,6 +208,13 @@ export default function ViewOutfitScreen() {
     navigation.navigate("Bag", { items: composedSelection });
   }, [navigation, composedSelection]);
 
+  // ⭐ NEW: Callback when AI analysis completes
+  const handleAIAnalysisComplete = useCallback((analysis: { rating: number; styleName: string }) => {
+    console.log('🤖 AI Analysis received:', analysis);
+    setAiRating(analysis.rating);
+    setStyleName(analysis.styleName);
+  }, []);
+
   const handleSaveOutfit = async (outfitName: string) => {
     try {
       setIsSavingOutfit(true);
@@ -215,6 +226,10 @@ export default function ViewOutfitScreen() {
         bottom_item_id: bottom?.id || null,
         shoe_item_id: shoe?.id || null,
         accessory_ids: accessories.map(acc => acc.id),
+        
+        // ⭐ NEW: Save AI rating and style name
+        ai_rating: aiRating,
+        style_name: styleName,
       });
 
       Alert.alert('Success', `"${outfitName}" saved successfully!`);
@@ -263,13 +278,16 @@ export default function ViewOutfitScreen() {
             </View>
 
             {/* ✨ AI Feedback Component */}
-            <AIOutfitFeedback 
-              items={outfitItems}
-              onStyleNameSelected={(name) => {
-                console.log('AI suggested name:', name);
-                // You can use this name when saving outfit
-              }}
-            />
+            <View style={styles.aiFeedbackWrapper}>
+              <AIOutfitFeedback 
+                items={outfitItems}
+                onStyleNameSelected={(name) => {
+                  console.log('AI suggested name:', name);
+                  setStyleName(name);
+                }}
+                onAnalysisComplete={handleAIAnalysisComplete}
+              />
+            </View>
           </View>
         </ScrollView>
 
@@ -344,6 +362,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 10,
     borderRadius: 24,
+  },
+  aiFeedbackWrapper: {
+    marginTop: 14, 
   },
   previewRow: {
     flexDirection: "row",

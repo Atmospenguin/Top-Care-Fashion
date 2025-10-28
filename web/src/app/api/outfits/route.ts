@@ -21,6 +21,10 @@ export async function POST(req: NextRequest) {
       bottom_item_id,
       shoe_item_id,
       accessory_ids = [],
+      
+      // ⭐ NEW: AI rating fields
+      ai_rating,
+      style_name,
     } = body;
 
     // ✨ BANDAID FIX: Better ID conversion with validation
@@ -97,6 +101,10 @@ export async function POST(req: NextRequest) {
         bottom_item_id: bottomId ?? null,
         shoe_item_id: shoeId ?? null,
         accessory_ids: processedAccessoryIds.length > 0 ? processedAccessoryIds : [],
+        
+        // ⭐ NEW: Save AI rating and style name
+        ai_rating: ai_rating ?? null,
+        style_name: style_name ?? null,
       },
     });
 
@@ -166,6 +174,10 @@ export async function GET(req: NextRequest) {
         accessory_ids: true,
         created_at: true,
         updated_at: true,
+        
+        // ⭐ NEW: Include AI rating fields
+        ai_rating: true,
+        style_name: true,
       },
     });
 

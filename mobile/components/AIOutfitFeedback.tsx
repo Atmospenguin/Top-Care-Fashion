@@ -37,11 +37,13 @@ interface Props {
   items: OutfitItem[];
   onStyleNameSelected?: (name: string) => void;
   autoAnalyze?: boolean;
+  // ⭐ NEW: Callback when analysis completes with full data
+  onAnalysisComplete?: (analysis: AIAnalysis) => void;
 }
 
 const API_URL = 'http://192.168.31.188:3000';
 
-export default function AIOutfitFeedback({ items, onStyleNameSelected, autoAnalyze = false }: Props) {
+export default function AIOutfitFeedback({ items, onStyleNameSelected, autoAnalyze = false, onAnalysisComplete }: Props) {
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,11 +79,37 @@ export default function AIOutfitFeedback({ items, onStyleNameSelected, autoAnaly
         body: JSON.stringify({ items }),
       });
 
-      const result = await response.json();
+      // ⭐ NEW: Check response status first
+      if (!response.ok) {
+        console.error('❌ AI API error:', response.status, response.statusText);
+        if (response.status === 404) {
+          setError('AI analysis endpoint not found. Please check backend setup.');
+        } else {
+          setError(`AI analysis failed: ${response.status}`);
+        }
+        return;
+      }
+
+      // ⭐ NEW: Try to parse JSON with error handling
+      let result;
+      try {
+        const text = await response.text();
+        console.log('📄 Raw response:', text);
+        result = JSON.parse(text);
+      } catch (parseError) {
+        console.error('❌ JSON parse error:', parseError);
+        setError('Invalid response from AI service');
+        return;
+      }
 
       if (result.success && result.analysis) {
         setAnalysis(result.analysis);
         setExpanded(true);
+        
+        // ⭐ NEW: Call callback with analysis data
+        if (onAnalysisComplete) {
+          onAnalysisComplete(result.analysis);
+        }
         
         // Animate in
         Animated.timing(fadeAnim, {

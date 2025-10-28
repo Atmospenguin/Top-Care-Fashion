@@ -26,6 +26,18 @@ interface SavedOutfit {
   accessory_ids: number[];
   created_at: string;
   updated_at: string;
+  
+  // ⭐ Match scores from AI
+  base_category?: string;
+  top_match_score?: number;
+  bottom_match_score?: number;
+  shoe_match_score?: number;
+  accessory_match_scores?: Record<string, number>;
+  total_price?: number;
+  
+  // ⭐ NEW: AI outfit rating (1-10) and style name
+  ai_rating?: number;
+  style_name?: string;
 }
 
 interface ListingItem {
@@ -202,18 +214,80 @@ export default function SavedOutfitsTab() {
     ]);
   };
 
-  const renderItemImage = (item?: ListingItem, label?: string) => {
+  // ⭐ NEW: Calculate outfit rating out of 10 based on match scores
+  const calculateOutfitRating = (outfit: OutfitWithItems): number => {
+    const scores: number[] = [];
+    
+    // Collect all match scores
+    if (outfit.top_match_score && outfit.top_match_score > 0) {
+      scores.push(outfit.top_match_score);
+    }
+    if (outfit.bottom_match_score && outfit.bottom_match_score > 0) {
+      scores.push(outfit.bottom_match_score);
+    }
+    if (outfit.shoe_match_score && outfit.shoe_match_score > 0) {
+      scores.push(outfit.shoe_match_score);
+    }
+    if (outfit.accessory_match_scores) {
+      Object.values(outfit.accessory_match_scores).forEach(score => {
+        if (score > 0) scores.push(score);
+      });
+    }
+    
+    // If no scores, return 0
+    if (scores.length === 0) return 0;
+    
+    // Calculate average (0-100) and convert to /10
+    const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+    return Math.round(avgScore / 10); // Convert to 10-point scale
+  };
+
+  // ⭐ NEW: Helper to render match percentage badge
+  const getMatchBadge = (score: number | undefined) => {
+    if (!score || score === 0) return null;
+    
+    let badgeColor = '#4CAF50'; // Green for high match
+    let starColor = '#FFD700';  // Gold star
+    
+    if (score < 70) {
+      badgeColor = '#FF9800'; // Orange for medium match
+      starColor = '#FFA500';
+    }
+    if (score < 50) {
+      badgeColor = '#9E9E9E'; // Gray for low match
+      starColor = '#BDBDBD';
+    }
+    
+    return (
+      <View style={[styles.matchBadge, { backgroundColor: badgeColor }]}>
+        <Icon name="star" size={10} color={starColor} />
+        <Text style={styles.matchBadgeText}>{Math.round(score)}%</Text>
+      </View>
+    );
+  };
+
+  const renderItemImage = (item?: ListingItem, label?: string, matchScore?: number) => {
     if (!item) return null;
 
     return (
       <View style={styles.itemContainer}>
-        <Image
-          source={{ uri: item.images[0] || 'https://via.placeholder.com/150' }}
-          style={styles.itemImage}
-          resizeMode="cover"
-        />
+        <View style={styles.imageWrapper}>
+          <Image
+            source={{ uri: item.images[0] || 'https://via.placeholder.com/150' }}
+            style={styles.itemImage}
+            resizeMode="cover"
+          />
+          {/* ⭐ NEW: Show match badge if score exists */}
+          {matchScore && matchScore > 0 && (
+            <View style={styles.badgeContainer}>
+              {getMatchBadge(matchScore)}
+            </View>
+          )}
+        </View>
         {label && <Text style={styles.itemLabel}>{label}</Text>}
         <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
+        {/* ⭐ NEW: Show price */}
+        <Text style={styles.itemPrice}>${item.price.toFixed(0)}</Text>
       </View>
     );
   };
@@ -250,9 +324,18 @@ export default function SavedOutfitsTab() {
           >
             <View style={styles.outfitHeader}>
               <View style={styles.outfitInfo}>
-                <Text style={styles.outfitName}>
-                  {item.outfit_name || 'Unnamed Outfit'}
-                </Text>
+                <View style={styles.outfitNameRow}>
+                  <Text style={styles.outfitName}>
+                    {item.outfit_name || 'Unnamed Outfit'}
+                  </Text>
+                  {/* ⭐ NEW: Show AI rating if available */}
+                  {item.ai_rating && item.ai_rating > 0 && (
+                    <View style={styles.ratingBadge}>
+                      <Icon name="star" size={12} color="#FFD700" />
+                      <Text style={styles.ratingText}>{item.ai_rating}/10</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.outfitDate}>
                   {new Date(item.created_at).toLocaleDateString()}
                 </Text>
@@ -275,12 +358,16 @@ export default function SavedOutfitsTab() {
               style={styles.itemsScroll}
             >
               {/* Don't show base_item since it's already included in top/bottom/shoe */}
-              {item.top_item && renderItemImage(item.top_item, 'Top')}
-              {item.bottom_item && renderItemImage(item.bottom_item, 'Bottom')}
-              {item.shoe_item && renderItemImage(item.shoe_item, 'Shoes')}
+              {item.top_item && renderItemImage(item.top_item, 'Top', item.top_match_score)}
+              {item.bottom_item && renderItemImage(item.bottom_item, 'Bottom', item.bottom_match_score)}
+              {item.shoe_item && renderItemImage(item.shoe_item, 'Shoes', item.shoe_match_score)}
               {item.accessory_items?.map((acc, idx) => (
                 <View key={`accessory-${acc.id}-${idx}`}>
-                  {renderItemImage(acc, `Accessory ${idx + 1}`)}
+                  {renderItemImage(
+                    acc,
+                    `Accessory ${idx + 1}`,
+                    item.accessory_match_scores?.[acc.id]
+                  )}
                 </View>
               ))}
             </ScrollView>
@@ -296,9 +383,18 @@ export default function SavedOutfitsTab() {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              {selectedOutfit?.outfit_name || 'Unnamed Outfit'}
-            </Text>
+            <View style={styles.modalTitleContainer}>
+              <Text style={styles.modalTitle}>
+                {selectedOutfit?.outfit_name || 'Unnamed Outfit'}
+              </Text>
+              {/* ⭐ NEW: Show rating in modal */}
+              {selectedOutfit?.ai_rating && selectedOutfit.ai_rating > 0 && (
+                <View style={styles.modalRatingBadge}>
+                  <Icon name="star" size={14} color="#FFD700" />
+                  <Text style={styles.modalRatingText}>{selectedOutfit.ai_rating}/10</Text>
+                </View>
+              )}
+            </View>
             <TouchableOpacity onPress={() => setModalVisible(false)}>
               <Icon name="close" size={24} color="#000" />
             </TouchableOpacity>
@@ -309,26 +405,34 @@ export default function SavedOutfitsTab() {
               <Text style={styles.emptyText}>Loading...</Text>
             ) : (
               <>
+                {/* ⭐ NEW: Show style name if available */}
+                {selectedOutfit.style_name && (
+                  <View style={styles.styleNameBanner}>
+                    <Icon name="sparkles" size={16} color="#8B5CF6" />
+                    <Text style={styles.styleNameText}>{selectedOutfit.style_name}</Text>
+                  </View>
+                )}
+                
                 {/* Don't show base_item since it's already included in top/bottom/shoe */}
                 
                 {selectedOutfit.top_item && (
                   <View style={styles.modalSection}>
                     <Text style={styles.sectionTitle}>Top</Text>
-                    {renderItemImage(selectedOutfit.top_item)}
+                    {renderItemImage(selectedOutfit.top_item, undefined, selectedOutfit.top_match_score)}
                   </View>
                 )}
 
                 {selectedOutfit.bottom_item && (
                   <View style={styles.modalSection}>
                     <Text style={styles.sectionTitle}>Bottom</Text>
-                    {renderItemImage(selectedOutfit.bottom_item)}
+                    {renderItemImage(selectedOutfit.bottom_item, undefined, selectedOutfit.bottom_match_score)}
                   </View>
                 )}
 
                 {selectedOutfit.shoe_item && (
                   <View style={styles.modalSection}>
                     <Text style={styles.sectionTitle}>Shoes</Text>
-                    {renderItemImage(selectedOutfit.shoe_item)}
+                    {renderItemImage(selectedOutfit.shoe_item, undefined, selectedOutfit.shoe_match_score)}
                   </View>
                 )}
 
@@ -337,9 +441,21 @@ export default function SavedOutfitsTab() {
                     <Text style={styles.sectionTitle}>Accessories</Text>
                     {selectedOutfit.accessory_items.map((item, idx) => (
                       <View key={`modal-accessory-${item.id}-${idx}`} style={{ marginBottom: 12 }}>
-                        {renderItemImage(item)}
+                        {renderItemImage(
+                          item,
+                          undefined,
+                          selectedOutfit.accessory_match_scores?.[item.id]
+                        )}
                       </View>
                     ))}
+                  </View>
+                )}
+
+                {/* ⭐ NEW: Show total price if available */}
+                {selectedOutfit.total_price && selectedOutfit.total_price > 0 && (
+                  <View style={styles.totalPriceSection}>
+                    <Text style={styles.totalPriceLabel}>💰 Total Price:</Text>
+                    <Text style={styles.totalPriceValue}>${selectedOutfit.total_price.toFixed(0)}</Text>
                   </View>
                 )}
 
@@ -393,10 +509,33 @@ const styles = StyleSheet.create({
   outfitInfo: {
     flex: 1,
   },
+  // ⭐ NEW: Row for outfit name + rating
+  outfitNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
   outfitName: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 4,
+  },
+  // ⭐ NEW: Rating badge next to outfit name
+  ratingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#FFF9E6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFD700',
+  },
+  ratingText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#F59E0B',
   },
   outfitDate: {
     fontSize: 12,
@@ -412,11 +551,37 @@ const styles = StyleSheet.create({
     marginRight: 12,
     width: 100,
   },
+  // ⭐ NEW: Wrapper for image with badge positioning
+  imageWrapper: {
+    position: 'relative',
+    width: 100,
+    height: 100,
+  },
   itemImage: {
     width: 100,
     height: 100,
     borderRadius: 8,
     backgroundColor: '#f0f0f0',
+  },
+  // ⭐ NEW: Badge container positioned on image
+  badgeContainer: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+  },
+  // ⭐ NEW: Match badge style
+  matchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  matchBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#fff',
   },
   itemLabel: {
     fontSize: 10,
@@ -428,6 +593,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#333',
     marginTop: 2,
+  },
+  // ⭐ NEW: Item price style
+  itemPrice: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4CAF50',
+    marginTop: 2,
+  },
+  // ⭐ NEW: Total price section in modal
+  totalPriceSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  totalPriceLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+  },
+  totalPriceValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#4CAF50',
   },
   modalContainer: {
     flex: 1,
@@ -441,9 +634,52 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
+  // ⭐ NEW: Container for modal title + rating
+  modalTitleContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   modalTitle: {
     fontSize: 20,
     fontWeight: '600',
+  },
+  // ⭐ NEW: Rating badge in modal header
+  modalRatingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFF9E6',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#FFD700',
+  },
+  modalRatingText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#F59E0B',
+  },
+  // ⭐ NEW: Style name banner in modal
+  styleNameBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F3E8FF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#8B5CF6',
+  },
+  styleNameText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6B21A8',
+    flex: 1,
   },
   modalContent: {
     flex: 1,
