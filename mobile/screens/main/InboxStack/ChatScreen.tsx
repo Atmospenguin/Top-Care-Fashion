@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, FlatList, StyleSheet, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, Alert } from "react-native";
+import { View, Text, FlatList, StyleSheet, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, Alert, BackHandler } from "react-native";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { InboxStackParamList } from "./InboxStackNavigator";
+import type { NavigationProp } from "@react-navigation/native";
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
-import { messagesService, ordersService, type Message, type ConversationDetail } from "../../../src/services";
+import { messagesService, ordersService, listingsService, type Message, type ConversationDetail } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
 import { premiumService } from "../../../src/services";
 import { API_CONFIG } from "../../../src/config/api";
 import Avatar from "../../../components/Avatar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Order = {
   id: string;
@@ -103,10 +103,12 @@ const getDisplayStatus = (status: string): string => {
     };
 
 export default function ChatScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<InboxStackParamList, "Chat">>();
+  const navigation = useNavigation<NavigationProp<any>>();
   const route = useRoute<any>();
   const { sender = "TOP Support", kind = "support", order = null, conversationId = null, autoSendPaidMessage = false } = route.params || {};
   const { user, updateUser } = useAuth();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 12);
 
   // 状态管理
   const [items, setItems] = useState<ChatItem[]>([]);
@@ -327,6 +329,23 @@ export default function ChatScreen() {
 
     return unsubscribe;
   }, [navigation, route.params, conversationId, order, items]);
+
+  // 处理 Android 硬件返回键，避免从 Chat 直接退回到 Home
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBackPress = () => {
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          (navigation as any).replace("InboxMain");
+        }
+        return true; // 阻止默认行为（退出到上一级 Tab/Home）
+      };
+
+      const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => subscription.remove();
+    }, [navigation])
+  );
 
   // 🔥 获取评论状态（通过 API 检查）
   const [reviewStatuses, setReviewStatuses] = useState<Record<string, {
@@ -1647,34 +1666,37 @@ export default function ChatScreen() {
       console.log("🔍 Current user is seller:", isSeller);
       
       try {
-        // 🔥 获取完整的listing数据
-        const response = await fetch(`${API_CONFIG.BASE_URL}/api/listings/${o.id}`);
-        const listingData = await response.json();
-        console.log("🔍 Fetched listing data:", listingData);
+        // 🔥 获取完整的listing数据（使用统一的 apiClient 流程）
+        const listing = await listingsService.getListingById(String(o.id));
+        console.log("🔍 Fetched listing data:", listing);
         
-        // 🔥 转换数据格式以匹配ListingItem
+        // 🔥 转换数据格式以匹配 ListingItem（保留旧的回退逻辑）
         const listingItem = {
-          id: listingData.listing?.id?.toString() || o.id,
-          title: listingData.listing?.title || o.product.title,
-          price: Number(listingData.listing?.price) || o.product.price,
-          description: listingData.listing?.description || `Size: ${o.product.size || 'One Size'}`,
-          brand: listingData.listing?.brand || "Brand",
-          size: listingData.listing?.size || o.product.size || "One Size",
-          condition: listingData.listing?.condition || "Good",
-          material: listingData.listing?.material || "Mixed",
-          gender: listingData.listing?.gender || "unisex",
-          tags: listingData.listing?.tags || [],
-          images: Array.isArray(listingData.listing?.images) ? listingData.listing.images : 
-                 listingData.listing?.image_url ? [listingData.listing.image_url] : 
-                 o.product.image ? [o.product.image] : [],
-          category: listingData.listing?.category?.toLowerCase() || "top",
+          id: listing?.id?.toString() || String(o.id),
+          title: listing?.title || o.product.title,
+          price: typeof listing?.price === 'number' ? listing.price : Number(listing?.price) || o.product.price,
+          description: listing?.description || `Size: ${o.product.size || 'One Size'}`,
+          brand: listing?.brand || "Brand",
+          size: listing?.size || o.product.size || "One Size",
+          condition: listing?.condition || "Good",
+          material: listing?.material || "Mixed",
+          gender: listing?.gender || "unisex",
+          tags: Array.isArray(listing?.tags) ? listing.tags : [],
+          images: Array.isArray(listing?.images)
+            ? listing.images
+            : listing?.image_url
+            ? [listing.image_url]
+            : o.product.image
+            ? [o.product.image]
+            : [],
+          category: typeof listing?.category === 'string' ? listing.category.toLowerCase() : "top",
           seller: {
-            id: listingData.listing?.seller?.id || 0,
-            name: listingData.listing?.seller?.name || o.seller.name,
-            avatar: listingData.listing?.seller?.avatar || o.seller.avatar || "",
-            rating: listingData.listing?.seller?.rating || 5.0,
-            sales: listingData.listing?.seller?.sales || 0
-          }
+            id: (listing as any)?.seller?.id || 0,
+            name: (listing as any)?.seller?.name || o.seller.name,
+            avatar: (listing as any)?.seller?.avatar || o.seller.avatar || "",
+            rating: (listing as any)?.seller?.rating || 5.0,
+            sales: (listing as any)?.seller?.sales || 0,
+          },
         };
         
         console.log("🔍 Converted listingItem:", listingItem);
@@ -1852,7 +1874,7 @@ export default function ChatScreen() {
               {!["IN_PROGRESS", "TO_SHIP", "COMPLETED", "REVIEWED"].includes(o.status) && (
                 <View style={styles.statusBadge}>
                   <Text style={styles.statusBadgeText}>{getDisplayStatus(o.status)}</Text>
-      </View>
+                </View>
               )}
             </>
           )}
@@ -2196,7 +2218,7 @@ export default function ChatScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#fff" }}>
+    <View style={styles.container}>
       <Header 
         title={sender} 
         showBack 
@@ -2215,7 +2237,7 @@ export default function ChatScreen() {
             navigation.goBack(); // ✅ 正常返回到 InboxScreen
           } else {
             console.log("🔙 Cannot go back, navigating to InboxMain");
-            navigation.navigate("InboxMain"); // ✅ 兜底跳转到 InboxMain
+            (navigation as any).replace("InboxMain"); // ✅ 兜底：替换为 InboxMain，避免历史栈残留
           }
         }}
       />
@@ -2224,7 +2246,7 @@ export default function ChatScreen() {
         ref={listRef}
         data={items}
         keyExtractor={(it) => it.id}
-        contentContainerStyle={{ padding: 12, paddingBottom: 12 }}
+        contentContainerStyle={{ padding: 12, paddingBottom: bottomInset }}
         renderItem={({ item }) => {
           if (item.type === "orderCard") {
             // 🔥 判断订单卡片应该显示在左侧还是右侧
@@ -2303,12 +2325,12 @@ export default function ChatScreen() {
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={-20}
       >
-        <View style={styles.inputBar}>
+          <View style={[styles.inputBar, { marginBottom: bottomInset - 12 }]}> {/* 修复缺少右括号 */}
           <TextInput
             style={styles.textInput}
-            placeholder="Type a message..."
+            placeholder="Type a message..." 
             value={input}
             onChangeText={setInput}
           />
@@ -2322,6 +2344,7 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#fff" },
   // avatars & bubbles
   avatar: { width: 32, height: 32, borderRadius: 16 },
   messageRow: { flexDirection: "row", alignItems: "flex-start" },

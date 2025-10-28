@@ -36,6 +36,7 @@ import SellStackNavigator from './screens/main/SellStack/SellStackNavigator';
 import ReviewScreen from './screens/main/MyTopStack/ReviewScreen';
 import MutualReviewScreen from './screens/main/InboxStack/MutualReviewScreen';
 import NotificationScreen from "./screens/main/InboxStack/NotificationScreen";
+import ChatScreen from './screens/main/InboxStack/ChatScreen';
 
 
 export type RootStackParamList = {
@@ -243,6 +244,11 @@ export default function App() {
             <Stack.Screen name="Review" component={ReviewScreen} />
             <Stack.Screen name="MutualReview" component={MutualReviewScreen} />
             <Stack.Screen name="Notification" component={NotificationScreen} />
+            <Stack.Screen
+              name="ChatStandalone"
+              component={ChatScreen}
+              options={{ headerShown: false }}
+            />
             {/* Premium stack lives on root; entering it hides the bottom tab by design */}
             <Stack.Screen name="Premium" component={PremiumStackNavigator} />
             {/* Buy stack mirrors Premium: lives on root to avoid tab flicker */}

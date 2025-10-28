@@ -260,7 +260,8 @@ export default function ListingDetailScreen() {
   // 检查Like状态
   useEffect(() => {
     const checkLikeStatus = async () => {
-      if (!safeItem?.id || isOwnListingFinal) return;
+      // 仅在登录用户且不是自己的商品时检查点赞状态，避免未登录产生401
+      if (!safeItem?.id || isOwnListingFinal || !user) return;
       
       try {
         const listingId = Number(safeItem.id);
@@ -273,7 +274,7 @@ export default function ListingDetailScreen() {
     };
 
     checkLikeStatus();
-  }, [safeItem?.id, isOwnListingFinal]);
+  }, [safeItem?.id, isOwnListingFinal, user?.id]);
 
   // 处理Like按钮点击
   const handleLikeToggle = async () => {
@@ -719,85 +720,50 @@ export default function ListingDetailScreen() {
                     
                     console.log("✅ Conversation created/found:", conversation);
                     
-                    // 导航到聊天界面
-                    console.log("🔍 Navigating to ChatScreen...");
-                    
-               // 🔥 正确的导航方式：Buy Stack → Root Stack → Main Tab → Inbox Stack → Chat
-               try {
-                 // 方式1：通过根导航到 Main Tab，然后到 Inbox
-                 const rootNavigation = (navigation as any).getParent?.();
-                 if (rootNavigation) {
-                   rootNavigation.navigate("Main", {
-                     screen: "Inbox",
-                     params: {
-                       screen: "Chat",
-                       params: {
-                         sender: safeItem.seller.name || "Seller",
-                         kind: "order",
-                         conversationId: conversation.id,
-                         order: {
-                           id: safeItem.id || "new-order",
-                           product: {
-                             title: safeItem.title || "Item",
-                             price: Number(safeItem.price) || 0,
-                             size: safeItem.size,
-                             image: safeItem.images?.[0] || ""
-                           },
-                           seller: {
-                             name: safeItem.seller.name || "Seller",
-                             avatar: safeItem.seller.avatar
-                           },
-                           buyer: {
-                             name: "You",
-                             avatar: "https://i.pravatar.cc/100?img=32"
-                           },
-                           status: "Inquiry"
-                         }
-                       }
-                     }
-                   });
-                   console.log("✅ Navigation successful via Main Tab");
-                 } else {
-                   throw new Error("Root navigation not available");
-                 }
-               } catch (navError) {
-                 console.log("❌ Main Tab navigation failed:", navError);
-                 console.log("🔍 Trying alternative navigation...");
-                 
-                 // 方式2：尝试直接导航到 Inbox（可能不会工作，但作为 fallback）
-                 try {
-                   (navigation as any).navigate("Inbox", {
-                     screen: "Chat",
-                     params: {
-                       sender: safeItem.seller.name || "Seller",
-                       kind: "order",
-                       conversationId: conversation.id,
-                       order: {
-                         id: safeItem.id || "new-order",
-                         product: {
-                           title: safeItem.title || "Item",
-                           price: safeItem.price || 0,
-                           size: safeItem.size,
-                           image: safeItem.images?.[0] || ""
-                         },
-                         seller: {
-                           name: safeItem.seller.name || "Seller",
-                           avatar: safeItem.seller.avatar
-                         },
-                         buyer: {
-                           name: "You",
-                           avatar: "https://i.pravatar.cc/100?img=32"
-                         },
-                         status: "Inquiry"
-                       }
-                     }
-                   });
-                   console.log("✅ Navigation successful via direct");
-                 } catch (directError) {
-                   console.error("❌ Direct navigation also failed:", directError);
-                   Alert.alert("Navigation Error", "Unable to open chat. Please try again.");
-                 }
-               }
+                    // 准备 Chat 路由参数，供不同导航路径复用
+                    const chatParams = {
+                      sender: safeItem.seller.name || "Seller",
+                      kind: "order" as const,
+                      conversationId: conversation.id,
+                      fromListing: true,
+                      order: {
+                        id: safeItem.id || "new-order",
+                        product: {
+                          title: safeItem.title || "Item",
+                          price: Number(safeItem.price) || 0,
+                          size: safeItem.size,
+                          image: safeItem.images?.[0] || "",
+                        },
+                        seller: {
+                          name: safeItem.seller.name || "Seller",
+                          avatar: safeItem.seller.avatar,
+                        },
+                        buyer: {
+                          name: user?.username || "You",
+                          avatar: user?.avatar_url ?? "https://i.pravatar.cc/100?img=32",
+                        },
+                        status: "Inquiry",
+                      },
+                    };
+
+                    console.log("🔍 Navigating to Chat screen with params:", chatParams);
+
+                    let rootNavigation: any = navigation;
+                    let currentNav: any = navigation;
+                    while (currentNav?.getParent?.()) {
+                      const parent = currentNav.getParent();
+                      if (!parent) break;
+                      currentNav = parent;
+                    }
+                    rootNavigation = currentNav ?? navigation;
+
+                    if (rootNavigation?.navigate) {
+                      rootNavigation.navigate("ChatStandalone", chatParams);
+                      console.log("✅ Navigation via root ChatStandalone screen");
+                    } else {
+                      navigation.navigate("ChatStandalone", chatParams);
+                      console.log("✅ Navigation via local ChatStandalone fallback");
+                    }
                   } catch (error) {
                     console.error("❌ Error creating conversation:", error);
                     Alert.alert("Error", "Failed to start conversation. Please try again.");

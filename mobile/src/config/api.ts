@@ -31,12 +31,9 @@ export const API_CONFIG = {
   TIMEOUT: 10000, // 10秒超时
   RETRY_ATTEMPTS: 3,
   
-  // 获取认证头
-  getAuthHeaders: () => {
-    // 这里应该从你的认证存储中获取token
-    // 暂时返回空对象，你需要根据你的认证实现来修改
-    return {};
-  },
+  // 已废弃：统一通过 apiClient 注入 Authorization 头
+  // 保留空实现以兼容旧代码，但请不要再使用
+  getAuthHeaders: () => ({}),
 } as const;
 
 // API 响应类型

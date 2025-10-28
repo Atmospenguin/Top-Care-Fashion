@@ -1,4 +1,5 @@
 import { API_CONFIG } from '../config/api';
+import { apiClient } from './api';
 import { resolvePremiumFlag } from './utils/premium';
 
 export interface LikedListing {
@@ -210,25 +211,10 @@ class LikesService {
   // Get user's liked listings
   async getLikedListings(): Promise<LikedListing[]> {
     try {
-      const response = await fetch(`${this.baseUrl}${API_CONFIG.ENDPOINTS.LIKES}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to get liked listings');
-      }
-
-  return Array.isArray(result.data) ? result.data.map(normalizePrivateLike) : [];
+      const { data } = await apiClient.get<{ success: boolean; data: any[] }>(API_CONFIG.ENDPOINTS.LIKES);
+      if (!data) throw new Error('Empty response');
+      if (!data.success) throw new Error((data as any).error || 'Failed to get liked listings');
+      return Array.isArray(data.data) ? data.data.map(normalizePrivateLike) : [];
     } catch (error) {
       console.error('Error getting liked listings:', error);
       throw error;
@@ -238,32 +224,14 @@ class LikesService {
   // Like a listing
   async likeListing(listingId: number): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}${API_CONFIG.ENDPOINTS.LIKES}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          listing_id: listingId,
-          action: 'like',
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to like listing');
-      }
-
-      // 🔔 Like notification will be created by backend API
+      const { data } = await apiClient.post<{ success: boolean; data: { liked: boolean } }>(
+        API_CONFIG.ENDPOINTS.LIKES,
+        { listing_id: listingId, action: 'like' }
+      );
+      if (!data) throw new Error('Empty response');
+      if (!data.success) throw new Error((data as any).error || 'Failed to like listing');
       console.log("🔔 Like notification will be created by backend");
-
-      return result.data.liked;
+      return Boolean((data as any).data?.liked);
     } catch (error) {
       console.error('Error liking listing:', error);
       throw error;
@@ -273,29 +241,13 @@ class LikesService {
   // Unlike a listing
   async unlikeListing(listingId: number): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}${API_CONFIG.ENDPOINTS.LIKES}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          listing_id: listingId,
-          action: 'unlike',
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to unlike listing');
-      }
-
-      return result.data.liked;
+      const { data } = await apiClient.post<{ success: boolean; data: { liked: boolean } }>(
+        API_CONFIG.ENDPOINTS.LIKES,
+        { listing_id: listingId, action: 'unlike' }
+      );
+      if (!data) throw new Error('Empty response');
+      if (!data.success) throw new Error((data as any).error || 'Failed to unlike listing');
+      return Boolean((data as any).data?.liked);
     } catch (error) {
       console.error('Error unliking listing:', error);
       throw error;
@@ -305,25 +257,12 @@ class LikesService {
   // Check if user has liked a specific listing
   async getLikeStatus(listingId: number): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}${API_CONFIG.ENDPOINTS.LIKES}/${listingId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to get like status');
-      }
-
-      return result.data.liked;
+      const { data } = await apiClient.get<{ success: boolean; data: { liked: boolean } }>(
+        `${API_CONFIG.ENDPOINTS.LIKES}/${listingId}`
+      );
+      if (!data) throw new Error('Empty response');
+      if (!data.success) throw new Error((data as any).error || 'Failed to get like status');
+      return Boolean((data as any).data?.liked);
     } catch (error) {
       console.error('Error getting like status:', error);
       throw error;
@@ -342,23 +281,9 @@ class LikesService {
   // Get public liked listings for a specific user
   async getPublicLikedListings(username: string): Promise<LikedListing[]> {
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/users/${username}/likes`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          return []; // 用户不存在或没有公开的喜欢商品
-        }
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-  const result = await response.json();
-  return Array.isArray(result.items) ? result.items.map(normalizePublicLike) : [];
+      const { data } = await apiClient.get<{ items?: any[] }>(`/api/users/${username}/likes`);
+      const items = Array.isArray(data?.items) ? data!.items : [];
+      return items.map(normalizePublicLike);
     } catch (error) {
       console.error('Error fetching public liked listings:', error);
       throw error;
