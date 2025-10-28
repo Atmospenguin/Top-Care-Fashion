@@ -12,6 +12,7 @@ export type SessionUser = {
   isPremium?: number | boolean;
   dob?: string | null;
   gender?: "Male" | "Female" | null;
+  avatar_url?: string | null;
 };
 
 function mapRole(value: unknown): "User" | "Admin" {
@@ -61,6 +62,7 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
                 is_premium: true,
                 dob: true,
                 gender: true,
+                avatar_url: true,
               },
             });
             if (user) {
@@ -73,6 +75,7 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
                 isPremium: Boolean(user.is_premium),
                 dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
                 gender: mapGender(user.gender),
+                avatar_url: user.avatar_url,
               };
               return sessionUser;
             }
@@ -112,6 +115,7 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
             is_premium: true,
             dob: true,
             gender: true,
+            avatar_url: true,
           },
         });
         
@@ -125,6 +129,7 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
             isPremium: Boolean(user.is_premium),
             dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
             gender: mapGender(user.gender),
+            avatar_url: user.avatar_url,
           };
           return sessionUser;
         }
@@ -152,6 +157,7 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
         is_premium: true,
         dob: true,
         gender: true,
+        avatar_url: true,
       },
     });
     
@@ -165,6 +171,7 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
         isPremium: Boolean(user.is_premium),
         dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
         gender: mapGender(user.gender),
+        avatar_url: user.avatar_url,
       };
       return sessionUser;
     }
@@ -188,6 +195,7 @@ async function findUserBySupabaseId(supabaseUserId: string): Promise<SessionUser
         is_premium: true,
         dob: true,
         gender: true,
+        avatar_url: true,
       },
     });
 
@@ -201,6 +209,7 @@ async function findUserBySupabaseId(supabaseUserId: string): Promise<SessionUser
         isPremium: Boolean(user.is_premium),
         dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
         gender: mapGender(user.gender),
+        avatar_url: user.avatar_url,
       };
       return sessionUser;
     }
