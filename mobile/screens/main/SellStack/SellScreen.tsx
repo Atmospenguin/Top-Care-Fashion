@@ -19,100 +19,72 @@ import {
 import type { TextInput as RNTextInput } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
-// note: keep Header's SafeAreaView; remove outer SafeAreaView to avoid double padding
 import Icon from "../../../components/Icon";
-import Header from "../../../components/Header"; 
+import Header from "../../../components/Header";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { SellStackParamList } from "./SellStackNavigator";
 import { listingsService, type CreateListingRequest } from "../../../src/services/listingsService";
 import { useAutoClassify } from "../../../src/hooks/useAutoClassify";
-/** --- Options --- */
-const CATEGORY_OPTIONS = ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"];
+import { ClassifyResponse } from "../../../src/services/aiService";
+
+/** --- Options (7 categories, plural where appropriate for UI) --- */
+export const CATEGORY_OPTIONS = [
+  "Accessories", "Bottoms", "Footwear", "Outerwear", "Tops", "Bags", "Dresses",
+] as const;
+type UICategory = typeof CATEGORY_OPTIONS[number];
+
+type CanonicalCategory =
+  | "Top"
+  | "Bottom"
+  | "Footwear"
+  | "Accessories"
+  | "Bags"
+  | "Dresses"
+  | "Outerwear";
+
+const UI_TO_CANONICAL: Record<UICategory, CanonicalCategory> = {
+  Tops: "Top",
+  Bottoms: "Bottom",
+  Footwear: "Footwear",
+  Accessories: "Accessories",
+  Bags: "Bags",
+  Dresses: "Dresses",
+  Outerwear: "Outerwear",
+};
+
+const CANONICAL_TO_UI: Record<CanonicalCategory, UICategory> = {
+  Top: "Tops",
+  Bottom: "Bottoms",
+  Footwear: "Footwear",
+  Accessories: "Accessories",
+  Bags: "Bags",
+  Dresses: "Dresses",
+  Outerwear: "Outerwear",
+};
+
 const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "Others"];
 const CONDITION_OPTIONS = ["Brand New", "Like new", "Good", "Fair", "Poor"];
 const GENDER_OPTIONS = ["Men", "Women", "Unisex"];
-const SIZE_OPTIONS_CLOTHES = [
-  "XXS",
-  "XS",
-  "S",
-  "M",
-  "L",
-  "XL",
-  "XXL",
-  "XXXL",
-  "Free Size",
-  "Other",
-];
-
-const SIZE_OPTIONS_SHOES = [
-  "35",
-  "36",
-  "37",
-  "38",
-  "39",
-  "40",
-  "41",
-  "42",
-  "43",
-  "44",
-  "45",
-  "Other",
-];
-
-const SIZE_OPTIONS_ACCESSORIES = [
-  "One Size",
-  "Small",
-  "Medium", 
-  "Large",
-];
-
+const SIZE_OPTIONS_CLOTHES = ["XXS","XS","S","M","L","XL","XXL","XXXL","Free Size","Other"];
+const SIZE_OPTIONS_SHOES = ["35","36","37","38","39","40","41","42","43","44","45","Other"];
+const SIZE_OPTIONS_ACCESSORIES = ["One Size","Small","Medium","Large"];
 const MATERIAL_OPTIONS = [
-  "Cotton",
-  "Polyester",
-  "Denim",
-  "Leather",
-  "Faux Leather",
-  "Wool",
-  "Silk",
-  "Linen",
-  "Nylon",
-  "Spandex / Elastane",
-  "Canvas",
-  "Suede",
-  "Velvet",
-  "Acrylic",
-  "Cashmere",
-  "Rayon / Viscose",
-  "Other",
+  "Cotton","Polyester","Denim","Leather","Faux Leather","Wool","Silk","Linen",
+  "Nylon","Spandex / Elastane","Canvas","Suede","Velvet","Acrylic","Cashmere",
+  "Rayon / Viscose","Other",
 ];
 const SHIPPING_OPTIONS = [
-  "Free shipping", 
-  "Buyer pays – $3 (within 10km)", 
-  "Buyer pays – $5 (island-wide)", 
-  "Buyer pays – fixed fee", 
-  "Meet-up"
+  "Free shipping",
+  "Buyer pays – $3 (within 10km)",
+  "Buyer pays – $5 (island-wide)",
+  "Buyer pays – fixed fee",
+  "Meet-up",
 ];
 const DEFAULT_TAGS = [
-  "Vintage",
-  "Y2K",
-  "Streetwear",
-  "Preloved",
-  "Minimal",
-  "Sporty",
-  "Elegant",
-  "Retro",
-  "Casual",
-  "Outdoor",
-  "Grunge",
-  "Coquette",
-  "Cottagecore",
-  "Punk",
-  "Cyberpunk",
+  "Vintage","Y2K","Streetwear","Preloved","Minimal","Sporty","Elegant","Retro",
+  "Casual","Outdoor","Grunge","Coquette","Cottagecore","Punk","Cyberpunk",
 ];
-
 const PHOTO_LIMIT = 9;
-
-
 
 /** --- Bottom Sheet Picker --- */
 type OptionPickerProps = {
@@ -170,10 +142,35 @@ function OptionPicker({
   );
 }
 
-type SellScreenNavigationProp = NativeStackNavigationProp<
-  SellStackParamList,
-  "SellMain"
->;
+type SellScreenNavigationProp = NativeStackNavigationProp<SellStackParamList, "SellMain">;
+
+/** --- 7-category mapping: canonical → UI with keyword fallback (no collapsing) --- */
+function mapToUICategory(raw: string | undefined): UICategory | null {
+  if (!raw) return null;
+  const k = raw.trim().toLowerCase();
+
+  // if backend already returned canonical (singular), map exactly
+  switch (k) {
+    case "top": return "Tops";
+    case "bottom": return "Bottoms";
+    case "footwear": return "Footwear";
+    case "accessories": return "Accessories";
+    case "bags": return "Bags";
+    case "dresses": return "Dresses";
+    case "outerwear": return "Outerwear";
+  }
+
+  // keyword fallback for raw labels
+  if (/(bag|handbag|purse|tote|backpack|clutch|crossbody|satchel|duffel|briefcase|fanny)/i.test(k)) return "Bags";
+  if (/(dress|gown)/i.test(k)) return "Dresses";
+  if (/(shirt|t-?shirt|tee|blouse|hoodie|sweater|cardigan|pullover|tank|polo|jersey|crewneck|top)/i.test(k)) return "Tops";
+  if (/(jeans|pants|trousers|shorts|skirt)/i.test(k)) return "Bottoms";
+  if (/(shoe|sneaker|boot|heel|sandals|loafers|oxford|slippers|trainer)/i.test(k)) return "Footwear";
+  if (/(jacket|coat|blazer|trench|windbreaker|parka|raincoat|puffer|vest|outerwear)/i.test(k)) return "Outerwear";
+  if (/(watch|hat|cap|beanie|belt|scarf|sunglasses|glasses|tie|earrings|necklace|ring|bracelet|jewelry|umbrella|hairband)/i.test(k)) return "Accessories";
+
+  return null;
+}
 
 export default function SellScreen({
   navigation,
@@ -188,13 +185,14 @@ export default function SellScreen({
 
   // Gender
   const [gender, setGender] = useState("Select");
-  
+
   // Info
-  const [category, setCategory] = useState("Select");
+  const [category, setCategory] = useState<string>("Select"); // UI category (plural)
+  const [userPickedCategory, setUserPickedCategory] = useState(false); // prevents AI overwriting manual choice
   const [condition, setCondition] = useState("Select");
   const [size, setSize] = useState("Select");
-  
-  // Image preview - 支持多图预览
+
+  // Image preview
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const scrollViewRef = useRef<RNScrollView>(null);
   const [customSize, setCustomSize] = useState("");
@@ -230,42 +228,8 @@ export default function SellScreen({
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
-  useEffect(() => {
-    if (!showSize && size === "Other" && shouldFocusSizeInput.current) {
-      shouldFocusSizeInput.current = false;
-      const timer = setTimeout(() => {
-        customSizeInputRef.current?.focus();
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [showSize, size]);
-
-  useEffect(() => {
-    if (!showMaterial && material === "Other" && shouldFocusMaterialInput.current) {
-      shouldFocusMaterialInput.current = false;
-      const timer = setTimeout(() => {
-        customMaterialInputRef.current?.focus();
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [showMaterial, material]);
-
-  useEffect(() => {
-    if (brand === "Others" && shouldFocusBrandInput.current) {
-      shouldFocusBrandInput.current = false;
-      const timer = setTimeout(() => {
-        brandCustomInputRef.current?.focus();
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [brand]);
-
   /** ---------- 🧠 AI hook integration ---------- */
   const aiUris = React.useMemo(() => photos.map(p => p.localUri), [photos]);
-  const [autoDescribe, setAutoDescribe] = useState(false);
   const {
     items: aiItems,
     running: aiRunning,
@@ -273,13 +237,41 @@ export default function SellScreen({
     cancel: aiCancel,
     progress: aiProgress,
     requeueAll,
-    requeueOne,
-  } = useAutoClassify(aiUris, { autoDescribe, concurrency: 2 });
+    requeueOne: aiRequeueOne,
+  } = useAutoClassify(aiUris, { autoDescribe: true, concurrency: 1 });
 
-  // auto-start AI after new photos appear
+  // StrictMode-safe: start once per unique batch of URIs
+  const aiStartKeyRef = React.useRef<string>("");
   useEffect(() => {
-    if (aiUris.length > 0 && !aiRunning) aiStart();
-  }, [aiUris.length, aiRunning, aiStart]);
+    const key = aiUris.join("|"); // '' if no photos
+    if (key && aiStartKeyRef.current !== key) {
+      aiStartKeyRef.current = key;
+      aiStart();
+    }
+  }, [aiUris, aiStart]);
+
+  // Helper to grab AI result for a specific photo
+  const findAI = React.useCallback(
+    (uri: string) => aiItems.find(i => i.uri === uri),
+    [aiItems]
+  );
+
+  // 🔁 Auto-update Category from AI (best confidence), unless user has chosen manually
+  useEffect(() => {
+    if (userPickedCategory) return;
+    const candidates = aiItems
+      .map(i => i.classification)
+      .filter((c): c is ClassifyResponse => !!c?.category);
+
+    if (!candidates.length) return;
+    const best = candidates.reduce((a, b) => ((b.confidence ?? 0) > (a.confidence ?? 0) ? b : a));
+
+    // backend likely returns canonical (singular) here → map to UI (plural)
+    const mapped = mapToUICategory(best.category);
+    if (mapped && CATEGORY_OPTIONS.includes(mapped) && mapped !== category) {
+      setCategory(mapped);
+    }
+  }, [aiItems, userPickedCategory, category]);
 
   // Permissions
   const ensureMediaPermissions = async () => {
@@ -301,9 +293,7 @@ export default function SellScreen({
   };
 
   const processSelectedAssets = async (assets: ImagePicker.ImagePickerAsset[]) => {
-    if (!assets.length) {
-      return;
-    }
+    if (!assets.length) return;
 
     const availableSlots = Math.max(PHOTO_LIMIT - photos.length, 0);
     if (availableSlots <= 0) {
@@ -324,34 +314,21 @@ export default function SellScreen({
         const manipulatedImage = await ImageManipulator.manipulateAsync(
           asset.uri,
           [],
-          {
-            compress: 0.85,
-            format: ImageManipulator.SaveFormat.JPEG,
-          }
+          { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
         );
 
         const tempId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
         setPhotos((prev) => [
           ...prev,
-          {
-            id: tempId,
-            localUri: manipulatedImage.uri,
-            uploading: true,
-          },
+          { id: tempId, localUri: manipulatedImage.uri, uploading: true },
         ]);
 
         try {
           const remoteUrl = await listingsService.uploadListingImage(manipulatedImage.uri);
           setPhotos((prev) =>
             prev.map((photo) =>
-              photo.id === tempId
-                ? {
-                    ...photo,
-                    remoteUrl,
-                    uploading: false,
-                  }
-                : photo
+              photo.id === tempId ? { ...photo, remoteUrl, uploading: false } : photo
             )
           );
         } catch (error) {
@@ -371,12 +348,10 @@ export default function SellScreen({
       Alert.alert("Limit reached", `You can upload up to ${PHOTO_LIMIT} photos per listing.`);
       return;
     }
-
     const allowed = await ensureMediaPermissions();
     if (!allowed) return;
 
     const availableSlots = Math.max(PHOTO_LIMIT - photos.length, 1);
-
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -385,16 +360,10 @@ export default function SellScreen({
         quality: 0.85,
         selectionLimit: availableSlots,
       });
-
-      if (result.canceled || !result.assets?.length) {
-        return;
-      }
-
+      if (result.canceled || !result.assets?.length) return;
       await processSelectedAssets(result.assets);
-    } catch (error) {
-      if (error && typeof error === "object" && "message" in error) {
-        console.log("Image picker error:", (error as Error).message);
-      }
+    } catch (error: any) {
+      console.log("Image picker error:", error?.message ?? String(error));
     }
   };
 
@@ -403,7 +372,6 @@ export default function SellScreen({
       Alert.alert("Limit reached", `You can upload up to ${PHOTO_LIMIT} photos per listing.`);
       return;
     }
-
     const allowed = await ensureCameraPermissions();
     if (!allowed) return;
 
@@ -413,16 +381,10 @@ export default function SellScreen({
         allowsEditing: true,
         quality: 0.85,
       });
-
-      if (result.canceled || !result.assets?.length) {
-        return;
-      }
-
+      if (result.canceled || !result.assets?.length) return;
       await processSelectedAssets([result.assets[0]]);
-    } catch (error) {
-      if (error && typeof error === "object" && "message" in error) {
-        console.log("Camera error:", (error as Error).message);
-      }
+    } catch (error: any) {
+      console.log("Camera error:", error?.message ?? String(error));
     }
   };
 
@@ -431,16 +393,11 @@ export default function SellScreen({
       Alert.alert("Limit reached", `You can upload up to ${PHOTO_LIMIT} photos per listing.`);
       return;
     }
-
-    Alert.alert(
-      "Add Photos",
-      "Choose how you'd like to add photos",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Photo Library", onPress: handlePickFromLibrary },
-        { text: "Camera", onPress: handleCapturePhoto },
-      ]
-    );
+    Alert.alert("Add Photos", "Choose how you'd like to add photos", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Photo Library", onPress: handlePickFromLibrary },
+      { text: "Camera", onPress: handleCapturePhoto },
+    ]);
   };
 
   const handleRemovePhoto = (photoId: string) => {
@@ -458,43 +415,48 @@ export default function SellScreen({
   };
 
   const generateDescription = async () => {
-  if (category === "Select") {
-    Alert.alert("Missing category", "Please choose a category first.");
-    return;
-  }
+    // Prefer explicit user choice; otherwise use best AI (already mapped to UI in auto-update)
+    const aiCategory = aiItems[0]?.classification?.category;
+    const uiResolved =
+      category !== "Select"
+        ? (category as UICategory)
+        : (mapToUICategory(aiCategory) ?? "Tops");
 
-  setLoading(true);
-  setAiDesc(null);
+    // Convert UI (plural) to canonical (singular) for backend
+    const canonicalCategory: CanonicalCategory = UI_TO_CANONICAL[uiResolved];
 
-  try {
-    // Gather top Vision labels (if available)
-    const labels = aiItems
-      .flatMap(item => item.description?.labels || [])
-      .filter(Boolean)
-      .slice(0, 10);
+    setLoading(true);
+    setAiDesc(null);
 
-    const res = await fetch("https://top-care-fashion-cyan.vercel.app/api/ai/describe", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        category,
-        labels: labels.length ? labels : ["fashion", "clothing"],
-      }),
-    });
+    try {
+      const labels = aiItems.flatMap(i => i.classification?.labels ?? []).slice(0, 10);
 
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
+      const res = await fetch("https://top-care-fashion-cyan.vercel.app/api/ai/describe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: canonicalCategory, // send singular canonical
+          labels: labels.length ? labels : ["fashion", "clothing"],
+        }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setAiDesc(data.blurb || "No description returned");
+    } catch (err) {
+      console.error("AI describer failed:", err);
+      Alert.alert("AI Error", "Could not generate description. Please try again.");
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const data = await res.json();
-    setAiDesc(data.blurb || "No description returned");
-  } catch (err) {
-    console.error("AI describer failed:", err);
-    Alert.alert("AI Error", "Could not generate description. Please try again.");
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleReclassifyAll = () => {
+    if (!photos.length) return;
+    requeueAll();
+    // kick the worker if not already running
+    setTimeout(() => aiStart(), 0);
+  };
 
   // 保存 listing
   const handlePostListing = async () => {
@@ -616,7 +578,7 @@ export default function SellScreen({
         condition: condition !== "Select" ? condition : "Good",
         material: resolvedMaterial,
         tags,
-        category,
+        category, // UI category (plural) is fine to store/display
         gender: resolvedGender,
         images: uploadedImages,
         shippingOption,
@@ -624,41 +586,35 @@ export default function SellScreen({
         location: shippingOption === "Meet-up" ? trimmedLocation : undefined,
       };
 
-      const createdListing = await listingsService.createListing(listingData);
-      
-      Alert.alert(
-        "Success!",
-        "Your listing has been posted successfully!",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              // 重置表单
-              setTitle("");
-              setDescription("");
-              setGender("Select");
-              setCategory("Select");
-              setCondition("Select");
-              setSize("Select");
-              setCustomSize("");
-              setMaterial("Select");
-              setCustomMaterial("");
-              setBrand("Select");
-              setBrandCustom("");
-              // brand two-line mode: no toggle state to reset
-              setPrice("");
-              setPhotos([]);
-              setTags([]);
-              setShippingOption("Select");
-              setShippingFee("");
-              setLocation("");
-              // 导航到用户主页或 Discover
-              const parentNav = navigation.getParent();
-              (parentNav as any)?.navigate("My TOP", { screen: "ActiveListings" });
-            },
+      await listingsService.createListing(listingData);
+
+      Alert.alert("Success!", "Your listing has been posted successfully!", [
+        {
+          text: "OK",
+          onPress: () => {
+            setTitle("");
+            setDescription("");
+            setGender("Select");
+            setCategory("Select");
+            setUserPickedCategory(false);
+            setCondition("Select");
+            setSize("Select");
+            setCustomSize("");
+            setMaterial("Select");
+            setCustomMaterial("");
+            setBrand("Select");
+            setBrandCustom("");
+            setPrice("");
+            setPhotos([]);
+            setTags([]);
+            setShippingOption("Select");
+            setShippingFee("");
+            setLocation("");
+            const parentNav = navigation.getParent();
+            (parentNav as any)?.navigate("My TOP", { screen: "ActiveListings" });
           },
-        ]
-      );
+        },
+      ]);
     } catch (error) {
       console.error("Error posting listing:", error);
       Alert.alert("Error", "Failed to post listing. Please try again.");
@@ -669,29 +625,27 @@ export default function SellScreen({
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
-      {/* ✅ 用 Header 组件 */}
       <Header
         title="Sell an item"
         rightAction={
           <TouchableOpacity onPress={() => navigation.navigate("Drafts")} style={{ paddingRight: 4 }}>
             <Icon name="file-tray-outline" size={22} color="#111" />
-            {/* ion-icon */}
           </TouchableOpacity>
         }
       />
 
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
-        <ScrollView 
-          style={styles.container} 
-          contentContainerStyle={{ paddingBottom: 20 }} 
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={{ paddingBottom: 20 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* 图片上传 */}
+          {/* Photos row */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -704,40 +658,115 @@ export default function SellScreen({
               </TouchableOpacity>
             )}
 
-            {photos.map((photo, index) => (
-              <TouchableOpacity 
-                key={photo.id} 
-                style={styles.photoPreview}
-                onPress={() => setPreviewIndex(index)}
-              >
-                <Image source={{ uri: photo.localUri }} style={styles.photoPreviewImage} />
-                {photo.uploading ? (
-                  <View style={styles.photoUploadingOverlay}>
-                    <ActivityIndicator color="#fff" />
-                  </View>
-                ) : (
+            {/* Each photo column */}
+            {photos.map((photo, index) => {
+              const info = findAI(photo.localUri);
+              const isBusy =
+                aiRunning && (info?.status === "classifying" || info?.status === "describing");
+              const cls = info?.classification;
+
+              return (
+                <View key={photo.id} style={styles.photoColumn}>
+                  {/* Image */}
                   <TouchableOpacity
-                    style={styles.photoRemoveBtn}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleRemovePhoto(photo.id);
-                    }}
+                    style={styles.photoPreview}
+                    onPress={() => setPreviewIndex(index)}
                   >
-                    <Icon name="close" size={16} color="#fff" />
+                    <Image source={{ uri: photo.localUri }} style={styles.photoPreviewImage} />
+                    {photo.uploading ? (
+                      <View style={styles.photoUploadingOverlay}>
+                        <ActivityIndicator color="#fff" />
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.photoRemoveBtn}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleRemovePhoto(photo.id);
+                        }}
+                      >
+                        <Icon name="close" size={16} color="#fff" />
+                      </TouchableOpacity>
+                    )}
                   </TouchableOpacity>
-                )}
-              </TouchableOpacity>
-            ))}
+
+                  {/* AI info */}
+                  <View style={styles.aiInfoBox}>
+                    {isBusy && (
+                      <View style={{ flexDirection: "row", alignItems: "center", columnGap: 6 }}>
+                        <ActivityIndicator />
+                        <Text>
+                          {info?.status === "classifying" && "Classifying…"}
+                          {info?.status === "describing" && "Describing…"}
+                        </Text>
+                      </View>
+                    )}
+
+                    {!isBusy && info?.status === "error" && (
+                      <Text style={{ color: "red" }} numberOfLines={2}>
+                        AI error: {info.error}
+                      </Text>
+                    )}
+
+                    {!isBusy && info?.status === "done" && cls && (
+                      <View>
+                        <Text style={{ fontWeight: "700" }} numberOfLines={1}>
+                          {/* Show UI category equivalent for clarity */}
+                          {mapToUICategory(cls.category) ?? cls.category}
+                        </Text>
+                        {typeof cls.confidence === "number" && (
+                          <View style={{ marginTop: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: "#E8F5E9" }}>
+                            <Text style={{ fontSize: 12, fontWeight: "600", color: "#1B5E20" }}>
+                              {Math.round(cls.confidence * 100)}%
+                            </Text>
+                          </View>
+                        )}
+                        {Array.isArray(cls.labels) && cls.labels.length > 0 && (
+                          <View style={styles.labelChipsRow}>
+                            {cls.labels.slice(0, 6).map((label) => (
+                              <View key={label} style={styles.labelChip}>
+                                <Text style={styles.labelChipText}>{label}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
           </ScrollView>
+
+          {/* ⬇️ Single global reclassify button (aligned under the padded photo row) */}
+          <View style={styles.reclassifyAllWrap}>
+            <TouchableOpacity
+              onPress={handleReclassifyAll}
+              disabled={aiRunning || photos.length === 0}
+              style={[
+                styles.reclassifyAllBtn,
+                (aiRunning || photos.length === 0) && { opacity: 0.6 },
+              ]}
+            >
+              {aiRunning ? (
+                <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                  <ActivityIndicator color="#fff" />
+                  <Text style={styles.reclassifyAllText}>Reclassifying…</Text>
+                </View>
+              ) : (
+                <Text style={styles.reclassifyAllText}>Reclassify all photos</Text>
+              )}
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity onPress={() => setShowGuide(true)}>
             <Text style={styles.photoTips}>Read our photo tips</Text>
           </TouchableOpacity>
 
-          {/* === 必填字段区域 === */}
-          
-          {/* 标题 - 必填 */}
-          <Text style={styles.sectionTitle}>Title <Text style={styles.requiredMark}>*</Text></Text>
+          {/* === Required fields === */}
+          <Text style={styles.sectionTitle}>
+            Title <Text style={styles.requiredMark}>*</Text>
+          </Text>
           <TextInput
             style={styles.input}
             placeholder="Enter a catchy title for your item"
@@ -748,8 +777,9 @@ export default function SellScreen({
           />
           <Text style={styles.charCount}>{title.length}/60</Text>
 
-          {/* 描述 - 必填 */}
-          <Text style={styles.sectionTitle}>Description <Text style={styles.requiredMark}>*</Text></Text>
+          <Text style={styles.sectionTitle}>
+            Description <Text style={styles.requiredMark}>*</Text>
+          </Text>
           <TextInput
             style={styles.input}
             placeholder="eg. small grey Nike t-shirt, only worn a few times"
@@ -767,17 +797,17 @@ export default function SellScreen({
           {loading && <ActivityIndicator size="small" color="#5B21B6" />}
           {aiDesc && (
             <View style={styles.aiBox}>
-              {/* 关闭按钮 */}
               <TouchableOpacity style={styles.closeIcon} onPress={() => setAiDesc(null)}>
                 <Icon name="close" size={20} color="#444" />
               </TouchableOpacity>
 
-              <Text style={{ fontWeight: "600", marginBottom: 4 }}>Done! Use this to get started:</Text>
+              <Text style={{ fontWeight: "600", marginBottom: 4 }}>
+                Done! Use this to get started:
+              </Text>
               <Text style={{ marginBottom: 8 }}>{aiDesc}</Text>
 
-              {/* 左边 Use，小按钮；右边 shuffle */}
               <View style={styles.aiActionRow}>
-                <TouchableOpacity style={styles.useSmallBtn} onPress={() => setDescription(aiDesc)}>
+                <TouchableOpacity style={styles.useSmallBtn} onPress={() => setDescription(aiDesc!)}>
                   <Text style={{ color: "#fff", fontWeight: "600" }}>Use description</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={generateDescription}>
@@ -787,24 +817,30 @@ export default function SellScreen({
             </View>
           )}
 
-          {/* Category - 必填 */}
-          <Text style={styles.sectionTitle}>Category <Text style={styles.requiredMark}>*</Text></Text>
+          {/* Category - updates from AI unless user picks */}
+          <Text style={styles.sectionTitle}>
+            Category <Text style={styles.requiredMark}>*</Text>
+          </Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCat(true)}>
             <Text style={styles.selectValue}>
               {category !== "Select" ? category : "Select"}
             </Text>
           </TouchableOpacity>
 
-          {/* Condition - 必填 */}
-          <Text style={styles.sectionTitle}>Condition <Text style={styles.requiredMark}>*</Text></Text>
+          {/* Condition */}
+          <Text style={styles.sectionTitle}>
+            Condition <Text style={styles.requiredMark}>*</Text>
+          </Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCond(true)}>
             <Text style={styles.selectValue}>
               {condition !== "Select" ? condition : "Select"}
             </Text>
           </TouchableOpacity>
 
-          {/* Price - 必填 */}
-          <Text style={styles.sectionTitle}>Price <Text style={styles.requiredMark}>*</Text></Text>
+          {/* Price */}
+          <Text style={styles.sectionTitle}>
+            Price <Text style={styles.requiredMark}>*</Text>
+          </Text>
           <TextInput
             style={styles.input}
             placeholder="Enter price (e.g. 25.00)"
@@ -813,8 +849,10 @@ export default function SellScreen({
             keyboardType="numeric"
           />
 
-          {/* Shipping - 必填 */}
-          <Text style={styles.sectionTitle}>Shipping <Text style={styles.requiredMark}>*</Text></Text>
+          {/* Shipping */}
+          <Text style={styles.sectionTitle}>
+            Shipping <Text style={styles.requiredMark}>*</Text>
+          </Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowShip(true)}>
             <Text style={styles.selectValue}>
               {shippingOption !== "Select" ? shippingOption : "Select"}
@@ -845,17 +883,13 @@ export default function SellScreen({
             </>
           )}
 
-          {/* === 可选字段区域 === */}
+          {/* === Optional fields === */}
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Additional Details (Optional)</Text>
 
           <Text style={styles.fieldLabel}>Brand</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowBrand(true)}>
             <Text style={styles.selectValue}>
-              {brand === "Others"
-                ? brandCustom || "Enter brand"
-                : brand !== "Select"
-                ? brand
-                : "Select"}
+              {brand === "Others" ? brandCustom || "Enter brand" : brand !== "Select" ? brand : "Select"}
             </Text>
           </TouchableOpacity>
           {brand === "Others" && (
@@ -871,11 +905,7 @@ export default function SellScreen({
           <Text style={styles.fieldLabel}>Size</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowSize(true)}>
             <Text style={styles.selectValue}>
-              {size === "Other"
-                ? customSize || "Enter custom size"
-                : size !== "Select"
-                ? size
-                : "Select"}
+              {size === "Other" ? customSize || "Enter custom size" : size !== "Select" ? size : "Select"}
             </Text>
           </TouchableOpacity>
           {size === "Other" && (
@@ -893,11 +923,7 @@ export default function SellScreen({
           <Text style={styles.fieldLabel}>Material</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowMaterial(true)}>
             <Text style={styles.selectValue}>
-              {material === "Other"
-                ? customMaterial || "Enter custom material"
-                : material !== "Select"
-                ? material
-                : "Select"}
+              {material === "Other" ? customMaterial || "Enter custom material" : material !== "Select" ? material : "Select"}
             </Text>
           </TouchableOpacity>
           {material === "Other" && (
@@ -914,12 +940,10 @@ export default function SellScreen({
 
           <Text style={styles.fieldLabel}>Gender</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowGender(true)}>
-            <Text style={styles.selectValue}>
-              {gender !== "Select" ? gender : "Select"}
-            </Text>
+            <Text style={styles.selectValue}>{gender !== "Select" ? gender : "Select"}</Text>
           </TouchableOpacity>
 
-          {/* Tags Section */}
+          {/* Tags */}
           <Text style={styles.fieldLabel}>Tags</Text>
           <Text style={{ color: "#555", marginBottom: 6, fontSize: 13 }}>
             Add up to 5 tags to help buyers find your item
@@ -927,10 +951,7 @@ export default function SellScreen({
 
           <View style={styles.tagContainer}>
             {tags.length === 0 ? (
-              <TouchableOpacity
-                style={styles.addStyleBtn}
-                onPress={() => setShowTagPicker(true)}
-              >
+              <TouchableOpacity style={styles.addStyleBtn} onPress={() => setShowTagPicker(true)}>
                 <Icon name="add-circle-outline" size={18} color="#F54B3D" />
                 <Text style={styles.addStyleText}>Style</Text>
               </TouchableOpacity>
@@ -939,18 +960,13 @@ export default function SellScreen({
                 {tags.map((tag) => (
                   <View key={tag} style={styles.tagChip}>
                     <Text style={styles.tagChipText}>{tag}</Text>
-                    <TouchableOpacity
-                      onPress={() => setTags(tags.filter((t) => t !== tag))}
-                    >
+                    <TouchableOpacity onPress={() => setTags(tags.filter((t) => t !== tag))}>
                       <Icon name="close" size={14} color="#fff" />
                     </TouchableOpacity>
                   </View>
                 ))}
                 {tags.length < 5 && (
-                  <TouchableOpacity
-                    style={styles.addStyleBtnSmall}
-                    onPress={() => setShowTagPicker(true)}
-                  >
+                  <TouchableOpacity style={styles.addStyleBtnSmall} onPress={() => setShowTagPicker(true)}>
                     <Icon name="add" size={16} color="#F54B3D" />
                   </TouchableOpacity>
                 )}
@@ -963,28 +979,55 @@ export default function SellScreen({
             <TouchableOpacity style={styles.draftBtn}>
               <Text style={styles.draftText}>Save to drafts</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.postBtn, saving && styles.postBtnDisabled]} 
+            <TouchableOpacity
+              style={[styles.postBtn, saving && styles.postBtnDisabled]}
               onPress={handlePostListing}
               disabled={saving}
             >
-              {saving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.postText}>Post listing</Text>
-              )}
+              {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.postText}>Post listing</Text>}
             </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
       {/* Pickers */}
-      <OptionPicker title="Select gender" visible={showGender} options={GENDER_OPTIONS} value={gender} onClose={() => setShowGender(false)} onSelect={setGender} />
-      <OptionPicker title="Select category" visible={showCat} options={CATEGORY_OPTIONS} value={category} onClose={() => setShowCat(false)} onSelect={setCategory} />
-  <OptionPicker title="Select brand" visible={showBrand} options={BRAND_OPTIONS} value={brand} onClose={() => setShowBrand(false)} onSelect={handleSelectBrand} />
-      <OptionPicker title="Select condition" visible={showCond} options={CONDITION_OPTIONS} value={condition} onClose={() => setShowCond(false)} onSelect={setCondition} />
-      
-      {/* Image Preview Modal - 支持滑动切换 */}
+      <OptionPicker
+        title="Select gender"
+        visible={showGender}
+        options={GENDER_OPTIONS}
+        value={gender}
+        onClose={() => setShowGender(false)}
+        onSelect={setGender}
+      />
+      <OptionPicker
+        title="Select category"
+        visible={showCat}
+        options={[...CATEGORY_OPTIONS]}
+        value={category}
+        onClose={() => setShowCat(false)}
+        onSelect={(val) => {
+          setCategory(val);
+          setUserPickedCategory(true); // lock user choice
+        }}
+      />
+      <OptionPicker
+        title="Select brand"
+        visible={showBrand}
+        options={BRAND_OPTIONS}
+        value={brand}
+        onClose={() => setShowBrand(false)}
+        onSelect={handleSelectBrand}
+      />
+      <OptionPicker
+        title="Select condition"
+        visible={showCond}
+        options={CONDITION_OPTIONS}
+        value={condition}
+        onClose={() => setShowCond(false)}
+        onSelect={setCondition}
+      />
+
+      {/* Image Preview Modal */}
       <Modal
         visible={previewIndex !== null}
         transparent
@@ -1000,59 +1043,37 @@ export default function SellScreen({
             contentOffset={{ x: (previewIndex ?? 0) * Dimensions.get("window").width, y: 0 }}
             style={styles.previewScrollView}
           >
-            {photos.map((photo, index) => (
+            {photos.map((photo) => (
               <View key={photo.id} style={styles.previewImageContainer}>
-                <Image 
-                  source={{ uri: photo.localUri }} 
-                  style={styles.previewModalImage}
-                  resizeMode="contain"
-                />
+                <Image source={{ uri: photo.localUri }} style={styles.previewModalImage} resizeMode="contain" />
               </View>
             ))}
           </ScrollView>
-          
-          {/* 顶部工具栏 */}
+
           <View style={styles.previewTopBar}>
             <View style={styles.previewIndicator}>
               <Text style={styles.previewIndicatorText}>
                 {(previewIndex ?? 0) + 1} / {photos.length}
               </Text>
             </View>
-            <TouchableOpacity 
-              style={styles.previewCloseBtn}
-              onPress={() => setPreviewIndex(null)}
-            >
+            <TouchableOpacity style={styles.previewCloseBtn} onPress={() => setPreviewIndex(null)}>
               <Icon name="close" size={28} color="#fff" />
             </TouchableOpacity>
           </View>
 
-          {/* 底部缩略图导航 */}
           {photos.length > 1 && (
             <View style={styles.previewBottomBar}>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.thumbnailContainer}
-              >
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbnailContainer}>
                 {photos.map((photo, index) => (
                   <TouchableOpacity
                     key={photo.id}
-                    style={[
-                      styles.thumbnail,
-                      index === previewIndex && styles.thumbnailActive
-                    ]}
+                    style={[styles.thumbnail, index === previewIndex && styles.thumbnailActive]}
                     onPress={() => {
                       setPreviewIndex(index);
-                      scrollViewRef.current?.scrollTo({
-                        x: index * Dimensions.get("window").width,
-                        animated: true
-                      });
+                      scrollViewRef.current?.scrollTo({ x: index * Dimensions.get("window").width, animated: true });
                     }}
                   >
-                    <Image 
-                      source={{ uri: photo.localUri }} 
-                      style={styles.thumbnailImage}
-                    />
+                    <Image source={{ uri: photo.localUri }} style={styles.thumbnailImage} />
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -1105,28 +1126,16 @@ export default function SellScreen({
         onClose={() => setShowShip(false)}
         onSelect={(val) => {
           setShippingOption(val);
-          if (val !== "Buyer pays – fixed fee") {
-            setShippingFee("");
-          }
-          if (val !== "Meet-up") {
-            setLocation("");
-          }
+          if (val !== "Buyer pays – fixed fee") setShippingFee("");
+          if (val !== "Meet-up") setLocation("");
         }}
       />
+
       {/* Tag Picker Modal */}
-      <TagPickerModal
-        visible={showTagPicker}
-        onClose={() => setShowTagPicker(false)}
-        tags={tags}
-        setTags={setTags}
-      />
+      <TagPickerModal visible={showTagPicker} onClose={() => setShowTagPicker(false)} tags={tags} setTags={setTags} />
+
       {/* Photo Standards Guide Modal */}
-      <Modal
-        visible={showGuide}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowGuide(false)}
-      >
+      <Modal visible={showGuide} animationType="slide" transparent onRequestClose={() => setShowGuide(false)}>
         <Pressable style={styles.guideOverlay} onPress={() => setShowGuide(false)} />
         <View style={styles.guideModal}>
           <View style={styles.guideHeader}>
@@ -1155,7 +1164,7 @@ export default function SellScreen({
             <Text style={styles.guideText}>
               Better include at least 4–5 photos covering all key angles:
               {"\n"}• Full view — entire item laid flat or hung
-              {"\n"}• Brand tag — clear logo shot 
+              {"\n"}• Brand tag — clear logo shot
               {"\n"}• Details — close-up of texture or stitching
               {"\n"}• Flaws — any wear or damage
               {"\n"}• Optional — on-body shot to show fit
@@ -1166,15 +1175,8 @@ export default function SellScreen({
               Only upload photos of your actual item. Do not use stock images. Make sure textures are true to life.
             </Text>
 
-            <Text style={styles.guideSectionTitle}>5. Respect Privacy 🚫</Text>
-            <Text style={styles.guideText}>
-              No faces, personal info, or third-party content in your photos. Keep the focus on the product.
-            </Text>
-
             <Text style={[styles.guideSectionTitle, { marginTop: 16 }]}>✅ Summary</Text>
-            <Text style={styles.guideText}>
-              Clear light, clean background, honest details. Photos should look natural, simple, and professional.
-            </Text>
+            <Text style={styles.guideText}>Clear light, clean background, honest details. Photos should look natural, simple, and professional.</Text>
 
             <View style={{ height: 40 }} />
           </ScrollView>
@@ -1198,9 +1200,7 @@ function TagPickerModal({
   const [search, setSearch] = useState("");
   const [customTag, setCustomTag] = useState("");
 
-  const filtered = DEFAULT_TAGS.filter((t) =>
-    t.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = DEFAULT_TAGS.filter((t) => t.toLowerCase().includes(search.toLowerCase()));
 
   const addTag = (tag: string) => {
     if (tag && !tags.includes(tag) && tags.length < 5) {
@@ -1212,7 +1212,6 @@ function TagPickerModal({
     <Modal transparent visible={visible} animationType="slide">
       <Pressable style={styles.sheetMask} onPress={onClose} />
       <View style={styles.tagSheet}>
-        {/* Header */}
         <View style={styles.tagSheetHeader}>
           <Text style={styles.tagSheetTitle}>Select tags</Text>
           <TouchableOpacity onPress={onClose}>
@@ -1220,15 +1219,8 @@ function TagPickerModal({
           </TouchableOpacity>
         </View>
 
-        {/* Search bar */}
-        <TextInput
-          style={styles.tagSearch}
-          placeholder="Search tags..."
-          value={search}
-          onChangeText={setSearch}
-        />
+        <TextInput style={styles.tagSearch} placeholder="Search tags..." value={search} onChangeText={setSearch} />
 
-        {/* Tag grid */}
         <ScrollView style={{ maxHeight: 360 }}>
           <View style={styles.tagGrid}>
             {filtered.map((t) => {
@@ -1236,31 +1228,16 @@ function TagPickerModal({
               return (
                 <TouchableOpacity
                   key={t}
-                  style={[
-                    styles.tagOption,
-                    selected && styles.tagOptionSelected,
-                  ]}
-                  onPress={() =>
-                    selected
-                      ? setTags(tags.filter((x) => x !== t))
-                      : addTag(t)
-                  }
+                  style={[styles.tagOption, selected && styles.tagOptionSelected]}
+                  onPress={() => (selected ? setTags(tags.filter((x) => x !== t)) : addTag(t))}
                 >
-                  <Text
-                    style={[
-                      styles.tagOptionText,
-                      selected && { color: "#fff" },
-                    ]}
-                  >
-                    {t}
-                  </Text>
+                  <Text style={[styles.tagOptionText, selected && { color: "#fff" }]}>{t}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
         </ScrollView>
 
-        {/* Custom Tag */}
         <View style={styles.customTagRow}>
           <TextInput
             style={styles.customTagInput}
@@ -1268,7 +1245,7 @@ function TagPickerModal({
             value={customTag}
             onChangeText={setCustomTag}
           />
-          <TouchableOpacity
+        <TouchableOpacity
             style={styles.customTagAddBtn}
             onPress={() => {
               addTag(customTag.trim());
@@ -1279,7 +1256,6 @@ function TagPickerModal({
           </TouchableOpacity>
         </View>
 
-        {/* Done */}
         <TouchableOpacity style={styles.sheetDone} onPress={onClose}>
           <Text style={{ fontWeight: "600" }}>Done</Text>
         </TouchableOpacity>
@@ -1291,8 +1267,20 @@ function TagPickerModal({
 /** --- Styles --- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", padding: 16 },
+
+  photoRow: {
+    paddingVertical: 4,
+    paddingHorizontal: 16, // align with button below
+    alignItems: "flex-start",
+  },
+  photoColumn: {
+    width: 120,
+    marginRight: 12,
+    alignItems: "stretch",
+  },
+
   photoBox: {
-    width: 100,
+    width: 120,
     height: 120,
     borderWidth: 1,
     borderColor: "#ccc",
@@ -1302,28 +1290,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#fafafa",
     marginRight: 12,
   },
-  photoRow: {
-    paddingVertical: 4,
-    alignItems: "center",
-  },
-  photoAddHint: {
-    marginTop: 8,
-    fontSize: 12,
-    color: "#666",
-  },
+  photoAddHint: { marginTop: 8, fontSize: 12, color: "#666" },
+
   photoPreview: {
-    width: 100,
+    width: 120,
     height: 120,
     borderRadius: 12,
-    marginRight: 12,
     overflow: "hidden",
     backgroundColor: "#f1f1f1",
     position: "relative",
   },
-  photoPreviewImage: {
-    width: "100%",
-    height: "100%",
-  },
+  photoPreviewImage: { width: "100%", height: "100%" },
   photoUploadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.45)",
@@ -1341,18 +1318,41 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
+  aiInfoBox: {
+    marginTop: 6,
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: "#fafafa",
+    minHeight: 74,
+    justifyContent: "center",
+  },
+  labelChipsRow: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 },
+  labelChip: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 999, backgroundColor: "#eee", marginRight: 4, marginBottom: 4 },
+  labelChipText: { fontSize: 11 },
+
+  /* Global reclassify button under photos */
+  reclassifyAllWrap: {
+    marginTop: 8,
+    marginBottom: 12,
+    width: "100%",
+    paddingHorizontal: 16, // match row padding
+  },
+  reclassifyAllBtn: {
+    backgroundColor: "#111",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reclassifyAllText: { color: "#fff", fontWeight: "700" },
+
   photoTips: { fontSize: 14, color: "#5B21B6", marginBottom: 16 },
 
   sectionTitle: { fontSize: 16, fontWeight: "600", marginTop: 12, marginBottom: 8 },
   requiredMark: { color: "#F54B3D", fontWeight: "700" },
   fieldLabel: { fontSize: 14, fontWeight: "500", color: "#333", marginBottom: 6, marginTop: 8 },
-  charCount: { 
-    fontSize: 12, 
-    color: "#999", 
-    textAlign: "right", 
-    marginTop: -8, 
-    marginBottom: 8 
-  },
+  charCount: { fontSize: 12, color: "#999", textAlign: "right", marginTop: -8, marginBottom: 8 },
   input: { borderWidth: 1, borderColor: "#ddd", borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 15, backgroundColor: "#fafafa" },
 
   aiGenBtn: { alignSelf: "flex-start", paddingVertical: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: "#5B21B6", borderRadius: 20, marginBottom: 12 },
@@ -1364,17 +1364,12 @@ const styles = StyleSheet.create({
   selectBtn: { borderWidth: 1, borderColor: "#ddd", borderRadius: 8, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 12, width: "100%" },
   selectValue: { fontSize: 15, color: "#111" },
 
-  // clearTiny removed (was used for back link in legacy brand UI)
-
   footer: { flexDirection: "row", justifyContent: "space-between", marginTop: 20 },
   draftBtn: { flex: 1, borderWidth: 1, borderColor: "#000", borderRadius: 25, paddingVertical: 12, alignItems: "center", marginRight: 8 },
   draftText: { fontWeight: "600", fontSize: 16 },
   postBtn: { flex: 1, backgroundColor: "#000", borderRadius: 25, paddingVertical: 12, alignItems: "center", marginLeft: 8 },
   postText: { color: "#fff", fontWeight: "600", fontSize: 16 },
-  postBtnDisabled: {
-    backgroundColor: "#ccc",
-    opacity: 0.6,
-  },
+  postBtnDisabled: { backgroundColor: "#ccc", opacity: 0.6 },
 
   sheetMask: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.25)" },
   sheet: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16 },
@@ -1383,254 +1378,49 @@ const styles = StyleSheet.create({
   optionRow: { paddingVertical: 12, paddingHorizontal: 12, borderWidth: 1, borderColor: "#eee", borderRadius: 10, marginBottom: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   optionText: { fontSize: 15, color: "#111" },
   sheetCancel: { marginTop: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: "#F6F6F6", alignItems: "center" },
+
   guideOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)" },
   guideModal: { position: "absolute", bottom: 0, left: 0, right: 0, height: "66%", backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, overflow: "hidden" },
   guideHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#ddd" },
   guideTitle: { fontSize: 17, fontWeight: "700", color: "#111" },
   guideContent: { paddingHorizontal: 20, paddingVertical: 16 },
+
   guideSectionTitle: { fontWeight: "700", fontSize: 15, marginTop: 14, marginBottom: 6, color: "#111" },
   guideText: { fontSize: 14, color: "#333", lineHeight: 20 },
-  tagContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 10,
-  },
-  tag: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f1f1f1",
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginRight: 6,
-  },
-  tagText: {
-    fontSize: 14,
-    marginRight: 4,
-  },
-  tagInput: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    minWidth: 90,
-    fontSize: 14,
-    backgroundColor: "#fafafa",
-  },
-  suggestedTagWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 16,
-  },
-  suggestedTag: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  suggestedTagText: {
-    fontSize: 14,
-    color: "#111",
-  },
-  addStyleBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#F54B3D",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignSelf: "flex-start",
-  },
-  addStyleText: {
-    color: "#F54B3D",
-    fontWeight: "600",
-    marginLeft: 4,
-  },
-  selectedTagWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  tagChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#111",
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  tagChipText: {
-    color: "#fff",
-    fontSize: 14,
-    marginRight: 4,
-  },
-  addStyleBtnSmall: {
-    borderWidth: 1,
-    borderColor: "#F54B3D",
-    borderRadius: 20,
-    padding: 6,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tagSheet: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 16,
-  },
-  tagSheetHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  tagSheetTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  tagSearch: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 15,
-    backgroundColor: "#fafafa",
-    marginBottom: 10,
-  },
-  tagGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  tagOption: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  tagOptionSelected: {
-    backgroundColor: "#111",
-    borderColor: "#111",
-  },
-  tagOptionText: {
-    fontSize: 14,
-    color: "#111",
-  },
-  customTagRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 12,
-    gap: 8,
-  },
-  customTagInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 15,
-  },
-  customTagAddBtn: {
-    backgroundColor: "#F54B3D",
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  customTagAddText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-  sheetDone: {
-    marginTop: 10,
-    backgroundColor: "#F6F6F6",
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  previewModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.95)",
-  },
-  previewScrollView: {
-    flex: 1,
-  },
-  previewImageContainer: {
-    width: Dimensions.get("window").width,
-    height: Dimensions.get("window").height,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  previewModalImage: {
-    width: Dimensions.get("window").width,
-    height: Dimensions.get("window").height * 0.8,
-  },
-  previewTopBar: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  previewIndicator: {
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  previewIndicatorText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  previewCloseBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  previewBottomBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingVertical: 20,
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  thumbnailContainer: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  thumbnail: {
-    width: 60,
-    height: 75,
-    borderRadius: 8,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  thumbnailActive: {
-    borderColor: "#fff",
-  },
-  thumbnailImage: {
-    width: "100%",
-    height: "100%",
-  },
+
+  tagContainer: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  addStyleBtn: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#F54B3D", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, alignSelf: "flex-start" },
+  addStyleText: { color: "#F54B3D", fontWeight: "600", marginLeft: 4 },
+  selectedTagWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  tagChip: { flexDirection: "row", alignItems: "center", backgroundColor: "#111", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6 },
+  tagChipText: { color: "#fff", fontSize: 14, marginRight: 4 },
+  addStyleBtnSmall: { borderWidth: 1, borderColor: "#F54B3D", borderRadius: 20, padding: 6, alignItems: "center", justifyContent: "center" },
+
+  tagSheet: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16 },
+  tagSheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  tagSheetTitle: { fontSize: 16, fontWeight: "700" },
+  tagSearch: { borderWidth: 1, borderColor: "#ddd", borderRadius: 8, padding: 10, fontSize: 15, backgroundColor: "#fafafa", marginBottom: 10 },
+  tagGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  tagOption: { borderWidth: 1, borderColor: "#ccc", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  tagOptionSelected: { backgroundColor: "#111", borderColor: "#111" },
+  tagOptionText: { fontSize: 14, color: "#111" },
+  customTagRow: { flexDirection: "row", alignItems: "center", marginTop: 12, gap: 8 },
+  customTagInput: { flex: 1, borderWidth: 1, borderColor: "#ddd", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15 },
+  customTagAddBtn: { backgroundColor: "#F54B3D", borderRadius: 8, paddingVertical: 8, paddingHorizontal: 16 },
+  customTagAddText: { color: "#fff", fontWeight: "600" },
+  sheetDone: { marginTop: 10, backgroundColor: "#F6F6F6", borderRadius: 12, paddingVertical: 12, alignItems: "center" },
+
+  previewModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)" },
+  previewScrollView: { flex: 1 },
+  previewImageContainer: { width: Dimensions.get("window").width, height: Dimensions.get("window").height, justifyContent: "center", alignItems: "center" },
+  previewModalImage: { width: Dimensions.get("window").width, height: Dimensions.get("window").height * 0.8 },
+  previewTopBar: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 50, paddingHorizontal: 20, paddingBottom: 20 },
+  previewIndicator: { backgroundColor: "rgba(0,0,0,0.6)", paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+  previewIndicatorText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  previewCloseBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" },
+  previewBottomBar: { position: "absolute", bottom: 0, left: 0, right: 0, paddingVertical: 20, backgroundColor: "rgba(0,0,0,0.5)" },
+  thumbnailContainer: { paddingHorizontal: 20, gap: 12 },
+  thumbnail: { width: 60, height: 75, borderRadius: 8, overflow: "hidden", borderWidth: 2, borderColor: "transparent" },
+  thumbnailActive: { borderColor: "#fff" },
+  thumbnailImage: { width: "100%", height: "100%" },
 });
