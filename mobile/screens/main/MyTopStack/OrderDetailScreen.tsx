@@ -247,16 +247,27 @@ export default function OrderDetailScreen() {
     
     const reviews = order.reviews;
     const currentUserId = user.id;
-    const hasBuyerReview = reviews.some(review => review.reviewer_id === order.buyer_id);
-    const hasSellerReview = reviews.some(review => review.reviewer_id === order.seller_id);
+    // ✅ 使用 Number() 转换确保类型一致
+    const hasBuyerReview = reviews.some(review => Number(review.reviewer_id) === Number(order.buyer_id));
+    const hasSellerReview = reviews.some(review => Number(review.reviewer_id) === Number(order.seller_id));
     
     // 判断当前用户是否已评论
-    const hasUserReviewed = reviews.some(review => review.reviewer_id === currentUserId);
+    const hasUserReviewed = reviews.some(review => Number(review.reviewer_id) === Number(currentUserId));
     
     // 判断对方是否已评论
     const hasOtherReviewed = isPurchase 
       ? hasSellerReview  // 买家视角：对方是卖家
       : hasBuyerReview;  // 卖家视角：对方是买家
+    
+    console.log("🔍 ReviewStatus Debug:", {
+      currentUserId,
+      currentUserIdType: typeof currentUserId,
+      hasUserReviewed,
+      hasOtherReviewed,
+      isMutualComplete: hasBuyerReview && hasSellerReview,
+      reviewsCount: reviews.length,
+      reviews: reviews.map(r => ({ reviewer_id: r.reviewer_id, reviewer_id_type: typeof r.reviewer_id }))
+    });
     
     return {
       hasReviews: reviews.length > 0,
