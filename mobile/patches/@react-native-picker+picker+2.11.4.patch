@@ -1,0 +1,18 @@
+diff --git a/node_modules/@react-native-picker/picker/js/PickerWindows.js b/node_modules/@react-native-picker/picker/js/PickerWindows.js
+index 0c378de..7a7ac01 100644
+--- a/node_modules/@react-native-picker/picker/js/PickerWindows.js
++++ b/node_modules/@react-native-picker/picker/js/PickerWindows.js
+@@ -1,12 +1,3 @@
+-/**
+- * Copyright (c) Microsoft Corporation. All rights reserved.
+- * Licensed under the MIT License.
+- *
+- * @flow
+- */
+-
+-'use strict';
+-
++// Stub for non-Windows environments
+ import UnimplementedView from './UnimplementedView';
+-
+ export default UnimplementedView;
