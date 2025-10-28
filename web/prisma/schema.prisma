@@ -630,6 +630,70 @@ enum ReportStatus {
   DISMISSED
 }
 
+model user_follows {
+  id           Int      @id @default(autoincrement())
+  follower_id  Int
+  following_id Int
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  follower  users @relation("UserFollowers", fields: [follower_id], references: [id], onDelete: Cascade)
+  following users @relation("UserFollowing", fields: [following_id], references: [id], onDelete: Cascade)
+
+  @@unique([follower_id, following_id])
+  @@map("user_follows")
+}
+
+model user_likes {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  listing_id Int
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user    users    @relation("UserLikes", fields: [user_id], references: [id], onDelete: Cascade)
+  listing listings @relation("ListingLikes", fields: [listing_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, listing_id])
+  @@map("user_likes")
+}
+
+model conversations {
+  id           Int      @id @default(autoincrement())
+  initiator_id Int
+  participant_id Int
+  listing_id   Int?
+  type         ConversationType @default(ORDER)
+  status       ConversationStatus @default(ACTIVE)
+  last_message_at DateTime? @db.Timestamptz(6)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  initiator   users @relation("ConversationInitiator", fields: [initiator_id], references: [id], onDelete: Cascade)
+  participant users @relation("ConversationParticipant", fields: [participant_id], references: [id], onDelete: Cascade)
+  listing     listings? @relation(fields: [listing_id], references: [id], onDelete: SetNull)
+  messages    messages[]
+
+  @@unique([initiator_id, participant_id, listing_id])
+  @@map("conversations")
+}
+
+model messages {
+  id              Int      @id @default(autoincrement())
+  conversation_id Int
+  sender_id       Int
+  receiver_id     Int
+  content         String   @db.Text
+  message_type    MessageType @default(TEXT)
+  is_read         Boolean  @default(false)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  idempotencyKey  String?  @unique
+
+  conversation conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  sender      users @relation("MessageSender", fields: [sender_id], references: [id], onDelete: Cascade)
+  receiver    users @relation("MessageReceiver", fields: [receiver_id], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
 enum ConversationType {
   ORDER
   SUPPORT

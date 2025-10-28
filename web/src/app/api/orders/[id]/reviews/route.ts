@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db';
 // GET /api/orders/[id]/reviews - Get reviews for an order
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const currentUser = await getSessionUser(request);
@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-  const orderId = parseInt(params.id);
+  const { id } = await context.params;
+  const orderId = parseInt(id);
     if (isNaN(orderId)) {
       return NextResponse.json(
         { error: 'Invalid order ID' },
@@ -81,7 +82,7 @@ export async function GET(
 // POST /api/orders/[id]/reviews - Create a review for an order
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const currentUser = await getSessionUser(request);
@@ -89,7 +90,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-  const orderId = parseInt(params.id);
+  const { id } = await context.params;
+  const orderId = parseInt(id);
     if (isNaN(orderId)) {
       return NextResponse.json(
         { error: 'Invalid order ID' },
