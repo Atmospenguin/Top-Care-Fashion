@@ -1,47 +1,46 @@
+// App.tsx
 import 'react-native-gesture-handler';
 import { enableScreens } from 'react-native-screens';
-import { NavigationContainer, getFocusedRouteNameFromRoute } from "@react-navigation/native";
-import type { NavigatorScreenParams } from "@react-navigation/native";
-import React from "react";
-import { Text } from "react-native";
+import React from 'react';
+import { Text } from 'react-native';
+import { NavigationContainer, getFocusedRouteNameFromRoute, type NavigatorScreenParams } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { AuthProvider } from "./contexts/AuthContext";
 
-enableScreens();
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
-// Make sure SplashScreen.tsx exists in ./screens, or update the path if needed
-import SplashScreen from "./screens/auth/SplashScreen";
-import LandingScreen from "./screens/auth/LandingScreen";
-import LoginScreen from "./screens/auth/LoginScreen";
+import { AuthProvider } from './contexts/AuthContext'; // <-- make sure this path is correct
+
+// Auth / entry screens
+import SplashScreen from './screens/auth/SplashScreen';
+import LandingScreen from './screens/auth/LandingScreen';
+import LoginScreen from './screens/auth/LoginScreen';
 import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
 import OnboardingPreferenceScreen from './screens/auth/OnboardingPreferenceScreen';
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
-
-
-
-//import HomeScreen from "./screens/main/HomeStack/HomeScreen";
-//import DiscoverScreen from "./screens/main/DiscoverStack/DiscoverScreen";
-//import SellScreen from "./screens/main/SellStack/SellScreen";
-//import InboxScreen from "./screens/main/InboxStack/InboxScreen";
-import InboxStackNavigator from './screens/main/InboxStack/InboxStackNavigator';
-import DiscoverStackNavigator from './screens/main/DiscoverStack';
+// Main stacks
 import HomeStackNavigator from './screens/main/HomeStack';
-import BuyStackNavigator from './screens/main/BuyStack';
-import Icon from "./components/Icon";
-import MyTopStackNavigator from './screens/main/MyTopStack';
-import PremiumStackNavigator from './screens/main/PremiumStack';
-import type { PremiumStackParamList } from "./screens/main/PremiumStack";
+import DiscoverStackNavigator from './screens/main/DiscoverStack';
 import SellStackNavigator from './screens/main/SellStack/SellStackNavigator';
+import InboxStackNavigator from './screens/main/InboxStack/InboxStackNavigator';
+import MyTopStackNavigator from './screens/main/MyTopStack';
+import PremiumStackNavigator, { type PremiumStackParamList } from './screens/main/PremiumStack';
+import BuyStackNavigator from './screens/main/BuyStack';
+
+// Standalone screens
 import ReviewScreen from './screens/main/MyTopStack/ReviewScreen';
 import MutualReviewScreen from './screens/main/InboxStack/MutualReviewScreen';
-import NotificationScreen from "./screens/main/InboxStack/NotificationScreen";
+import NotificationScreen from './screens/main/InboxStack/NotificationScreen';
 
+// UI
+import Icon from './components/Icon';
+
+enableScreens();
 
 export type RootStackParamList = {
   Splash: undefined;
   Landing: undefined;
   Login: undefined;
+  Register: undefined;
   ForgotPassword: undefined;
   OnboardingPreference: undefined;
   Main: undefined;
@@ -55,26 +54,23 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
 
-
-
 function MainTabs() {
   const HIDDEN_TAB_SCREENS: string[] = [];
-  const lastTabPressRef = React.useRef<Record<string, number>>({});
 
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarShowLabel: true,
-        tabBarActiveTintColor: "#000",
-        tabBarInactiveTintColor: "#999",
-        tabBarStyle: { backgroundColor: "#fff" },
+        tabBarActiveTintColor: '#000',
+        tabBarInactiveTintColor: '#999',
+        tabBarStyle: { backgroundColor: '#fff' },
         tabBarLabel: ({ focused, color }) => (
           <Text
             style={{
               fontSize: 12,
               color,
-              fontWeight: focused ? "700" : "500",
+              fontWeight: focused ? '700' : '500',
               letterSpacing: -0.25,
             }}
           >
@@ -83,120 +79,44 @@ function MainTabs() {
         ),
         tabBarIcon: ({ focused, color }) => {
           switch (route.name) {
-            case "Home":
-              return (
-                <Icon
-                  name={focused ? "home" : "home-outline"}
-                  size={22}
-                  color={color}
-                />
-              );
-            case "Discover":
-              return (
-                <Icon
-                  name={focused ? "compass" : "compass-outline"}
-                  size={22}
-                  color={color}
-                />
-              );
-            case "Sell":
-              return (
-                <Icon
-                  name={focused ? "add-circle" : "add-circle-outline"}
-                  size={22}
-                  color={color}
-                />
-              );
-            case "Inbox":
-              return (
-                <Icon
-                  name={focused ? "chatbubbles" : "chatbubbles-outline"}
-                  size={22}
-                  color={color}
-                />
-              );
-            case "My TOP":
-              return (
-                <Icon
-                  name={focused ? "person" : "person-outline"}
-                  size={22}
-                  color={color}
-                />
-              );
+            case 'Home':
+              return <Icon name={focused ? 'home' : 'home-outline'} size={22} color={color} />;
+            case 'Discover':
+              return <Icon name={focused ? 'compass' : 'compass-outline'} size={22} color={color} />;
+            case 'Sell':
+              return <Icon name={focused ? 'add-circle' : 'add-circle-outline'} size={22} color={color} />;
+            case 'Inbox':
+              return <Icon name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={22} color={color} />;
+            case 'My TOP':
+              return <Icon name={focused ? 'person' : 'person-outline'} size={22} color={color} />;
+            default:
+              return null;
           }
-          return null;
         },
       })}
     >
       <Tab.Screen
         name="Home"
         component={HomeStackNavigator}
-        listeners={({ navigation, route }) => ({
-          tabPress: () => {
-            const now = Date.now();
-            if (navigation.isFocused && navigation.isFocused()) {
-              // 已聚焦：交给屏幕判断是不是在顶部——在顶部就刷新，否则丝滑回顶
-              navigation.navigate("Home", {
-                screen: "HomeMain",
-                params: { tabPressTS: now },
-              });
-            }
-          },
-        })}
         options={({ route }) => {
           const routeName = getFocusedRouteNameFromRoute(route);
-          const shouldHide = routeName
-            ? HIDDEN_TAB_SCREENS.includes(routeName)
-            : false;
-
+          const shouldHide = routeName ? HIDDEN_TAB_SCREENS.includes(routeName) : false;
           return {
-            tabBarStyle: shouldHide
-              ? { display: "none" }
-              : { backgroundColor: "#fff" },
+            tabBarStyle: shouldHide ? { display: 'none' } : { backgroundColor: '#fff' },
           };
         }}
       />
-      <Tab.Screen
-        name="Discover"
-        component={DiscoverStackNavigator}
-        listeners={({ navigation, route }) => ({
-          tabPress: () => {
-            const now = Date.now();
-            const last = lastTabPressRef.current[route.name] || 0;
-            lastTabPressRef.current[route.name] = now;
-            const delta = now - last;
-            if (navigation.isFocused && navigation.isFocused() && delta < 600) {
-              navigation.navigate('Discover', { screen: 'DiscoverMain', params: { refreshTS: now } });
-            }
-          },
-        })}
-      />
+      <Tab.Screen name="Discover" component={DiscoverStackNavigator} />
       <Tab.Screen name="Sell" component={SellStackNavigator} />
       <Tab.Screen name="Inbox" component={InboxStackNavigator} />
       <Tab.Screen
         name="My TOP"
         component={MyTopStackNavigator}
-        listeners={({ navigation, route }) => ({
-          tabPress: () => {
-            const now = Date.now();
-            if (navigation.isFocused && navigation.isFocused()) {
-              navigation.navigate("My TOP", {
-                screen: "MyTopMain",
-                params: { tabPressTS: now },
-              });
-            }
-          },
-        })}
         options={({ route }) => {
           const routeName = getFocusedRouteNameFromRoute(route);
-          const shouldHide = routeName
-            ? HIDDEN_TAB_SCREENS.includes(routeName)
-            : false;
-
+          const shouldHide = routeName ? HIDDEN_TAB_SCREENS.includes(routeName) : false;
           return {
-            tabBarStyle: shouldHide
-              ? { display: "none" }
-              : undefined,
+            tabBarStyle: shouldHide ? { display: 'none' } : undefined,
           };
         }}
       />
@@ -214,16 +134,12 @@ export default function App() {
             <Stack.Screen name="Landing" component={LandingScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-            <Stack.Screen 
-              name="OnboardingPreference" 
+            <Stack.Screen
+              name="OnboardingPreference"
               component={OnboardingPreferenceScreen}
               options={{ gestureEnabled: false }}
             />
-            <Stack.Screen
-              name="Main"
-              component={MainTabs}
-              options={{ gestureEnabled: false }}
-            />
+            <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="Review" component={ReviewScreen} />
             <Stack.Screen name="MutualReview" component={MutualReviewScreen} />
             <Stack.Screen name="Notification" component={NotificationScreen} />
