@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Image } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { RootStackParamList } from "../../../App";
-import { reviewsService } from "../../../src/services";
 import Avatar from "../../../components/Avatar";
+import { reviewsService, ordersService } from "../../../src/services";
 
 type ReviewSide = {
   name: string;
@@ -16,6 +16,7 @@ type ReviewSide = {
   rating: number;
   comment: string;
   isPremium?: boolean;
+  images?: string[];
 };
 
 const mockMutualReviews: Record<string, { buyer: ReviewSide; seller: ReviewSide }> =
@@ -47,15 +48,29 @@ export default function MutualReviewScreen() {
 
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState<any[]>([]);
+  const [orderInfo, setOrderInfo] = useState<{ buyer_id: number; seller_id: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // 🔥 加载评论数据
+  // 🔥 加载评论数据和订单信息
   useEffect(() => {
-    const loadReviews = async () => {
+    const loadData = async () => {
       try {
         setLoading(true);
-        const reviewsData = await reviewsService.getOrderReviews(parseInt(orderId));
+        
+        // 同时获取订单信息和评论
+        const [reviewsData, order] = await Promise.all([
+          reviewsService.getOrderReviews(parseInt(orderId)),
+          ordersService.getOrder(parseInt(orderId))
+        ]);
+        
         setReviews(reviewsData);
+        setOrderInfo({
+          buyer_id: order.buyer_id,
+          seller_id: order.seller_id
+        });
+        
+        console.log("📊 MutualReviewScreen - Reviews data:", reviewsData);
+        console.log("📊 MutualReviewScreen - Order info:", { buyer_id: order.buyer_id, seller_id: order.seller_id });
       } catch (error) {
         console.error("Error loading reviews:", error);
         setError("Failed to load reviews");
@@ -64,7 +79,7 @@ export default function MutualReviewScreen() {
       }
     };
 
-    loadReviews();
+    loadData();
   }, [orderId]);
 
   if (loading) {
@@ -90,9 +105,14 @@ export default function MutualReviewScreen() {
     );
   }
 
-  // 🔥 转换数据格式
-  const buyerReview = reviews.find(r => r.reviewer.role === "buyer" || r.reviewer_id === reviews[0]?.order?.buyer_id);
-  const sellerReview = reviews.find(r => r.reviewer.role === "seller" || r.reviewer_id === reviews[0]?.order?.seller_id);
+  // 🔥 根据订单信息识别买家和卖家的评论
+  // buyer review: reviewer_id === buyer_id (买家评论卖家)
+  // seller review: reviewer_id === seller_id (卖家评论买家)
+  const buyerReview = orderInfo ? reviews.find(r => r.reviewer_id === orderInfo.buyer_id) : null;
+  const sellerReview = orderInfo ? reviews.find(r => r.reviewer_id === orderInfo.seller_id) : null;
+
+  console.log("📊 MutualReviewScreen - Buyer review:", buyerReview);
+  console.log("📊 MutualReviewScreen - Seller review:", sellerReview);
 
   const mutualReviews = buyerReview && sellerReview ? {
     buyer: {
@@ -104,6 +124,7 @@ export default function MutualReviewScreen() {
       isPremium: Boolean(
         (buyerReview.reviewer as any).isPremium ?? (buyerReview.reviewer as any).is_premium ?? false,
       ),
+      images: buyerReview.images || [],
     },
     seller: {
       name: sellerReview.reviewer.username,
@@ -114,6 +135,7 @@ export default function MutualReviewScreen() {
       isPremium: Boolean(
         (sellerReview.reviewer as any).isPremium ?? (sellerReview.reviewer as any).is_premium ?? false,
       ),
+      images: sellerReview.images || [],
     }
   } : null;
 
@@ -174,6 +196,17 @@ function ReviewCard({ side }: { side: ReviewSide }) {
         </View>
       </View>
       <Text style={styles.comment}>{side.comment}</Text>
+      {side.images && side.images.length > 0 && (
+        <View style={styles.imagesContainer}>
+          {side.images.map((imageUrl, index) => (
+            <Image
+              key={`${side.name}-image-${index}`}
+              source={{ uri: imageUrl }}
+              style={styles.reviewImage}
+            />
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -233,6 +266,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#333",
     lineHeight: 20,
+  },
+  imagesContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  },
+  reviewImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: "#f0f0f0",
   },
   emptyState: {
     alignItems: "center",

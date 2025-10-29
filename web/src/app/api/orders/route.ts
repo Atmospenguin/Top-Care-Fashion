@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { verifyLegacyToken } from '@/lib/jwt';
 import { createSupabaseServer } from '@/lib/supabase';
+import { postSystemMessageOnce } from '@/lib/messages';
 import { isPremiumUser, getCommissionRate, calculateCommission } from '@/lib/userPermissions';
 
 // 支持legacy token的getCurrentUser函数
@@ -200,13 +201,19 @@ export async function GET(request: NextRequest) {
           where: {
             listing_id: order.listing_id,
             OR: [
-              { initiator_id: order.buyer_id },
-              { participant_id: order.buyer_id }
-            ]
+              {
+                initiator_id: order.buyer_id,
+                participant_id: order.seller_id,
+              },
+              {
+                initiator_id: order.seller_id,
+                participant_id: order.buyer_id,
+              },
+            ],
           },
           select: {
-            id: true
-          }
+            id: true,
+          },
         });
         
         conversationId = conversation?.id?.toString() || null;
@@ -273,10 +280,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 🔥 Convert listing_id to integer (Prisma expects Int, but client may send String)
+    const listingIdInt = typeof listing_id === 'string' ? parseInt(listing_id, 10) : listing_id;
+    if (isNaN(listingIdInt)) {
+      console.log("❌ Orders API - Invalid listing_id format:", listing_id);
+      return NextResponse.json(
+        { error: 'Invalid listing ID format' },
+        { status: 400 }
+      );
+    }
+
     // Get the listing details
-    console.log("🔍 Orders API - Looking for listing ID:", listing_id);
+    console.log("🔍 Orders API - Looking for listing ID:", listingIdInt, "(original:", listing_id, ")");
     const listing = await prisma.listings.findUnique({
-      where: { id: listing_id },
+      where: { id: listingIdInt },
       include: {
         seller: {
           select: {
@@ -435,6 +452,51 @@ export async function POST(request: NextRequest) {
         sold_at: new Date()
       }
     });
+
+    // 🔥 创建或查找对话，并发送 PAID 系统消息
+    try {
+      // 查找买家和卖家之间的对话
+      let conversation = await prisma.conversations.findFirst({
+        where: {
+          listing_id: listing.id,
+          OR: [
+            { initiator_id: currentUser.id, participant_id: sellerId },
+            { initiator_id: sellerId, participant_id: currentUser.id }
+          ]
+        }
+      });
+
+      // 如果不存在对话，创建一个新对话
+      if (!conversation) {
+        conversation = await prisma.conversations.create({
+          data: {
+            initiator_id: currentUser.id,
+            participant_id: sellerId,
+            listing_id: listing.id,
+            type: 'ORDER'
+          }
+        });
+        console.log(`✅ Created new conversation ${conversation.id} for order ${order.id}`);
+      } else {
+        console.log(`✅ Found existing conversation ${conversation.id} for order ${order.id}`);
+      }
+
+      // 发送 PAID 系统消息（使用幂等逻辑）
+      // 前端会根据当前用户身份动态转换显示内容
+      await postSystemMessageOnce({
+        conversationId: conversation.id,
+        senderId: currentUser.id,
+        receiverId: sellerId,
+        orderId: order.id,
+        status: 'PAID',
+        content: "@Buyer has paid for the order.\nPlease pack the item and ship to the address provided on TOP.",
+        actorName: currentUser.username
+      });
+      console.log(`✅ PAID system message created for order ${order.id} in conversation ${conversation.id}`);
+    } catch (msgError) {
+      console.error('❌ Failed to create PAID system message:', msgError);
+      // 不阻止订单创建，只记录错误
+    }
 
     return NextResponse.json(order, { status: 201 });
 

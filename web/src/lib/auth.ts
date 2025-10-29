@@ -13,6 +13,7 @@ export type SessionUser = {
   dob?: string | null;
   gender?: "Male" | "Female" | null;
   avatar_url?: string | null;
+  avatar_url?: string | null;
 };
 
 function mapRole(value: unknown): "User" | "Admin" {
@@ -62,6 +63,7 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
                 is_premium: true,
                 dob: true,
                 gender: true,
+                avatar_url: true,
                 avatar_url: true,
               },
             });
@@ -116,6 +118,7 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
             dob: true,
             gender: true,
             avatar_url: true,
+            avatar_url: true,
           },
         });
         
@@ -158,6 +161,7 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
         dob: true,
         gender: true,
         avatar_url: true,
+        avatar_url: true,
       },
     });
     
@@ -195,6 +199,7 @@ async function findUserBySupabaseId(supabaseUserId: string): Promise<SessionUser
         is_premium: true,
         dob: true,
         gender: true,
+        avatar_url: true,
         avatar_url: true,
       },
     });

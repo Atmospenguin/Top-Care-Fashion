@@ -8,6 +8,7 @@ export interface CartItem {
   updated_at: string;
   item: {
     id: string;
+    listing_id?: string | number; // 🔥 添加 listing_id 字段，用于创建订单
     title: string;
     price: number;
     description: string;

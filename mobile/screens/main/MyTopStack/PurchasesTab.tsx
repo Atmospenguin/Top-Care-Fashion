@@ -175,6 +175,12 @@ export default function PurchasesTab() {
   // Filter data
   const filtered = orders.filter((order) => {
     if (filter === "All") return order.status !== "CANCELLED"; // 🔥 "All" 不包含 cancelled orders
+    
+    // 🔥 将 REVIEWED 状态视为 COMPLETED
+    if (filter === "COMPLETED") {
+      return order.status === "COMPLETED" || order.status === "REVIEWED";
+    }
+    
     return order.status === filter;
   });
 
@@ -270,10 +276,16 @@ export default function PurchasesTab() {
                   console.log("🔍 PurchasesTab - Item conversations:", item.conversations);
                   console.log("🔍 PurchasesTab - Item conversationId:", item.conversationId);
                   
+                  // 🔥 使用最后一个对话（最新的对话），而不是第一个
+                  const conversations = item.conversations || [];
+                  const latestConversationId = conversations.length > 0 
+                    ? conversations[conversations.length - 1]?.id?.toString() 
+                    : item.conversationId?.toString();
+                  
                   navigation.navigate("OrderDetail", {
                     id: item.id.toString(),
                     source: "purchase",
-                    conversationId: item.conversationId || item.conversations?.[0]?.id?.toString() || undefined,
+                    conversationId: latestConversationId || undefined,
                   });
                 }}
               >
@@ -291,7 +303,8 @@ export default function PurchasesTab() {
                     {item.status === "CANCELLED" ? "CANCELLED" : 
                      item.status === "IN_PROGRESS" ? "PENDING" :
                      item.status === "DELIVERED" ? "DELIVERED" :
-                     item.status === "COMPLETED" ? "COMPLETED" : 
+                     item.status === "COMPLETED" ? "COMPLETED" :
+                     item.status === "REVIEWED" ? "COMPLETED" :
                      item.status}
                   </Text>
                 </View>

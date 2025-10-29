@@ -300,12 +300,15 @@ export async function GET(
       id: "order-card",
       type: "orderCard",
       order: {
-        id: existingOrder ? existingOrder.id.toString() : conversation.listing.id.toString(),
+        id: existingOrder ? existingOrder.id.toString() : undefined,
+        listing_id: existingOrder ? existingOrder.listing_id : conversation.listing.id,
+        buyer_id: existingOrder ? existingOrder.buyer_id : buyer.id,
+        seller_id: existingOrder ? existingOrder.seller_id : seller.id,
         product: {
           title: conversation.listing.name,
           price: Number(conversation.listing.price),
           size: conversation.listing.size,
-image: (() => {
+          image: (() => {
             // 🔥 处理image_urls字段 - 可能是JSON字符串或数组
             let imageUrls = conversation.listing.image_urls;
             if (typeof imageUrls === 'string') {
@@ -328,10 +331,12 @@ image: (() => {
           })()
         },
         seller: { 
+          id: existingOrder ? existingOrder.seller.id : seller.id,
           name: existingOrder ? existingOrder.seller.username : seller.username,
           avatar: existingOrder ? existingOrder.seller.avatar_url : seller.avatar_url
         },
         buyer: {
+          id: existingOrder ? existingOrder.buyer.id : buyer.id,
           name: existingOrder ? existingOrder.buyer.username : buyer.username,
           avatar: existingOrder ? existingOrder.buyer.avatar_url : buyer.avatar_url
         },
@@ -354,11 +359,14 @@ image: (() => {
       messages: orderCard ? [orderCard, ...formattedMessages] : formattedMessages,
       order: conversation.listing ? {
         id: existingOrder ? existingOrder.id.toString() : conversation.listing.id.toString(),
+        listing_id: existingOrder ? existingOrder.listing_id : conversation.listing.id, // 🔥 添加 listing_id
+        buyer_id: existingOrder ? existingOrder.buyer_id : buyer.id,
+        seller_id: existingOrder ? existingOrder.seller_id : seller.id,
         product: {
           title: conversation.listing.name,
           price: Number(conversation.listing.price),
           size: conversation.listing.size,
-image: (() => {
+          image: (() => {
             // 🔥 处理image_urls字段 - 可能是JSON字符串或数组
             let imageUrls = conversation.listing.image_urls;
             if (typeof imageUrls === 'string') {

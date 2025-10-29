@@ -99,6 +99,8 @@ export default function ListingDetailScreen() {
 
     const result = {
       ...item,
+      // 🔥 添加 listing_id 字段，用于创建订单
+      listing_id: item.id,
       // 兼容处理：优先使用 images，如果没有则使用 imageUrls
       images: Array.isArray(item.images) && item.images.length > 0 ? item.images : legacyImages,
     };

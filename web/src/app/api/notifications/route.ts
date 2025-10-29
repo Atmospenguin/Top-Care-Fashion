@@ -72,7 +72,10 @@ export async function GET(request: NextRequest) {
         id: notification.listing.id.toString(),
         title: notification.listing.name,
         price: notification.listing.price,
-        image: notification.listing.image_url || (notification.listing.image_urls?.[0] as string)
+        image: notification.listing.image_url || 
+               (Array.isArray(notification.listing.image_urls) 
+                 ? (notification.listing.image_urls[0] as string) 
+                 : null)
       } : null
     }));
 
@@ -191,7 +194,10 @@ export async function POST(request: NextRequest) {
         id: notification.listing.id.toString(),
         title: notification.listing.name,
         price: notification.listing.price,
-        image: notification.listing.image_url || (notification.listing.image_urls?.[0] as string)
+        image: notification.listing.image_url || 
+               (Array.isArray(notification.listing.image_urls) 
+                 ? (notification.listing.image_urls[0] as string) 
+                 : null)
       } : null
     };
 

@@ -35,6 +35,7 @@ import type { PremiumStackParamList } from "./screens/main/PremiumStack";
 import SellStackNavigator from './screens/main/SellStack/SellStackNavigator';
 import ReviewScreen from './screens/main/MyTopStack/ReviewScreen';
 import MutualReviewScreen from './screens/main/InboxStack/MutualReviewScreen';
+import ViewYourReviewScreen from './screens/main/InboxStack/ViewYourReviewScreen';
 import NotificationScreen from "./screens/main/InboxStack/NotificationScreen";
 import ChatScreen from './screens/main/InboxStack/ChatScreen';
 
@@ -49,6 +50,7 @@ export type RootStackParamList = {
   Premium: NavigatorScreenParams<PremiumStackParamList> | undefined;
   Buy: undefined;
   Review: { orderId: string; reviewType?: "buyer" | "seller" };
+  ViewReview: { orderId: string };
   Notification: undefined;
   MutualReview: { orderId: string };
 };
@@ -243,6 +245,7 @@ export default function App() {
             />
             <Stack.Screen name="Review" component={ReviewScreen} />
             <Stack.Screen name="MutualReview" component={MutualReviewScreen} />
+            <Stack.Screen name="ViewReview" component={ViewYourReviewScreen} />
             <Stack.Screen name="Notification" component={NotificationScreen} />
             <Stack.Screen
               name="ChatStandalone"

@@ -160,11 +160,26 @@ export default function CheckoutScreen() {
         console.log("🔍 Item details:", {
           id: bagItem.item.id,
           title: bagItem.item.title,
-          seller: bagItem.item.seller
+          seller: bagItem.item.seller,
+          listing_id: bagItem.item.listing_id
         });
         
+        // 🔥 使用 listing_id 或降级使用 id
+        const listingId = bagItem.item.listing_id || bagItem.item.id;
+        if (!listingId) {
+          console.error("❌ Missing listing_id and id in item:", bagItem.item);
+          Alert.alert(
+            "Error", 
+            `Cannot create order for "${bagItem.item.title}": missing listing information. Please try again.`
+          );
+          setIsCreatingOrder(false);
+          return;
+        }
+        console.log("✅ Final listing_id to use:", listingId);
+        console.log("✅ Source:", bagItem.item.listing_id ? "listing_id" : "id");
+        
         const newOrder = await ordersService.createOrder({
-          listing_id: parseInt(bagItem.item.id),
+          listing_id: listingId,
           buyer_name: shippingAddress.name,
           buyer_phone: shippingAddress.phone,
           shipping_address: `${shippingAddress.line1}, ${shippingAddress.city}, ${shippingAddress.state} ${shippingAddress.postalCode}`,
@@ -183,33 +198,12 @@ export default function CheckoutScreen() {
         createdOrders.push(newOrder);
       }
       
-      // 🔥 订单创建成功，显示成功消息并返回上一页
+      // 🔥 订单创建成功，显示成功消息并跳转到 ChatScreen
       console.log("✅ Order created successfully:", createdOrders);
       
       // 🔥 使用第一个创建的订单信息
       const firstOrder = createdOrders[0];
       if (firstOrder && firstOrder.id) {
-        // 🔥 立即发送 "I've paid" 系统消息
-        const sendPaidMessage = async () => {
-          try {
-            if (conversationId) {
-              console.log("📤 Sending SYSTEM message to conversation:", conversationId);
-              await messagesService.sendMessage(conversationId, {
-                content: "I've paid, waiting for you to ship\nPlease pack the item and ship to the address I provided on TOP.",
-                message_type: "SYSTEM"
-              });
-              console.log("✅ SYSTEM message sent successfully");
-            } else {
-              console.warn("❌ No conversationId when trying to send system message");
-            }
-          } catch (error) {
-            console.error("❌ Failed to send SYSTEM message:", error);
-          }
-        };
-        
-        // 发送系统消息
-        sendPaidMessage();
-        
         Alert.alert(
           "Order Created", 
           "Your order has been placed successfully!",
@@ -217,8 +211,58 @@ export default function CheckoutScreen() {
             {
               text: "OK",
               onPress: () => {
-                // 🔥 返回上一页
-                navigation.goBack();
+                // 🔥 跳转到 Inbox -> Chat 显示新订单
+                const rootNavigation = (navigation as any).getParent?.() || navigation;
+                if (rootNavigation) {
+                  try {
+                    // 构造订单数据以便在 ChatScreen 显示
+                    const orderData = {
+                      id: firstOrder.id.toString(),
+                      product: {
+                        title: items[0]?.item.title || "Item",
+                        price: items[0]?.item.price || 0,
+                        size: items[0]?.item.size,
+                        image: items[0]?.item.image || null,
+                        shippingFee: shipping,
+                      },
+                      seller: {
+                        id: items[0]?.item.seller?.id,
+                        name: items[0]?.item.seller?.name || "Seller",
+                        avatar: items[0]?.item.seller?.avatar || "",
+                      },
+                      buyer: {
+                        id: user?.id,
+                        name: user?.username || "Buyer",
+                        avatar: user?.avatar_url || "",
+                      },
+                      status: "IN_PROGRESS",
+                      listing_id: items[0]?.item.listing_id,
+                      buyer_id: user?.id ? Number(user.id) : undefined,
+                      seller_id: items[0]?.item.seller?.id,
+                    };
+                    
+                    console.log("🔍 Navigating to Chat with order data:", orderData);
+                    
+                    rootNavigation.navigate("Main", {
+                      screen: "Inbox",
+                      params: {
+                        screen: "Chat",
+                        params: {
+                          sender: orderData.seller.name,
+                          kind: "order",
+                          order: orderData,
+                          conversationId: conversationId || null,
+                          autoSendPaidMessage: false
+                        }
+                      }
+                    });
+                  } catch (error) {
+                    console.error("❌ Error navigating to Chat:", error);
+                    navigation.goBack();
+                  }
+                } else {
+                  navigation.goBack();
+                }
               }
             }
           ]

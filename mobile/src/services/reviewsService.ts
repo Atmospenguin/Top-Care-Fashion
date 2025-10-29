@@ -7,6 +7,7 @@ export interface Review {
   reviewee_id: number;
   rating: number;
   comment: string | null;
+  images?: string[] | null;
   created_at: string;
   reviewer: {
     id: number;
@@ -28,6 +29,16 @@ export interface CreateReviewRequest {
   rating: number;
   comment?: string;
   images?: string[];
+}
+
+export interface ReviewCheckResponse {
+  orderId: number;
+  userRole: 'buyer' | 'seller';
+  hasUserReviewed: boolean;
+  hasOtherReviewed: boolean;
+  reviewsCount: number;
+  userReview: Review | null;
+  otherReview: Review | null;
 }
 
 class ReviewsService {
@@ -55,6 +66,17 @@ class ReviewsService {
       return response.data;
     } catch (error) {
       console.error('Error creating review:', error);
+      throw error;
+    }
+  }
+
+  // 🔥 检查订单的评论状态（单一数据源）
+  async check(orderId: number): Promise<ReviewCheckResponse> {
+    try {
+      const response = await apiClient.get(`/api/orders/${orderId}/reviews/check`);
+      return response.data;
+    } catch (error) {
+      console.error('Error checking review status:', error);
       throw error;
     }
   }
