@@ -5,7 +5,7 @@ export type FeedbackType = 'bug' | 'feature' | 'general';
 export type FeedbackPriority = 'low' | 'medium' | 'high';
 export type FeedbackStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 
-export interface Feedback {
+export type Feedback = {
   id: string;
   userId: string | null;
   userName: string | null;
@@ -20,30 +20,30 @@ export interface Feedback {
   featured: boolean;
   createdAt: string;
   updatedAt: string;
-}
+};
 
-export interface FeedbackTestimonial {
+export type FeedbackTestimonial = {
   id: number;
   user: string | null;
   text: string;
   rating: number;
   tags: string[];
   ts: number;
-}
+};
 
-export interface CreateFeedbackRequest {
+export type CreateFeedbackRequest = {
   type?: FeedbackType;
   title?: string;
   description: string;
   priority?: FeedbackPriority;
   tags?: string[];
   rating?: number;
-}
+};
 
-export interface FeedbackListResponse {
+export type FeedbackListResponse = {
   feedbacks: Feedback[];
   testimonials: FeedbackTestimonial[];
-}
+};
 
 class FeedbackService {
   async getFeedbacks(): Promise<FeedbackListResponse> {

@@ -19,6 +19,8 @@ export type ListingItem = {
   likesCount?: number;
   createdAt?: string;
   updatedAt?: string;
+  listed?: boolean;
+  sold?: boolean;
   seller: {
     id?: number;
     name: string;

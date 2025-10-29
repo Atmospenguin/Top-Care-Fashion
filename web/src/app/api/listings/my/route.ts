@@ -40,12 +40,10 @@ export async function GET(req: NextRequest) {
 
     if (status === "active") {
       where.listed = true;
-      where.sold = false;
     } else if (status === "sold") {
-      // 🔥 修改逻辑：显示所有有订单记录的商品（包括被取消的）
-      where.orders = {
-        some: {} // 只要有订单记录就显示
-      };
+      where.sold = true;
+    } else if (status === "unlisted") {
+      where.listed = false;
     }
     // 如果status是'all'或者没有指定，则获取所有listings
 

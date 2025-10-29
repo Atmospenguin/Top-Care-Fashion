@@ -10,7 +10,7 @@ export interface BrandSummary {
 
 // 用户listings查询参数
 export interface UserListingsQueryParams {
-  status?: 'active' | 'sold' | 'all';
+  status?: 'active' | 'sold' | 'all' | 'unlisted';
   category?: string;
   condition?: string;
   minPrice?: number;
@@ -210,6 +210,20 @@ export class ListingsService {
           ? listing.description.trim()
           : listing.description,
     };
+
+    const rawListed = (listing as any).listed;
+    if (typeof rawListed === "boolean") {
+      sanitized.listed = rawListed;
+    } else if (rawListed !== undefined && rawListed !== null) {
+      sanitized.listed = Boolean(rawListed);
+    }
+
+    const rawSold = (listing as any).sold;
+    if (typeof rawSold === "boolean") {
+      sanitized.sold = rawSold;
+    } else if (rawSold !== undefined && rawSold !== null) {
+      sanitized.sold = Boolean(rawSold);
+    }
 
     if (Array.isArray(listing.tags)) {
       const cleanedTags = listing.tags

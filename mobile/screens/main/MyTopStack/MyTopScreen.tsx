@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -54,8 +54,7 @@ export default function MyTopScreen() {
     useState<"Shop" | "Sold" | "Purchases" | "Likes">("Shop");
 
   // ✅ 添加真实数据状态
-  const [activeListings, setActiveListings] = useState<ListingItem[]>([]);
-  const [soldListings, setSoldListings] = useState<ListingItem[]>([]);
+  const [shopListings, setShopListings] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -138,12 +137,15 @@ export default function MyTopScreen() {
   };
 
   // ✅ 获取用户listings
-  const fetchUserListings = async (status?: 'active' | 'sold' | 'all', filters?: Partial<UserListingsQueryParams>) => {
+  const fetchUserListings = async (
+    status: 'active' | 'sold' | 'all' | 'unlisted' = 'all',
+    filters?: Partial<UserListingsQueryParams>
+  ) => {
     try {
       console.log("📖 Fetching user listings with status:", status, "filters:", filters);
       
       const params: UserListingsQueryParams = {
-        status: status || 'active',
+        status,
         ...filters,
       };
       
@@ -151,13 +153,11 @@ export default function MyTopScreen() {
       
       const listings = await listingsService.getUserListings(params);
       
-      if (status === 'active' || status === undefined) {
-        setActiveListings(listings);
-      } else if (status === 'sold') {
-        setSoldListings(listings);
+      if (status === 'all' || status === 'active' || status === 'unlisted') {
+        setShopListings(listings);
       }
       
-      console.log(`✅ Loaded ${listings.length} ${status || 'active'} listings`);
+      console.log(`✅ Loaded ${listings.length} ${status} listings`);
       console.log("📖 Sample listing:", listings[0]);
     } catch (error) {
       console.error("❌ Error fetching user listings:", error);
@@ -206,7 +206,7 @@ export default function MyTopScreen() {
       console.log("🔍 Applying filters with values:", filters);
       
       // 重新获取active listings
-      await fetchUserListings('active', filters);
+      await fetchUserListings('all', filters);
     } finally {
       setLoading(false);
     }
@@ -247,7 +247,7 @@ export default function MyTopScreen() {
       console.log("🔍 Applying filters:", filters);
       
       // 重新获取active listings
-      await fetchUserListings('active', filters);
+      await fetchUserListings('all', filters);
     } finally {
       setLoading(false);
     }
@@ -263,8 +263,7 @@ export default function MyTopScreen() {
       try {
         await Promise.all([
           refreshCurrentUser(), // ✅ 同步最新用户资料（头像/简介等）
-          fetchUserListings('active'),
-          fetchUserListings('sold'),
+          fetchUserListings('all'),
           fetchFollowStats(),
           fetchUserCategories(),
         ]);
@@ -369,6 +368,18 @@ export default function MyTopScreen() {
   );
 
   // ✅ 使用真实用户数据，提供默认值以防用户数据为空
+  const sortedListings = useMemo(() => {
+    const listed = shopListings.filter((listing) => listing.listed !== false);
+    const unlisted = shopListings.filter((listing) => listing.listed === false);
+    return [...listed, ...unlisted];
+  }, [shopListings]);
+
+  const listedCount = useMemo(
+    () => sortedListings.filter((listing) => listing.listed !== false).length,
+    [sortedListings]
+  );
+  const unlistedCount = sortedListings.length - listedCount;
+
   const displayUser = {
     username: user?.username || "User",
     followers: followStats.followersCount, // ✅ 使用真实的follow统计
@@ -376,7 +387,7 @@ export default function MyTopScreen() {
     reviews: 0,
     bio: user?.bio || "Welcome to my profile!",
     avatar: user?.avatar_url || DEFAULT_AVATAR,
-    activeListings: activeListings, // ✅ 使用真实的active listings
+    activeListings: sortedListings, // ✅ 使用真实的listings，并将未上架的放在末尾
   };
 
   // ✅ 处理listing点击
@@ -470,7 +481,7 @@ export default function MyTopScreen() {
                 {/* Active Title */}
                 <View style={styles.activeRow}>
                   <Text style={styles.activeTitle}>
-                    Active ({displayUser.activeListings.length} listings)
+                    Active ({listedCount} listed{unlistedCount > 0 ? ` · ${unlistedCount} unlisted` : ""})
                   </Text>
                   <TouchableOpacity 
                     onPress={() => setFilterModalVisible(true)}
@@ -492,25 +503,32 @@ export default function MyTopScreen() {
             contentContainerStyle={{
               paddingBottom: 60,
             }}
-            renderItem={({ item }) =>
-              item.empty ? (
-                <View style={[styles.itemBox, styles.itemInvisible]} />
-              ) : (
+            renderItem={({ item }) => {
+              if (item.empty) {
+                return <View style={[styles.itemBox, styles.itemInvisible]} />;
+              }
+
+              const listing = item as ListingItem;
+              const imageUri = listing.images && listing.images.length > 0
+                ? listing.images[0]
+                : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
+              const isUnlisted = listing.listed === false;
+
+              return (
                 <TouchableOpacity
                   style={styles.itemBox}
-                  onPress={() => handleListingPress(item as ListingItem)}
+                  onPress={() => handleListingPress(listing)}
+                  activeOpacity={0.85}
                 >
-                  {/* ✅ 使用真实的listing数据 */}
-                  {(() => {
-                    const listing = item as ListingItem;
-                    const imageUri = listing.images && listing.images.length > 0 
-                      ? listing.images[0] 
-                      : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
-                    return <Image source={{ uri: imageUri }} style={styles.itemImage} />;
-                  })()}
+                  <Image source={{ uri: imageUri }} style={styles.itemImage} />
+                  {isUnlisted && (
+                    <View style={styles.unlistedOverlay}>
+                      <Text style={styles.unlistedOverlayText}>Unlisted</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
-              )
-            }
+              );
+            }}
             ListEmptyComponent={
               loading ? (
                 <View style={[styles.emptyBox]}>
@@ -741,6 +759,21 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     resizeMode: "cover",
+  },
+  unlistedOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  unlistedOverlayText: {
+    color: "#fff",
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
   itemInvisible: {
     backgroundColor: "transparent",

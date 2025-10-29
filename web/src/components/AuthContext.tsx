@@ -173,13 +173,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const setActor = (actor: Actor) => {
-    setUser((prev) => (prev ? { ...prev, actor } : prev));
-  };
+  const setActor = React.useCallback((actor: Actor) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      if (prev.actor === actor) return prev;
+      return { ...prev, actor };
+    });
+  }, []);
 
   const value = useMemo<AuthContextType>(
     () => ({ user, isAuthenticated: !!user, signUp, signIn, signOut, resetPassword, updateProfile, setActor }),
-    [user]
+    [user, setActor]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
