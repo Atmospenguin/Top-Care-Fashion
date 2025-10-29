@@ -5,6 +5,7 @@ export interface Conversation {
   sender: string;
   message: string;
   time: string;
+  last_message_at?: string;
   avatar: { uri: string } | null;
   kind: 'support' | 'order' | 'general';
   unread: boolean;
@@ -17,7 +18,10 @@ export interface Conversation {
       size?: string;
       image: string | null;
     };
-    seller: { name: string };
+    seller: { 
+      name: string;
+      avatar?: string | null;
+    };
     status: string;
   } | null;
 }
@@ -39,9 +43,12 @@ export interface Message {
     product: {
       title: string;
       price: number;
-      size?: string;
-      image: string | null;
+    seller: { 
+      name: string;
+      avatar?: string | null;
     };
+    status: string;
+  };
     seller: { name: string };
     status: string;
   };
@@ -107,8 +114,8 @@ class MessagesService {
   // 获取所有对话
   async getConversations(): Promise<Conversation[]> {
     try {
-      const response = await apiClient.get('/api/conversations');
-      return response.data.conversations;
+      const response = await apiClient.get<{ conversations: Conversation[] }>('/api/conversations');
+      return response.data?.conversations ?? [];
     } catch (error) {
       console.error('Error fetching conversations:', error);
       throw error;
@@ -118,7 +125,10 @@ class MessagesService {
   // 获取特定对话的消息
   async getMessages(conversationId: string): Promise<ConversationDetail> {
     try {
-      const response = await apiClient.get(`/api/messages/${conversationId}`);
+      const response = await apiClient.get<ConversationDetail>(`/api/messages/${conversationId}`);
+      if (!response.data) {
+        throw new Error('Failed to fetch conversation: missing response data');
+      }
       return response.data;
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -129,7 +139,10 @@ class MessagesService {
   // 创建新对话
   async createConversation(params: CreateConversationParams): Promise<any> {
     try {
-      const response = await apiClient.post('/api/conversations', params);
+      const response = await apiClient.post<{ conversation: any }>('/api/conversations', params);
+      if (!response.data?.conversation) {
+        throw new Error('Failed to create conversation: missing response data');
+      }
       return response.data.conversation;
     } catch (error) {
       console.error('Error creating conversation:', error);
@@ -140,7 +153,10 @@ class MessagesService {
   // 发送消息
   async sendMessage(conversationId: string, params: SendMessageParams): Promise<Message> {
     try {
-      const response = await apiClient.post(`/api/messages/${conversationId}`, params);
+      const response = await apiClient.post<{ message: Message }>(`/api/messages/${conversationId}`, params);
+      if (!response.data?.message) {
+        throw new Error('Failed to send message: missing response data');
+      }
       return response.data.message;
     } catch (error) {
       console.error('Error sending message:', error);
@@ -200,7 +216,7 @@ class MessagesService {
         avatar: otherUser.avatar_url ? { uri: otherUser.avatar_url } : null,
         kind: "order",
         unread: false,
-        lastFrom: "other",
+        lastFrom: "seller",
         order: newConversation.listing ? {
           id: newConversation.listing.id.toString(),
           product: {

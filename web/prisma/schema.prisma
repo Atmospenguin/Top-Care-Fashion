@@ -9,56 +9,56 @@ datasource db {
 }
 
 model users {
-  id                 Int                    @id @default(autoincrement())
-  username           String                 @unique @db.VarChar(64)
-  email              String                 @unique @db.VarChar(191)
-  password_hash      String?                @db.VarChar(191)
-  dob                DateTime?              @db.Date
-  gender             Gender?
-  role               UserRole               @default(USER)
-  status             UserStatus             @default(ACTIVE)
-  is_premium         Boolean                @default(false)
-  premium_until      DateTime?              @db.Timestamptz(6)
-  average_rating     Decimal?               @db.Decimal(3, 2)
-  total_reviews      Int                    @default(0)
-  created_at         DateTime               @default(now()) @db.Timestamptz(6)
-  supabase_user_id   String?                @unique @db.Uuid
-  avatar_url         String?
-  phone_number       String?                @db.VarChar(20)
-  bio                String?
-  location           String?                @db.VarChar(100)
-  updated_at         DateTime?              @default(now()) @db.Timestamp(6)
+  id                         Int                    @id @default(autoincrement())
+  username                   String                 @unique @db.VarChar(64)
+  email                      String                 @unique @db.VarChar(191)
+  password_hash              String?                @db.VarChar(191)
+  dob                        DateTime?              @db.Date
+  gender                     Gender?
+  role                       UserRole               @default(USER)
+  status                     UserStatus             @default(ACTIVE)
+  is_premium                 Boolean                @default(false)
+  premium_until              DateTime?              @db.Timestamptz(6)
+  average_rating             Decimal?               @db.Decimal(3, 2)
+  total_reviews              Int                    @default(0)
+  created_at                 DateTime               @default(now()) @db.Timestamptz(6)
+  supabase_user_id           String?                @unique @db.Uuid
+  avatar_url                 String?
+  phone_number               String?                @db.VarChar(20)
+  bio                        String?
+  location                   String?                @db.VarChar(100)
+  updated_at                 DateTime?              @default(now()) @db.Timestamp(6)
   // User preference fields
-  preferred_styles    Json?
-  preferred_size_top  String?
-  preferred_size_bottom String?
-  preferred_size_shoe String?
-  preferred_brands    Json?
-  cart_items         cart_items[]
-  faqs               faq[]
-  feedbacks          feedback[]
-  listings_as_seller listings[]             @relation("UserListings")
-  orders_bought      orders[]                @relation("OrderBuyer")
-  orders_sold        orders[]                @relation("OrderSeller")
-  reviews_received   reviews[]              @relation("Reviewee")
-  reviews_written    reviews[]              @relation("Reviewer")
-  transactions_buy   transactions[]         @relation("Buyer")
-  transactions_sell  transactions[]         @relation("Seller")
-  addresses          user_addresses[]
-  payment_methods    user_payment_methods[]
+  preferred_styles           Json?
+  preferred_size_top         String?
+  preferred_size_bottom      String?
+  preferred_size_shoe        String?
+  preferred_brands           Json?
+  cart_items                 cart_items[]
+  faqs                       faq[]
+  feedbacks                  feedback[]
+  listings_as_seller         listings[]             @relation("UserListings")
+  orders_bought              orders[]               @relation("OrderBuyer")
+  orders_sold                orders[]               @relation("OrderSeller")
+  reviews_received           reviews[]              @relation("Reviewee")
+  reviews_written            reviews[]              @relation("Reviewer")
+  transactions_buy           transactions[]         @relation("Buyer")
+  transactions_sell          transactions[]         @relation("Seller")
+  addresses                  user_addresses[]
+  payment_methods            user_payment_methods[]
   // Follow关系
-  followers          user_follows[]         @relation("UserFollowing")
-  following          user_follows[]         @relation("UserFollowers")
+  followers                  user_follows[]         @relation("UserFollowing")
+  following                  user_follows[]         @relation("UserFollowers")
   // Messages关系
-  conversations_initiated conversations[]  @relation("ConversationInitiator")
-  conversations_participated conversations[] @relation("ConversationParticipant")
-  messages_sent       messages[]            @relation("MessageSender")
-  messages_received   messages[]            @relation("MessageReceiver")
+  conversations_initiated    conversations[]        @relation("ConversationInitiator")
+  conversations_participated conversations[]        @relation("ConversationParticipant")
+  messages_sent              messages[]             @relation("MessageSender")
+  messages_received          messages[]             @relation("MessageReceiver")
   // Likes关系
-  likes               user_likes[]           @relation("UserLikes")
+  likes                      user_likes[]           @relation("UserLikes")
   // Notification关系
-  notifications      notifications[]       @relation("UserNotifications")
-  notifications_related notifications[]    @relation("NotificationRelatedUser")
+  notifications              notifications[]        @relation("UserNotifications")
+  notifications_related      notifications[]        @relation("NotificationRelatedUser")
 
   @@map("users")
 }
@@ -88,7 +88,7 @@ model listings {
   brand           String?             @db.VarChar(100)
   size            String?             @db.VarChar(50)
   condition_type  ConditionType       @default(GOOD)
-  gender          String?             @db.VarChar(10) @default("unisex")
+  gender          String?             @default("unisex") @db.VarChar(10)
   tags            Json?               @db.Json
   shipping_option String?             @db.VarChar(50)
   shipping_fee    Decimal?            @db.Decimal(10, 2)
@@ -109,10 +109,10 @@ model listings {
   seller          users?              @relation("UserListings", fields: [seller_id], references: [id])
   order_items     order_items[]
   orders          orders[]
-  conversations  conversations[]
+  conversations   conversations[]
   transactions    transactions?
-  likes           user_likes[]     @relation("ListingLikes")
-  notifications   notifications[]  @relation("NotificationListing")
+  likes           user_likes[]        @relation("ListingLikes")
+  notifications   notifications[]     @relation("NotificationListing")
 
   @@index([category_id])
   @@index([seller_id])
@@ -171,30 +171,30 @@ model cart_items {
 }
 
 model orders {
-  id              Int           @id @default(autoincrement())
-  buyer_id        Int
-  seller_id       Int
-  listing_id      Int
-  order_number    String?       @unique @db.VarChar(50)
-  status          OrderStatus   @default(IN_PROGRESS)
-  total_amount    Decimal?      @db.Decimal(10, 2)
-  shipping_method String?       @db.VarChar(100)
-  notes           String?
+  id               Int         @id @default(autoincrement())
+  buyer_id         Int
+  seller_id        Int
+  listing_id       Int
+  order_number     String?     @unique @db.VarChar(50)
+  status           OrderStatus @default(IN_PROGRESS)
+  total_amount     Decimal?    @db.Decimal(10, 2)
+  shipping_method  String?     @db.VarChar(100)
+  notes            String?
   // 买家信息字段
-  buyer_name      String?       @db.VarChar(100)
-  buyer_phone     String?       @db.VarChar(20)
-  shipping_address String?      @db.Text
-  payment_method  String?       @db.VarChar(50)
-  payment_details Json?         @db.Json
-  created_at      DateTime      @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime      @default(now()) @db.Timestamptz(6)
-  
+  buyer_name       String?     @db.VarChar(100)
+  buyer_phone      String?     @db.VarChar(20)
+  shipping_address String?     @db.Text
+  payment_method   String?     @db.VarChar(50)
+  payment_details  Json?       @db.Json
+  created_at       DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime    @default(now()) @db.Timestamptz(6)
+
   // 关联关系
-  buyer           users         @relation("OrderBuyer", fields: [buyer_id], references: [id], onDelete: Cascade)
-  seller          users         @relation("OrderSeller", fields: [seller_id], references: [id], onDelete: Cascade)
-  listing         listings      @relation(fields: [listing_id], references: [id], onDelete: Cascade)
-  order_items     order_items[]
-  reviews         reviews[]
+  buyer       users         @relation("OrderBuyer", fields: [buyer_id], references: [id], onDelete: Cascade)
+  seller      users         @relation("OrderSeller", fields: [seller_id], references: [id], onDelete: Cascade)
+  listing     listings      @relation(fields: [listing_id], references: [id], onDelete: Cascade)
+  order_items order_items[]
+  reviews     reviews[]
 
   @@map("orders")
 }
@@ -213,17 +213,17 @@ model order_items {
 }
 
 model transactions {
-  id         Int       @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   buyer_id   Int
   seller_id  Int
-  listing_id Int       @unique
-  quantity   Int       @default(1)
-  price_each Decimal   @db.Decimal(10, 2)
-  status     TxStatus  @default(PENDING)
-  created_at DateTime  @default(now()) @db.Timestamptz(6)
-  buyer      users     @relation("Buyer", fields: [buyer_id], references: [id])
-  listing    listings  @relation(fields: [listing_id], references: [id])
-  seller     users     @relation("Seller", fields: [seller_id], references: [id])
+  listing_id Int      @unique
+  quantity   Int      @default(1)
+  price_each Decimal  @db.Decimal(10, 2)
+  status     TxStatus @default(PENDING)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  buyer      users    @relation("Buyer", fields: [buyer_id], references: [id])
+  listing    listings @relation(fields: [listing_id], references: [id])
+  seller     users    @relation("Seller", fields: [seller_id], references: [id])
 
   @@index([buyer_id])
   @@index([seller_id])
@@ -450,39 +450,40 @@ model user_likes {
 }
 
 model conversations {
-  id           Int      @id @default(autoincrement())
-  initiator_id Int
-  participant_id Int
-  listing_id   Int?
-  type         ConversationType @default(ORDER)
-  status       ConversationStatus @default(ACTIVE)
-  last_message_at DateTime? @db.Timestamptz(6)
-  created_at   DateTime @default(now()) @db.Timestamptz(6)
-  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+  id              Int                @id @default(autoincrement())
+  initiator_id    Int
+  participant_id  Int
+  listing_id      Int?
+  type            ConversationType   @default(ORDER)
+  status          ConversationStatus @default(ACTIVE)
+  last_message_at DateTime?          @db.Timestamptz(6)
+  created_at      DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime           @default(now()) @db.Timestamptz(6)
 
-  initiator   users @relation("ConversationInitiator", fields: [initiator_id], references: [id], onDelete: Cascade)
-  participant users @relation("ConversationParticipant", fields: [participant_id], references: [id], onDelete: Cascade)
-  listing     listings? @relation(fields: [listing_id], references: [id], onDelete: SetNull)
-  messages    messages[]
+  initiator     users           @relation("ConversationInitiator", fields: [initiator_id], references: [id], onDelete: Cascade)
+  participant   users           @relation("ConversationParticipant", fields: [participant_id], references: [id], onDelete: Cascade)
+  listing       listings?       @relation(fields: [listing_id], references: [id], onDelete: SetNull)
+  messages      messages[]
+  notifications notifications[] @relation("NotificationConversation")
 
   @@unique([initiator_id, participant_id, listing_id])
   @@map("conversations")
 }
 
 model messages {
-  id              Int      @id @default(autoincrement())
+  id              Int         @id @default(autoincrement())
   conversation_id Int
   sender_id       Int
   receiver_id     Int
-  content         String   @db.Text
+  content         String      @db.Text
   message_type    MessageType @default(TEXT)
-  is_read         Boolean  @default(false)
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
-  idempotencyKey  String?  @unique
+  is_read         Boolean     @default(false)
+  created_at      DateTime    @default(now()) @db.Timestamptz(6)
+  idempotencyKey  String?     @unique
 
   conversation conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-  sender      users @relation("MessageSender", fields: [sender_id], references: [id], onDelete: Cascade)
-  receiver    users @relation("MessageReceiver", fields: [receiver_id], references: [id], onDelete: Cascade)
+  sender       users         @relation("MessageSender", fields: [sender_id], references: [id], onDelete: Cascade)
+  receiver     users         @relation("MessageReceiver", fields: [receiver_id], references: [id], onDelete: Cascade)
 
   @@map("messages")
 }
@@ -506,22 +507,24 @@ enum MessageType {
 }
 
 model notifications {
-  id          Int      @id @default(autoincrement())
-  user_id     Int
-  type        String   @db.VarChar(20)  // 改为字符串类型
-  title       String   @db.VarChar(255)
-  message     String?  @db.Text
-  image_url   String?
-  is_read     Boolean  @default(false)
-  order_id    String?  @db.VarChar(64)
-  listing_id  Int?
+  id              Int      @id @default(autoincrement())
+  user_id         Int
+  type            String   @db.VarChar(20) // 改为字符串类型
+  title           String   @db.VarChar(255)
+  message         String?  @db.Text
+  image_url       String?
+  is_read         Boolean  @default(false)
+  order_id        String?  @db.VarChar(64)
+  listing_id      Int?
   related_user_id Int?
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  conversation_id Int? // ✅ 新增：关联对话ID（用于ORDER/REVIEW通知）
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
 
-  user        users @relation("UserNotifications", fields: [user_id], references: [id], onDelete: Cascade)
-  listing     listings? @relation("NotificationListing", fields: [listing_id], references: [id], onDelete: SetNull)
-  related_user users? @relation("NotificationRelatedUser", fields: [related_user_id], references: [id], onDelete: SetNull)
+  user         users          @relation("UserNotifications", fields: [user_id], references: [id], onDelete: Cascade)
+  listing      listings?      @relation("NotificationListing", fields: [listing_id], references: [id], onDelete: SetNull)
+  related_user users?         @relation("NotificationRelatedUser", fields: [related_user_id], references: [id], onDelete: SetNull)
+  conversation conversations? @relation("NotificationConversation", fields: [conversation_id], references: [id], onDelete: SetNull)
 
   @@map("notifications")
 }

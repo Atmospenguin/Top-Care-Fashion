@@ -190,6 +190,30 @@ export class UserService {
     }
   }
 
+  // ✅ 通过 userId 获取用户信息（返回简化的用户对象，主要用于获取 username）
+  async getUserById(userId: string): Promise<{ username: string } | null> {
+    try {
+      console.log("📖 Fetching user by ID:", userId);
+      
+      // 尝试通过 /api/users/id/:id 端点获取用户
+      // 如果后端没有这个端点，这个调用会失败，我们会 catch 住错误
+      const response = await apiClient.get<{ success: boolean; user: { username: string } }>(
+        `/api/users/id/${userId}`
+      );
+      
+      if (response.data?.success && response.data.user?.username) {
+        console.log("✅ User found by ID:", response.data.user.username);
+        return response.data.user;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Error fetching user by ID:', error);
+      // 如果后端不支持通过 ID 查询，返回 null
+      return null;
+    }
+  }
+
   // 获取用户的 listings
   async getUserListings(username: string, status: 'active' | 'sold' | 'all' = 'active'): Promise<any[]> {
     try {

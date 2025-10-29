@@ -11,7 +11,7 @@ import {
   Animated,
   Alert,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Swipeable } from "react-native-gesture-handler";
 // Keep SafeAreaView inside Header; avoid double SafeArea padding here
@@ -101,12 +101,18 @@ export default function InboxScreen() {
     loadUnreadNotificationCount();
   }, []);
 
-  // 加载未读notification计数
+  // ✅ 页面聚焦时自动刷新未读数量
+  useFocusEffect(
+    React.useCallback(() => {
+      loadUnreadNotificationCount();
+    }, [])
+  );
+
+  // ✅ 加载未读notification计数（使用新方法）
   const loadUnreadNotificationCount = async () => {
     try {
       console.log("🔔 Loading unread notification count...");
-      const notifications = await notificationService.getNotifications();
-      const unreadCount = notifications.filter(n => !n.isRead).length;
+      const unreadCount = await notificationService.getUnreadCount();
       setUnreadNotificationCount(unreadCount);
       console.log("🔔 Unread notification count:", unreadCount);
     } catch (error) {
@@ -132,7 +138,23 @@ export default function InboxScreen() {
       console.log("🔍 Loading conversations from API...");
       
       const apiConversations = await messagesService.getConversations();
-      setConversations(apiConversations);
+      const sortedConversations = [...apiConversations].sort((a, b) => {
+        const aSource = a.last_message_at ?? a.time;
+        const bSource = b.last_message_at ?? b.time;
+        const aDate = new Date(aSource).getTime();
+        const bDate = new Date(bSource).getTime();
+
+        const aValid = Number.isFinite(aDate);
+        const bValid = Number.isFinite(bDate);
+
+        if (!aValid && !bValid) return 0;
+        if (!aValid) return 1;
+        if (!bValid) return -1;
+
+        return bDate - aDate;
+      });
+
+      setConversations(sortedConversations);
       
       console.log("🔍 Loaded", apiConversations.length, "conversations from API");
       

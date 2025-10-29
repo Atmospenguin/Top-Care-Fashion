@@ -14,6 +14,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -22,10 +23,11 @@ import type { RouteProp } from "@react-navigation/native";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import ASSETS from "../../../constants/assetUrls";
-import type { BagItem } from "../../../types/shop";
+import type { BagItem, ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
 import { likesService, cartService, messagesService } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
+import { apiClient } from "../../../src/services/api";
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
@@ -61,16 +63,12 @@ const formatDateString = (value?: string | null) => {
 export default function ListingDetailScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
-  const {
-    params: { item, isOwnListing: isOwnListingParam = false },
-  } = useRoute<RouteProp<BuyStackParamList, "ListingDetail">>();
+  const route = useRoute<RouteProp<BuyStackParamList, "ListingDetail">>();
+  const { item: itemParam, listingId, isOwnListing: isOwnListingParam = false } = route.params || {};
   
-  // 调试：查看传递的 item 数据
-  console.log("🔍 ListingDetailScreen - Received item:", item);
-  console.log("🔍 ListingDetailScreen - Item ID:", item?.id);
-  console.log("🔍 ListingDetailScreen - Item title:", item?.title);
-  console.log("🔍 ListingDetailScreen - Item seller:", item?.seller);
   const { user } = useAuth();
+  const [item, setItem] = useState<ListingItem | null>(itemParam || null);
+  const [isLoadingListing, setIsLoadingListing] = useState(!itemParam && !!listingId);
   const [showMenu, setShowMenu] = useState(false);
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -78,6 +76,38 @@ export default function ListingDetailScreen() {
   const [isLiked, setIsLiked] = useState(false);
   const [isLoadingLike, setIsLoadingLike] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+
+  // ✅ 如果只有 listingId，通过 API 加载 listing 数据
+  useEffect(() => {
+    if (!itemParam && listingId) {
+      loadListingById(listingId);
+    }
+  }, [listingId, itemParam]);
+
+  const loadListingById = async (id: string) => {
+    try {
+      setIsLoadingListing(true);
+      console.log("🔍 Loading listing by ID:", id);
+      
+      const response = await apiClient.get<{ listing: ListingItem }>(`/api/listings/${id}`);
+      if (response.data?.listing) {
+        setItem(response.data.listing);
+        console.log("✅ Listing loaded successfully:", response.data.listing);
+      }
+    } catch (error) {
+      console.error("❌ Error loading listing:", error);
+      Alert.alert("Error", "Failed to load listing details");
+      navigation.goBack();
+    } finally {
+      setIsLoadingListing(false);
+    }
+  };
+  
+  // 调试：查看传递的 item 数据
+  console.log("🔍 ListingDetailScreen - Received item:", item);
+  console.log("🔍 ListingDetailScreen - Item ID:", item?.id);
+  console.log("🔍 ListingDetailScreen - Item title:", item?.title);
+  console.log("🔍 ListingDetailScreen - Item seller:", item?.seller);
 
   // 安全处理 item 数据，兼容 images 和 imageUrls 字段
   const safeItem = useMemo(() => {

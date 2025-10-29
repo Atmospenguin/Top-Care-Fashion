@@ -13,7 +13,7 @@ import HomeScreen from "../HomeStack/HomeScreen";
 import UserProfileScreen from "./UserProfileScreen";
   
 export type BuyStackParamList = {
-  ListingDetail: { item: ListingItem; isOwnListing?: boolean };
+  ListingDetail: { item?: ListingItem; listingId?: string; isOwnListing?: boolean }; // ✅ 支持通过 listingId 导航
   MixMatch: { baseItem: ListingItem };
   ViewOutfit: {
     baseItem: ListingItem;
@@ -24,10 +24,11 @@ export type BuyStackParamList = {
     selection: BagItem[];
   };
   UserProfile: {
-    username: string;
-    avatar: string;
-    rating: number;
-    sales: number;
+    username?: string;
+    userId?: string; // ✅ 支持通过 userId 导航
+    avatar?: string;
+    rating?: number;
+    sales?: number;
   };
   SearchResult: { query: string; gender?: "men" | "women" | "unisex" };
   Bag: { items: BagItem[] } | undefined;

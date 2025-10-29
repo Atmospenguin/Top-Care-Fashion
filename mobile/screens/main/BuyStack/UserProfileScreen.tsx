@@ -146,9 +146,8 @@ function formatData(data: any[], numColumns: number) {
 
 export default function UserProfileScreen() {
   const navigation = useNavigation<BuyNavigation>();
-  const {
-    params: { username, avatar, rating, sales },
-  } = useRoute<UserProfileParam>();
+  const route = useRoute<UserProfileParam>();
+  const { username: usernameParam, userId, avatar, rating, sales } = route.params || {};
 
   // 状态管理
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -162,6 +161,7 @@ export default function UserProfileScreen() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
+  const [username, setUsername] = useState<string>(usernameParam || "");
 
   const [activeTab, setActiveTab] = useState<"Shop" | "Likes" | "Reviews">(
     "Shop"
@@ -216,8 +216,31 @@ export default function UserProfileScreen() {
     loadCurrentUser();
   }, []);
 
+  // ✅ 如果有 userId 但没有 username，先通过 userId 获取 username
+  useEffect(() => {
+    const loadUsernameFromId = async () => {
+      if (userId && !usernameParam) {
+        try {
+          console.log("📖 Loading username for userId:", userId);
+          // 通过 userId 获取用户信息
+          const response = await userService.getUserById(userId);
+          if (response?.username) {
+            setUsername(response.username);
+            console.log("✅ Username loaded:", response.username);
+          }
+        } catch (error) {
+          console.error("❌ Error loading username from userId:", error);
+        }
+      }
+    };
+
+    loadUsernameFromId();
+  }, [userId, usernameParam]);
+
   // 加载用户信息
   useEffect(() => {
+    if (!username) return; // 等待 username 加载完成
+    
     const loadUserProfile = async () => {
       try {
         setLoading(true);
