@@ -99,7 +99,8 @@ export interface Conversation {
   sender: string;
   message: string;
   time: string;
-  avatar: ImageSourcePropType | null;
+  last_message_at?: string;
+  avatar: { uri: string } | null;
   kind: 'support' | 'order' | 'general';
   unread: boolean;
   lastFrom: 'support' | 'seller' | 'buyer' | 'me';
@@ -112,8 +113,10 @@ export interface Conversation {
       size?: string;
       image: string | null;
     };
-    seller: { name: string; avatar?: string; isPremium?: boolean; };
-    buyer?: { name: string; avatar?: string; isPremium?: boolean };
+    seller: { 
+      name: string;
+      avatar?: string | null;
+    };
     status: string;
   } | null;
 }
@@ -136,9 +139,12 @@ export interface Message {
     product: {
       title: string;
       price: number;
-      size?: string;
-      image: string | null;
+    seller: { 
+      name: string;
+      avatar?: string | null;
     };
+    status: string;
+  };
     seller: { name: string };
     status: string;
   };
@@ -207,56 +213,8 @@ class MessagesService {
   // 获取所有对话
   async getConversations(): Promise<Conversation[]> {
     try {
-      const response = await apiClient.get<{ conversations?: any[] }>('/api/conversations');
-      const raw = (response.data?.conversations ?? []) as any[];
-      if (!Array.isArray(raw)) {
-        return [];
-      }
-
-      return raw.map((conversation) => {
-        const participant = normalizeParticipant(
-          conversation.otherUser ?? conversation.participant ?? conversation.user
-        );
-
-        let avatarSource: ImageSourcePropType | null = null;
-        if (conversation.avatar && typeof conversation.avatar === "object" && "uri" in conversation.avatar) {
-          avatarSource = conversation.avatar;
-        } else if (typeof conversation.avatar === "string") {
-          avatarSource = toImageSource(conversation.avatar);
-        } else if (conversation.avatar_url) {
-          avatarSource = toImageSource(conversation.avatar_url);
-        }
-        if (!avatarSource && participant.avatar) {
-          avatarSource = toImageSource(participant.avatar);
-        }
-
-        const orderSummary = normalizeOrderSummary(conversation.order);
-
-        const premiumFlag =
-          resolvePremiumFlag(
-            conversation,
-            conversation.participant,
-            conversation.otherUser,
-            orderSummary?.seller,
-            orderSummary?.buyer,
-            participant
-          ) || participant.isPremium;
-
-        const lastFrom: Conversation["lastFrom"] = ["support", "seller", "buyer", "me"].includes(
-          conversation.lastFrom,
-        )
-          ? conversation.lastFrom
-          : "seller";
-
-        return {
-          ...conversation,
-          sender: conversation.sender ?? participant.name ?? participant.username,
-          avatar: avatarSource,
-          isPremium: premiumFlag || undefined,
-          lastFrom,
-          order: orderSummary,
-        } as Conversation;
-      });
+      const response = await apiClient.get<{ conversations: Conversation[] }>('/api/conversations');
+      return response.data?.conversations ?? [];
     } catch (error) {
       console.error('Error fetching conversations:', error);
       throw error;
@@ -266,54 +224,11 @@ class MessagesService {
   // 获取特定对话的消息
   async getMessages(conversationId: string): Promise<ConversationDetail> {
     try {
-      const response = await apiClient.get(`/api/messages/${conversationId}`);
-      const data = response.data as ConversationDetail & {
-        messages?: Array<Message & { senderInfo?: any }>;
-        conversation?: ConversationDetail["conversation"] & { otherUser?: any };
-      };
-
-      if (Array.isArray(data?.messages)) {
-        data.messages = data.messages.map((message) => {
-          const senderInfoRaw = message.senderInfo ?? (message as any).sender ?? (message as any).user;
-          if (senderInfoRaw) {
-            const normalizedSender = normalizeParticipant(senderInfoRaw);
-            return {
-              ...message,
-              senderInfo: {
-                id: normalizedSender.id ?? 0,
-                username: normalizedSender.username,
-                avatar: normalizedSender.avatar,
-                isPremium: normalizedSender.isPremium || undefined,
-              },
-            } as Message;
-          }
-
-          return {
-            ...message,
-          } as Message;
-        });
+      const response = await apiClient.get<ConversationDetail>(`/api/messages/${conversationId}`);
+      if (!response.data) {
+        throw new Error('Failed to fetch conversation: missing response data');
       }
-
-      if (data?.conversation) {
-        const normalizedOther = normalizeParticipant(
-          data.conversation.otherUser ?? (data.conversation as any).participant ?? (data.conversation as any).user,
-        );
-        data.conversation = {
-          ...data.conversation,
-          otherUser: {
-            id: normalizedOther.id ?? 0,
-            username: normalizedOther.username,
-            avatar: normalizedOther.avatar,
-            isPremium: normalizedOther.isPremium,
-          },
-        } as ConversationDetail["conversation"];
-      }
-
-      if (data?.order) {
-        data.order = normalizeOrderSummary(data.order) ?? undefined;
-      }
-
-      return data as ConversationDetail;
+      return response.data;
     } catch (error) {
       console.error('Error fetching messages:', error);
       throw error;
@@ -325,7 +240,7 @@ class MessagesService {
     try {
       const response = await apiClient.post<{ conversation: any }>('/api/conversations', params);
       if (!response.data?.conversation) {
-        throw new Error('Failed to create conversation');
+        throw new Error('Failed to create conversation: missing response data');
       }
       return response.data.conversation;
     } catch (error) {
@@ -339,7 +254,7 @@ class MessagesService {
     try {
       const response = await apiClient.post<{ message: Message }>(`/api/messages/${conversationId}`, params);
       if (!response.data?.message) {
-        throw new Error('Failed to send message');
+        throw new Error('Failed to send message: missing response data');
       }
       return response.data.message;
     } catch (error) {
@@ -443,8 +358,33 @@ class MessagesService {
         kind: "order",
         unread: false,
         lastFrom: "seller",
-        isPremium: participantSummary.isPremium || undefined,
-        order: orderSummary,
+        order: newConversation.listing ? {
+          id: newConversation.listing.id.toString(),
+          product: {
+            title: newConversation.listing.name,
+            price: Number(newConversation.listing.price),
+            size: newConversation.listing.size,
+            image: newConversation.listing.image_url || (newConversation.listing.image_urls as any)?.[0] || null
+          },
+          seller: { 
+            name: otherUser.username,
+            avatar: otherUser.avatar_url 
+          },
+          status: "Inquiry"
+        } : {
+          id: listingId?.toString() || "unknown",
+          product: {
+            title: "Item",
+            price: 0,
+            size: "Unknown",
+            image: null
+          },
+          seller: { 
+            name: otherUser.username,
+            avatar: otherUser.avatar_url 
+          },
+          status: "Inquiry"
+        }
       };
     } catch (error) {
       console.error('Error getting or creating seller conversation:', error);

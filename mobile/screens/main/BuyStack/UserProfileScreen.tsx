@@ -152,9 +152,15 @@ function formatData(data: any[], numColumns: number) {
 
 export default function UserProfileScreen() {
   const navigation = useNavigation<BuyNavigation>();
-  const {
-    params: { username, avatar, rating, sales },
-  } = useRoute<UserProfileParam>();
+  const route = useRoute<UserProfileParam>();
+  const openFollowList = (type: "followers" | "following") => {
+    const username = userProfile?.username;
+    if (!username) {
+      return;
+    }
+    navigation.navigate("FollowList", { type, username });
+  };
+  const { username: usernameParam, userId, avatar, rating, sales } = route.params || {};
 
   // 状态管理
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -168,6 +174,7 @@ export default function UserProfileScreen() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
+  const [username, setUsername] = useState<string>(usernameParam || "");
 
   const [activeTab, setActiveTab] = useState<"Shop" | "Likes" | "Reviews">(
     "Shop"
@@ -242,6 +249,8 @@ export default function UserProfileScreen() {
 
   // 加载用户信息
   useEffect(() => {
+    if (!username) return; // 等待 username 加载完成
+    
     const loadUserProfile = async () => {
       try {
         setLoading(true);
@@ -991,38 +1000,55 @@ export default function UserProfileScreen() {
           {userProfile.bio && <Text style={styles.bioText}>{userProfile.bio}</Text>}
 
           <View style={styles.socialRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 18 }}>
-              <View style={styles.statBlock}>
-                <Text style={styles.statNumber}>{followers}</Text>
-                <Text style={styles.statLabel}>followers</Text>
-              </View>
-              <View style={styles.statBlock}>
-                <Text style={styles.statNumber}>{following}</Text>
-                <Text style={styles.statLabel}>following</Text>
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 10, marginLeft: 'auto' }}>
-              <TouchableOpacity
-                style={[styles.followBtn, isFollowing && styles.followBtnActive, isOwnProfile && styles.disabledBtn]}
-                onPress={isOwnProfile ? undefined : handleFollowToggle}
-                disabled={isOwnProfile}
-              >
-                <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive, isOwnProfile && styles.disabledBtnText]}>
-                  {isFollowing ? "Following" : "Follow"}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.msgBtn, isOwnProfile && styles.disabledBtn]} 
-                onPress={isOwnProfile ? undefined : handleMessageUser}
-                disabled={isOwnProfile}
-              >
-                <Icon 
-                  name="mail-outline" 
-                  size={24} 
-                  color={isOwnProfile ? "#999" : "#F54B3D"} 
-                />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.statBlock}
+              onPress={() => openFollowList("followers")}
+              disabled={!userProfile?.username}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.statNumber}>{followers}</Text>
+              <Text style={styles.statLabel}>followers</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.statBlock}
+              onPress={() => openFollowList("following")}
+              disabled={!userProfile?.username}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.statNumber}>{following}</Text>
+              <Text style={styles.statLabel}>following</Text>
+            </TouchableOpacity>
+
+            {/* Follow和Message按钮 - 始终显示，但自己的profile时禁用 */}
+            <TouchableOpacity
+              style={[
+                styles.followBtn, 
+                isFollowing && styles.followBtnActive,
+                isOwnProfile && styles.disabledBtn
+              ]}
+              onPress={isOwnProfile ? undefined : handleFollowToggle}
+              disabled={isOwnProfile}
+            >
+              <Text style={[
+                styles.followBtnText, 
+                isFollowing && styles.followBtnTextActive,
+                isOwnProfile && styles.disabledBtnText
+              ]}>
+                {isFollowing ? "Following" : "Follow"}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.msgBtn, isOwnProfile && styles.disabledBtn]} 
+              onPress={isOwnProfile ? undefined : handleMessageUser}
+              disabled={isOwnProfile}
+            >
+              <Icon 
+                name="mail-outline" 
+                size={24} 
+                color={isOwnProfile ? "#999" : "#F54B3D"} 
+              />
+            </TouchableOpacity>
           </View>
         </View>
       </View>

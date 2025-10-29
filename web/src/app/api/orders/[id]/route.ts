@@ -466,6 +466,7 @@ export async function PATCH(
             image_url: notificationImageUrl,
             order_id: orderId.toString(),
             related_user_id: currentUser.id, // 发起操作的用户
+            conversation_id: conversation?.id, // ✅ 添加对话ID
           },
         });
         console.log(`🔔 Order status notification created for user ${targetUserId} (${status})`);

@@ -217,7 +217,7 @@ export async function POST(
 
     // 🔔 创建review notification
     try {
-      // 获取商品信息
+      // 获取商品信息和对话
       const orderWithListing = await prisma.orders.findUnique({
         where: { id: orderId },
         include: {
@@ -226,11 +226,38 @@ export async function POST(
               id: true,
               name: true,
             }
+          },
+          buyer: {
+            select: {
+              id: true,
+            }
+          },
+          seller: {
+            select: {
+              id: true,
+            }
           }
         }
       });
 
       if (orderWithListing && orderWithListing.listing) {
+        // 查找对话
+        const conversation = await prisma.conversations.findFirst({
+          where: {
+            listing_id: orderWithListing.listing.id,
+            OR: [
+              {
+                initiator_id: orderWithListing.buyer.id,
+                participant_id: orderWithListing.seller.id,
+              },
+              {
+                initiator_id: orderWithListing.seller.id,
+                participant_id: orderWithListing.buyer.id,
+              },
+            ],
+          },
+        });
+
         await prisma.notifications.create({
           data: {
             user_id: revieweeId, // 被review的用户收到通知
@@ -238,8 +265,10 @@ export async function POST(
             title: `@${currentUser.username} left a review for your product`,
             message: `${orderWithListing.listing.name} - ${rating} stars`,
             image_url: (currentUser as any).avatar_url || null,
+            order_id: orderId.toString(), // ✅ 添加订单ID
             listing_id: orderWithListing.listing.id,
             related_user_id: currentUser.id,
+            conversation_id: conversation?.id, // ✅ 添加对话ID
           },
         });
         console.log(`🔔 Review notification created for user ${revieweeId}`);

@@ -56,28 +56,54 @@ export async function GET(request: NextRequest) {
     });
 
     // 格式化响应数据
-    const formattedNotifications = notifications.map(notification => ({
-      id: notification.id.toString(),
-      type: notification.type.toLowerCase(),
-      title: notification.title,
-      message: notification.message,
-      image: notification.image_url || notification.related_user?.avatar_url,
-      time: notification.created_at ? formatTime(notification.created_at) : null,
-      isRead: notification.is_read,
-      orderId: notification.order_id,
-      listingId: notification.listing_id?.toString(),
-      userId: notification.related_user_id?.toString(),
-      username: notification.related_user?.username,
-      listing: notification.listing ? {
-        id: notification.listing.id.toString(),
-        title: notification.listing.name,
-        price: notification.listing.price,
-        image: notification.listing.image_url || 
-               (Array.isArray(notification.listing.image_urls) 
-                 ? (notification.listing.image_urls[0] as string) 
-                 : null)
-      } : null
-    }));
+    const formattedNotifications = notifications.map(notification => {
+      const listingImage = notification.listing?.image_url ??
+        (Array.isArray(notification.listing?.image_urls)
+          ? (notification.listing.image_urls[0] as string)
+          : null);
+
+      const conversationId =
+        "conversation_id" in notification && notification.conversation_id != null
+          ? notification.conversation_id.toString()
+          : undefined;
+
+      const formatted = {
+        id: notification.id.toString(),
+        type: notification.type.toLowerCase(),
+        title: notification.title,
+        message: notification.message,
+        image: notification.image_url || notification.related_user?.avatar_url,
+        listingImage,
+        time: notification.created_at ? formatTime(notification.created_at) : null,
+        isRead: notification.is_read,
+        orderId: notification.order_id || undefined,
+        listingId: notification.listing_id?.toString(),
+        userId: notification.related_user_id?.toString(),
+        username: notification.related_user?.username,
+        conversationId,
+        related_user_id: notification.related_user_id?.toString(),
+        listing: notification.listing
+          ? {
+              id: notification.listing.id.toString(),
+              title: notification.listing.name,
+              price: notification.listing.price,
+              image: listingImage,
+            }
+          : null,
+      };
+
+      if (notification.type === 'ORDER' || notification.type === 'REVIEW') {
+        console.log(`🔔 Formatting ${notification.type} notification ${notification.id}:`, {
+          raw_order_id: notification.order_id,
+          raw_conversation_id:
+            "conversation_id" in notification ? notification.conversation_id : undefined,
+          formatted_orderId: formatted.orderId,
+          formatted_conversationId: formatted.conversationId,
+        });
+      }
+
+      return formatted;
+    });
 
     return NextResponse.json({
       success: true,

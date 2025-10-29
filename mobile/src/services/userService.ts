@@ -27,6 +27,17 @@ export interface UserProfile {
   memberSince: string;
 }
 
+export interface FollowListEntry {
+  id: string;
+  username: string | null;
+  avatarUrl: string | null;
+  bio: string | null;
+  location: string | null;
+  followersCount: number;
+  followingCount: number;
+  followedAt: string;
+}
+
 export interface UpdateProfileRequest {
   username?: string;
   email?: string;
@@ -233,6 +244,30 @@ export class UserService {
     }
   }
 
+  // ✅ 通过 userId 获取用户信息（返回简化的用户对象，主要用于获取 username）
+  async getUserById(userId: string): Promise<{ username: string } | null> {
+    try {
+      console.log("📖 Fetching user by ID:", userId);
+      
+      // 尝试通过 /api/users/id/:id 端点获取用户
+      // 如果后端没有这个端点，这个调用会失败，我们会 catch 住错误
+      const response = await apiClient.get<{ success: boolean; user: { username: string } }>(
+        `/api/users/id/${userId}`
+      );
+      
+      if (response.data?.success && response.data.user?.username) {
+        console.log("✅ User found by ID:", response.data.user.username);
+        return response.data.user;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Error fetching user by ID:', error);
+      // 如果后端不支持通过 ID 查询，返回 null
+      return null;
+    }
+  }
+
   // 获取用户的 listings
   async getUserListings(username: string, status: 'active' | 'sold' | 'all' = 'active'): Promise<any[]> {
     try {
@@ -329,7 +364,11 @@ export class UserService {
   }
 
   // 获取当前用户的follow统计
-  async getMyFollowStats(): Promise<{ followersCount: number; followingCount: number }> {
+  async getMyFollowStats(): Promise<{
+    followersCount: number;
+    followingCount: number;
+    reviewsCount: number;
+  }> {
     try {
       console.log("👥 Fetching my follow stats");
       
@@ -344,12 +383,58 @@ export class UserService {
         return {
           followersCount: response.data.user.followersCount,
           followingCount: response.data.user.followingCount,
+          reviewsCount: response.data.user.reviewsCount ?? 0,
         };
       }
       
       throw new Error('Failed to get follow stats');
     } catch (error) {
       console.error('Error getting follow stats:', error);
+      throw error;
+    }
+  }
+
+  async getMyFollowList(type: "followers" | "following"): Promise<FollowListEntry[]> {
+    try {
+      console.log("👥 Fetching my follow list", type);
+
+      const response = await apiClient.get<{ success?: boolean; data?: FollowListEntry[] }>(
+        "/api/profile/follows",
+        { type },
+      );
+
+      if (response.data?.data && Array.isArray(response.data.data)) {
+        console.log(`✅ Loaded ${response.data.data.length} ${type}`);
+        return response.data.data;
+      }
+
+      return [];
+    } catch (error) {
+      console.error(`❌ Error fetching follow list (${type}):`, error);
+      throw error;
+    }
+  }
+
+  async getUserFollowList(
+    username: string,
+    type: "followers" | "following",
+  ): Promise<FollowListEntry[]> {
+    try {
+      console.log("👥 Fetching follow list for user", username, type);
+
+      const response = await apiClient.get<{ success?: boolean; data?: FollowListEntry[] }>(
+        `/api/users/${encodeURIComponent(username)}/follows`,
+        { type },
+      );
+
+      if (response.data?.data && Array.isArray(response.data.data)) {
+        console.log(`✅ Loaded ${response.data.data.length} ${type} for ${username}`);
+        return response.data.data;
+      }
+
+      return [];
+    } catch (error) {
+      console.error(`❌ Error fetching follow list for ${username} (${type}):`, error);
       throw error;
     }
   }

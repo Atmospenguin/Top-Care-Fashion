@@ -5,7 +5,8 @@ export interface Notification {
   type: 'order' | 'like' | 'follow' | 'review' | 'system';
   title: string;
   message?: string;
-  image?: string;
+  image?: string; // 用户头像
+  listingImage?: string; // 商品图片
   time: string;
   isRead: boolean;
   orderId?: string;
@@ -13,6 +14,8 @@ export interface Notification {
   userId?: string;
   username?: string;
   isPremiumUser?: boolean;
+  conversationId?: string; // ✅ 对话ID（用于ORDER/REVIEW通知）
+  related_user_id?: string; // ✅ 相关用户ID（用于FOLLOW通知）
 }
 
 export interface NotificationParams {
@@ -28,6 +31,26 @@ export interface NotificationParams {
 }
 
 class NotificationService {
+  // ✅ 获取未读通知数量
+  async getUnreadCount(): Promise<number> {
+    try {
+      const response = await apiClient.get<{
+        success: boolean;
+        notifications: Notification[];
+        totalCount: number;
+      }>('/api/notifications?unread_only=true');
+      
+      if (response.data?.success) {
+        return response.data.totalCount || response.data.notifications.length;
+      }
+      
+      return 0;
+    } catch (error) {
+      console.error("❌ Error fetching unread count:", error);
+      return 0;
+    }
+  }
+
   // 获取用户的所有通知
   async getNotifications(): Promise<Notification[]> {
     try {

@@ -26,6 +26,8 @@ import ConfirmSellScreen from "./ConfirmSellScreen";
 import type { ListingItem } from "../../../types/shop";
 import type { UserBenefitsPayload } from "../../../src/services";
 import type { CreateListingRequest } from "../../../src/services/listingsService";
+import FollowListScreen from "./FollowListScreen";
+import MyReviewsScreen from "./MyReviewsScreen";
 
 export type PreferenceSizes = {
   shoe?: string;
@@ -108,6 +110,8 @@ export type MyTopStackParamList = {
       }
     | undefined;
   ManagePayments: undefined;
+  FollowList: { type: "followers" | "following"; username?: string };
+  MyReviews: undefined;
 };
 
 const Stack = createNativeStackNavigator<MyTopStackParamList>();
@@ -147,6 +151,8 @@ export default function MyTopStackNavigator() {
       <Stack.Screen name="AddStyle" component={AddStyleScreen} />
       <Stack.Screen name="EditBrand" component={EditBrandScreen} />
       <Stack.Screen name="ManagePayments" component={ManagePaymentsScreen} />
+      <Stack.Screen name="FollowList" component={FollowListScreen} />
+      <Stack.Screen name="MyReviews" component={MyReviewsScreen} />
     </Stack.Navigator>
   );
 }

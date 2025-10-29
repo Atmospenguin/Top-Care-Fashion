@@ -62,6 +62,7 @@ export default function MyTopScreen() {
   const [followStats, setFollowStats] = useState({
     followersCount: 0,
     followingCount: 0,
+    reviewsCount: 0,
   });
 
   // ✅ 添加用户分类状态
@@ -101,7 +102,9 @@ export default function MyTopScreen() {
       console.log("👥 Fetching follow stats");
       const stats = await userService.getMyFollowStats();
       setFollowStats(stats);
-      console.log(`✅ Loaded follow stats: ${stats.followersCount} followers, ${stats.followingCount} following`);
+      console.log(
+        `✅ Loaded follow stats: ${stats.followersCount} followers, ${stats.followingCount} following, ${stats.reviewsCount} reviews`,
+      );
     } catch (error) {
       console.error("❌ Error fetching follow stats:", error);
       // 保持默认值0，不显示错误
@@ -383,8 +386,8 @@ export default function MyTopScreen() {
   const displayUser = {
     username: user?.username || "User",
     followers: followStats.followersCount, // ✅ 使用真实的follow统计
-    following: followStats.followingCount,  // ✅ 使用真实的follow统计
-    reviews: 0,
+    following: followStats.followingCount, // ✅ 使用真实的follow统计
+    reviews: followStats.reviewsCount,
     bio: user?.bio || "Welcome to my profile!",
     avatar: user?.avatar_url || DEFAULT_AVATAR,
     activeListings: sortedListings, // ✅ 使用真实的listings，并将未上架的放在末尾
@@ -401,6 +404,14 @@ export default function MyTopScreen() {
     "Purchases",
     "Likes",
   ];
+
+  const handleOpenFollowList = (type: "followers" | "following") => {
+    navigation.navigate("FollowList", { type });
+  };
+
+  const handleOpenReviews = () => {
+    navigation.navigate("MyReviews");
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
@@ -461,9 +472,24 @@ export default function MyTopScreen() {
                     self
                   />
                   <View style={styles.statsRow}>
-                    <Text style={styles.stats}>{displayUser.followers} followers</Text>
-                    <Text style={styles.stats}>{displayUser.following} following</Text>
-                    <Text style={styles.stats}>{displayUser.reviews} reviews</Text>
+                    <TouchableOpacity
+                      onPress={() => handleOpenFollowList("followers")}
+                      hitSlop={{ top: 8, left: 8, bottom: 8, right: 8 }}
+                    >
+                      <Text style={styles.stats}>{displayUser.followers} followers</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleOpenFollowList("following")}
+                      hitSlop={{ top: 8, left: 8, bottom: 8, right: 8 }}
+                    >
+                      <Text style={styles.stats}>{displayUser.following} following</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleOpenReviews}
+                      hitSlop={{ top: 8, left: 8, bottom: 8, right: 8 }}
+                    >
+                      <Text style={styles.stats}>{displayUser.reviews} reviews</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
