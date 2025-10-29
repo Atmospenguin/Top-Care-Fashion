@@ -55,6 +55,24 @@ export async function POST(req: NextRequest, context: { params: Promise<{ userna
       },
     });
 
+    // 🔔 创建follow notification
+    try {
+        await prisma.notifications.create({
+          data: {
+            user_id: targetUser.id, // 被follow的用户收到通知
+            type: 'FOLLOW',
+            title: `@${currentUser.username} started following you`,
+            message: 'You have a new follower!',
+            image_url: currentUser.avatar_url,
+            related_user_id: currentUser.id,
+          },
+        });
+      console.log(`🔔 Follow notification created for user ${targetUser.username}`);
+    } catch (notificationError) {
+      console.error("❌ Error creating follow notification:", notificationError);
+      // 不阻止follow操作，即使notification创建失败
+    }
+
   console.log(`✅ User ${currentUser.username} followed ${targetUser.username}`);
 
     return NextResponse.json({

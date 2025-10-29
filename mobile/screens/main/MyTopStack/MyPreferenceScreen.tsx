@@ -83,7 +83,8 @@ export default function MyPreferenceScreen() {
     setGenderSaving(true);
     try {
       const updatedUser = await userService.updateProfile({
-        gender: option === "Male" ? "Male" : option === "Female" ? "Female" : "OTHER",
+        // 非 Male/Female 映射为 null（或 undefined），以匹配后端/类型定义
+        gender: option === "Male" ? "Male" : option === "Female" ? "Female" : null,
       });
       updateUser(updatedUser);
     } catch (error) {

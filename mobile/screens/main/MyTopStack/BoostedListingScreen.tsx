@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -6,46 +6,151 @@ import {
   TouchableOpacity,
   Image,
   FlatList,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { MyTopStackParamList } from "./index";
+import { listingsService, type BoostedListingSummary } from "../../../src/services/listingsService";
 
 type Nav = NativeStackNavigationProp<MyTopStackParamList, "BoostedListing">;
 
-const BOOSTED = [
-  {
-    id: "b1",
-    title: "Flower pattern shirt, great condition",
-    size: "L",
-    price: 50,
-    image:
-      "https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?q=80&w=600&auto=format&fit=crop",
-    boostedAgo: "1 day ago",
-    views: 120,
-    clicks: 34,
-    viewUplift: "+110% from boosting",
-    clickUplift: "+30% from boosting",
-  },
-  {
-    id: "b2",
-    title: "Blue dungarees, wide leg and comfy",
-    size: "M",
-    price: 55,
-    image:
-      "https://images.unsplash.com/photo-1520975652208-8bdf0a1a3f3c?q=80&w=600&auto=format&fit=crop",
-    boostedAgo: "1 day ago",
-    views: 210,
-    clicks: 41,
-    viewUplift: "+80% from boosting",
-    clickUplift: "+60% from boosting",
-  },
-];
-
 export default function BoostedListingScreen() {
   const navigation = useNavigation<Nav>();
+  const [boosted, setBoosted] = useState<BoostedListingSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchBoostedListings = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const data = await listingsService.getBoostedListings();
+      setBoosted(data);
+    } catch (err) {
+      console.error("Failed to load boosted listings", err);
+      setError("Failed to load boosted listings.");
+      setBoosted([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      const load = async () => {
+        if (cancelled) return;
+        setLoading(true);
+        setError(null);
+        try {
+          const data = await listingsService.getBoostedListings();
+          if (!cancelled) {
+            setBoosted(data);
+          }
+        } catch (err) {
+          if (!cancelled) {
+            console.error("Failed to load boosted listings", err);
+            setError("Failed to load boosted listings.");
+            setBoosted([]);
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        }
+      };
+
+      load();
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchBoostedListings();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchBoostedListings]);
+
+  const statsCard = useMemo(() => {
+    const activeCount = boosted.filter((item) => item.status === "ACTIVE").length;
+    if (loading) {
+      return "Fetching boost stats...";
+    }
+
+    if (activeCount === 0) {
+      return "No active boosts right now. Turn boosts on to reach more buyers.";
+    }
+
+    return `${activeCount} active boost${activeCount > 1 ? "s" : ""} running. Keep an eye on performance below.`;
+  }, [boosted, loading]);
+
+  const renderEmpty = useCallback(() => {
+    if (loading) {
+      return (
+        <View style={styles.emptyState}>
+          <ActivityIndicator color="#111" />
+          <Text style={styles.emptyText}>Loading boosted listings…</Text>
+        </View>
+      );
+    }
+
+    if (error) {
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
+            <Text style={styles.retryText}>Try again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyText}>
+          You have no boosted listings yet. Boost a listing to see performance here.
+        </Text>
+      </View>
+    );
+  }, [error, handleRefresh, loading]);
+
+  const formatRelative = (iso: string | null) => {
+    if (!iso) {
+      return "recently";
+    }
+    try {
+      const date = new Date(iso);
+      const diffMs = Date.now() - date.getTime();
+      const diffMinutes = Math.max(Math.floor(diffMs / (1000 * 60)), 0);
+      if (diffMinutes < 1) return "just now";
+      if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes > 1 ? "s" : ""} ago`;
+      const diffHours = Math.floor(diffMinutes / 60);
+      if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffDays < 30) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+      const diffMonths = Math.floor(diffDays / 30);
+      return `${diffMonths} month${diffMonths > 1 ? "s" : ""} ago`;
+    } catch (_err) {
+      return "recently";
+    }
+  };
+
+  const formatUplift = (percent: number) => {
+    if (!percent || percent <= 0) {
+      return "No uplift data";
+    }
+    return `+${percent}% from boosting`;
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -61,26 +166,34 @@ export default function BoostedListingScreen() {
           Numbers shown are total views and clicks, tracked from the time of
           boosting.
         </Text>
-        <TouchableOpacity>
-          <Text style={styles.learnMore}>Learn more</Text>
-        </TouchableOpacity>
+        <Text style={styles.learnMore}>{statsCard}</Text>
       </View>
 
       <FlatList
-        data={BOOSTED}
-        keyExtractor={(i) => i.id}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        data={boosted}
+        keyExtractor={(item) => item.id.toString()}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#111" />
+        }
+        ListEmptyComponent={renderEmpty}
         renderItem={({ item }) => (
           <View style={styles.boostRow}>
-            <Image source={{ uri: item.image }} style={styles.thumb} />
+            {item.primaryImage ? (
+              <Image source={{ uri: item.primaryImage }} style={styles.thumb} />
+            ) : (
+              <View style={[styles.thumb, styles.thumbPlaceholder]}>
+                <Icon name="image-outline" size={22} color="#999" />
+              </View>
+            )}
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle} numberOfLines={1}>
                 {item.title}
               </Text>
               <Text style={styles.rowMeta}>
-                {item.size} • £{item.price}
+                {(item.size || "One size")} • ${item.price.toFixed(2)}
               </Text>
-              <Text style={styles.rowSub}>Boosted {item.boostedAgo}</Text>
+              <Text style={styles.rowSub}>Boosted {formatRelative(item.startedAt)}</Text>
 
               {/* 统计 */}
               <View style={styles.metricRow}>
@@ -90,7 +203,7 @@ export default function BoostedListingScreen() {
                 </View>
                 <View style={styles.upliftPill}>
                   <Icon name="arrow-up" size={14} color="#1f7a1f" />
-                  <Text style={styles.upliftText}>{item.viewUplift}</Text>
+                  <Text style={styles.upliftText}>{formatUplift(item.viewUpliftPercent)}</Text>
                 </View>
               </View>
               <View style={[styles.metricRow, { marginTop: 6 }]}>
@@ -100,7 +213,7 @@ export default function BoostedListingScreen() {
                 </View>
                 <View style={styles.upliftPill}>
                   <Icon name="arrow-up" size={14} color="#1f7a1f" />
-                  <Text style={styles.upliftText}>{item.clickUplift}</Text>
+                  <Text style={styles.upliftText}>{formatUplift(item.clickUpliftPercent)}</Text>
                 </View>
               </View>
             </View>
@@ -126,7 +239,11 @@ const styles = StyleSheet.create({
   },
   infoTitle: { fontWeight: "700", fontSize: 15, color: "#111" },
   infoText: { color: "#444", lineHeight: 18 },
-  learnMore: { color: "#3b82f6", fontWeight: "600", marginTop: 2 },
+  learnMore: { color: "#555", fontSize: 12, marginTop: 4 },
+  listContent: {
+    paddingBottom: 24,
+    flexGrow: 1,
+  },
 
   boostRow: {
     flexDirection: "row",
@@ -137,6 +254,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   thumb: { width: 66, height: 66, borderRadius: 10, backgroundColor: "#eee" },
+  thumbPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
   rowTitle: { fontWeight: "700", color: "#111" },
   rowMeta: { color: "#111", marginTop: 2 },
   rowSub: { color: "#666", marginTop: 2, fontSize: 12 },
@@ -168,4 +289,27 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   upliftText: { color: "#1f7a1f", fontWeight: "700", fontSize: 12 },
+  emptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 32,
+  },
+  emptyText: {
+    marginTop: 8,
+    color: "#555",
+    textAlign: "center",
+    fontSize: 14,
+  },
+  retryButton: {
+    marginTop: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "#111",
+  },
+  retryText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
 });

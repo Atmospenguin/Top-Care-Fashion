@@ -1,17 +1,13 @@
-import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  ScrollView,
-} from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Image } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { RootStackParamList } from "../../../App";
+import Avatar from "../../../components/Avatar";
+import { reviewsService, ordersService } from "../../../src/services";
 
 type ReviewSide = {
   name: string;
@@ -19,6 +15,8 @@ type ReviewSide = {
   role: "Buyer" | "Seller";
   rating: number;
   comment: string;
+  isPremium?: boolean;
+  images?: string[];
 };
 
 const mockMutualReviews: Record<string, { buyer: ReviewSide; seller: ReviewSide }> =
@@ -48,7 +46,98 @@ export default function MutualReviewScreen() {
     params: { orderId },
   } = useRoute<RouteProp<RootStackParamList, "MutualReview">>();
 
-  const mutual = mockMutualReviews[orderId];
+  const [loading, setLoading] = useState(true);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [orderInfo, setOrderInfo] = useState<{ buyer_id: number; seller_id: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // 🔥 加载评论数据和订单信息
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        
+        // 同时获取订单信息和评论
+        const [reviewsData, order] = await Promise.all([
+          reviewsService.getOrderReviews(parseInt(orderId)),
+          ordersService.getOrder(parseInt(orderId))
+        ]);
+        
+        setReviews(reviewsData);
+        setOrderInfo({
+          buyer_id: order.buyer_id,
+          seller_id: order.seller_id
+        });
+        
+        console.log("📊 MutualReviewScreen - Reviews data:", reviewsData);
+        console.log("📊 MutualReviewScreen - Order info:", { buyer_id: order.buyer_id, seller_id: order.seller_id });
+      } catch (error) {
+        console.error("Error loading reviews:", error);
+        setError("Failed to load reviews");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [orderId]);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <Header title="Mutual Review" showBack />
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#000" />
+          <Text style={styles.loadingText}>Loading reviews...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <Header title="Mutual Review" showBack />
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // 🔥 根据订单信息识别买家和卖家的评论
+  // buyer review: reviewer_id === buyer_id (买家评论卖家)
+  // seller review: reviewer_id === seller_id (卖家评论买家)
+  const buyerReview = orderInfo ? reviews.find(r => r.reviewer_id === orderInfo.buyer_id) : null;
+  const sellerReview = orderInfo ? reviews.find(r => r.reviewer_id === orderInfo.seller_id) : null;
+
+  console.log("📊 MutualReviewScreen - Buyer review:", buyerReview);
+  console.log("📊 MutualReviewScreen - Seller review:", sellerReview);
+
+  const mutualReviews = buyerReview && sellerReview ? {
+    buyer: {
+      name: buyerReview.reviewer.username,
+      avatar: buyerReview.reviewer.avatar_url || buyerReview.reviewer.avatar_path || "https://via.placeholder.com/44x44",
+      role: "Buyer" as const,
+      rating: buyerReview.rating,
+      comment: buyerReview.comment || "",
+      isPremium: Boolean(
+        (buyerReview.reviewer as any).isPremium ?? (buyerReview.reviewer as any).is_premium ?? false,
+      ),
+      images: buyerReview.images || [],
+    },
+    seller: {
+      name: sellerReview.reviewer.username,
+      avatar: sellerReview.reviewer.avatar_url || sellerReview.reviewer.avatar_path || "https://via.placeholder.com/44x44",
+      role: "Seller" as const,
+      rating: sellerReview.rating,
+      comment: sellerReview.comment || "",
+      isPremium: Boolean(
+        (sellerReview.reviewer as any).isPremium ?? (sellerReview.reviewer as any).is_premium ?? false,
+      ),
+      images: sellerReview.images || [],
+    }
+  } : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -62,18 +151,18 @@ export default function MutualReviewScreen() {
           </Text>
         </View>
 
-        {mutual ? (
+        {mutualReviews ? (
           <>
-            <ReviewCard side={mutual.buyer} />
-            <ReviewCard side={mutual.seller} />
+            <ReviewCard side={mutualReviews.buyer} />
+            <ReviewCard side={mutualReviews.seller} />
           </>
         ) : (
           <View style={styles.emptyState}>
             <Icon name="chatbubble-ellipses-outline" size={36} color="#c2c7d1" />
             <Text style={styles.emptyTitle}>No mutual review yet</Text>
-          <Text style={styles.emptyText}>
-            Once both parties submit their reviews, they will appear here.
-          </Text>
+            <Text style={styles.emptyText}>
+              Once both parties submit their reviews, they will appear here.
+            </Text>
           </View>
         )}
       </ScrollView>
@@ -85,7 +174,12 @@ function ReviewCard({ side }: { side: ReviewSide }) {
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
-        <Image source={{ uri: side.avatar }} style={styles.avatar} />
+        <Avatar
+          source={{ uri: side.avatar }}
+          style={styles.avatar}
+          isPremium={side.isPremium}
+          badgePosition="top-right"
+        />
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{side.name}</Text>
           <Text style={styles.role}>{side.role}</Text>
@@ -102,6 +196,17 @@ function ReviewCard({ side }: { side: ReviewSide }) {
         </View>
       </View>
       <Text style={styles.comment}>{side.comment}</Text>
+      {side.images && side.images.length > 0 && (
+        <View style={styles.imagesContainer}>
+          {side.images.map((imageUrl, index) => (
+            <Image
+              key={`${side.name}-image-${index}`}
+              source={{ uri: imageUrl }}
+              style={styles.reviewImage}
+            />
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -162,6 +267,18 @@ const styles = StyleSheet.create({
     color: "#333",
     lineHeight: 20,
   },
+  imagesContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  },
+  reviewImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: "#f0f0f0",
+  },
   emptyState: {
     alignItems: "center",
     justifyContent: "center",
@@ -179,5 +296,19 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
     paddingHorizontal: 24,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: "#666",
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#666",
   },
 });

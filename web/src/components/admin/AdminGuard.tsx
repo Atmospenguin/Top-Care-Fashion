@@ -1,5 +1,6 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { useAuth } from "@/components/AuthContext";
 
 type MeResponse = {
   user: null | {
@@ -12,29 +13,32 @@ type MeResponse = {
 };
 
 export default function AdminGuard({ children }: { children: React.ReactNode }) {
+  const { setActor } = useAuth();
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/auth/me", { cache: "no-store" });
       const json: MeResponse = await res.json();
-      setIsAdmin(json.user?.role === "Admin");
+      const nextIsAdmin = json.user?.role === "Admin";
+      setIsAdmin(nextIsAdmin);
+      setActor(nextIsAdmin ? "Admin" : "User");
     } catch (e: any) {
       setError(e?.message || "Unable to Check Admin Status");
     } finally {
       setLoading(false);
     }
-  };
+  }, [setActor]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

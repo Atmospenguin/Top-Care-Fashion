@@ -1,6 +1,7 @@
 import { apiClient } from './api';
 import { API_CONFIG } from '../config/api';
-import type { ListingItem } from '../../types/shop';
+import type { ListingCategory, ListingItem } from '../../types/shop';
+import { resolvePremiumFlag } from './utils/premium';
 
 export interface BrandSummary {
   name: string;
@@ -9,7 +10,7 @@ export interface BrandSummary {
 
 // 用户listings查询参数
 export interface UserListingsQueryParams {
-  status?: 'active' | 'sold' | 'all';
+  status?: 'active' | 'sold' | 'all' | 'unlisted';
   category?: string;
   condition?: string;
   minPrice?: number;
@@ -29,13 +30,42 @@ export interface ListingsQueryParams {
   gender?: string;
 }
 
+export interface BoostedListingSummary {
+  id: number;
+  listingId: number;
+  title: string;
+  size: string | null;
+  price: number;
+  images: string[];
+  primaryImage: string | null;
+  status: string;
+  startedAt: string | null;
+  endsAt: string | null;
+  views: number;
+  clicks: number;
+  viewUpliftPercent: number;
+  clickUpliftPercent: number;
+  usedFreeCredit: boolean;
+}
+
+export interface BoostListingsResponse {
+  createdCount: number;
+  promotionIds: number[];
+  freeCreditsUsed: number;
+  paidBoostCount: number;
+  totalCharge: number;
+  pricePerBoost: number;
+  currency: string;
+  alreadyPromotedIds?: number[];
+}
+
 // 创建商品请求参数
 export interface CreateListingRequest {
   title: string;
   description: string;
   price: number;
   brand: string;
-  size: string;
+  size: string | null;
   condition: string;
   material?: string;
   tags?: string[];
@@ -45,6 +75,8 @@ export interface CreateListingRequest {
   shippingOption?: string;
   shippingFee?: number;
   location?: string;
+  listed?: boolean;
+  sold?: boolean;
 }
 
 // 分类数据结构
@@ -53,6 +85,95 @@ export interface CategoryData {
   women: Record<string, string[]>;
   unisex: Record<string, string[]>;
 }
+
+const VALID_LISTING_CATEGORIES: ListingCategory[] = [
+  "Accessories",
+  "Bottoms",
+  "Footwear",
+  "Outerwear",
+  "Tops",
+];
+
+const PLACEHOLDER_STRING_TOKENS = new Set([
+  "",
+  "n",
+  "na",
+  "notavailable",
+  "notapplicable",
+  "none",
+  "null",
+  "undefined",
+]);
+
+const normalizeToken = (value: string) =>
+  value.replace(/[^a-z0-9]/gi, "").toLowerCase();
+
+const sanitizeStringValue = (value?: string | null): string | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const normalized = normalizeToken(trimmed);
+  if (PLACEHOLDER_STRING_TOKENS.has(normalized)) {
+    return null;
+  }
+
+  return trimmed;
+};
+
+const toBoolean = (value: any): boolean =>
+  value === true ||
+  value === "true" ||
+  value === 1 ||
+  value === "1";
+
+const extractAvatar = (source: any): string => {
+  const candidates = [
+    source?.avatar,
+    source?.avatar_url,
+    source?.avatar_path,
+    source?.profile_image,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate;
+    }
+  }
+  return "";
+};
+
+const normalizeSellerSummary = (seller: any): ListingItem["seller"] => {
+  const rawId =
+    seller?.id ?? seller?.user_id ?? seller?.seller_id ?? seller?.owner_id ?? seller?.participant_id;
+  const id =
+    typeof rawId === "number"
+      ? rawId
+      : rawId !== undefined
+      ? Number(rawId)
+      : undefined;
+
+  const rawRating =
+    seller?.rating ?? seller?.average_rating ?? seller?.avg_rating ?? seller?.rating_score ?? 0;
+  const rating = Number(rawRating) || 0;
+
+  const rawSales =
+    seller?.sales ?? seller?.salesCount ?? seller?.sales_count ?? seller?.total_sales ?? seller?.completed_orders ?? 0;
+  const sales = Number(rawSales) || 0;
+
+  return {
+    id,
+    name: seller?.name ?? seller?.username ?? "Seller",
+    avatar: extractAvatar(seller),
+    rating,
+    sales,
+    isPremium: resolvePremiumFlag(seller),
+  };
+};
 
 // 商品服务类
 export class ListingsService {
@@ -72,6 +193,66 @@ export class ListingsService {
   private extractFileName(uri: string): string {
     const segments = uri.split("/").filter(Boolean);
     return segments.length ? segments[segments.length - 1] : `listing-${Date.now()}.jpg`;
+  }
+
+  private sanitizeListingItem(listing: ListingItem): ListingItem {
+    const sanitized: ListingItem = {
+      ...listing,
+      brand: sanitizeStringValue(listing.brand),
+      size: sanitizeStringValue(listing.size),
+      condition: sanitizeStringValue(listing.condition),
+      material: sanitizeStringValue(listing.material),
+      gender: sanitizeStringValue(listing.gender),
+      shippingOption: sanitizeStringValue(listing.shippingOption),
+      location: sanitizeStringValue(listing.location),
+      description:
+        typeof listing.description === "string"
+          ? listing.description.trim()
+          : listing.description,
+    };
+
+    const rawListed = (listing as any).listed;
+    if (typeof rawListed === "boolean") {
+      sanitized.listed = rawListed;
+    } else if (rawListed !== undefined && rawListed !== null) {
+      sanitized.listed = Boolean(rawListed);
+    }
+
+    const rawSold = (listing as any).sold;
+    if (typeof rawSold === "boolean") {
+      sanitized.sold = rawSold;
+    } else if (rawSold !== undefined && rawSold !== null) {
+      sanitized.sold = Boolean(rawSold);
+    }
+
+    if (Array.isArray(listing.tags)) {
+      const cleanedTags = listing.tags
+        .map((tag) => sanitizeStringValue(tag))
+        .filter((tag): tag is string => Boolean(tag));
+      sanitized.tags = cleanedTags;
+    }
+
+    const cleanedCategory = sanitizeStringValue(
+      (listing.category as string | null) ?? null
+    );
+    if (cleanedCategory === null && listing.category !== undefined) {
+      sanitized.category = null;
+    } else if (
+      cleanedCategory &&
+      cleanedCategory !== listing.category &&
+      VALID_LISTING_CATEGORIES.includes(cleanedCategory as ListingCategory)
+    ) {
+      sanitized.category = cleanedCategory as ListingCategory;
+    }
+
+    const rawSeller = (listing as any).seller ?? {};
+    sanitized.seller = normalizeSellerSummary({
+      ...rawSeller,
+      // 保留之前可能已存在的字段
+      ...sanitized.seller,
+    });
+
+    return sanitized;
   }
 
   async getBrandSummaries(params?: { limit?: number; search?: string }): Promise<BrandSummary[]> {
@@ -124,13 +305,18 @@ export class ListingsService {
       console.log("📝 Creating listing with data:", JSON.stringify(listingData, null, 2));
       console.log("📝 API endpoint:", '/api/listings/create');
       
-      const response = await apiClient.post<{ data: ListingItem }>('/api/listings/create', listingData);
+      const payload: CreateListingRequest = {
+        ...listingData,
+        size: sanitizeStringValue(listingData.size),
+      };
+      
+      const response = await apiClient.post<{ data: ListingItem }>('/api/listings/create', payload);
       
       console.log("📝 Create listing response:", response);
       
       if (response.data?.data) {
         console.log("✅ Listing created successfully:", response.data.data.id);
-        return response.data.data;
+        return this.sanitizeListingItem(response.data.data);
       }
       
       throw new Error('No listing data received');
@@ -170,7 +356,9 @@ export class ListingsService {
       );
       
       if (response.data?.success && response.data.data?.items) {
-        return response.data.data.items;
+        return response.data.data.items.map((item) =>
+          this.sanitizeListingItem(item)
+        );
       }
       
       throw new Error('No listings data received');
@@ -193,7 +381,7 @@ export class ListingsService {
       
       if (response.data?.listing) {
         console.log("✅ Listing found:", response.data.listing.title);
-        return response.data.listing;
+        return this.sanitizeListingItem(response.data.listing);
       }
       
       console.log("❌ No listing data received");
@@ -217,6 +405,81 @@ export class ListingsService {
   // 按价格范围获取商品
   async getListingsByPriceRange(minPrice: number, maxPrice: number, params?: Omit<ListingsQueryParams, 'minPrice' | 'maxPrice'>): Promise<ListingItem[]> {
     return this.getListings({ ...params, minPrice, maxPrice });
+  }
+
+  async getBoostedListings(): Promise<BoostedListingSummary[]> {
+    try {
+      const response = await apiClient.get<{ success?: boolean; data?: BoostedListingSummary[] }>(
+        '/api/listings/boosted'
+      );
+
+      if (response.data?.data && Array.isArray(response.data.data)) {
+        return response.data.data.map((item) => ({
+          id: item.id,
+          listingId: item.listingId,
+          title: item.title,
+          size: item.size ?? null,
+          price: typeof item.price === 'number' ? item.price : Number(item.price) || 0,
+          images: Array.isArray(item.images) ? item.images : [],
+          primaryImage: item.primaryImage ?? null,
+          status: item.status,
+          startedAt: item.startedAt ?? null,
+          endsAt: item.endsAt ?? null,
+          views: typeof item.views === 'number' ? item.views : 0,
+          clicks: typeof item.clicks === 'number' ? item.clicks : 0,
+          viewUpliftPercent:
+            typeof item.viewUpliftPercent === 'number' ? item.viewUpliftPercent : 0,
+          clickUpliftPercent:
+            typeof item.clickUpliftPercent === 'number' ? item.clickUpliftPercent : 0,
+          usedFreeCredit: Boolean(item.usedFreeCredit),
+        }));
+      }
+
+      return [];
+    } catch (error) {
+      console.error('Error fetching boosted listings:', error);
+      throw error;
+    }
+  }
+
+  async boostListings(params: {
+    listingIds: string[];
+    plan: "free" | "premium";
+    paymentMethodId?: number | null;
+    useFreeCredits?: boolean;
+  }): Promise<BoostListingsResponse> {
+    try {
+      const payloadIds = params.listingIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0);
+
+      if (payloadIds.length === 0) {
+        throw new Error("No valid listing IDs provided for boosting");
+      }
+
+      const response = await apiClient.post<{
+        success?: boolean;
+        data?: BoostListingsResponse;
+        error?: string;
+      }>("/api/listings/boost", {
+        listingIds: payloadIds,
+        plan: params.plan,
+        paymentMethodId: params.paymentMethodId ?? undefined,
+        useFreeCredits:
+          typeof params.useFreeCredits === "boolean"
+            ? params.useFreeCredits
+            : true,
+      });
+
+      if (response.data?.data) {
+        return response.data.data;
+      }
+
+      throw new Error(response.data?.error || "Failed to boost listings");
+    } catch (error) {
+      console.error("Error creating listing boosts:", error);
+      throw error;
+    }
   }
 
   // 获取用户listings中实际使用的分类
@@ -267,7 +530,9 @@ export class ListingsService {
       
       if (response.data?.listings) {
         console.log(`✅ Found ${response.data.listings.length} user listings`);
-        return response.data.listings;
+        return response.data.listings.map((item) =>
+          this.sanitizeListingItem(item)
+        );
       }
       
       throw new Error('No listings data received');
@@ -282,16 +547,24 @@ export class ListingsService {
     try {
       console.log("📝 Updating listing:", id, "with data:", JSON.stringify(updateData, null, 2));
       
+      const payload: Partial<CreateListingRequest> = {
+        ...updateData,
+      };
+
+      if (Object.prototype.hasOwnProperty.call(updateData, "size")) {
+        payload.size = sanitizeStringValue(updateData.size ?? null);
+      }
+      
       const response = await apiClient.patch<{ listing: ListingItem }>(
         `/api/listings/${id}`,
-        updateData
+        payload
       );
       
       console.log("📝 Update listing response:", response);
       
       if (response.data?.listing) {
         console.log("✅ Listing updated successfully:", response.data.listing.id);
-        return response.data.listing;
+        return this.sanitizeListingItem(response.data.listing);
       }
       
       throw new Error('No updated listing data received');

@@ -3,7 +3,6 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityInd
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../App";
 import { LOGO_FULL_COLOR } from "../../constants/assetUrls";
-import Icon from "../../components/Icon";
 import { useAuth } from "../../contexts/AuthContext";
 import { getCurrentUser } from "../../api";
 
@@ -53,11 +52,6 @@ export default function LoginScreen({ navigation }: Props) {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      {/* 返回按钮 */}
-      <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-        <Icon name="chevron-back" size={20} color="#111" />
-      </TouchableOpacity>
-
       {/* 欢迎文字 */}
       <Text style={styles.welcome}>Welcome!</Text>
       <View style={styles.logoWrapper}>
@@ -124,19 +118,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff", 
     padding: 24, 
     justifyContent: "center" // 让内容垂直居中
-  },
-
-  backBtn: {
-    position: "absolute",   // 固定在左上角，不会挤压布局
-    top: 50, 
-    left: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    alignItems: "center",
-    justifyContent: "center",
   },
 
   welcome: { fontSize: 28, fontWeight: "800", color: "#111827", marginBottom: 8 },

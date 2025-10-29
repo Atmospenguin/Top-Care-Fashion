@@ -6,7 +6,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Image,
   ScrollView,
   Alert,
   ActivityIndicator,
@@ -17,6 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import Avatar from "../../../components/Avatar";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 import { userService, UpdateProfileRequest } from "../../../src/services/userService";
 import { useAuth } from "../../../contexts/AuthContext";
@@ -263,7 +263,7 @@ export default function EditProfileScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         {/* 头像 */}
         <View style={styles.avatarWrapper}>
-          <Image source={getAvatarSource()} style={styles.avatar} />
+          <Avatar source={getAvatarSource()} style={styles.avatar} isPremium={user?.isPremium} self />
           <TouchableOpacity
             style={styles.cameraBtn}
             onPress={handleAvatarPress}

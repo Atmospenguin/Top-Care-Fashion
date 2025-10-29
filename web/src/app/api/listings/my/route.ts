@@ -40,9 +40,10 @@ export async function GET(req: NextRequest) {
 
     if (status === "active") {
       where.listed = true;
-      where.sold = false;
     } else if (status === "sold") {
       where.sold = true;
+    } else if (status === "unlisted") {
+      where.listed = false;
     }
     // 如果status是'all'或者没有指定，则获取所有listings
 
@@ -96,6 +97,7 @@ export async function GET(req: NextRequest) {
             avatar_url: true,
             average_rating: true,
             total_reviews: true,
+            is_premium: true,
           },
         },
         category: {
@@ -105,36 +107,136 @@ export async function GET(req: NextRequest) {
             description: true,
           },
         },
+        // 🔥 对于sold状态的商品，包含最新的订单信息
+        orders: status === "sold" ? {
+          select: {
+            id: true,
+            status: true,
+            created_at: true,
+            updated_at: true,
+            buyer_id: true,
+            seller_id: true,
+          },
+          orderBy: { created_at: "desc" },
+          take: 1, // 只取最新的订单
+        } : false,
       },
       orderBy,
       take: limit,
       skip: offset,
     });
 
-    const formattedListings = listings.map((listing) => ({
-      id: listing.id.toString(),
-      title: listing.name,
-      description: listing.description,
-      price: Number(listing.price),
-      brand: listing.brand,
-      size: listing.size,
-      condition: listing.condition_type.toLowerCase(),
-      material: listing.material,
-      tags: listing.tags ? JSON.parse(listing.tags as string) : [],
-      category: listing.category?.name || "Unknown",
-      images: listing.image_urls ? JSON.parse(listing.image_urls as string) : 
-              (listing.image_url ? [listing.image_url] : []),
-      seller: {
-        name: listing.seller?.username || "Unknown",
-        avatar: listing.seller?.avatar_url || "",
-        rating: Number(listing.seller?.average_rating) || 0,
-        sales: listing.seller?.total_reviews || 0,
-      },
-      listed: listing.listed,
-      sold: listing.sold,
-      createdAt: listing.created_at.toISOString(),
-      updatedAt: listing.updated_at?.toISOString() || null,
-    }));
+    // 🔥 为每个sold商品获取conversationId
+    const listingsWithConversations = await Promise.all(
+      listings.map(async (listing) => {
+        let conversationId = null;
+        if (status === "sold" && listing.orders?.[0]) {
+          const latestOrder = listing.orders[0];
+
+          // 通过 listing_id 和订单参与双方查找对应 conversation，避免命中其他买家的对话
+          const conversation = await prisma.conversations.findFirst({
+            where: {
+              listing_id: listing.id,
+              OR: [
+                {
+                  initiator_id: latestOrder.buyer_id,
+                  participant_id: latestOrder.seller_id,
+                },
+                {
+                  initiator_id: latestOrder.seller_id,
+                  participant_id: latestOrder.buyer_id,
+                },
+              ],
+            },
+            select: {
+              id: true,
+            },
+          });
+
+          conversationId = conversation?.id?.toString() || null;
+        }
+        
+        return {
+          ...listing,
+          conversationId
+        };
+      })
+    );
+
+    const parseJsonArray = (value: unknown): string[] => {
+      if (!value) return [];
+      if (Array.isArray(value)) {
+        return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) {
+          return [];
+        }
+        try {
+          const parsed = JSON.parse(trimmed);
+          return Array.isArray(parsed)
+            ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+            : [];
+        } catch (error) {
+          if (/^https?:\/\//i.test(trimmed)) {
+            return [trimmed];
+          }
+          console.warn("Failed to parse JSON array field", { value: trimmed, error });
+          return [];
+        }
+      }
+      return [];
+    };
+
+    const formattedListings = listingsWithConversations.map((listing) => {
+      const images = (() => {
+        const parsed = parseJsonArray(listing.image_urls);
+        if (parsed.length > 0) {
+          return parsed;
+        }
+        if (typeof listing.image_url === "string" && listing.image_url.trim().length > 0) {
+          return [listing.image_url];
+        }
+        return [];
+      })();
+
+      const tags = parseJsonArray(listing.tags);
+
+      const latestOrder = status === "sold" ? listing.orders?.[0] : undefined;
+
+      return {
+        id: listing.id.toString(),
+        title: listing.name,
+        description: listing.description,
+        price: Number(listing.price),
+        brand: listing.brand,
+        size: listing.size,
+        condition: listing.condition_type.toLowerCase(),
+        material: listing.material,
+        tags,
+        category: listing.category?.name || "Unknown",
+        images,
+        seller: {
+          id: listing.seller?.id ?? 0,
+          name: listing.seller?.username || "Unknown",
+          avatar: listing.seller?.avatar_url || "",
+          rating: Number(listing.seller?.average_rating) || 0,
+          sales: listing.seller?.total_reviews || 0,
+          isPremium: Boolean(listing.seller?.is_premium),
+          is_premium: Boolean(listing.seller?.is_premium),
+        },
+        listed: listing.listed,
+        sold: listing.sold,
+        createdAt: listing.created_at.toISOString(),
+        updatedAt: listing.updated_at?.toISOString() || null,
+        orderStatus: latestOrder ? latestOrder.status : null,
+        orderId: latestOrder ? latestOrder.id : null,
+        buyerId: latestOrder ? latestOrder.buyer_id : null,
+        sellerId: latestOrder ? latestOrder.seller_id : null,
+        conversationId: listing.conversationId,
+      };
+    });
 
     console.log(`✅ Found ${formattedListings.length} listings for user ${user.id}`);
 

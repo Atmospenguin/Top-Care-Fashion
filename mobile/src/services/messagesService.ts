@@ -1,14 +1,110 @@
 import { apiClient } from './api';
+import type { ImageSourcePropType } from 'react-native';
+import { resolvePremiumFlag } from './utils/premium';
+
+const pickAvatar = (...candidates: Array<string | null | undefined>): string | null => {
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate;
+    }
+  }
+  return null;
+};
+
+const toImageSource = (uri: string | null | undefined): ImageSourcePropType | null =>
+  uri && typeof uri === "string" && uri.trim() ? { uri } : null;
+
+type NormalizedUser = {
+  id: number | null;
+  username: string;
+  name: string;
+  avatar: string | null;
+  isPremium: boolean;
+};
+
+const normalizeParticipant = (input: any): NormalizedUser => {
+  if (!input) {
+    return {
+      id: null,
+      username: "user",
+      name: "user",
+      avatar: null,
+      isPremium: false,
+    };
+  }
+
+  const rawId =
+    input.id ?? input.user_id ?? input.participant_id ?? input.owner_id ?? input.member_id;
+  const id =
+    typeof rawId === "number"
+      ? rawId
+      : rawId !== undefined
+      ? Number(rawId)
+      : null;
+
+  const username = input.username ?? input.handle ?? input.name ?? "user";
+  const displayName = input.name ?? input.username ?? username;
+  const avatar = pickAvatar(input.avatar, input.avatar_url, input.avatar_path, input.image_url);
+  const isPremium = resolvePremiumFlag(input);
+
+  return {
+    id: Number.isFinite(id as number) ? (id as number) : null,
+    username,
+    name: displayName,
+    avatar,
+    isPremium,
+  };
+};
+
+const normalizeOrderSummary = (order: any): Conversation["order"] => {
+  if (!order) {
+    return null;
+  }
+
+  const sellerInfo = normalizeParticipant(order.seller ?? order.seller_user ?? order.sellerInfo);
+  const buyerInfo = normalizeParticipant(order.buyer ?? order.buyer_user ?? order.buyerInfo);
+  const product = order.product ?? order.listing ?? {};
+
+  const imageCandidate =
+    product.image ??
+    product.image_url ??
+    (Array.isArray(product.image_urls) ? product.image_urls[0] : undefined);
+
+  return {
+    id: String(order.id ?? product.id ?? ""),
+    product: {
+      title: product.title ?? product.name ?? "Listing",
+      price: Number(product.price ?? 0) || 0,
+      size: product.size ?? undefined,
+      image: imageCandidate ?? null,
+    },
+    seller: {
+      name: sellerInfo.name,
+      avatar: sellerInfo.avatar ?? undefined,
+      isPremium: sellerInfo.isPremium || undefined,
+    },
+    buyer: buyerInfo.name
+      ? {
+          name: buyerInfo.name,
+          avatar: buyerInfo.avatar ?? undefined,
+          isPremium: buyerInfo.isPremium || undefined,
+        }
+      : undefined,
+    status: order.status ?? "Inquiry",
+  };
+};
 
 export interface Conversation {
   id: string;
   sender: string;
   message: string;
   time: string;
+  last_message_at?: string;
   avatar: { uri: string } | null;
   kind: 'support' | 'order' | 'general';
   unread: boolean;
   lastFrom: 'support' | 'seller' | 'buyer' | 'me';
+  isPremium?: boolean;
   order?: {
     id: string;
     product: {
@@ -17,7 +113,10 @@ export interface Conversation {
       size?: string;
       image: string | null;
     };
-    seller: { name: string };
+    seller: { 
+      name: string;
+      avatar?: string | null;
+    };
     status: string;
   } | null;
 }
@@ -28,19 +127,24 @@ export interface Message {
   sender?: 'me' | 'other';
   text: string;
   time: string;
+  sentByUser?: boolean; // 🔥 添加 sentByUser 字段
   senderInfo?: {
     id: number;
     username: string;
     avatar: string | null;
+    isPremium?: boolean;
   };
   order?: {
     id: string;
     product: {
       title: string;
       price: number;
-      size?: string;
-      image: string | null;
+    seller: { 
+      name: string;
+      avatar?: string | null;
     };
+    status: string;
+  };
     seller: { name: string };
     status: string;
   };
@@ -56,9 +160,21 @@ export interface ConversationDetail {
       id: number;
       username: string;
       avatar: string | null;
+      isPremium?: boolean;
     };
   };
   messages: Message[];
+  listing?: {
+    id: number;
+    name: string;
+    price: number;
+    image_url?: string;
+    image_urls?: string[];
+    size?: string;
+    description?: string;
+    brand?: string;
+    condition_type?: string;
+  };
   order?: {
     id: string;
     product: {
@@ -70,12 +186,15 @@ export interface ConversationDetail {
     seller: { 
       name: string;
       avatar?: string;
+      isPremium?: boolean;
     };
     buyer?: { 
       name: string;
       avatar?: string;
+      isPremium?: boolean;
     };
     status: string;
+    listing_id?: number; // 🔥 添加listing_id字段
   };
 }
 
@@ -94,8 +213,8 @@ class MessagesService {
   // 获取所有对话
   async getConversations(): Promise<Conversation[]> {
     try {
-      const response = await apiClient.get('/api/conversations');
-      return response.data.conversations;
+      const response = await apiClient.get<{ conversations: Conversation[] }>('/api/conversations');
+      return response.data?.conversations ?? [];
     } catch (error) {
       console.error('Error fetching conversations:', error);
       throw error;
@@ -105,7 +224,10 @@ class MessagesService {
   // 获取特定对话的消息
   async getMessages(conversationId: string): Promise<ConversationDetail> {
     try {
-      const response = await apiClient.get(`/api/messages/${conversationId}`);
+      const response = await apiClient.get<ConversationDetail>(`/api/messages/${conversationId}`);
+      if (!response.data) {
+        throw new Error('Failed to fetch conversation: missing response data');
+      }
       return response.data;
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -116,7 +238,10 @@ class MessagesService {
   // 创建新对话
   async createConversation(params: CreateConversationParams): Promise<any> {
     try {
-      const response = await apiClient.post('/api/conversations', params);
+      const response = await apiClient.post<{ conversation: any }>('/api/conversations', params);
+      if (!response.data?.conversation) {
+        throw new Error('Failed to create conversation: missing response data');
+      }
       return response.data.conversation;
     } catch (error) {
       console.error('Error creating conversation:', error);
@@ -127,7 +252,10 @@ class MessagesService {
   // 发送消息
   async sendMessage(conversationId: string, params: SendMessageParams): Promise<Message> {
     try {
-      const response = await apiClient.post(`/api/messages/${conversationId}`, params);
+      const response = await apiClient.post<{ message: Message }>(`/api/messages/${conversationId}`, params);
+      if (!response.data?.message) {
+        throw new Error('Failed to send message: missing response data');
+      }
       return response.data.message;
     } catch (error) {
       console.error('Error sending message:', error);
@@ -178,16 +306,58 @@ class MessagesService {
       console.log("✅ New conversation created:", newConversation);
 
       // 🔥 直接使用创建返回的对话数据，构建前端需要的格式
-      const otherUser = newConversation.participant;
+      const participantSummary = normalizeParticipant(newConversation.participant);
+
+      const avatarSource =
+        toImageSource(newConversation.avatar_url) ??
+        toImageSource(participantSummary.avatar) ??
+        (newConversation.avatar && typeof newConversation.avatar === "object" && "uri" in newConversation.avatar
+          ? newConversation.avatar
+          : null);
+
+      const listing = newConversation.listing;
+      const fallbackOrder = listing
+        ? {
+            id: listing.id,
+            status: "Inquiry",
+            seller: {
+              id: participantSummary.id ?? undefined,
+              name: participantSummary.name,
+              avatar: participantSummary.avatar,
+              isPremium: participantSummary.isPremium,
+            },
+            product: {
+              id: listing.id,
+              title: listing.name,
+              price: listing.price,
+              size: listing.size,
+              image:
+                listing.image_url ||
+                (Array.isArray(listing.image_urls) ? listing.image_urls[0] : null),
+            },
+          }
+        : {
+            id: listingId ?? undefined,
+            status: "Inquiry",
+            seller: {
+              id: participantSummary.id ?? undefined,
+              name: participantSummary.name,
+              avatar: participantSummary.avatar,
+              isPremium: participantSummary.isPremium,
+            },
+          };
+
+      const orderSummary = normalizeOrderSummary(newConversation.order ?? fallbackOrder);
+
       return {
         id: newConversation.id.toString(),
-        sender: otherUser.username,
+        sender: participantSummary.name ?? participantSummary.username,
         message: "No messages yet",
         time: "Now",
-        avatar: otherUser.avatar_url ? { uri: otherUser.avatar_url } : null,
+        avatar: avatarSource,
         kind: "order",
         unread: false,
-        lastFrom: "other",
+        lastFrom: "seller",
         order: newConversation.listing ? {
           id: newConversation.listing.id.toString(),
           product: {

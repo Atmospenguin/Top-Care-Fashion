@@ -1,23 +1,19 @@
 import React, { useState, useEffect, useMemo } from "react";
-import {
-  Dimensions,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  Alert,
-} from "react-native";
+import { Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import Avatar from "../../../components/Avatar";
 import type { MyTopStackParamList } from "./index";
+import type { RootStackParamList } from "../../../App";
 import { listingsService } from "../../../src/services/listingsService";
 import type { ListingItem } from "../../../types/shop";
+import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
+
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
@@ -31,9 +27,13 @@ const formatGenderLabel = (value?: string | null) => {
   return lower.charAt(0).toUpperCase() + lower.slice(1);
 };
 
+type Nav = CompositeNavigationProp<
+  NativeStackNavigationProp<MyTopStackParamList, "ActiveListingDetail">,
+  NativeStackNavigationProp<RootStackParamList>
+>;
+
 export default function ActiveListingDetailScreen() {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
+  const navigation = useNavigation<Nav>();
   const route = useRoute<RouteProp<MyTopStackParamList, "ActiveListingDetail">>();
 
   const [listing, setListing] = useState<ListingItem | null>(null);
@@ -57,10 +57,7 @@ export default function ActiveListingDetailScreen() {
       {
         id: "size",
         label: "Size",
-        value:
-          listing.size && listing.size !== "N/A" && listing.size !== "Select"
-            ? listing.size
-            : "Not specified",
+        value: listing.size ? listing.size : "Not specified",
       },
       {
         id: "condition",
@@ -147,9 +144,14 @@ export default function ActiveListingDetailScreen() {
 
   // ✅ 处理Boost Listing点击
   const handleBoostListing = () => {
-    if (listing) {
-      navigation.navigate("PromotionPlans");
-    }
+    if (!listing) return;
+    navigation.navigate("Premium", {
+      screen: "PromotionPlans",
+      params: {
+        selectedListingIds: [listing.id],
+        selectedListings: [listing],
+      },
+    });
   };
 
   if (loading) {
@@ -249,9 +251,14 @@ export default function ActiveListingDetailScreen() {
         <View style={styles.sectionCard}>
           <Text style={styles.sectionHeading}>Seller</Text>
           <View style={styles.sellerRow}>
-            <Image 
-              source={{ uri: listing.seller?.avatar || "" }} 
-              style={styles.sellerAvatar} 
+            <Avatar
+              source={
+                listing.seller?.avatar
+                  ? { uri: listing.seller.avatar }
+                  : DEFAULT_AVATAR
+              }
+              style={styles.sellerAvatar}
+              self
             />
             <View style={{ flex: 1 }}>
               <Text style={styles.sellerName}>{listing.seller?.name || "Unknown"}</Text>

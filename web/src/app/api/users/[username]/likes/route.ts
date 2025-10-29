@@ -42,6 +42,7 @@ export async function GET(
                 avatar_url: true,
                 average_rating: true,
                 total_reviews: true,
+                is_premium: true,
               },
             },
             category: {
@@ -118,6 +119,7 @@ export async function GET(
             avatar: listing.seller.avatar_url || '',
             rating: Number(listing.seller.average_rating || 0),
             sales: Number(listing.seller.total_reviews || 0),
+            isPremium: Boolean(listing.seller.is_premium),
           } : null,
         },
       };

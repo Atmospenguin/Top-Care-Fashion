@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Alert,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type {
   CompositeNavigationProp,
-  NavigatorScreenParams,
 } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
@@ -20,8 +20,8 @@ import Icon from "../../../components/Icon";
 import type { MyTopStackParamList } from "./index";
 import type { RootStackParamList } from "../../../App";
 import type { PremiumStackParamList } from "../PremiumStack";
-import { listingsService } from "../../../src/services/listingsService";
-import type { ListingItem } from "../../../src/types/shop";
+import { listingsService, type BoostedListingSummary } from "../../../src/services/listingsService";
+import type { ListingItem } from "../../../types/shop";
 
 export default function ManageListingScreen() {
   const navigation = useNavigation<
@@ -34,6 +34,9 @@ export default function ManageListingScreen() {
 
   const [listing, setListing] = useState<ListingItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [boostInfo, setBoostInfo] = useState<BoostedListingSummary | null>(null);
+  const [loadingBoostInfo, setLoadingBoostInfo] = useState(true);
+  const [updatingListed, setUpdatingListed] = useState(false);
 
   // ✅ 获取listing数据
   useEffect(() => {
@@ -68,6 +71,64 @@ export default function ManageListingScreen() {
     fetchListing();
   }, [route.params?.listingId, navigation]);
 
+  useEffect(() => {
+    let isMounted = true;
+    const listingId = route.params?.listingId;
+    if (!listingId) {
+      setBoostInfo(null);
+      setLoadingBoostInfo(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const loadBoostInfo = async () => {
+      try {
+        setLoadingBoostInfo(true);
+        const boostedListings = await listingsService.getBoostedListings();
+        if (!isMounted) return;
+        const matched = boostedListings.find(
+          (item) => String(item.listingId) === String(listingId)
+        );
+        setBoostInfo(matched ?? null);
+      } catch (error) {
+        if (isMounted) {
+          console.error("❌ Error fetching boost status:", error);
+          setBoostInfo(null);
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingBoostInfo(false);
+        }
+      }
+    };
+
+    loadBoostInfo();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [route.params?.listingId]);
+
+  const formatBoostDate = (isoDate: string | null | undefined) => {
+    if (!isoDate) return null;
+    const parsed = new Date(isoDate);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+    return parsed.toLocaleDateString();
+  };
+
+  const formatBoostStatus = (status: string | null | undefined) => {
+    if (!status) return "Active";
+    return status
+      .toLowerCase()
+      .split("_")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  };
+
   // ✅ 处理编辑listing
   const handleEditListing = () => {
     if (listing) {
@@ -78,28 +139,11 @@ export default function ManageListingScreen() {
   // ✅ 处理标记为已售
   const handleMarkAsSold = () => {
     if (!listing) return;
-    
-    Alert.alert(
-      "Mark as Sold",
-      "Are you sure you want to mark this item as sold?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Mark as Sold",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await listingsService.updateListing(listing.id, { sold: true, listed: false });
-              Alert.alert("Success", "Item marked as sold");
-              navigation.goBack();
-            } catch (error) {
-              console.error("❌ Error marking as sold:", error);
-              Alert.alert("Error", "Failed to mark as sold");
-            }
-          },
-        },
-      ]
-    );
+    navigation.navigate("ConfirmSell", {
+      mode: "markSold",
+      listingId: listing.id,
+      listingSnapshot: listing,
+    });
   };
 
   // ✅ 处理删除listing
@@ -129,6 +173,31 @@ export default function ManageListingScreen() {
     );
   };
 
+  const handleToggleListingVisibility = async () => {
+    if (!listing || updatingListed) return;
+
+    const nextListed = listing.listed === false;
+
+    try {
+      setUpdatingListed(true);
+      const updatedListing = await listingsService.updateListing(String(listing.id), {
+        listed: nextListed,
+      });
+      setListing(updatedListing);
+      Alert.alert(
+        "Success",
+        nextListed
+          ? "Your listing is now visible to shoppers."
+          : "Your listing has been hidden from shoppers."
+      );
+    } catch (error) {
+      console.error("❌ Error updating listing visibility:", error);
+      Alert.alert("Error", "Failed to update listing visibility");
+    } finally {
+      setUpdatingListed(false);
+    }
+  };
+
   // ✅ 处理预览listing
   const handlePreviewListing = () => {
     if (listing) {
@@ -136,8 +205,18 @@ export default function ManageListingScreen() {
     }
   };
 
-  const promotionPlansRoute: NavigatorScreenParams<PremiumStackParamList> = {
-    screen: "PromotionPlans",
+  const handleOpenPromotionPlans = () => {
+    if (!listing) {
+      return;
+    }
+
+    navigation.navigate("Premium", {
+      screen: "PromotionPlans",
+      params: {
+        selectedListingIds: [listing.id],
+        selectedListings: [listing],
+      },
+    });
   };
 
   // 模拟数据（你确认过的数字）
@@ -194,23 +273,88 @@ export default function ManageListingScreen() {
               <Text style={styles.topPrice}>${listing.price}</Text>
               <Icon name="create-outline" size={16} color="#6b6b6b" />
             </View>
+            <View style={styles.statusRow}>
+              <View
+                style={[
+                  styles.statusBadge,
+                  listing.listed === false
+                    ? styles.statusBadgeUnlisted
+                    : styles.statusBadgeListed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusBadgeText,
+                    listing.listed === false
+                      ? styles.statusBadgeTextUnlisted
+                      : styles.statusBadgeTextListed,
+                  ]}
+                >
+                  {listing.listed === false ? "Unlisted" : "Listed"}
+                </Text>
+              </View>
+              {updatingListed && (
+                <ActivityIndicator
+                  size="small"
+                  color="#6b6b6b"
+                  style={{ marginLeft: 8 }}
+                />
+              )}
+            </View>
             <Text style={styles.previewText}>Preview listing</Text>
           </View>
         </TouchableOpacity>
 
-        {/* Promotion 卡片 */}
+        {/* Boost 卡片 */}
         <View style={styles.promoCard}>
-          <View style={{ flexDirection: "row", alignItems: "center", columnGap: 8 }}>
+          <View style={styles.promoHeader}>
             <Icon name="gift-outline" size={20} color="#111" />
-            <Text style={styles.promoTitle}>
-              Wanna make more people to see your listing?
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.promoTitle}>
+                {boostInfo
+                  ? "Your listing is currently boosted"
+                  : "Want more shoppers to see your listing?"}
+              </Text>
+              {boostInfo && (
+                <Text style={styles.promoSubtitle}>
+                  {formatBoostStatus(boostInfo.status)}
+                  {formatBoostDate(boostInfo.endsAt)
+                    ? ` • Ends ${formatBoostDate(boostInfo.endsAt)}`
+                    : ""}
+                </Text>
+              )}
+            </View>
+            {boostInfo && (
+              <View style={[styles.statusBadge, styles.boostBadge]}>
+                <Text style={[styles.statusBadgeText, styles.boostBadgeText]}>Boosted</Text>
+              </View>
+            )}
           </View>
+
+          {loadingBoostInfo ? (
+            <Text style={styles.promoLoadingText}>Checking boost status…</Text>
+          ) : boostInfo ? (
+            <View style={styles.boostMetaRow}>
+              {typeof boostInfo.views === "number" && boostInfo.views > 0 && (
+                <Text style={styles.boostMetaText}>Views {boostInfo.views}</Text>
+              )}
+              {typeof boostInfo.clicks === "number" && boostInfo.clicks > 0 && (
+                <Text style={styles.boostMetaText}>Clicks {boostInfo.clicks}</Text>
+              )}
+            </View>
+          ) : (
+            <Text style={styles.promoSubtitle}>
+              Boost to push your listing to more shoppers and increase visibility.
+            </Text>
+          )}
+
           <TouchableOpacity
             style={styles.promoLinkWrapper}
-            onPress={() => navigation.navigate("Premium", promotionPlansRoute)}
+            onPress={handleOpenPromotionPlans}
           >
-            <Text style={styles.promoLink}>Click To Get Promotion</Text>
+            <Text style={styles.promoLink}>
+              {boostInfo ? "Manage Boost Options" : "Click To Get Boost"}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -253,9 +397,36 @@ export default function ManageListingScreen() {
             <Icon name="chevron-forward" size={18} color="#999" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.rowItem} onPress={() => {}}>
-            <Text style={styles.rowText}>Mark Your Item as Reserved</Text>
-            <Icon name="chevron-forward" size={18} color="#999" />
+          <TouchableOpacity
+            style={[
+              styles.rowItem,
+              updatingListed && styles.rowItemDisabled,
+            ]}
+            onPress={handleToggleListingVisibility}
+            disabled={updatingListed}
+          >
+            <Text
+              style={[
+                styles.rowText,
+                listing.listed === false ? styles.rowTextAccent : null,
+                updatingListed ? styles.rowTextMuted : null,
+              ]}
+            >
+              {listing.listed === false ? "List Item" : "Unlist Item"}
+            </Text>
+            {updatingListed ? (
+              <ActivityIndicator size="small" color="#999" />
+            ) : (
+              <Icon
+                name={
+                  listing.listed === false
+                    ? "arrow-up-circle-outline"
+                    : "eye-off-outline"
+                }
+                size={18}
+                color="#999"
+              />
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.rowItem} onPress={handleMarkAsSold}>
@@ -292,7 +463,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     columnGap: 12,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: "#fff",
     shadowColor: "#000",
     shadowOpacity: 0.05,
@@ -303,23 +474,52 @@ const styles = StyleSheet.create({
   thumb: { width: 56, height: 56, borderRadius: 8, backgroundColor: "#eee" },
   topPrice: { fontSize: 18, fontWeight: "700", color: "#111", marginRight: 6 },
   previewText: { marginTop: 4, color: "#6b6b6b" },
+  statusRow: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 6,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  statusBadgeListed: { backgroundColor: "#DCFCE7" },
+  statusBadgeUnlisted: { backgroundColor: "#FEE2E2" },
+  statusBadgeText: { fontSize: 12, fontWeight: "700" },
+  statusBadgeTextListed: { color: "#166534" },
+  statusBadgeTextUnlisted: { color: "#991B1B" },
 
   promoCard: {
-    marginTop: 16,
+    marginTop: 12,
     marginHorizontal: 16,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 14,
+    padding: 12,
     backgroundColor: "#fff",
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 10,
     elevation: 2,
-    rowGap: 8,
+    rowGap: 6,
   },
+  promoHeader: { flexDirection: "row", alignItems: "center", columnGap: 8 },
   promoLinkWrapper: { alignSelf: "flex-start", marginLeft: 28 },
   promoTitle: { fontSize: 14, fontWeight: "700", color: "#111", flex: 1, flexWrap: "wrap" },
-  promoLink: { color: "#2563eb", fontWeight: "600", marginTop: 6 },
+  promoSubtitle: { marginTop: 2, color: "#555", fontSize: 13 },
+  promoLoadingText: { marginTop: 6, color: "#666", fontSize: 13 },
+  boostMetaRow: {
+    marginTop: 6,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    columnGap: 12,
+    rowGap: 4,
+  },
+  boostMetaText: { color: "#333", fontSize: 13 },
+  promoLink: { color: "#2563eb", fontWeight: "600", marginTop: 0 },
+  boostBadge: { backgroundColor: "#DBEAFE" },
+  boostBadgeText: { color: "#1D4ED8" },
 
   metricsRow: {
     marginTop: 12,
@@ -347,7 +547,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  rowItemDisabled: { opacity: 0.6 },
   rowText: { fontSize: 15, color: "#111" },
+  rowTextMuted: { color: "#888" },
+  rowTextAccent: { color: "#2563eb", fontWeight: "600" },
 
   footer: {
     padding: 16,
@@ -357,7 +560,7 @@ const styles = StyleSheet.create({
   },
   deleteBtn: {
     height: 52,
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: "#111",
     alignItems: "center",
     justifyContent: "center",

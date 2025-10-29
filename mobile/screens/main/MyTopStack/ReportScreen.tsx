@@ -9,6 +9,8 @@ import {
   Alert,
 } from "react-native";
 import Header from "../../../components/Header";
+import { reportsService } from "../../../src/services";
+import { useAuth } from "../../../contexts/AuthContext";
 
 const reportReasons = [
   "Suspicious activity",
@@ -19,18 +21,39 @@ const reportReasons = [
 ];
 
 export default function ReportScreen() {
+  const { user } = useAuth();
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
   const [details, setDetails] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedReason) {
       Alert.alert("Select a reason", "Please pick the issue you're reporting.");
       return;
     }
 
-    Alert.alert("Report submitted", "Thanks for letting us know. We'll review it shortly.");
-    setSelectedReason(null);
-    setDetails("");
+    try {
+      setIsSubmitting(true);
+      await reportsService.submitReport({
+        targetType: "user",
+        targetId: user?.id ? `support:${user.id}` : "support",
+        category: selectedReason,
+        details,
+        reportedUsername: user?.username,
+      });
+      Alert.alert("Report submitted", "Thanks for letting us know. We'll review it shortly.");
+      setSelectedReason(null);
+      setDetails("");
+    } catch (error) {
+      console.error("Error submitting report:", error);
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to submit report. Please try again.";
+      Alert.alert("Error", message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -72,8 +95,14 @@ export default function ReportScreen() {
           textAlignVertical="top"
         />
 
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitText}>Submit report</Text>
+        <TouchableOpacity
+          style={[styles.submitButton, isSubmitting ? { opacity: 0.6 } : undefined]}
+          onPress={handleSubmit}
+          disabled={isSubmitting}
+        >
+          <Text style={styles.submitText}>
+            {isSubmitting ? "Submitting..." : "Submit report"}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </View>

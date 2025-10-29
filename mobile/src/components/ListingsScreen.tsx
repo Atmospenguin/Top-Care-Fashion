@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from 'react-native';
 import { listingsService, ListingsQueryParams } from '../services';
-import type { ListingItem } from '../types/shop';
+import type { ListingItem } from '../../types/shop';
 
 interface ListingsScreenProps {
   category?: string;

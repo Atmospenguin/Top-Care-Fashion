@@ -19,6 +19,7 @@ type UserProfile = {
   preferred_size_bottom: string | null;
   preferred_size_shoe: string | null;
   preferred_brands: unknown;
+  total_reviews: number | null;
   followers: FollowInfo[];
   following: FollowInfo[];
 };
@@ -74,6 +75,7 @@ const formatUserResponse = (user: UserProfile) => ({
   avatar_url: user.avatar_url,
   followersCount: user.followers.length,
   followingCount: user.following.length,
+  reviewsCount: user.total_reviews ?? 0,
   preferred_styles: normalizePreferredStyles(user.preferred_styles),
   preferred_size_top: user.preferred_size_top,
   preferred_size_bottom: user.preferred_size_bottom,
@@ -98,6 +100,7 @@ const selectUserProfile = {
   preferred_size_bottom: true,
   preferred_size_shoe: true,
   preferred_brands: true,
+  total_reviews: true,
   followers: {
     select: {
       id: true,

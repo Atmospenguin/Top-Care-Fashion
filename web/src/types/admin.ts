@@ -13,6 +13,7 @@ export type UserAccount = {
   average_rating?: number; // Average rating as a user (1.00-5.00)
   total_reviews: number; // Total number of reviews received
   createdAt: string; // ISO
+  avatar_url?: string | null;
 };
 
 export type ListingCategory = {
@@ -25,24 +26,24 @@ export type ListingCategory = {
 export type Listing = {
   id: string;
   name: string;
-  description?: string;
-  categoryId: string;
-  sellerId?: string;
-  sellerName?: string;
+  description?: string | null;
+  categoryId?: string | null;
+  sellerId?: string | null;
+  sellerName?: string | null;
   listed: boolean;
   sold: boolean; // True when listing has been sold
   price: number;
-  imageUrl?: string;
+  imageUrl?: string | null;
   imageUrls?: string[];
-  brand?: string;
-  size?: string;
+  brand?: string | null;
+  size?: string | null;
   conditionType?: "new" | "like_new" | "good" | "fair" | "poor";
   tags?: string[];
   createdAt: string;
-  soldAt?: string; // When the listing was sold
+  soldAt?: string | null; // When the listing was sold
   // Transaction info (if exists)
   txStatus?: "pending" | "paid" | "shipped" | "completed" | "cancelled";
-  txId?: string;
+  txId?: string | null;
 };
 
 export type Transaction = {
@@ -57,8 +58,15 @@ export type Transaction = {
   
   // Additional info for display
   buyerName?: string;
+  buyerEmail?: string | null;
   sellerName?: string;
+  sellerEmail?: string | null;
   listingName?: string;
+  listingDescription?: string | null;
+  listingImageUrl?: string | null;
+  listingBrand?: string | null;
+  listingSize?: string | null;
+  listingCondition?: string | null;
 };
 
 export type Review = {

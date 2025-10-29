@@ -2,9 +2,81 @@ import { NextRequest, NextResponse } from "next/server";
 import { getConnection, parseJson, toBoolean, toNumber } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 
-type TagList = string[];
-
 type ImageList = string[];
+
+const LISTING_SELECT = `
+  SELECT l.id,
+         l.name,
+         l.description,
+         l.category_id AS "categoryId",
+         l.seller_id AS "sellerId",
+         l.listed,
+         l.sold,
+         l.price,
+         l.image_url AS "imageUrl",
+         l.image_urls AS "imageUrls",
+         l.brand,
+         l.size,
+         l.condition_type AS "conditionType",
+         l.tags,
+         l.created_at AS "createdAt",
+         l.sold_at AS "soldAt",
+         l.updated_at AS "updatedAt",
+         u.username AS "sellerName",
+         tx.id AS "txId",
+         tx.status AS "txStatus"
+    FROM listings l
+    LEFT JOIN users u ON l.seller_id = u.id
+    LEFT JOIN LATERAL (
+      SELECT o.id, o.status
+        FROM orders o
+       WHERE o.listing_id = l.id
+       ORDER BY o.created_at DESC
+       LIMIT 1
+    ) tx ON TRUE
+`;
+
+function ensureStringArray(value: unknown): string[] {
+  if (!value) return [];
+  const parsed = Array.isArray(value) ? (value as unknown[]) : parseJson<ImageList>(value);
+  if (!parsed || !Array.isArray(parsed)) return [];
+  return parsed.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function mapListingRow(row: any) {
+  const imageUrls = ensureStringArray(row.imageUrls);
+  const tags = ensureStringArray(row.tags);
+
+  return {
+    id: String(row.id),
+    name: row.name,
+    description: row.description ?? null,
+    categoryId: row.categoryId ? String(row.categoryId) : null,
+    sellerId: row.sellerId ? String(row.sellerId) : null,
+    sellerName: row.sellerName ?? null,
+    listed: toBoolean(row.listed),
+    sold: toBoolean(row.sold),
+    price: toNumber(row.price) ?? 0,
+    imageUrl: row.imageUrl ?? null,
+    imageUrls,
+    brand: row.brand ?? null,
+    size: row.size ?? null,
+    conditionType: mapConditionOut(row.conditionType),
+    tags,
+    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+    soldAt: row.soldAt ? (row.soldAt instanceof Date ? row.soldAt.toISOString() : String(row.soldAt)) : null,
+    txStatus: mapStatus(row.txStatus),
+    txId: row.txId ? String(row.txId) : null,
+  };
+}
+
+async function fetchListingById(conn: Awaited<ReturnType<typeof getConnection>>, id: number) {
+  const [rows]: any = await conn.execute(`${LISTING_SELECT} WHERE l.id = ? ORDER BY l.id`, [id]);
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return null;
+  }
+  return mapListingRow(rows[0]);
+}
 
 function mapConditionOut(value: unknown): "new" | "like_new" | "good" | "fair" | "poor" | null {
   const normalized = String(value ?? "").toLowerCase();
@@ -23,44 +95,33 @@ function normalizeConditionIn(value: unknown): "NEW" | "LIKE_NEW" | "GOOD" | "FA
 }
 
 function mapStatus(value: unknown): "pending" | "paid" | "shipped" | "completed" | "cancelled" | null {
-  const normalized = String(value ?? "").toLowerCase();
-  if (["pending", "paid", "shipped", "completed", "cancelled"].includes(normalized)) {
-    return normalized as any;
+  const normalized = String(value ?? "").trim().toUpperCase();
+  switch (normalized) {
+    case "IN_PROGRESS":
+      return "pending";
+    case "TO_SHIP":
+      return "paid";
+    case "SHIPPED":
+    case "DELIVERED":
+      return "shipped";
+    case "RECEIVED":
+    case "COMPLETED":
+    case "REVIEWED":
+      return "completed";
+    case "CANCELLED":
+      return "cancelled";
+    default:
+      return null;
   }
-  return null;
 }
 
 export async function GET() {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const conn = await getConnection();
-  const [rows]: any = await conn.execute(
-    `SELECT l.id, l.name, l.description, l.category_id AS "categoryId", l.seller_id AS "sellerId",
-            l.listed, l.sold, l.price, l.image_url AS "imageUrl", l.image_urls AS "imageUrls",
-            l.brand, l.size, l.condition_type AS "conditionType", l.tags,
-            l.created_at AS "createdAt", u.username AS "sellerName",
-            t.id AS "txId", t.status AS "txStatus"
-     FROM listings l
-     LEFT JOIN users u ON l.seller_id = u.id
-     LEFT JOIN transactions t ON t.listing_id = l.id
-     ORDER BY l.id`
-  );
+  const [rows]: any = await conn.execute(`${LISTING_SELECT} ORDER BY l.id`);
   await conn.end();
-  const listings = (rows as any[]).map((r) => ({
-    ...r,
-    id: String(r.id),
-    categoryId: r.categoryId ? String(r.categoryId) : null,
-    sellerId: r.sellerId ? String(r.sellerId) : null,
-    price: toNumber(r.price) ?? 0,
-    listed: toBoolean(r.listed),
-    sold: toBoolean(r.sold),
-    imageUrls: parseJson<ImageList>(r.imageUrls),
-    tags: parseJson<TagList>(r.tags),
-    conditionType: mapConditionOut(r.conditionType),
-    createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
-    txStatus: mapStatus(r.txStatus),
-    txId: r.txId ? String(r.txId) : null,
-  }));
+  const listings = (rows as any[]).map(mapListingRow);
   return NextResponse.json({ listings });
 }
 
@@ -110,29 +171,15 @@ export async function POST(req: NextRequest) {
       ]
     );
 
-    const [newListing]: any = await conn.execute(
-      `SELECT id, name, description, category_id AS "categoryId", seller_id AS "sellerId",
-              listed, price, image_url AS "imageUrl", image_urls AS "imageUrls",
-              brand, size, condition_type AS "conditionType", tags,
-              created_at AS "createdAt" FROM listings WHERE id = ?`,
-      [result.insertId]
-    );
+    const listing = await fetchListingById(conn, Number(result.insertId));
 
     await conn.end();
 
-    const listing = newListing[0];
-    return NextResponse.json({
-      ...listing,
-      id: String(listing.id),
-      categoryId: listing.categoryId ? String(listing.categoryId) : null,
-      sellerId: listing.sellerId ? String(listing.sellerId) : null,
-      price: toNumber(listing.price) ?? 0,
-      listed: toBoolean(listing.listed),
-      imageUrls: parseJson<ImageList>(listing.imageUrls),
-      tags: parseJson<TagList>(listing.tags),
-      conditionType: mapConditionOut(listing.conditionType),
-      createdAt: listing.createdAt instanceof Date ? listing.createdAt.toISOString() : String(listing.createdAt),
-    });
+    if (!listing) {
+      return NextResponse.json({ error: "Failed to fetch created listing" }, { status: 500 });
+    }
+
+    return NextResponse.json(listing);
   } catch (error) {
     await conn.end();
     console.error("Error creating listing:", error);

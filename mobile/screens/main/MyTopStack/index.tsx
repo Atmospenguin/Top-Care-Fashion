@@ -10,6 +10,7 @@ import PrivacyScreen from "./PrivacyScreen";
 import HelpSupportScreen from "./HelpSupportScreen";
 import TermsPoliciesScreen from "./TermsPoliciesScreen";
 import ReportScreen from "./ReportScreen";
+import FeedbackScreen from "./FeedbackScreen";
 import ActiveListingDetailScreen from "./ActiveListingDetailScreen";
 import ManageListingScreen from "./ManageListingScreen";
 import EditListingScreen from "./EditListingScreen";
@@ -20,6 +21,13 @@ import MyPreferenceScreen from "./MyPreferenceScreen";
 import AddSizeScreen from "./AddSizeScreen";
 import AddStyleScreen from "./AddStyleScreen";
 import EditBrandScreen from "./EditBrandScreen";
+import ManagePaymentsScreen from "./ManagePaymentsScreen";
+import ConfirmSellScreen from "./ConfirmSellScreen";
+import type { ListingItem } from "../../../types/shop";
+import type { UserBenefitsPayload } from "../../../src/services";
+import type { CreateListingRequest } from "../../../src/services/listingsService";
+import FollowListScreen from "./FollowListScreen";
+import MyReviewsScreen from "./MyReviewsScreen";
 
 export type PreferenceSizes = {
   shoe?: string;
@@ -44,13 +52,39 @@ export type MyTopStackParamList = {
   HelpSupport: undefined;
   TermsPolicies: undefined;
   Report: undefined;
-  OrderDetail: { id: string; source: "purchase" | "sold" };
+  Feedback: undefined;
+  OrderDetail: { id: string; source: "purchase" | "sold"; conversationId?: string };
+  Review: { orderId: string };
   ActiveListingDetail: { listingId: string };
   ManageListing: { listingId: string };
   EditListing: { listingId: string };
-  PromotionPlans: undefined;
+  PromotionPlans:
+    | {
+        selectedListingIds?: string[];
+        selectedListings?: ListingItem[];
+        benefitsSnapshot?: UserBenefitsPayload["benefits"] | null;
+      }
+    | undefined;
   MyBoostListings: undefined;
   BoostedListing: undefined;
+  ConfirmSell:
+    | {
+        mode: "markSold";
+        listingId: string;
+        listingSnapshot?: ListingItem;
+      }
+    | {
+        mode: "create";
+        draft: CreateListingRequest;
+        benefitsSnapshot?: UserBenefitsPayload["benefits"] | null;
+      }
+    | {
+        mode: "update";
+        listingId: string;
+        draft: Partial<CreateListingRequest>;
+        listingSnapshot?: ListingItem;
+        benefitsSnapshot?: UserBenefitsPayload["benefits"] | null;
+      };
   MyPreference:
     | {
         selectedStyles?: string[];
@@ -75,6 +109,9 @@ export type MyTopStackParamList = {
         source?: "discover" | "mytop";
       }
     | undefined;
+  ManagePayments: undefined;
+  FollowList: { type: "followers" | "following"; username?: string };
+  MyReviews: undefined;
 };
 
 const Stack = createNativeStackNavigator<MyTopStackParamList>();
@@ -98,19 +135,24 @@ export default function MyTopStackNavigator() {
       <Stack.Screen name="Security" component={SecurityScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="Privacy" component={PrivacyScreen} />
-      <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
-      <Stack.Screen name="TermsPolicies" component={TermsPoliciesScreen} />
+    <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+    <Stack.Screen name="TermsPolicies" component={TermsPoliciesScreen} />
+    <Stack.Screen name="Feedback" component={FeedbackScreen} />
       <Stack.Screen name="Report" component={ReportScreen} />
       <Stack.Screen name="ActiveListingDetail" component={ActiveListingDetailScreen} />
       <Stack.Screen name="ManageListing" component={ManageListingScreen} />
       <Stack.Screen name="EditListing" component={EditListingScreen} />
-      <Stack.Screen name="PromotionPlans" component={PromotionPlansScreen} />
-      <Stack.Screen name="MyBoostListings" component={MyBoostListingScreen} />
-      <Stack.Screen name="BoostedListing" component={BoostedListingScreen} />
+    <Stack.Screen name="PromotionPlans" component={PromotionPlansScreen} />
+    <Stack.Screen name="MyBoostListings" component={MyBoostListingScreen} />
+    <Stack.Screen name="BoostedListing" component={BoostedListingScreen} />
+    <Stack.Screen name="ConfirmSell" component={ConfirmSellScreen} />
       <Stack.Screen name="MyPreference" component={MyPreferenceScreen} />
       <Stack.Screen name="AddSize" component={AddSizeScreen} />
       <Stack.Screen name="AddStyle" component={AddStyleScreen} />
       <Stack.Screen name="EditBrand" component={EditBrandScreen} />
+      <Stack.Screen name="ManagePayments" component={ManagePaymentsScreen} />
+      <Stack.Screen name="FollowList" component={FollowListScreen} />
+      <Stack.Screen name="MyReviews" component={MyReviewsScreen} />
     </Stack.Navigator>
   );
 }

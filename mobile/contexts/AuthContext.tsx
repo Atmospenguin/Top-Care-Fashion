@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authService } from '../src/services';
+import { authService, premiumService } from '../src/services';
 
 // 用户类型定义 (匹配 Web API)
 export interface User {
@@ -68,7 +68,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await authService.signIn({ email, password });
       
       if (response.user) {
-        setUser(response.user);
+        // 立即同步 premium 状态，避免界面刷新后闪烁
+        try {
+          const status = await premiumService.getStatus();
+          setUser({ ...(response.user as any), isPremium: status.isPremium, premiumUntil: status.premiumUntil });
+        } catch (_) {
+          setUser(response.user);
+        }
       } else {
         throw new Error('Invalid response from server');
       }
@@ -89,7 +95,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await authService.signUp({ username, email, password });
       
       if (response.user) {
-        setUser(response.user);
+        try {
+          const status = await premiumService.getStatus();
+          setUser({ ...(response.user as any), isPremium: status.isPremium, premiumUntil: status.premiumUntil });
+        } catch (_) {
+          setUser(response.user);
+        }
       } else {
         throw new Error('Invalid response from server');
       }
@@ -138,7 +149,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // 更新用户信息
   const updateUser = (updatedUser: User) => {
-    setUser(updatedUser);
+    setUser((prev) => {
+      if (!prev) {
+        return {
+          ...updatedUser,
+          isPremium: updatedUser.isPremium ?? (updatedUser as any).is_premium ?? false,
+          premiumUntil: updatedUser.premiumUntil ?? (updatedUser as any).premium_until ?? null,
+        };
+      }
+
+      return {
+        ...prev,
+        ...updatedUser,
+        isPremium:
+          updatedUser.isPremium ?? (updatedUser as any).is_premium ?? prev.isPremium ?? false,
+        premiumUntil:
+          updatedUser.premiumUntil ?? (updatedUser as any).premium_until ?? prev.premiumUntil ?? null,
+        avatar_url: updatedUser.avatar_url ?? prev.avatar_url ?? null,
+      };
+    });
   };
 
   // 应用启动时检查用户登录状态（仅在存在本地 token 时触发服务器查询）
@@ -146,9 +175,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const checkAuthStatus = async () => {
       try {
         setLoading(true);
-        const user = await authService.getCurrentUser();
-        if (user) {
-          setUser(user);
+        const baseUser = await authService.getCurrentUser();
+        if (baseUser) {
+          try {
+            const status = await premiumService.getStatus();
+            setUser({ ...(baseUser as any), isPremium: status.isPremium, premiumUntil: status.premiumUntil });
+          } catch (_) {
+            setUser(baseUser);
+          }
         } else {
           setUser(null);
         }

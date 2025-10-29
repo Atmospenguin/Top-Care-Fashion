@@ -22,21 +22,22 @@ export async function GET() {
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const conn = await getConnection();
   const [rows]: any = await conn.execute(
-    "SELECT id, username, email, status, role, is_premium AS \"isPremium\", premium_until AS \"premiumUntil\", dob, gender, created_at AS \"createdAt\" FROM users ORDER BY created_at DESC"
+    "SELECT id, username, email, status, role, is_premium, premium_until, dob, gender, avatar_url AS \"avatar_url\", created_at AS \"createdAt\" FROM users ORDER BY created_at DESC"
   );
   await conn.end();
 
   const users = (rows as any[]).map((row) => ({
-    id: Number(row.id),
+    id: String(row.id),
     username: row.username,
     email: row.email,
     status: mapStatus(row.status),
     role: mapRole(row.role),
-    isPremium: toBoolean(row.isPremium),
-    premiumUntil: row.premiumUntil ?? null,
+    is_premium: toBoolean(row.is_premium),
+    premium_until: row.premium_until ?? null,
     dob: row.dob ? (row.dob instanceof Date ? row.dob.toISOString().slice(0, 10) : String(row.dob)) : null,
     gender: mapGender(row.gender),
     createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+    avatar_url: row.avatar_url ?? null,
   }));
 
   return NextResponse.json({ users });

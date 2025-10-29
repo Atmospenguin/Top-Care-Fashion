@@ -11,7 +11,27 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
 
     console.log(`📖 Fetching user profile for username: ${username}`);
 
-    const user = await prisma.users.findUnique({
+    type UserProfileQueryResult = {
+      id: number;
+      username: string;
+      email: string;
+      bio: string | null;
+      location: string | null;
+      dob: Date | null;
+      gender: string | null;
+      avatar_url: string | null;
+      average_rating: any;
+      total_reviews: number | null;
+      created_at: Date;
+      is_premium: boolean;
+      premium_until: Date | null;
+      last_sign_in_at: Date | null;
+      listings_as_seller: Array<{ id: number; listed: boolean; sold: boolean }>;
+      followers: Array<{ id: number }>;
+      following: Array<{ id: number }>;
+    };
+
+    const user = (await prisma.users.findUnique({
       where: { username },
       select: {
         id: true,
@@ -25,7 +45,9 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
         average_rating: true,
         total_reviews: true,
         created_at: true,
-        // 统计信息
+        is_premium: true,
+        premium_until: true,
+        last_sign_in_at: true,
         listings_as_seller: {
           select: {
             id: true,
@@ -33,7 +55,6 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
             sold: true,
           },
         },
-        // Follow统计
         followers: {
           select: {
             id: true,
@@ -44,8 +65,8 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
             id: true,
           },
         },
-      },
-    });
+      } as any,
+    })) as UserProfileQueryResult | null;
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -80,6 +101,9 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
       followingCount,
       memberSince: user.created_at.toISOString().slice(0, 10),
       isFollowing,
+      isPremium: Boolean(user.is_premium),
+      premiumUntil: user.premium_until ? user.premium_until.toISOString() : null,
+      lastSignInAt: user.last_sign_in_at ? user.last_sign_in_at.toISOString() : null,
     };
 
     return NextResponse.json({

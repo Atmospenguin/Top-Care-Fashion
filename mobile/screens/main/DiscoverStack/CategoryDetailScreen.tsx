@@ -6,16 +6,21 @@ import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
 import { listingsService, type CategoryData } from "../../../src/services/listingsService";
-import type { DiscoverStackParamList } from "./index";
+type CategoryDetailRouteParams = {
+  gender: GenderKey;
+  mainCategory: string;
+};
 
-type CategoryDetailRoute = RouteProp<DiscoverStackParamList, "CategoryDetail">;
+type CategoryDetailRoute = RouteProp<{ CategoryDetail: CategoryDetailRouteParams }, "CategoryDetail">;
 
 type GenderKey = "men" | "women" | "unisex";
 
 export default function CategoryDetailScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<DiscoverStackParamList>>();
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const { params } = useRoute<CategoryDetailRoute>();
-  const { gender, mainCategory } = params;
+  const gender = params?.gender ?? "women";
+  const mainCategory = params?.mainCategory ?? "All";
+  const genderKey = gender as GenderKey;
   
   const [categories, setCategories] = useState<CategoryData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,11 +44,11 @@ export default function CategoryDetailScreen() {
   };
 
   const subcategories = useMemo(() => {
-    if (!categories || !categories[gender] || !categories[gender][mainCategory]) {
+    if (!categories || !categories[genderKey] || !categories[genderKey][mainCategory]) {
       return [];
     }
-    return categories[gender][mainCategory];
-  }, [categories, gender, mainCategory]);
+    return categories[genderKey][mainCategory];
+  }, [categories, genderKey, mainCategory]);
 
   if (loading) {
     return (
@@ -92,7 +97,7 @@ export default function CategoryDetailScreen() {
         textColor="#000"
         iconColor="#111"
       />
-      {subcategories.map((item) => (
+      {subcategories.map((item: string) => (
         <TouchableOpacity
           key={item}
           style={styles.item}

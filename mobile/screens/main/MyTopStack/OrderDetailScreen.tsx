@@ -1,26 +1,20 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
 import Header from "../../../components/Header";
 import { useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { MyTopStackParamList } from "./index";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { ordersService, Order, OrderStatus } from "../../../src/services";
+import { ordersService, Order, OrderStatus, messagesService } from "../../../src/services";
 import {
   PURCHASE_ORDERS as purchaseOrders,
   SOLD_ORDERS as soldOrders,
   DEFAULT_SHIPPING_ADDRESS,
 } from "../../../mocks/shop";
+import Avatar from "../../../components/Avatar";
+import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
+import { useAuth } from "../../../contexts/AuthContext";
 
 type Purchase = (typeof purchaseOrders)[number];
 type Sold = (typeof soldOrders)[number];
@@ -55,13 +49,53 @@ function mapApiStatusToDisplayStatus(apiStatus: OrderStatus): string {
   }
 }
 
+// 🔒 安全的支付信息显示函数
+const formatPaymentDetails = (paymentDetails: any) => {
+  if (!paymentDetails) return null;
+  
+  // 只显示安全的支付信息，隐藏敏感数据
+  const safeInfo = [];
+  
+  if (paymentDetails.brand) {
+    safeInfo.push(`Brand: ${paymentDetails.brand}`);
+  }
+  
+  if (paymentDetails.last4) {
+    safeInfo.push(`Card: **** **** **** ${paymentDetails.last4}`);
+  }
+  
+  if (paymentDetails.expiry) {
+    safeInfo.push(`Expires: ${paymentDetails.expiry}`);
+  }
+  
+  // 不显示CVV等敏感信息
+  return safeInfo.length > 0 ? safeInfo.join('\n') : null;
+};
+
+// 💳 买家视角的支付信息显示函数（只显示卡号尾号）
+const formatBuyerPaymentDetails = (paymentDetails: any) => {
+  if (!paymentDetails) return null;
+  
+  // 买家视角：只显示卡号尾号，不显示brand和expires
+  if (paymentDetails.last4) {
+    return `Card: **** **** **** ${paymentDetails.last4}`;
+  }
+  
+  return null;
+};
+
 export default function OrderDetailScreen() {
   const route = useRoute<RouteProp<MyTopStackParamList, "OrderDetail">>();
   const navigation = useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
+  const { user } = useAuth();
 
-  const params = (route.params as { id?: string; source?: "purchase" | "sold" } | undefined) ?? {};
+  const params = (route.params as { id?: string; source?: "purchase" | "sold"; conversationId?: string } | undefined) ?? {};
   const id = params.id;
   const source = params.source ?? "purchase";
+  const conversationId = params.conversationId;
+  
+  console.log("🔍 OrderDetailScreen params:", params);
+  console.log("🔍 OrderDetailScreen source:", source);
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,19 +135,19 @@ export default function OrderDetailScreen() {
           // Convert mock data to API format for compatibility
           const mockOrder: Order = {
             id: parseInt(foundOrder.id) || 1,
-            buyer_id: source === "purchase" ? 1 : 2,
-            seller_id: source === "purchase" ? 2 : 1,
+            buyer_id: source === "purchase" ? user?.id || 1 : (order?.buyer_id || 1),
+            seller_id: source === "purchase" ? (order?.seller_id || 2) : user?.id || 2,
             listing_id: 1,
             status: mapMockStatusToApiStatus(foundOrder.status),
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             buyer: {
-              id: source === "purchase" ? 1 : 2,
+              id: source === "purchase" ? user?.id || 1 : (order?.buyer_id || 1),
               username: source === "purchase" ? "You" : (foundOrder as Sold).buyer?.name || "Buyer",
               avatar_url: source === "purchase" ? undefined : (foundOrder as Sold).buyer?.avatar,
             },
             seller: {
-              id: source === "purchase" ? 2 : 1,
+              id: source === "purchase" ? (order?.seller_id || 2) : user?.id || 2,
               username: source === "purchase" ? (foundOrder as Purchase).seller?.name || "Seller" : "You",
               avatar_url: source === "purchase" ? (foundOrder as Purchase).seller?.avatar : undefined,
             },
@@ -124,9 +158,9 @@ export default function OrderDetailScreen() {
               price: foundOrder.product.price,
               image_url: foundOrder.product.images[0],
               image_urls: foundOrder.product.images,
-              brand: foundOrder.product.brand,
-              size: foundOrder.product.size,
-              condition_type: foundOrder.product.condition,
+              brand: foundOrder.product.brand ?? "",
+              size: foundOrder.product.size ?? "",
+              condition_type: foundOrder.product.condition ?? "UNKNOWN",
             },
             reviews: [],
           };
@@ -165,7 +199,80 @@ export default function OrderDetailScreen() {
     );
   }
 
-  const isPurchase = source === "purchase";
+  // 🔥 根据登录用户与订单信息判定视角
+  let isPurchase = false;
+  if (order) {
+    if (user?.id && order.buyer_id && user.id === order.buyer_id) {
+      isPurchase = true;
+    } else if (user?.id && order.seller_id && user.id === order.seller_id) {
+      isPurchase = false;
+    } else if (source === "purchase") {
+      isPurchase = true;
+    } else if (source === "sold") {
+      isPurchase = false;
+    }
+  } else {
+    isPurchase = source !== "sold";
+  }
+
+  console.log("========== OrderDetailScreen 视角判断 ==========");
+  console.log("🔍 Order ID:", order?.id);
+  console.log("🔍 Order status:", order?.status);
+  console.log("🔍 Current user:", { id: user?.id, username: user?.username });
+  console.log("🔍 Order buyer:", { id: order?.buyer_id, username: order?.buyer?.username });
+  console.log("🔍 Order seller:", { id: order?.seller_id, username: order?.seller?.username });
+  console.log("🔍 Source param:", source);
+  console.log("🔍 Result - isPurchase (买家视角):", isPurchase);
+  console.log("🔍 Result - isSeller (卖家视角):", !isPurchase);
+  console.log("===============================================");
+
+  console.log("🔍 OrderDetailScreen order status:", order?.status);
+  console.log("🔍 OrderDetailScreen should show TO_SHIP buttons:", !isPurchase && order?.status === "TO_SHIP");
+
+  // 🔥 判断评论状态
+  const getReviewStatus = () => {
+    if (!order?.reviews || !user?.id) return { 
+      hasReviews: false, 
+      hasUserReviewed: false, 
+      hasOtherReviewed: false, 
+      isMutualComplete: false 
+    };
+    
+    const reviews = order.reviews;
+    const currentUserId = user.id;
+    // ✅ 使用 Number() 转换确保类型一致
+    const hasBuyerReview = reviews.some(review => Number(review.reviewer_id) === Number(order.buyer_id));
+    const hasSellerReview = reviews.some(review => Number(review.reviewer_id) === Number(order.seller_id));
+    
+    // 判断当前用户是否已评论
+    const hasUserReviewed = reviews.some(review => Number(review.reviewer_id) === Number(currentUserId));
+    
+    // 判断对方是否已评论
+    const hasOtherReviewed = isPurchase 
+      ? hasSellerReview  // 买家视角：对方是卖家
+      : hasBuyerReview;  // 卖家视角：对方是买家
+    
+    console.log("🔍 ReviewStatus Debug:", {
+      currentUserId,
+      currentUserIdType: typeof currentUserId,
+      hasUserReviewed,
+      hasOtherReviewed,
+      isMutualComplete: hasBuyerReview && hasSellerReview,
+      reviewsCount: reviews.length,
+      reviews: reviews.map(r => ({ reviewer_id: r.reviewer_id, reviewer_id_type: typeof r.reviewer_id }))
+    });
+    
+    return {
+      hasReviews: reviews.length > 0,
+      hasUserReviewed,
+      hasOtherReviewed,
+      hasBuyerReview,
+      hasSellerReview,
+      isMutualComplete: hasBuyerReview && hasSellerReview
+    };
+  };
+
+  const reviewStatus = getReviewStatus();
 
   const handleCancel = async () => {
     if (!isPurchase || !order) return;
@@ -184,8 +291,42 @@ export default function OrderDetailScreen() {
     if (!isPurchase || !order) return;
     
     try {
+      console.log("🔍 OrderDetailScreen - Mark as Received - Order ID:", order.id);
+      console.log("🔍 OrderDetailScreen - Mark as Received - Current status:", order.status);
+      console.log("🔍 OrderDetailScreen - Mark as Received - isPurchase:", isPurchase);
+      console.log("🔍 OrderDetailScreen - Mark as Received - conversationId:", conversationId);
+      
       const updatedOrder = await ordersService.markAsReceived(order.id);
+      console.log("🔍 OrderDetailScreen - Mark as Received - Updated order:", updatedOrder);
+      console.log("🔍 OrderDetailScreen - Mark as Received - New status:", updatedOrder.status);
+      
       setOrder(updatedOrder);
+      
+      // 🔥 发送系统消息到 ChatScreen - 根据用户角色发送不同视角的消息
+      if (conversationId) {
+        try {
+          console.log("🔍 OrderDetailScreen - Sending Mark as Received system message to conversationId:", conversationId);
+          console.log("🔍 OrderDetailScreen - isPurchase:", isPurchase);
+          
+          // 根据 isPurchase 判断当前用户是买家还是卖家
+          const messageContent = isPurchase 
+            ? "I've confirmed received. Transaction completed." // 买家视角：我确认收货了
+            : "Buyer confirmed received. Transaction completed."; // 卖家视角：买家确认收货了
+          
+          console.log("🔍 OrderDetailScreen - Message content:", messageContent);
+          
+          await messagesService.sendMessage(conversationId, {
+            content: messageContent,
+            message_type: "SYSTEM"
+          });
+          console.log("✅ System message sent: Order confirmed received. Transaction completed.");
+        } catch (messageError) {
+          console.error("❌ Failed to send Mark as Received system message:", messageError);
+        }
+      } else {
+        console.log("❌ OrderDetailScreen - No conversationId available for Mark as Received system message");
+      }
+      
       Alert.alert("Order marked as received", "You can now leave a review.");
     } catch (error) {
       console.error("Error marking order as received:", error);
@@ -200,6 +341,7 @@ export default function OrderDetailScreen() {
     try {
       const updatedOrder = await ordersService.markAsShipped(order.id);
       setOrder(updatedOrder);
+
       Alert.alert("Order marked as shipped", "Your buyer will be notified.");
     } catch (error) {
       console.error("Error marking order as shipped:", error);
@@ -213,10 +355,26 @@ export default function OrderDetailScreen() {
     try {
       const updatedOrder = await ordersService.cancelOrder(order.id);
       setOrder(updatedOrder);
+      
       Alert.alert("Order cancelled", "You have cancelled this order.");
     } catch (error) {
       console.error("Error cancelling order:", error);
       Alert.alert("Error", "Failed to cancel order. Please try again.");
+    }
+  };
+
+  const handleMarkArrived = async () => {
+    if (isPurchase || !order) return;
+    
+    try {
+      // 将订单状态更新为 DELIVERED（已送达）
+      const updatedOrder = await ordersService.updateOrderStatus(order.id, { status: "DELIVERED" });
+      setOrder(updatedOrder);
+      
+      Alert.alert("Package Arrived", "Your buyer has been notified that the package has arrived.");
+    } catch (error) {
+      console.error("Error marking package as arrived:", error);
+      Alert.alert("Error", "Failed to mark package as arrived. Please try again.");
     }
   };
 
@@ -228,7 +386,11 @@ export default function OrderDetailScreen() {
         {/* 商品信息 */}
         <View style={styles.card}>
           <Image
-            source={{ uri: order.listing?.image_url || order.listing?.image_urls?.[0] || "https://via.placeholder.com/100x120" }}
+            source={{ 
+              uri: order.listing?.image_url || 
+                   (typeof order.listing?.image_urls === 'string' ? JSON.parse(order.listing.image_urls)[0] : order.listing?.image_urls?.[0]) || 
+                   "https://via.placeholder.com/100x120" 
+            }}
             style={styles.productImg}
           />
           <View style={{ flex: 1, marginLeft: 12 }}>
@@ -241,16 +403,32 @@ export default function OrderDetailScreen() {
             {/* 显示买家/卖家 */}
             {isPurchase ? (
               <View style={styles.userRow}>
-                {order.seller.avatar_url && (
-                  <Image source={{ uri: order.seller.avatar_url }} style={styles.userAvatar} />
-                )}
+                <Avatar
+                  source={
+                    order.seller.avatar_url
+                      ? { uri: order.seller.avatar_url }
+                      : order.seller.avatar_path
+                      ? { uri: order.seller.avatar_path }
+                      : DEFAULT_AVATAR
+                  }
+                  style={styles.userAvatar}
+                  isPremium={order.seller?.isPremium}
+                />
                 <Text style={styles.userName}>{order.seller.username}</Text>
               </View>
             ) : (
               <View style={styles.userRow}>
-                {order.buyer.avatar_url && (
-                  <Image source={{ uri: order.buyer.avatar_url }} style={styles.userAvatar} />
-                )}
+                <Avatar
+                  source={
+                    order.buyer.avatar_url
+                      ? { uri: order.buyer.avatar_url }
+                      : order.buyer.avatar_path
+                      ? { uri: order.buyer.avatar_path }
+                      : DEFAULT_AVATAR
+                  }
+                  style={styles.userAvatar}
+                  isPremium={order.buyer?.isPremium}
+                />
                 <Text style={styles.userName}>{order.buyer.username}</Text>
               </View>
             )}
@@ -303,29 +481,40 @@ export default function OrderDetailScreen() {
         {isPurchase ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Shipping Address</Text>
-            <Text style={styles.text}>Default Address</Text>
-            <Text style={styles.text}>123 Main St, City, Country</Text>
+            {order.shipping_address ? (
+              <Text style={styles.text}>{order.shipping_address}</Text>
+            ) : (
+              <>
+                <Text style={styles.text}>Default Address</Text>
+                <Text style={styles.text}>123 Main St, City, Country</Text>
+              </>
+            )}
           </View>
         ) : (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Buyer Info</Text>
-            <Text style={styles.text}>{order.buyer.username}</Text>
-            {order.buyer.email && <Text style={styles.text}>{order.buyer.email}</Text>}
-            {order.buyer.phone_number && <Text style={styles.text}>{order.buyer.phone_number}</Text>}
+            <Text style={styles.text}>Name: {order.buyer_name || order.buyer.username || "N/A"}</Text>
+            <Text style={styles.text}>Phone: {order.buyer_phone || order.buyer.phone_number || "N/A"}</Text>
 
-            {/* Seller-side: Show shipping address (mocked from default) */}
+            {/* Seller-side: Show real shipping address */}
             <Text style={[styles.sectionTitle, { marginTop: 10 }]}>Shipping Address</Text>
-            <Text style={styles.text}>{DEFAULT_SHIPPING_ADDRESS.name}</Text>
-            <Text style={styles.text}>{DEFAULT_SHIPPING_ADDRESS.phone}</Text>
-            <Text style={styles.text}>
-              {DEFAULT_SHIPPING_ADDRESS.line1}, {DEFAULT_SHIPPING_ADDRESS.city}, {DEFAULT_SHIPPING_ADDRESS.country}
-            </Text>
+            {order.shipping_address ? (
+              <Text style={styles.text}>{order.shipping_address}</Text>
+            ) : (
+              <>
+                <Text style={styles.text}>{DEFAULT_SHIPPING_ADDRESS.name}</Text>
+                <Text style={styles.text}>{DEFAULT_SHIPPING_ADDRESS.phone}</Text>
+                <Text style={styles.text}>
+                  {DEFAULT_SHIPPING_ADDRESS.line1}, {DEFAULT_SHIPPING_ADDRESS.city}, {DEFAULT_SHIPPING_ADDRESS.country}
+                </Text>
+              </>
+            )}
 
-            {/* Seller-side: Payment Info (mock/demo) */}
+            {/* Seller-side: Real Payment Info */}
             <Text style={[styles.sectionTitle, { marginTop: 10 }]}>Payment Info</Text>
-            <Text style={styles.text}>Method: PayPal</Text>
+            <Text style={styles.text}>Method: {order.payment_method || "N/A"}</Text>
             <Text style={styles.text}>Date: {new Date(order.created_at).toLocaleDateString()}</Text>
-            <Text style={styles.text}>Transaction ID: TXN-{order.id}</Text>
+            <Text style={styles.text}>Transaction ID: {(order as any).order_number || `TXN-${order.id}`}</Text>
           </View>
         )}
 
@@ -334,12 +523,15 @@ export default function OrderDetailScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Payment</Text>
             <Text style={styles.text}>
-              Paid ${order.listing.price} with PayPal
+              Paid ${(order as any).total_amount || order.listing.price} with {order.payment_method || "PayPal"}
             </Text>
             <Text style={styles.text}>Date: {new Date(order.created_at).toLocaleDateString()}</Text>
             <Text style={styles.text}>
-              Transaction ID: TXN-{order.id}
+              Transaction ID: {(order as any).order_number || `TXN-${order.id}`}
             </Text>
+            {order.payment_details && formatBuyerPaymentDetails(order.payment_details) && (
+              <Text style={styles.text}>{formatBuyerPaymentDetails(order.payment_details)}</Text>
+            )}
           </View>
         )}
       </ScrollView>
@@ -371,52 +563,124 @@ export default function OrderDetailScreen() {
             </View>
           )}
 
-          {/* 🟣 RECEIVED / COMPLETED → Review */}
-          {["RECEIVED", "COMPLETED"].includes(order.status) && (
+          {/* 🟣 COMPLETED/REVIEWED → Review (根据评论状态显示不同按钮) */}
+          {(order.status === "COMPLETED" || order.status === "REVIEWED") && (
             <View style={styles.footer}>
-              <TouchableOpacity
-                style={styles.feedbackBtn}
-                onPress={() =>
-                  (navigation as any).navigate("Review", { orderId: order.id })
-                }
-              >
-                <Text style={styles.feedbackText}>Leave Review</Text>
-              </TouchableOpacity>
+              {reviewStatus.isMutualComplete ? (
+                // 两个人都评论了 -> View Mutual Review
+                <TouchableOpacity
+                  style={[styles.feedbackBtn, { backgroundColor: "#2d7ef0" }]}
+                  onPress={() => {
+                    let rootNav: any = navigation;
+                    while (rootNav.getParent && typeof rootNav.getParent === 'function') {
+                      const parent = rootNav.getParent();
+                      if (!parent) break;
+                      rootNav = parent;
+                    }
+                    try {
+                      rootNav.navigate("MutualReview", { orderId: order.id });
+                    } catch (err) {
+                      console.error("❌ Failed to navigate to MutualReview:", err);
+                    }
+                  }}
+                >
+                  <Text style={styles.feedbackText}>View Mutual Review</Text>
+                </TouchableOpacity>
+              ) : reviewStatus.hasUserReviewed ? (
+                // 只有我评论了 -> View Your Review
+                <TouchableOpacity
+                  style={styles.feedbackBtn}
+                  onPress={() => {
+                    let rootNav: any = navigation;
+                    while (rootNav.getParent && typeof rootNav.getParent === 'function') {
+                      const parent = rootNav.getParent();
+                      if (!parent) break;
+                      rootNav = parent;
+                    }
+                    try {
+                      rootNav.navigate("ViewReview", { orderId: order.id });
+                    } catch (err) {
+                      console.error("❌ Failed to navigate to ViewReview:", err);
+                    }
+                  }}
+                >
+                  <Text style={styles.feedbackText}>View Your Review</Text>
+                </TouchableOpacity>
+              ) : (
+                // 还没评论 -> Leave Review
+                <TouchableOpacity
+                  style={styles.feedbackBtn}
+                  onPress={() =>
+                    (navigation as any).navigate("Review", { orderId: order.id })
+                  }
+                >
+                  <Text style={styles.feedbackText}>Leave Review</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </>
       )}
 
-      {/* 查看互评 - View Mutual Review for REVIEWED Orders */}
-      {!isPurchase && order.status === "REVIEWED" && (
+      {/* 🔥 COMPLETED/REVIEWED 状态 - 根据评论状态显示不同按钮 */}
+      {!isPurchase && (order.status === "COMPLETED" || order.status === "REVIEWED") && (
         <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.feedbackBtn, { backgroundColor: "#2d7ef0" }]}
-            onPress={() =>
-              (navigation as any).navigate("MutualReview", { orderId: order.id })
-            }
-          >
-            <Text style={styles.feedbackText}>View Mutual Review</Text>
-          </TouchableOpacity>
+          {reviewStatus.isMutualComplete ? (
+            // 两个人都评论了 -> View Mutual Review
+            <TouchableOpacity
+              style={[styles.feedbackBtn, { backgroundColor: "#2d7ef0" }]}
+              onPress={() => {
+                let rootNav: any = navigation;
+                while (rootNav.getParent && typeof rootNav.getParent === 'function') {
+                  const parent = rootNav.getParent();
+                  if (!parent) break;
+                  rootNav = parent;
+                }
+                try {
+                  rootNav.navigate("MutualReview", { orderId: order.id });
+                } catch (err) {
+                  console.error("❌ Failed to navigate to MutualReview:", err);
+                }
+              }}
+            >
+              <Text style={styles.feedbackText}>View Mutual Review</Text>
+            </TouchableOpacity>
+          ) : reviewStatus.hasUserReviewed ? (
+            // 只有我评论了 -> View Your Review
+            <TouchableOpacity
+              style={styles.feedbackBtn}
+              onPress={() => {
+                let rootNav: any = navigation;
+                while (rootNav.getParent && typeof rootNav.getParent === 'function') {
+                  const parent = rootNav.getParent();
+                  if (!parent) break;
+                  rootNav = parent;
+                }
+                try {
+                  rootNav.navigate("ViewReview", { orderId: order.id });
+                } catch (err) {
+                  console.error("❌ Failed to navigate to ViewReview:", err);
+                }
+              }}
+            >
+              <Text style={styles.feedbackText}>View Your Review</Text>
+            </TouchableOpacity>
+          ) : (
+            // 还没评论 -> Leave Review
+            <TouchableOpacity
+              style={styles.feedbackBtn}
+              onPress={() =>
+                (navigation as any).navigate("Review", { orderId: order.id })
+              }
+            >
+              <Text style={styles.feedbackText}>Leave Review</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
-      {/* Leave Review - for completed orders without reviews yet */}
-      {!isPurchase && order.status === "COMPLETED" && (
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.feedbackBtn}
-            onPress={() =>
-              (navigation as any).navigate("Review", { orderId: order.id })
-            }
-          >
-            <Text style={styles.feedbackText}>Leave Review</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* 卖家视图操作区 */}
-      {!isPurchase && order.status === "TO_SHIP" && (
+      {/* 卖家视图操作区 - 只有 IN_PROGRESS 状态（卖家视角的TO_SHIP） */}
+      {!isPurchase && ["IN_PROGRESS", "TO_SHIP"].includes(order.status) && (
         <View style={styles.footer}>
           <TouchableOpacity
             style={[styles.feedbackBtn, { backgroundColor: "black" }]}
@@ -429,6 +693,18 @@ export default function OrderDetailScreen() {
             onPress={handleCancelSold}
           >
             <Text style={styles.feedbackText}>Cancel Order</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* In Transit 状态 - 卖家标记为已送达 */}
+      {!isPurchase && order.status === "SHIPPED" && (
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.feedbackBtn, { backgroundColor: "#2d7ef0" }]}
+            onPress={handleMarkArrived}
+          >
+            <Text style={styles.feedbackText}>Mark as Arrived</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -467,15 +743,23 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: "#fff",
-    padding: 12,
+    padding: 16,
     borderTopWidth: 1,
     borderColor: "#eee",
   },
   feedbackBtn: {
     backgroundColor: "#000",
-    paddingVertical: 14,
-    borderRadius: 8,
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
     alignItems: "center",
+    justifyContent: "center",
+    minWidth: 120,
+    width: "100%",
   },
-  feedbackText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  feedbackText: { 
+    color: "#fff", 
+    fontWeight: "700", 
+    fontSize: 16 
+  },
 });

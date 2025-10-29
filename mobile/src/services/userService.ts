@@ -3,12 +3,16 @@ import * as FileSystem from "expo-file-system/legacy";
 import { apiClient } from "./api";
 import { API_CONFIG } from "../config/api";
 import type { User } from "./authService";
+import { resolvePremiumFlag } from "./utils/premium";
 
 export interface UserProfile {
   id: string;
   username: string;
   email: string;
   bio?: string;
+  isPremium?: boolean;
+  premiumUntil?: string | null;
+  lastSignInAt?: string | null;
   location?: string;
   dob?: string;
   gender?: "Male" | "Female" | null;
@@ -21,6 +25,17 @@ export interface UserProfile {
   followersCount: number;
   followingCount: number;
   memberSince: string;
+}
+
+export interface FollowListEntry {
+  id: string;
+  username: string | null;
+  avatarUrl: string | null;
+  bio: string | null;
+  location: string | null;
+  followersCount: number;
+  followingCount: number;
+  followedAt: string;
 }
 
 export interface UpdateProfileRequest {
@@ -37,6 +52,45 @@ export interface UpdateProfileRequest {
   preferredBrands?: string[] | null;
 }
 
+const normalizeAvatar = (primary?: string | null, secondary?: string | null): string | null => {
+  if (typeof primary === "string" && primary.trim()) return primary;
+  if (typeof secondary === "string" && secondary.trim()) return secondary;
+  return null;
+};
+
+const normalizeUser = (user: any): User => {
+  if (!user) {
+    return user;
+  }
+
+  const avatarUrl =
+    normalizeAvatar(user.avatar_url, normalizeAvatar(user.avatar, user.avatar_path)) ?? null;
+
+  return {
+    ...user,
+    avatar_url: avatarUrl,
+    isPremium: resolvePremiumFlag(user),
+    premiumUntil: user.premiumUntil ?? user.premium_until ?? null,
+  } as User;
+};
+
+const normalizeUserProfile = (profile: any): UserProfile => {
+  if (!profile) {
+    return profile;
+  }
+
+  const avatarUrl =
+    normalizeAvatar(profile.avatar_url, normalizeAvatar(profile.avatar, profile.avatar_path)) ?? undefined;
+
+  return {
+    ...profile,
+    avatar_url: avatarUrl,
+    isPremium: resolvePremiumFlag(profile),
+    premiumUntil: profile.premiumUntil ?? profile.premium_until ?? null,
+    lastSignInAt: profile.lastSignInAt ?? profile.last_sign_in_at ?? null,
+  } as UserProfile;
+};
+
 export class UserService {
   async getProfile(): Promise<User | null> {
     const res = await apiClient.get<{ success?: boolean; user?: User }>(
@@ -49,11 +103,11 @@ export class UserService {
     }
 
     if (typeof payload === "object" && "user" in payload && payload.user) {
-      return payload.user as User;
+      return normalizeUser(payload.user);
     }
 
     if ((payload as unknown as User).id) {
-      return payload as unknown as User;
+      return normalizeUser(payload as unknown as User);
     }
 
     return null;
@@ -73,7 +127,7 @@ export class UserService {
     if (!res.data?.user) throw new Error("Profile update failed");
     
     // ✅ 返回更新后的完整用户数据
-    return res.data.user;
+    return normalizeUser(res.data.user);
   }
 
   // ✅ 修复后的头像上传：统一处理拍照和图库，支持 FormData + base64 fallback
@@ -179,7 +233,7 @@ export class UserService {
       
       if (response.data?.success && response.data.user) {
         console.log("✅ User profile found:", response.data.user.username);
-        return response.data.user;
+        return normalizeUserProfile(response.data.user);
       }
       
       console.log("❌ No user profile data received");
@@ -187,6 +241,30 @@ export class UserService {
     } catch (error) {
       console.error('Error fetching user profile:', error);
       throw error;
+    }
+  }
+
+  // ✅ 通过 userId 获取用户信息（返回简化的用户对象，主要用于获取 username）
+  async getUserById(userId: string): Promise<{ username: string } | null> {
+    try {
+      console.log("📖 Fetching user by ID:", userId);
+      
+      // 尝试通过 /api/users/id/:id 端点获取用户
+      // 如果后端没有这个端点，这个调用会失败，我们会 catch 住错误
+      const response = await apiClient.get<{ success: boolean; user: { username: string } }>(
+        `/api/users/id/${userId}`
+      );
+      
+      if (response.data?.success && response.data.user?.username) {
+        console.log("✅ User found by ID:", response.data.user.username);
+        return response.data.user;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Error fetching user by ID:', error);
+      // 如果后端不支持通过 ID 查询，返回 null
+      return null;
     }
   }
 
@@ -227,6 +305,10 @@ export class UserService {
       
       if (response.data?.success) {
         console.log(`✅ Successfully followed ${username}`);
+        
+        // 🔔 Follow notification will be created by backend API
+        console.log("🔔 Follow notification will be created by backend");
+        
         return response.data.isFollowing;
       }
       
@@ -282,7 +364,11 @@ export class UserService {
   }
 
   // 获取当前用户的follow统计
-  async getMyFollowStats(): Promise<{ followersCount: number; followingCount: number }> {
+  async getMyFollowStats(): Promise<{
+    followersCount: number;
+    followingCount: number;
+    reviewsCount: number;
+  }> {
     try {
       console.log("👥 Fetching my follow stats");
       
@@ -297,12 +383,81 @@ export class UserService {
         return {
           followersCount: response.data.user.followersCount,
           followingCount: response.data.user.followingCount,
+          reviewsCount: response.data.user.reviewsCount ?? 0,
         };
       }
       
       throw new Error('Failed to get follow stats');
     } catch (error) {
       console.error('Error getting follow stats:', error);
+      throw error;
+    }
+  }
+
+  async getMyFollowList(type: "followers" | "following"): Promise<FollowListEntry[]> {
+    try {
+      console.log("👥 Fetching my follow list", type);
+
+      const response = await apiClient.get<{ success?: boolean; data?: FollowListEntry[] }>(
+        "/api/profile/follows",
+        { type },
+      );
+
+      if (response.data?.data && Array.isArray(response.data.data)) {
+        console.log(`✅ Loaded ${response.data.data.length} ${type}`);
+        return response.data.data;
+      }
+
+      return [];
+    } catch (error) {
+      console.error(`❌ Error fetching follow list (${type}):`, error);
+      throw error;
+    }
+  }
+
+  async getUserFollowList(
+    username: string,
+    type: "followers" | "following",
+  ): Promise<FollowListEntry[]> {
+    try {
+      console.log("👥 Fetching follow list for user", username, type);
+
+      const response = await apiClient.get<{ success?: boolean; data?: FollowListEntry[] }>(
+        `/api/users/${encodeURIComponent(username)}/follows`,
+        { type },
+      );
+
+      if (response.data?.data && Array.isArray(response.data.data)) {
+        console.log(`✅ Loaded ${response.data.data.length} ${type} for ${username}`);
+        return response.data.data;
+      }
+
+      return [];
+    } catch (error) {
+      console.error(`❌ Error fetching follow list for ${username} (${type}):`, error);
+      throw error;
+    }
+  }
+
+  // 获取用户的 reviews
+  async getUserReviews(username: string): Promise<any[]> {
+    try {
+      console.log("⭐ Fetching reviews for user:", username);
+      
+      const response = await apiClient.get<{ reviews: any[]; totalCount: number }>(
+        `/api/users/${username}/reviews`
+      );
+      
+      console.log("⭐ User reviews response:", response);
+      
+      if (response.data?.reviews) {
+        console.log(`✅ Found ${response.data.reviews.length} reviews for user`);
+        return response.data.reviews;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Error fetching user reviews:', error);
       throw error;
     }
   }

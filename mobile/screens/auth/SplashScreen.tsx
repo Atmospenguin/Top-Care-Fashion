@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { View, StyleSheet } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { LOGO_WHITE } from "../../constants/assetUrls";
+import { useAuth } from "../../contexts/AuthContext";
 
 type RootStackParamList = {
   Splash: undefined;
@@ -12,13 +13,20 @@ type RootStackParamList = {
 type Props = NativeStackScreenProps<RootStackParamList, "Splash">;
 
 export default function SplashScreen({ navigation }: Props) {
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      navigation.replace("Landing"); // 2 秒后跳转 Landing
-    }, 2000);
+  const { loading, isAuthenticated } = useAuth();
 
-    return () => clearTimeout(timer);
-  }, [navigation]);
+  // 应用启动时根据认证状态决定跳转：
+  // - 已登录 -> 直接进入 Main
+  // - 未登录 -> 进入 Landing
+  useEffect(() => {
+    if (loading) return; // 等待 AuthContext 完成初始化
+
+    if (isAuthenticated) {
+      navigation.replace("Main");
+    } else {
+      navigation.replace("Landing");
+    }
+  }, [loading, isAuthenticated, navigation]);
 
   return (
     <View style={styles.container}>

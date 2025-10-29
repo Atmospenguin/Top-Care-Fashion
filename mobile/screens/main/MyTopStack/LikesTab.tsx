@@ -86,15 +86,30 @@ export default function LikesTab() {
     }
     
     // 转换数据格式以匹配ListingDetailScreen的期望格式
+    const rawSeller = likedListing.listing?.seller ?? {};
+    const sellerAvatar =
+      (typeof rawSeller.avatar_url === "string" && rawSeller.avatar_url.trim() !== ""
+        ? rawSeller.avatar_url
+        : typeof (rawSeller as any).avatar === "string" && (rawSeller as any).avatar.trim() !== ""
+        ? (rawSeller as any).avatar
+        : typeof (rawSeller as any).avatar_path === "string" && (rawSeller as any).avatar_path.trim() !== ""
+        ? (rawSeller as any).avatar_path
+        : undefined);
+
+    const sellerName = rawSeller?.username ?? (rawSeller as any)?.name ?? "Seller";
+
     const listingData = {
       ...likedListing.listing,
       title: likedListing.listing?.name, // 将name转换为title
       images: images, // 添加images数组
       tags: tags, // 添加tags数组
       seller: {
-        ...likedListing.listing?.seller,
-        name: likedListing.listing?.seller?.username, // 将username转换为name
-        avatar: likedListing.listing?.seller?.avatar_url, // 将avatar_url转换为avatar
+        ...rawSeller,
+        name: sellerName,
+        avatar: sellerAvatar,
+        isPremium: Boolean(
+          rawSeller?.isPremium ?? (rawSeller as any)?.is_premium ?? false
+        ),
         // 保留id字段用于用户身份验证
       },
     };

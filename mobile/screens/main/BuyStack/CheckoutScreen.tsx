@@ -1,31 +1,25 @@
-import React, { useMemo } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useMemo, useState, useEffect } from "react";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, TextInput, Alert, Modal } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import PaymentSelector from "../../../components/PaymentSelector";
 import type { BuyStackParamList } from "./index";
 import {
   DEFAULT_PAYMENT_METHOD,
   DEFAULT_SHIPPING_ADDRESS,
 } from "../../../mocks/shop";
-
-function formatAddress() {
-  const parts = [DEFAULT_SHIPPING_ADDRESS.line1];
-  if (DEFAULT_SHIPPING_ADDRESS.line2) parts.push(DEFAULT_SHIPPING_ADDRESS.line2);
-  parts.push(
-    `${DEFAULT_SHIPPING_ADDRESS.city}, ${DEFAULT_SHIPPING_ADDRESS.state} ${DEFAULT_SHIPPING_ADDRESS.postalCode}`,
-  );
-  parts.push(DEFAULT_SHIPPING_ADDRESS.country);
-  return parts.join("\n");
-}
+import { ordersService, paymentMethodsService, type PaymentMethod } from "../../../src/services";
+import { messagesService } from "../../../src/services/messagesService";
+import { useAuth } from "../../../contexts/AuthContext";
 
 function getDeliveryEstimate(): string {
   const today = new Date();
   const delivery = new Date(today);
-  delivery.setDate(delivery.getDate() + 7);
+  delivery.setDate(delivery.getDate() + 3); // 🔥 新加坡3天内配送
   return delivery.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -36,11 +30,264 @@ export default function CheckoutScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
   const {
-    params: { items, subtotal, shipping },
+    params: { items, subtotal, shipping, conversationId },
   } = useRoute<RouteProp<BuyStackParamList, "Checkout">>();
+  const { user } = useAuth();
+
+  // 🔥 状态管理 - 地址和付款方式
+  const [shippingAddress, setShippingAddress] = useState(DEFAULT_SHIPPING_ADDRESS);
+  const [paymentMethod, setPaymentMethod] = useState(DEFAULT_PAYMENT_METHOD);
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(null);
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+  
+  // 🔥 编辑状态管理
+  const [editingField, setEditingField] = useState<'personal' | 'payment' | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    phone: '',
+    line1: '',
+    line2: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    country: '',
+  });
 
   const total = useMemo(() => subtotal + shipping, [subtotal, shipping]);
   const deliveryEstimate = useMemo(() => getDeliveryEstimate(), []);
+
+  // 🔥 从后端加载用户默认支付方式（如果存在）
+  useEffect(() => {
+    let mounted = true;
+    const loadDefaultPayment = async () => {
+      try {
+        const def = await paymentMethodsService.getDefaultPaymentMethod();
+        if (!mounted) return;
+        if (def) {
+          setSelectedPaymentMethodId(def.id);
+          setPaymentMethod({
+            label: def.label,
+            brand: def.brand || 'Card',
+            last4: def.last4 || '0000',
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to load default payment method', err);
+      }
+    };
+
+    loadDefaultPayment();
+    return () => { mounted = false; };
+  }, []);
+
+  // 🔥 格式化地址函数
+  const formatCurrentAddress = () => {
+    const parts = [shippingAddress.line1];
+    if (shippingAddress.line2) parts.push(shippingAddress.line2);
+    parts.push(
+      `${shippingAddress.city}, ${shippingAddress.state} ${shippingAddress.postalCode}`,
+    );
+    parts.push(shippingAddress.country);
+    return parts.join("\n");
+  };
+
+  // 🔥 编辑功能
+  const handleEditField = (field: 'personal' | 'payment') => {
+    setEditingField(field);
+    // 初始化表单数据
+    setEditForm({
+      name: shippingAddress.name,
+      phone: shippingAddress.phone,
+      line1: shippingAddress.line1,
+      line2: shippingAddress.line2 || '',
+      city: shippingAddress.city,
+      state: shippingAddress.state,
+      postalCode: shippingAddress.postalCode,
+      country: shippingAddress.country,
+    });
+  };
+
+  const handleSaveEdit = () => {
+    if (editingField === 'personal') {
+      setShippingAddress({
+        ...shippingAddress,
+        name: editForm.name,
+        phone: editForm.phone,
+        line1: editForm.line1,
+        line2: editForm.line2,
+        city: editForm.city,
+        state: editForm.state,
+        postalCode: editForm.postalCode,
+        country: editForm.country
+      });
+    }
+    setEditingField(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingField(null);
+  };
+
+  // 🔥 创建真实订单
+  const handlePlaceOrder = async () => {
+    if (!user) {
+      Alert.alert("Error", "Please log in to place an order");
+      return;
+    }
+
+    // 🔥 验证支付方式
+    if (!selectedPaymentMethodId) {
+      Alert.alert("Missing Payment Method", "Please select a payment method");
+      return;
+    }
+
+    try {
+      setIsCreatingOrder(true);
+      
+      // 🔥 获取完整的支付方式数据
+      const methods = await paymentMethodsService.getPaymentMethods();
+      const fullPaymentMethod = methods.find(m => m.id === selectedPaymentMethodId);
+      
+      if (!fullPaymentMethod) {
+        Alert.alert("Error", "Selected payment method not found");
+        return;
+      }
+      
+      // 🔥 为每个商品创建订单
+      const createdOrders = [];
+      for (const bagItem of items) {
+        console.log("🔍 Creating order for item:", bagItem.item.id);
+        console.log("🔍 Item details:", {
+          id: bagItem.item.id,
+          title: bagItem.item.title,
+          seller: bagItem.item.seller,
+          listing_id: bagItem.item.listing_id
+        });
+        
+        // 🔥 使用 listing_id 或降级使用 id
+        const listingId = bagItem.item.listing_id || bagItem.item.id;
+        if (!listingId) {
+          console.error("❌ Missing listing_id and id in item:", bagItem.item);
+          Alert.alert(
+            "Error", 
+            `Cannot create order for "${bagItem.item.title}": missing listing information. Please try again.`
+          );
+          setIsCreatingOrder(false);
+          return;
+        }
+        console.log("✅ Final listing_id to use:", listingId);
+        console.log("✅ Source:", bagItem.item.listing_id ? "listing_id" : "id");
+        
+        const newOrder = await ordersService.createOrder({
+          listing_id: listingId,
+          buyer_name: shippingAddress.name,
+          buyer_phone: shippingAddress.phone,
+          shipping_address: `${shippingAddress.line1}, ${shippingAddress.city}, ${shippingAddress.state} ${shippingAddress.postalCode}`,
+          payment_method: fullPaymentMethod.brand || 'Card',
+          payment_method_id: fullPaymentMethod.id, // 🔥 使用后端支付方式 ID
+          payment_details: {
+            brand: fullPaymentMethod.brand,
+            last4: fullPaymentMethod.last4,
+            expiry: fullPaymentMethod.expiryMonth && fullPaymentMethod.expiryYear 
+              ? `${String(fullPaymentMethod.expiryMonth).padStart(2, '0')}/${fullPaymentMethod.expiryYear}` 
+              : 'N/A',
+          }
+        });
+        
+        console.log("✅ Order created successfully:", newOrder);
+        createdOrders.push(newOrder);
+      }
+      
+      // 🔥 订单创建成功，显示成功消息并跳转到 ChatScreen
+      console.log("✅ Order created successfully:", createdOrders);
+      
+      // 🔥 使用第一个创建的订单信息
+      const firstOrder = createdOrders[0];
+      if (firstOrder && firstOrder.id) {
+        Alert.alert(
+          "Order Created", 
+          "Your order has been placed successfully!",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                // 🔥 跳转到 Inbox -> Chat 显示新订单
+                const rootNavigation = (navigation as any).getParent?.() || navigation;
+                if (rootNavigation) {
+                  try {
+                    // 构造订单数据以便在 ChatScreen 显示
+                    const orderData = {
+                      id: firstOrder.id.toString(),
+                      product: {
+                        title: items[0]?.item.title || "Item",
+                        price: items[0]?.item.price || 0,
+                        size: items[0]?.item.size,
+                        image: items[0]?.item.image || null,
+                        shippingFee: shipping,
+                      },
+                      seller: {
+                        id: items[0]?.item.seller?.id,
+                        name: items[0]?.item.seller?.name || "Seller",
+                        avatar: items[0]?.item.seller?.avatar || "",
+                      },
+                      buyer: {
+                        id: user?.id,
+                        name: user?.username || "Buyer",
+                        avatar: user?.avatar_url || "",
+                      },
+                      status: "IN_PROGRESS",
+                      listing_id: items[0]?.item.listing_id,
+                      buyer_id: user?.id ? Number(user.id) : undefined,
+                      seller_id: items[0]?.item.seller?.id,
+                    };
+                    
+                    console.log("🔍 Navigating to Chat with order data:", orderData);
+                    
+                    rootNavigation.navigate("Main", {
+                      screen: "Inbox",
+                      params: {
+                        screen: "Chat",
+                        params: {
+                          sender: orderData.seller.name,
+                          kind: "order",
+                          order: orderData,
+                          conversationId: conversationId || null,
+                          autoSendPaidMessage: false
+                        }
+                      }
+                    });
+                  } catch (error) {
+                    console.error("❌ Error navigating to Chat:", error);
+                    navigation.goBack();
+                  }
+                } else {
+                  navigation.goBack();
+                }
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert("Success", "Order created successfully!");
+        navigation.goBack();
+      }
+      
+    } catch (error) {
+      console.error("❌ Error creating order:", error);
+      console.error("❌ Error details:", {
+        message: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : "No stack",
+        error: error
+      });
+      Alert.alert(
+        "Error", 
+        error instanceof Error ? error.message : "Failed to create order. Please try again.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setIsCreatingOrder(false);
+    }
+  };
 
   return (
     <View style={styles.screen}>
@@ -48,27 +295,33 @@ export default function CheckoutScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Shipping Address</Text>
-            <TouchableOpacity accessibilityRole="button">
+            <Text style={styles.sectionTitle}>Personal Information</Text>
+            <TouchableOpacity accessibilityRole="button" onPress={() => handleEditField('personal')}>
               <Text style={styles.sectionAction}>Change</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.addressName}>{DEFAULT_SHIPPING_ADDRESS.name}</Text>
-          <Text style={styles.addressPhone}>{DEFAULT_SHIPPING_ADDRESS.phone}</Text>
-          <Text style={styles.addressBody}>{formatAddress()}</Text>
+          
+          {/* 显示姓名 */}
+          <Text style={styles.addressName}>{shippingAddress.name}</Text>
+          
+          {/* 显示电话 */}
+          <Text style={styles.addressPhone}>{shippingAddress.phone}</Text>
+          
+          {/* 显示地址 */}
+          <Text style={styles.addressBody}>{formatCurrentAddress()}</Text>
         </View>
 
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Payment</Text>
-            <TouchableOpacity accessibilityRole="button">
+            <TouchableOpacity accessibilityRole="button" onPress={() => handleEditField('payment')}>
               <Text style={styles.sectionAction}>Change</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.paymentRow}>
             <Icon name="card" size={20} color="#111" />
             <Text style={styles.paymentText}>
-              {DEFAULT_PAYMENT_METHOD.brand} ending in {DEFAULT_PAYMENT_METHOD.last4}
+              {paymentMethod.brand} ending in {paymentMethod.last4}
             </Text>
           </View>
         </View>
@@ -100,19 +353,125 @@ export default function CheckoutScreen() {
 
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={() =>
-            navigation.navigate("Purchase", {
-              orderId: `TOP-${Math.floor(Math.random() * 9000 + 1000)}`,
-              total,
-              estimatedDelivery: deliveryEstimate,
-              items,
-            })
-          }
+          style={[styles.primaryButton, isCreatingOrder && styles.primaryButtonDisabled]}
+          onPress={handlePlaceOrder}
+          disabled={isCreatingOrder}
         >
-          <Text style={styles.primaryText}>Place order</Text>
+          <Text style={styles.primaryText}>
+            {isCreatingOrder ? "Creating Order..." : "Place order"}
+          </Text>
         </TouchableOpacity>
       </View>
+
+      {/* 🔥 编辑模态框 */}
+      <Modal
+        visible={editingField !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={handleCancelEdit}>
+              <Text style={styles.modalCancel}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>
+              {editingField === 'personal' && 'Edit Personal Information'}
+              {editingField === 'payment' && 'Edit Payment'}
+            </Text>
+            <TouchableOpacity onPress={handleSaveEdit}>
+              <Text style={styles.modalSave}>Save</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {editingField === 'personal' && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Full Name</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.name}
+                  onChangeText={(text) => setEditForm({ ...editForm, name: text })}
+                  placeholder="Enter your full name"
+                />
+
+                <Text style={styles.inputLabel}>Phone Number</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.phone}
+                  onChangeText={(text) => setEditForm({ ...editForm, phone: text })}
+                  placeholder="Enter your phone number"
+                  keyboardType="phone-pad"
+                />
+
+                <Text style={styles.inputLabel}>Street Address</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.line1}
+                  onChangeText={(text) => setEditForm({ ...editForm, line1: text })}
+                  placeholder="Enter your street address"
+                />
+
+                <Text style={styles.inputLabel}>Apartment, suite, etc. (Optional)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.line2}
+                  onChangeText={(text) => setEditForm({ ...editForm, line2: text })}
+                  placeholder="Apartment, suite, unit, building, floor, etc."
+                />
+
+                <Text style={styles.inputLabel}>City</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.city}
+                  onChangeText={(text) => setEditForm({ ...editForm, city: text })}
+                  placeholder="City"
+                />
+
+                <Text style={styles.inputLabel}>State</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.state}
+                  onChangeText={(text) => setEditForm({ ...editForm, state: text })}
+                  placeholder="State"
+                />
+
+                <Text style={styles.inputLabel}>Postal Code</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.postalCode}
+                  onChangeText={(text) => setEditForm({ ...editForm, postalCode: text })}
+                  placeholder="Postal Code"
+                  keyboardType="numeric"
+                />
+
+                <Text style={styles.inputLabel}>Country</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.country}
+                  onChangeText={(text) => setEditForm({ ...editForm, country: text })}
+                  placeholder="Country"
+                />
+              </View>
+            )}
+
+            {editingField === 'payment' && (
+              <PaymentSelector
+                selectedPaymentMethodId={selectedPaymentMethodId}
+                onSelect={(method) => {
+                  setSelectedPaymentMethodId(method?.id ?? null);
+                  if (method) {
+                    setPaymentMethod({
+                      label: method.label,
+                      brand: method.brand || 'Card',
+                      last4: method.last4 || '0000',
+                    });
+                  }
+                }}
+              />
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -203,9 +562,115 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
   },
+  primaryButtonDisabled: {
+    backgroundColor: "#bbb",
+  },
   primaryText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
+  },
+  // 🔥 编辑相关样式
+  editableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  // 🔥 模态框样式
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#ddd",
+  },
+  modalCancel: {
+    fontSize: 16,
+    color: "#666",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  modalSave: {
+    fontSize: 16,
+    color: "#2A7BF4",
+    fontWeight: "600",
+  },
+  modalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  inputGroup: {
+    marginBottom: 24,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 8,
+    color: "#333",
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: "#f9f9f9",
+  },
+  // 🔥 地址编辑布局样式
+  addressRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 16,
+  },
+  addressColumn: {
+    flex: 1,
+    marginRight: 8,
+  },
+  // 🔥 支付选项样式
+  paymentOptions: {
+    flexDirection: "row",
+    marginBottom: 16,
+    gap: 8,
+  },
+  paymentOption: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    alignItems: "center",
+    backgroundColor: "#f9f9f9",
+  },
+  paymentOptionSelected: {
+    borderColor: "#2A7BF4",
+    backgroundColor: "#E6F0FF",
+  },
+  paymentOptionText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+  },
+  paymentNote: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: "#FFF3CD",
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: "#FFC107",
+  },
+  paymentNoteText: {
+    fontSize: 12,
+    color: "#856404",
+    lineHeight: 16,
   },
 });

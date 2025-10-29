@@ -13,8 +13,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = await context.params;
-    const orderId = parseInt(id);
+  const { id } = await context.params;
+  const orderId = parseInt(id);
     if (isNaN(orderId)) {
       return NextResponse.json(
         { error: 'Invalid order ID' },
@@ -90,8 +90,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = await context.params;
-    const orderId = parseInt(id);
+  const { id } = await context.params;
+  const orderId = parseInt(id);
     if (isNaN(orderId)) {
       return NextResponse.json(
         { error: 'Invalid order ID' },
@@ -100,7 +100,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { rating, comment } = body;
+    const { rating, comment, images } = body;
 
     if (!rating || rating < 1 || rating > 5) {
       return NextResponse.json(
@@ -142,9 +142,9 @@ export async function POST(
       );
     }
 
-  // Determine who the user is reviewing and reviewer type
-  const isBuyerReviewer = order.buyer_id === currentUser.id;
-  const revieweeId = isBuyerReviewer ? order.seller_id : order.buyer_id;
+    // Determine who the user is reviewing and reviewer type
+    const isBuyerReviewer = order.buyer_id === currentUser.id;
+    const revieweeId = isBuyerReviewer ? order.seller_id : order.buyer_id;
 
     // Check if user has already reviewed this order
     const existingReview = order.reviews.find(
@@ -161,12 +161,14 @@ export async function POST(
     // Create the review
     const review = await prisma.reviews.create({
       data: {
-        order_id: orderId,
-        reviewer_id: currentUser.id,
-        reviewee_id: revieweeId,
-        rating,
-        comment: comment || '',
-        reviewer_type: isBuyerReviewer ? 'BUYER' : 'SELLER'
+  order_id: orderId,
+  reviewer_id: currentUser.id,
+  reviewee_id: revieweeId,
+  rating,
+  comment: comment || null,
+  // store images as JSON array if provided
+  images: images ? (images as any) : null,
+  reviewer_type: isBuyerReviewer ? 'BUYER' : 'SELLER'
       },
       include: {
         reviewer: {
@@ -212,6 +214,69 @@ export async function POST(
         total_reviews: revieweeReviews.length
       }
     });
+
+    // 🔔 创建review notification
+    try {
+      // 获取商品信息和对话
+      const orderWithListing = await prisma.orders.findUnique({
+        where: { id: orderId },
+        include: {
+          listing: {
+            select: {
+              id: true,
+              name: true,
+            }
+          },
+          buyer: {
+            select: {
+              id: true,
+            }
+          },
+          seller: {
+            select: {
+              id: true,
+            }
+          }
+        }
+      });
+
+      if (orderWithListing && orderWithListing.listing) {
+        // 查找对话
+        const conversation = await prisma.conversations.findFirst({
+          where: {
+            listing_id: orderWithListing.listing.id,
+            OR: [
+              {
+                initiator_id: orderWithListing.buyer.id,
+                participant_id: orderWithListing.seller.id,
+              },
+              {
+                initiator_id: orderWithListing.seller.id,
+                participant_id: orderWithListing.buyer.id,
+              },
+            ],
+          },
+        });
+
+        await prisma.notifications.create({
+          data: {
+            user_id: revieweeId, // 被review的用户收到通知
+            type: 'REVIEW',
+            title: `@${currentUser.username} left a review for your product`,
+            message: `${orderWithListing.listing.name} - ${rating} stars`,
+            image_url: (currentUser as any).avatar_url || null,
+            order_id: orderId.toString(), // ✅ 添加订单ID
+            listing_id: orderWithListing.listing.id,
+            related_user_id: currentUser.id,
+            conversation_id: conversation?.id, // ✅ 添加对话ID
+          },
+        });
+        console.log(`🔔 Review notification created for user ${revieweeId}`);
+      }
+    } catch (notificationError) {
+      console.error("❌ Error creating review notification:", notificationError);
+      // 不阻止review创建，即使notification创建失败
+    }
 
     return NextResponse.json(review, { status: 201 });
 

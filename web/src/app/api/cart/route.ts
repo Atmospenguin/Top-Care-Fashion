@@ -95,6 +95,10 @@ export async function GET(request: NextRequest) {
           tags,
           category: (listing as any).category?.name || null,
           images,
+          // shipping fields (may be null)
+          shippingOption: (listing as any).shipping_option || null,
+          shippingFee: (listing as any).shipping_fee ? Number((listing as any).shipping_fee) : null,
+          location: (listing as any).location || null,
           seller: {
             id: (listing as any).seller.id,
             name: (listing as any).seller.username,

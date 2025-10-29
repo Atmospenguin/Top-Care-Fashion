@@ -1,79 +1,93 @@
 import { apiClient } from './api';
 import { API_CONFIG } from '../config/api';
 
-// 反馈类型
-export interface Feedback {
+export type FeedbackType = 'bug' | 'feature' | 'general';
+export type FeedbackPriority = 'low' | 'medium' | 'high';
+export type FeedbackStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+
+export type Feedback = {
   id: string;
-  type: 'bug' | 'feature' | 'general';
+  userId: string | null;
+  userName: string | null;
+  userEmail: string | null;
   title: string;
   description: string;
-  priority: 'low' | 'medium' | 'high';
-  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  type: FeedbackType;
+  priority: FeedbackPriority;
+  status: FeedbackStatus;
   tags: string[];
+  rating: number | null;
+  featured: boolean;
   createdAt: string;
   updatedAt: string;
-}
+};
 
-// 创建反馈请求
-export interface CreateFeedbackRequest {
-  type: 'bug' | 'feature' | 'general';
-  title: string;
+export type FeedbackTestimonial = {
+  id: number;
+  user: string | null;
+  text: string;
+  rating: number;
+  tags: string[];
+  ts: number;
+};
+
+export type CreateFeedbackRequest = {
+  type?: FeedbackType;
+  title?: string;
   description: string;
-  priority?: 'low' | 'medium' | 'high';
+  priority?: FeedbackPriority;
   tags?: string[];
-}
+  rating?: number;
+};
 
-// 反馈服务类
-export class FeedbackService {
-  // 获取反馈列表
-  async getFeedbacks(): Promise<Feedback[]> {
+export type FeedbackListResponse = {
+  feedbacks: Feedback[];
+  testimonials: FeedbackTestimonial[];
+};
+
+class FeedbackService {
+  async getFeedbacks(): Promise<FeedbackListResponse> {
     try {
-      const response = await apiClient.get<{ feedbacks: Feedback[] }>(
-        API_CONFIG.ENDPOINTS.FEEDBACK
-      );
-      
-      if (response.data?.feedbacks) {
-        return response.data.feedbacks;
-      }
-      
-      return [];
+      const response = await apiClient.get<{
+        feedbacks?: Feedback[];
+        testimonials?: FeedbackTestimonial[];
+      }>(API_CONFIG.ENDPOINTS.FEEDBACK);
+
+      return {
+        feedbacks: response.data?.feedbacks ?? [],
+        testimonials: response.data?.testimonials ?? [],
+      };
     } catch (error) {
       console.error('Error fetching feedbacks:', error);
       throw error;
     }
   }
 
-  // 创建反馈
   async createFeedback(feedbackData: CreateFeedbackRequest): Promise<Feedback> {
     try {
       const response = await apiClient.post<Feedback>(
         API_CONFIG.ENDPOINTS.FEEDBACK,
-        feedbackData
+        feedbackData,
       );
-      
-      if (response.data) {
-        return response.data;
+
+      if (!response.data) {
+        throw new Error('Feedback creation failed');
       }
-      
-      throw new Error('Feedback creation failed');
+
+      return response.data;
     } catch (error) {
       console.error('Error creating feedback:', error);
       throw error;
     }
   }
 
-  // 获取反馈标签
   async getFeedbackTags(): Promise<string[]> {
     try {
-      const response = await apiClient.get<{ tags: string[] }>(
-        `${API_CONFIG.ENDPOINTS.FEEDBACK}/tags`
+      const response = await apiClient.get<{ tags?: string[] }>(
+        `${API_CONFIG.ENDPOINTS.FEEDBACK}/tags`,
       );
-      
-      if (response.data?.tags) {
-        return response.data.tags;
-      }
-      
-      return [];
+
+      return response.data?.tags ?? [];
     } catch (error) {
       console.error('Error fetching feedback tags:', error);
       throw error;
@@ -81,7 +95,4 @@ export class FeedbackService {
   }
 }
 
-// 创建单例实例
 export const feedbackService = new FeedbackService();
-
-

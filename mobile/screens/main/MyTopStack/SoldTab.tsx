@@ -14,7 +14,8 @@ import { Picker } from "@react-native-picker/picker";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { MyTopStackParamList } from "./index";
-import { ordersService, Order, OrderStatus } from "../../../src/services";
+import { listingsService } from "../../../src/services";
+import type { ListingItem } from "../../../types/shop";
 import { SOLD_GRID_ITEMS } from "../../../mocks/shop";
 
 // Ensure three-column grid alignment
@@ -33,94 +34,73 @@ function formatData(data: any[], numColumns: number) {
 }
 
 export default function SoldTab() {
-  const [filter, setFilter] = useState<OrderStatus | "All">("All");
+  const [filter, setFilter] = useState<"All" | "ToShip" | "InTransit" | "Completed" | "Cancelled">("All");
   const [modalVisible, setModalVisible] = useState(false);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [soldListings, setSoldListings] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const filterLabels: Record<string, string> = {
     All: "All",
-    TO_SHIP: "To Ship",
-    SHIPPED: "In Transit",
-    CANCELLED: "Cancelled",
-    COMPLETED: "Completed",
-    REVIEWED: "Reviewed",
+    ToShip: "To Ship",
+    InTransit: "In Transit",
+    Completed: "Completed",
+    Cancelled: "Cancelled",
   };
 
   const navigation =
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
 
-  // Load sold orders from API
-  useEffect(() => {
-    const loadSoldOrders = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const response = await ordersService.getSoldOrders();
-        setOrders(response.orders);
-      } catch (err) {
-        console.error("Error loading sold orders:", err);
-        setError(err instanceof Error ? err.message : "Failed to load orders");
-        
-        // Fallback to mock data
-        const mockOrders: Order[] = SOLD_GRID_ITEMS.map((item, index) => ({
-          id: parseInt(item.id) || index + 1,
-          buyer_id: 2,
-          seller_id: 1,
-          listing_id: index + 1,
-          status: mapMockStatusToApiStatus(item.status),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          buyer: {
-            id: 2,
-            username: "Buyer",
-            avatar_url: undefined,
-          },
-          seller: {
-            id: 1,
-            username: "You",
-            avatar_url: undefined,
-          },
-          listing: {
-            id: index + 1,
-            name: `Product ${index + 1}`,
-            description: "",
-            price: 0,
-            image_url: item.image,
-            image_urls: [item.image],
-            brand: "",
-            size: "",
-            condition_type: "GOOD",
-          },
-          reviews: [],
-        }));
-        setOrders(mockOrders);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Load sold listings from API
+  const loadSoldListings = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // 🔥 获取所有sold状态的商品（包括被取消的）
+      const listings = await listingsService.getUserListings({ status: 'sold' });
+      setSoldListings(listings);
+    } catch (err) {
+      console.error("Error loading sold listings:", err);
+      setError(err instanceof Error ? err.message : "Failed to load listings");
+      
+      // Fallback to empty array instead of mock data
+      setSoldListings([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    loadSoldOrders();
+  useEffect(() => {
+    loadSoldListings();
   }, []);
 
-  // Helper function to map mock status to API status
-  function mapMockStatusToApiStatus(mockStatus: string): OrderStatus {
-    switch (mockStatus) {
-      case "ToShip": return "TO_SHIP";
-      case "InTransit": return "SHIPPED";
-      case "Cancelled": return "CANCELLED";
-      case "Completed": return "COMPLETED";
-      case "Reviewed": return "REVIEWED";
-      default: return "TO_SHIP";
+  // Filter data based on order status
+  const filtered = soldListings.filter((listing) => {
+    if (filter === "All") {
+      // 🔥 "All" 不包含被取消的订单，只显示有效的销售记录
+      return listing.orderStatus !== "CANCELLED";
     }
-  }
-
-  // Filter data based on status
-  const filtered = orders.filter((order) =>
-    filter === "All" ? true : order.status === filter
-  );
+    
+    // 🔥 完整的订单管理状态过滤
+    if (filter === "ToShip") {
+      return listing.orderStatus === "IN_PROGRESS"; // 🔥 卖家视角：IN_PROGRESS = To Ship
+    }
+    
+    if (filter === "InTransit") {
+      return listing.orderStatus === "SHIPPED";
+    }
+    
+    if (filter === "Completed") {
+      return listing.orderStatus === "COMPLETED" || listing.orderStatus === "REVIEWED";
+    }
+    
+    if (filter === "Cancelled") {
+      return listing.orderStatus === "CANCELLED";
+    }
+    
+    return true;
+  });
 
   return (
     <View style={{ flex: 1 }}>
@@ -151,11 +131,10 @@ export default function SoldTab() {
               }}
             >
               <Picker.Item label="All" value="All" />
-              <Picker.Item label="To Ship" value="TO_SHIP" />
-              <Picker.Item label="In Transit" value="SHIPPED" />
-              <Picker.Item label="Cancelled" value="CANCELLED" />
-              <Picker.Item label="Completed" value="COMPLETED" />
-              <Picker.Item label="Reviewed" value="REVIEWED" />
+              <Picker.Item label="To Ship" value="ToShip" />
+              <Picker.Item label="In Transit" value="InTransit" />
+              <Picker.Item label="Completed" value="Completed" />
+              <Picker.Item label="Cancelled" value="Cancelled" />
             </Picker>
           </View>
         </View>
@@ -179,7 +158,7 @@ export default function SoldTab() {
               setError(null);
               setLoading(true);
               // Trigger reload
-              setOrders([]);
+              setSoldListings([]);
             }}
           >
             <Text style={styles.retryBtnText}>Retry</Text>
@@ -210,15 +189,25 @@ export default function SoldTab() {
                 style={styles.item}
                 onPress={() => {
                   if (!item.id) return;
-                  navigation.navigate("OrderDetail", { id: item.id.toString(), source: "sold" });
+                  // 🔥 导航到订单详情页面，根据订单状态显示不同的管理功能
+                  const params = { 
+                    id: item.orderId?.toString() || item.id, 
+                    source: "sold" as const,
+                    conversationId: item.conversationId || undefined
+                  };
+                  console.log("🔍 SoldTab navigating to OrderDetail with params:", params);
+                  console.log("🔍 SoldTab conversationId:", item.conversationId);
+                  navigation.navigate("OrderDetail", params);
                 }}
               >
                 <Image 
-                  source={{ uri: item.listing?.image_url || item.listing?.image_urls?.[0] || "https://via.placeholder.com/100x100" }} 
+                  source={{ uri: item.images?.[0] || "https://via.placeholder.com/100x100" }} 
                   style={styles.image} 
                 />
                 <View style={styles.overlay}>
-                  <Text style={styles.overlayText}>SOLD</Text>
+                  <Text style={styles.overlayText}>
+                    {item.orderStatus === "CANCELLED" ? "CANCELLED" : "SOLD"}
+                  </Text>
                 </View>
               </TouchableOpacity>
             )

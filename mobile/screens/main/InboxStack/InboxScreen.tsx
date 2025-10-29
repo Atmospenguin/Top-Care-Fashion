@@ -11,7 +11,7 @@ import {
   Animated,
   Alert,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Swipeable } from "react-native-gesture-handler";
 // Keep SafeAreaView inside Header; avoid double SafeArea padding here
@@ -19,7 +19,10 @@ import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
 import { messagesService, type Conversation } from "../../../src/services";
+import { notificationService } from "../../../src/services/notificationService";
 import { useAuth } from "../../../contexts/AuthContext";
+import { premiumService } from "../../../src/services";
+import Avatar from "../../../components/Avatar";
 
 // 模拟多条对话（Support + Seller）
 // added `unread` and `lastFrom` to support filtering
@@ -82,13 +85,14 @@ const mockThreads = [
 
 export default function InboxScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   
   // filter UI state (simple modal + selectedFilter)
   const [filterVisible, setFilterVisible] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<string>("All");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
   const anim = useRef(new Animated.Value(0)).current;
   const filtersArr = ["All", "Unread", "From seller", "From buyer"];
@@ -96,13 +100,41 @@ export default function InboxScreen() {
   // 加载真实对话数据
   useEffect(() => {
     loadConversations();
+    loadUnreadNotificationCount();
   }, []);
+
+  // ✅ 页面聚焦时自动刷新未读数量
+  useFocusEffect(
+    React.useCallback(() => {
+      loadUnreadNotificationCount();
+    }, [])
+  );
+
+  // ✅ 加载未读notification计数（使用新方法）
+  const loadUnreadNotificationCount = async () => {
+    try {
+      console.log("🔔 Loading unread notification count...");
+      const unreadCount = await notificationService.getUnreadCount();
+      setUnreadNotificationCount(unreadCount);
+      console.log("🔔 Unread notification count:", unreadCount);
+    } catch (error) {
+      console.error("❌ Error loading unread notification count:", error);
+      setUnreadNotificationCount(0);
+    }
+  };
 
   // 添加焦点监听，每次返回时刷新数据
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
+      // Reuse MyPremiumScreen logic: sync premium status on focus
+      if (user?.id) {
+        premiumService.getStatus()
+          .then((status) => updateUser({ ...(user as any), isPremium: status.isPremium, premiumUntil: status.premiumUntil }))
+          .catch(() => {});
+      }
       console.log("🔍 InboxScreen focused, refreshing conversations...");
       loadConversations();
+      loadUnreadNotificationCount();
     });
 
     return unsubscribe;
@@ -114,7 +146,23 @@ export default function InboxScreen() {
       console.log("🔍 Loading conversations from API...");
       
       const apiConversations = await messagesService.getConversations();
-      setConversations(apiConversations);
+      const sortedConversations = [...apiConversations].sort((a, b) => {
+        const aSource = a.last_message_at ?? a.time;
+        const bSource = b.last_message_at ?? b.time;
+        const aDate = new Date(aSource).getTime();
+        const bDate = new Date(bSource).getTime();
+
+        const aValid = Number.isFinite(aDate);
+        const bValid = Number.isFinite(bDate);
+
+        if (!aValid && !bValid) return 0;
+        if (!aValid) return 1;
+        if (!bValid) return -1;
+
+        return bDate - aDate;
+      });
+
+      setConversations(sortedConversations);
       
       console.log("🔍 Loaded", apiConversations.length, "conversations from API");
       
@@ -187,6 +235,58 @@ export default function InboxScreen() {
     return conversations;
   }, [selectedFilter, conversations]);
 
+  // Normalize preview text so Inbox shows the same semantic message as ChatScreen's system formatting
+  const getPreviewText = (conv: Conversation) => {
+    const raw = (conv.message || "").toString();
+    // If there's no order context, just return raw message
+    if (!conv.order) return raw;
+
+    const isCurrentUserSeller = user?.username && conv.order?.seller && user.username === conv.order.seller.name;
+    const lower = raw.toLowerCase();
+
+    // Cancellation
+    if (lower.includes("cancel")) {
+      return isCurrentUserSeller ? "Buyer has cancelled the order." : "Seller has cancelled the order.";
+    }
+
+    // Paid messages
+    if (lower.includes("i've paid") || lower.includes("has paid")) {
+      return isCurrentUserSeller ? "Buyer has paid for the order." : "I've paid, waiting for you to ship.";
+    }
+
+    // Shipped messages
+    if (lower.includes("shipped")) {
+      return isCurrentUserSeller ? "You have shipped the parcel." : "Seller has shipped your parcel.";
+    }
+
+    // Transaction completed messages
+    if (lower.includes("transaction completed") || lower.includes("confirmed received")) {
+      return isCurrentUserSeller ? "Buyer confirmed received. Transaction completed." : "I've confirmed received. Transaction completed.";
+    }
+
+    // Parcel arrived messages
+    if (lower.includes("parcel arrived") || lower.includes("waiting for buyer")) {
+      return isCurrentUserSeller ? "Parcel arrived. Waiting for buyer to confirm received." : "Parcel arrived. Please confirm received.";
+    }
+
+    // In transit messages
+    if (lower.includes("in transit")) {
+      return "Parcel is in transit.";
+    }
+
+    // Mutual review messages
+    if (lower.includes("both parties reviewed")) {
+      return "Both parties reviewed each other.";
+    }
+    
+    if (lower.includes("one party has left a review")) {
+      return "One party has left a review.";
+    }
+
+    // Default: return the backend-provided preview
+    return raw;
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       {/* ✅ 统一用 Header 组件 */}
@@ -200,8 +300,16 @@ export default function InboxScreen() {
             <TouchableOpacity
               accessibilityRole="button"
               onPress={() => navigation.navigate("Notification")}
+              style={styles.notificationButton}
             >
               <Icon name="notifications-outline" size={24} color="#111" />
+              {unreadNotificationCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         }
@@ -273,18 +381,20 @@ export default function InboxScreen() {
               >
                 {/* Avatar with unread indicator */}
                 <View style={styles.avatarContainer}>
-                  <Image 
+                  <Avatar
                     source={
-                      item.sender === "TOP Support" 
-                        ? ASSETS.avatars.top 
-                        : (item.avatar || ASSETS.avatars.default)
-                    } 
-                    style={styles.avatar} 
+                      item.sender === "TOP Support"
+                        ? ASSETS.avatars.top
+                        : item.avatar || ASSETS.avatars.default
+                    }
+                    style={styles.avatar}
+                    isPremium={item.sender === "TOP Support" ? false : item.isPremium}
+                    badgeScale={0.28}
                   />
-                  {/* Unread indicator */}
-                  {item.unread && (
-                    <View style={styles.unreadDot} />
-                  )}
+                {/* Unread indicator */}
+                {item.unread && (
+                  <View style={styles.unreadDot} />
+                )}
                 </View>
 
                 {/* Texts */}
@@ -293,7 +403,7 @@ export default function InboxScreen() {
                     {item.sender}
                   </Text>
                   <Text style={[styles.message, item.unread && styles.unreadMessage]}>
-                    {item.message}
+                    {getPreviewText(item)}
                   </Text>
                   <Text style={styles.time}>{item.time}</Text>
                 </View>
@@ -369,5 +479,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     marginLeft: 4,
+  },
+  notificationButton: {
+    position: "relative",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: "#F54B3D",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
   },
 });

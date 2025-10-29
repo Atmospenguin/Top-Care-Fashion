@@ -4,8 +4,8 @@ import { prisma } from "@/lib/db";
 /**
  * 映射尺码显示值
  */
-const mapSizeToDisplay = (sizeValue: string | null) => {
-  if (!sizeValue) return "N/A";
+const mapSizeToDisplay = (sizeValue: string | null): string | null => {
+  if (!sizeValue) return null;
   
   // 处理复杂的尺码字符串（如 "M / EU 38 / UK 10 / US 6"）
   if (sizeValue.includes("/")) {
@@ -44,9 +44,9 @@ const mapSizeToDisplay = (sizeValue: string | null) => {
     "Extra Large": "Extra Large",
     
     // 通用选项
-    "Other": "Other", "N/A": "N/A"
+    "Other": "Other"
   };
-  
+
   return sizeMap[sizeValue] || sizeValue;
 };
 
@@ -112,6 +112,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
             avatar_url: true,
             average_rating: true,
             total_reviews: true,
+            is_premium: true,
           },
         },
         category: {
@@ -127,29 +128,74 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
       skip: offset,
     });
 
-    const formattedListings = listings.map((listing) => ({
-      id: listing.id.toString(),
-      title: listing.name,
-      description: listing.description,
-      price: Number(listing.price),
-      brand: listing.brand,
-      size: mapSizeToDisplay(listing.size),
-      condition: mapConditionToDisplay(listing.condition_type),
-      material: listing.material,
-      gender: (listing as any).gender || "unisex",
-      tags: listing.tags ? JSON.parse(listing.tags as string) : [],
-      category: listing.category?.name,
-      images: listing.image_urls ? JSON.parse(listing.image_urls as string) : [],
-      seller: {
-        name: listing.seller?.username || "Unknown",
-        avatar: listing.seller?.avatar_url || "",
-        rating: Number(listing.seller?.average_rating) || 0,
-        sales: Number(listing.seller?.total_reviews) || 0,
-      },
-      createdAt: listing.created_at.toISOString(),
-      listed: listing.listed,
-      sold: listing.sold,
-    }));
+    const formattedListings = listings.map((listing) => {
+      const parseJsonArray = (value: unknown): string[] => {
+        if (!value) return [];
+        if (Array.isArray(value)) {
+          return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+        }
+        if (typeof value === "string") {
+          const trimmed = value.trim();
+          if (!trimmed) {
+            return [];
+          }
+          try {
+            const parsed = JSON.parse(trimmed);
+            return Array.isArray(parsed)
+              ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+              : [];
+          } catch (error) {
+            // 如果字符串本身是单个 URL，则返回单元素数组
+            if (/^https?:\/\//i.test(trimmed)) {
+              return [trimmed];
+            }
+            console.warn("Failed to parse JSON array field", { value: trimmed, error });
+            return [];
+          }
+        }
+        return [];
+      };
+
+      const images = (() => {
+        const parsed = parseJsonArray(listing.image_urls);
+        if (parsed.length > 0) {
+          return parsed;
+        }
+        if (typeof listing.image_url === "string" && listing.image_url.trim().length > 0) {
+          return [listing.image_url];
+        }
+        return [];
+      })();
+
+      const tags = parseJsonArray(listing.tags);
+
+      return {
+        id: listing.id.toString(),
+        title: listing.name,
+        description: listing.description,
+        price: Number(listing.price),
+        brand: listing.brand,
+        size: mapSizeToDisplay(listing.size),
+        condition: mapConditionToDisplay(listing.condition_type),
+        material: listing.material,
+        gender: (listing as any).gender || "unisex",
+        tags,
+        category: listing.category?.name,
+        images,
+        seller: {
+          id: listing.seller?.id ?? 0,
+          name: listing.seller?.username || "Unknown",
+          avatar: listing.seller?.avatar_url || "",
+          rating: Number(listing.seller?.average_rating) || 0,
+          sales: Number(listing.seller?.total_reviews) || 0,
+          isPremium: Boolean(listing.seller?.is_premium),
+          is_premium: Boolean(listing.seller?.is_premium),
+        },
+        createdAt: listing.created_at.toISOString(),
+        listed: listing.listed,
+        sold: listing.sold,
+      };
+    });
 
     return NextResponse.json({
       success: true,

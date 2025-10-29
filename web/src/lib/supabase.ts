@@ -35,6 +35,11 @@ export async function createSupabaseServer() {
       "DATABASE_NEXT_PUBLIC_SUPABASE_ANON_KEY",
     ]) ?? "";
 
+  console.log("🔍 Supabase Server Config:", {
+    url: supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : "missing",
+    key: supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : "missing"
+  });
+
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
       "Supabase URL or anon key missing. Set NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY (or their DATABASE_* equivalents) in your environment."

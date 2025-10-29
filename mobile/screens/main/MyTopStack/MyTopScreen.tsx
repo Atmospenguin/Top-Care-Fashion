@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 import Icon from "../../../components/Icon";
+import Avatar from "../../../components/Avatar";
 import FilterModal from "../../../components/FilterModal";
 import { useFocusEffect, useNavigation, useRoute, useScrollToTop } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -19,8 +20,9 @@ import type { MyTopStackParamList } from "./index";
 import SoldTab from "./SoldTab";
 import PurchasesTab from "./PurchasesTab";
 import LikesTab from "./LikesTab";
+import SavedOutfitsTab from "./SavedOutfitsTab";
 import { useAuth } from "../../../contexts/AuthContext";
-import { listingsService } from "../../../src/services/listingsService";
+import { listingsService, premiumService } from "../../../src/services";
 import { userService } from "../../../src/services/userService";
 import type { ListingItem } from "../../../types/shop";
 import type { UserListingsQueryParams } from "../../../src/services/listingsService";
@@ -50,11 +52,10 @@ export default function MyTopScreen() {
   const lastRefreshRef = useRef<number | null>(null);
   const isRefreshingRef = useRef<boolean>(false);
   const [activeTab, setActiveTab] =
-    useState<"Shop" | "Sold" | "Purchases" | "Likes">("Shop");
+    useState<"Shop" | "Sold" | "Purchases" | "Likes" | "Saved Outfits">("Shop");
 
   // ✅ 添加真实数据状态
-  const [activeListings, setActiveListings] = useState<ListingItem[]>([]);
-  const [soldListings, setSoldListings] = useState<ListingItem[]>([]);
+  const [shopListings, setShopListings] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -62,6 +63,7 @@ export default function MyTopScreen() {
   const [followStats, setFollowStats] = useState({
     followersCount: 0,
     followingCount: 0,
+    reviewsCount: 0,
   });
 
   // ✅ 添加用户分类状态
@@ -101,7 +103,9 @@ export default function MyTopScreen() {
       console.log("👥 Fetching follow stats");
       const stats = await userService.getMyFollowStats();
       setFollowStats(stats);
-      console.log(`✅ Loaded follow stats: ${stats.followersCount} followers, ${stats.followingCount} following`);
+      console.log(
+        `✅ Loaded follow stats: ${stats.followersCount} followers, ${stats.followingCount} following, ${stats.reviewsCount} reviews`,
+      );
     } catch (error) {
       console.error("❌ Error fetching follow stats:", error);
       // 保持默认值0，不显示错误
@@ -113,7 +117,22 @@ export default function MyTopScreen() {
     try {
       const latest = await userService.getProfile();
       if (latest) {
-        updateUser(latest as any);
+        // 彻底避免覆盖 premium 字段：只更新非会员相关字段
+        const {
+          isPremium: _ip,
+          is_premium: _ip2,
+          premiumUntil: _pu,
+          premium_until: _pu2,
+          ...safeLatest
+        } = (latest as any) ?? {};
+
+        updateUser({
+          ...(user as any),
+          ...safeLatest,
+          // 留下原有的 premium 状态不变
+          isPremium: user?.isPremium ?? false,
+          premiumUntil: user?.premiumUntil ?? null,
+        } as any);
       }
     } catch (e) {
       // 静默失败，不打断其它刷新任务
@@ -122,12 +141,15 @@ export default function MyTopScreen() {
   };
 
   // ✅ 获取用户listings
-  const fetchUserListings = async (status?: 'active' | 'sold' | 'all', filters?: Partial<UserListingsQueryParams>) => {
+  const fetchUserListings = async (
+    status: 'active' | 'sold' | 'all' | 'unlisted' = 'all',
+    filters?: Partial<UserListingsQueryParams>
+  ) => {
     try {
       console.log("📖 Fetching user listings with status:", status, "filters:", filters);
       
       const params: UserListingsQueryParams = {
-        status: status || 'active',
+        status,
         ...filters,
       };
       
@@ -135,13 +157,11 @@ export default function MyTopScreen() {
       
       const listings = await listingsService.getUserListings(params);
       
-      if (status === 'active' || status === undefined) {
-        setActiveListings(listings);
-      } else if (status === 'sold') {
-        setSoldListings(listings);
+      if (status === 'all' || status === 'active' || status === 'unlisted') {
+        setShopListings(listings);
       }
       
-      console.log(`✅ Loaded ${listings.length} ${status || 'active'} listings`);
+      console.log(`✅ Loaded ${listings.length} ${status} listings`);
       console.log("📖 Sample listing:", listings[0]);
     } catch (error) {
       console.error("❌ Error fetching user listings:", error);
@@ -190,7 +210,7 @@ export default function MyTopScreen() {
       console.log("🔍 Applying filters with values:", filters);
       
       // 重新获取active listings
-      await fetchUserListings('active', filters);
+      await fetchUserListings('all', filters);
     } finally {
       setLoading(false);
     }
@@ -231,30 +251,37 @@ export default function MyTopScreen() {
       console.log("🔍 Applying filters:", filters);
       
       // 重新获取active listings
-      await fetchUserListings('active', filters);
+      await fetchUserListings('all', filters);
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ 刷新数据
-  const onRefresh = useCallback(async () => {
-    if (isRefreshingRef.current) return;
-    isRefreshingRef.current = true;
-    setRefreshing(true);
-    try {
-      await Promise.all([
-        refreshCurrentUser(), // ✅ 同步最新用户资料（头像/简介等）
-        fetchUserListings('active'),
-        fetchUserListings('sold'),
-        fetchFollowStats(),
-        fetchUserCategories(),
-      ]);
-    } finally {
-      setRefreshing(false);
-      isRefreshingRef.current = false;
-    }
-  }, []);
+  // ✅ 统一的刷新逻辑；支持静默刷新避免触发下拉形态
+  const refreshAll = useCallback(
+    async (opts?: { useSpinner?: boolean }) => {
+      const useSpinner = !!opts?.useSpinner;
+      if (isRefreshingRef.current) return;
+      isRefreshingRef.current = true;
+      if (useSpinner) setRefreshing(true); else setLoading(true);
+      try {
+        await Promise.all([
+          refreshCurrentUser(), // ✅ 同步最新用户资料（头像/简介等）
+          fetchUserListings('all'),
+          fetchFollowStats(),
+          fetchUserCategories(),
+        ]);
+      } finally {
+        if (useSpinner) setRefreshing(false);
+        setLoading(false);
+        isRefreshingRef.current = false;
+      }
+    },
+    []
+  );
+
+  // 用于下拉手势或显式请求时的刷新（展示下拉刷新指示器）
+  const onRefresh = useCallback(() => refreshAll({ useSpinner: true }), [refreshAll]);
 
   // （移除初次挂载时的重复加载，统一在获得焦点时刷新）
 
@@ -270,11 +297,12 @@ export default function MyTopScreen() {
   useEffect(() => {
     if (refreshTrigger && lastRefreshRef.current !== refreshTrigger) {
       lastRefreshRef.current = refreshTrigger;
-      onRefresh();
+      // 显式触发刷新：保留下拉指示器以提供反馈
+      refreshAll({ useSpinner: true });
       // 处理完即清理，避免残留参数引发误判
       navigation.setParams({ refreshTS: undefined });
     }
-  }, [refreshTrigger, onRefresh, navigation]);
+  }, [refreshTrigger, refreshAll, navigation]);
 
   // 丝滑回到顶部（仅在 Shop 标签时才滚动）
   useEffect(() => {
@@ -292,17 +320,32 @@ export default function MyTopScreen() {
     if (tabPressTrigger && activeTab === "Shop") {
       const atTop = (listOffsetRef.current || 0) <= 2;
       if (atTop) {
-        onRefresh();
+        // 在顶部时进行带指示器的刷新（符合用户期望）
+        refreshAll({ useSpinner: true });
       } else {
         listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
       }
       navigation.setParams({ tabPressTS: undefined });
     }
-  }, [tabPressTrigger, activeTab, navigation, onRefresh]);
+  }, [tabPressTrigger, activeTab, navigation, refreshAll]);
 
   // ✅ 当屏幕获得焦点时刷新数据
   useFocusEffect(
     useCallback(() => {
+      // Sync premium status (same logic as MyPremiumScreen)
+      let isActive = true;
+      if (user?.id) {
+        (async () => {
+          try {
+            const status = await premiumService.getStatus();
+            if (!isActive) return;
+            updateUser({ ...(user as any), isPremium: status.isPremium, premiumUntil: status.premiumUntil });
+          } catch (e) {
+            // ignore
+          }
+        })();
+      }
+
       const params = route.params;
 
       if (params?.initialTab) {
@@ -312,29 +355,43 @@ export default function MyTopScreen() {
       let didRefresh = false;
       if (params?.refreshTS && lastRefreshRef.current !== params.refreshTS) {
         lastRefreshRef.current = params.refreshTS;
-        onRefresh();
+        // 显式请求：展示下拉指示器
+        refreshAll({ useSpinner: true });
         didRefresh = true;
       }
 
-      // 如果没有通过参数触发刷新，则执行一次隐式焦点刷新
+      // 若不是显式请求，则进行一次静默刷新，避免页面进入时自动“下拉”
       if (!didRefresh) {
-        onRefresh();
+        refreshAll({ useSpinner: false });
       }
 
       // 统一一次性清理参数，防止参数变化导致的回调重复执行
       navigation.setParams({ initialTab: undefined, refreshTS: undefined });
-    }, [navigation, onRefresh])
+      return () => { isActive = false; };
+    }, [navigation, refreshAll])
   );
 
   // ✅ 使用真实用户数据，提供默认值以防用户数据为空
+  const sortedListings = useMemo(() => {
+    const listed = shopListings.filter((listing) => listing.listed !== false);
+    const unlisted = shopListings.filter((listing) => listing.listed === false);
+    return [...listed, ...unlisted];
+  }, [shopListings]);
+
+  const listedCount = useMemo(
+    () => sortedListings.filter((listing) => listing.listed !== false).length,
+    [sortedListings]
+  );
+  const unlistedCount = sortedListings.length - listedCount;
+
   const displayUser = {
     username: user?.username || "User",
     followers: followStats.followersCount, // ✅ 使用真实的follow统计
-    following: followStats.followingCount,  // ✅ 使用真实的follow统计
-    reviews: 0,
+    following: followStats.followingCount, // ✅ 使用真实的follow统计
+    reviews: followStats.reviewsCount,
     bio: user?.bio || "Welcome to my profile!",
     avatar: user?.avatar_url || DEFAULT_AVATAR,
-    activeListings: activeListings, // ✅ 使用真实的active listings
+    activeListings: sortedListings, // ✅ 使用真实的listings，并将未上架的放在末尾
   };
 
   // ✅ 处理listing点击
@@ -342,12 +399,21 @@ export default function MyTopScreen() {
     navigation.navigate("ActiveListingDetail", { listingId: listing.id });
   };
 
-  const tabs: Array<"Shop" | "Sold" | "Purchases" | "Likes"> = [
+  const tabs: Array<"Shop" | "Sold" | "Purchases" | "Likes" | "Saved Outfits"> = [
     "Shop",
     "Sold",
     "Purchases",
     "Likes",
+	"Saved Outfits",
   ];
+
+  const handleOpenFollowList = (type: "followers" | "following") => {
+    navigation.navigate("FollowList", { type });
+  };
+
+  const handleOpenReviews = () => {
+    navigation.navigate("MyReviews");
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
@@ -397,18 +463,35 @@ export default function MyTopScreen() {
               <View style={styles.headerContent}>
                 {/* Profile 区 */}
                 <View style={styles.profileRow}>
-                  <Image 
+                  <Avatar
                     source={
-                      user?.avatar_url && typeof user.avatar_url === 'string' && user.avatar_url.startsWith('http') 
-                        ? { uri: user.avatar_url } 
+                      user?.avatar_url && typeof user.avatar_url === "string" && user.avatar_url.startsWith("http")
+                        ? { uri: user.avatar_url }
                         : DEFAULT_AVATAR
-                    } 
-                    style={styles.avatar} 
+                    }
+                    style={styles.avatar}
+                    isPremium={user?.isPremium}
+                    self
                   />
                   <View style={styles.statsRow}>
-                    <Text style={styles.stats}>{displayUser.followers} followers</Text>
-                    <Text style={styles.stats}>{displayUser.following} following</Text>
-                    <Text style={styles.stats}>{displayUser.reviews} reviews</Text>
+                    <TouchableOpacity
+                      onPress={() => handleOpenFollowList("followers")}
+                      hitSlop={{ top: 8, left: 8, bottom: 8, right: 8 }}
+                    >
+                      <Text style={styles.stats}>{displayUser.followers} followers</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleOpenFollowList("following")}
+                      hitSlop={{ top: 8, left: 8, bottom: 8, right: 8 }}
+                    >
+                      <Text style={styles.stats}>{displayUser.following} following</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleOpenReviews}
+                      hitSlop={{ top: 8, left: 8, bottom: 8, right: 8 }}
+                    >
+                      <Text style={styles.stats}>{displayUser.reviews} reviews</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
@@ -426,7 +509,7 @@ export default function MyTopScreen() {
                 {/* Active Title */}
                 <View style={styles.activeRow}>
                   <Text style={styles.activeTitle}>
-                    Active ({displayUser.activeListings.length} listings)
+                    Active ({listedCount} listed{unlistedCount > 0 ? ` · ${unlistedCount} unlisted` : ""})
                   </Text>
                   <TouchableOpacity 
                     onPress={() => setFilterModalVisible(true)}
@@ -448,25 +531,32 @@ export default function MyTopScreen() {
             contentContainerStyle={{
               paddingBottom: 60,
             }}
-            renderItem={({ item }) =>
-              item.empty ? (
-                <View style={[styles.itemBox, styles.itemInvisible]} />
-              ) : (
+            renderItem={({ item }) => {
+              if (item.empty) {
+                return <View style={[styles.itemBox, styles.itemInvisible]} />;
+              }
+
+              const listing = item as ListingItem;
+              const imageUri = listing.images && listing.images.length > 0
+                ? listing.images[0]
+                : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
+              const isUnlisted = listing.listed === false;
+
+              return (
                 <TouchableOpacity
                   style={styles.itemBox}
-                  onPress={() => handleListingPress(item as ListingItem)}
+                  onPress={() => handleListingPress(listing)}
+                  activeOpacity={0.85}
                 >
-                  {/* ✅ 使用真实的listing数据 */}
-                  {(() => {
-                    const listing = item as ListingItem;
-                    const imageUri = listing.images && listing.images.length > 0 
-                      ? listing.images[0] 
-                      : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
-                    return <Image source={{ uri: imageUri }} style={styles.itemImage} />;
-                  })()}
+                  <Image source={{ uri: imageUri }} style={styles.itemImage} />
+                  {isUnlisted && (
+                    <View style={styles.unlistedOverlay}>
+                      <Text style={styles.unlistedOverlayText}>Unlisted</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
-              )
-            }
+              );
+            }}
             ListEmptyComponent={
               loading ? (
                 <View style={[styles.emptyBox]}>
@@ -486,6 +576,7 @@ export default function MyTopScreen() {
         {activeTab === "Sold" && <SoldTab />}
         {activeTab === "Purchases" && <PurchasesTab />}
         {activeTab === "Likes" && <LikesTab />}
+		{activeTab === "Saved Outfits" && <SavedOutfitsTab />}
       </View>
 
       <FilterModal
@@ -698,8 +789,22 @@ const styles = StyleSheet.create({
     height: "100%",
     resizeMode: "cover",
   },
+  unlistedOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  unlistedOverlayText: {
+    color: "#fff",
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
   itemInvisible: {
     backgroundColor: "transparent",
   },
 });
-

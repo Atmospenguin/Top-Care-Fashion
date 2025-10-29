@@ -313,7 +313,7 @@ export default function EditListingScreen() {
       return;
     }
 
-    let resolvedSize = "N/A";
+    let resolvedSize: string | null = null;
     if (size === "Other") {
       const trimmedCustomSize = customSize.trim();
       if (!trimmedCustomSize) {
@@ -384,8 +384,39 @@ export default function EditListingScreen() {
     try {
       setSaving(true);
       console.log("📝 Saving listing changes:", listing.id);
+      // If shipping option is one of the predefined presets, derive a numeric fee.
+      let calculatedShippingFee: number | undefined;
+      try {
+        if (typeof shippingOption === "string" && shippingOption.includes("$3")) {
+          calculatedShippingFee = 3;
+        } else if (typeof shippingOption === "string" && shippingOption.includes("$5")) {
+          calculatedShippingFee = 5;
+        } else if (shippingOption === "Buyer pays – fixed fee" && shippingFee) {
+          const parsed = parseFloat(shippingFee);
+          if (!Number.isNaN(parsed)) calculatedShippingFee = parsed;
+        } else if (shippingOption === "Free shipping" || shippingOption === "Meet-up") {
+          calculatedShippingFee = 0;
+        }
+      } catch (e) {
+        // conservative fallback: leave calculatedShippingFee undefined and rely on previously resolved value
+        console.warn("Failed to calculate preset shipping fee", e);
+      }
 
-      const updatedListing = await listingsService.updateListing(listing.id, updateData);
+      // Merge the previously validated updateData with any calculated preset fee.
+      const payload = {
+        ...updateData,
+        // prefer explicit calculated preset fee when available, otherwise keep resolvedShippingFee
+        shippingFee: calculatedShippingFee !== undefined ? calculatedShippingFee : updateData.shippingFee,
+        // ensure trimmed/parsed fields are the same as the validated ones above
+        title: trimmedTitle,
+        description: trimmedDescription,
+        price: parsedPrice,
+        brand: trimmedBrand,
+        gender: resolvedGender,
+        location: shippingOption === "Meet-up" ? trimmedLocation : undefined,
+      };
+
+      const updatedListing = await listingsService.updateListing(listing.id, payload);
       console.log("✅ Listing updated successfully:", updatedListing.id);
 
       Alert.alert("Success", "Listing updated successfully!", [

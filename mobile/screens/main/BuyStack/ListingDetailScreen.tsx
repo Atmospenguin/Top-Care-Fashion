@@ -14,6 +14,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -21,11 +22,13 @@ import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import Avatar from "../../../components/Avatar";
 import ASSETS from "../../../constants/assetUrls";
-import type { BagItem } from "../../../types/shop";
+import type { BagItem, ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
-import { likesService, cartService, messagesService } from "../../../src/services";
+import { likesService, cartService, messagesService, reportsService } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
+import { apiClient } from "../../../src/services/api";
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
@@ -61,17 +64,52 @@ const formatDateString = (value?: string | null) => {
 export default function ListingDetailScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
-  const {
-    params: { item, isOwnListing: isOwnListingParam = false },
-  } = useRoute<RouteProp<BuyStackParamList, "ListingDetail">>();
+  const route = useRoute<RouteProp<BuyStackParamList, "ListingDetail">>();
+  const { item: itemParam, listingId, isOwnListing: isOwnListingParam = false } = route.params || {};
+  
   const { user } = useAuth();
+  const [item, setItem] = useState<ListingItem | null>(itemParam || null);
+  const [isLoadingListing, setIsLoadingListing] = useState(!itemParam && !!listingId);
   const [showMenu, setShowMenu] = useState(false);
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [reportDetails, setReportDetails] = useState("");
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [isLoadingLike, setIsLoadingLike] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+
+  // ✅ 如果只有 listingId，通过 API 加载 listing 数据
+  useEffect(() => {
+    if (!itemParam && listingId) {
+      loadListingById(listingId);
+    }
+  }, [listingId, itemParam]);
+
+  const loadListingById = async (id: string) => {
+    try {
+      setIsLoadingListing(true);
+      console.log("🔍 Loading listing by ID:", id);
+      
+      const response = await apiClient.get<{ listing: ListingItem }>(`/api/listings/${id}`);
+      if (response.data?.listing) {
+        setItem(response.data.listing);
+        console.log("✅ Listing loaded successfully:", response.data.listing);
+      }
+    } catch (error) {
+      console.error("❌ Error loading listing:", error);
+      Alert.alert("Error", "Failed to load listing details");
+      navigation.goBack();
+    } finally {
+      setIsLoadingListing(false);
+    }
+  };
+  
+  // 调试：查看传递的 item 数据
+  console.log("🔍 ListingDetailScreen - Received item:", item);
+  console.log("🔍 ListingDetailScreen - Item ID:", item?.id);
+  console.log("🔍 ListingDetailScreen - Item title:", item?.title);
+  console.log("🔍 ListingDetailScreen - Item seller:", item?.seller);
 
   // 安全处理 item 数据，兼容 images 和 imageUrls 字段
   const safeItem = useMemo(() => {
@@ -80,6 +118,9 @@ export default function ListingDetailScreen() {
     // 调试：查看原始item数据
     console.log('🔍 Debug - Original item:', item);
     console.log('🔍 Debug - Original item.seller:', item.seller);
+    console.log('🔍 Debug - Original item.shippingFee:', item.shippingFee);
+    console.log('🔍 Debug - Original item.shippingOption:', item.shippingOption);
+    console.log('🔍 Debug - Original item.location:', item.location);
     
     const legacyImagesField = (item as { imageUrls?: unknown }).imageUrls;
     const legacyImages = Array.isArray(legacyImagesField)
@@ -88,6 +129,8 @@ export default function ListingDetailScreen() {
 
     const result = {
       ...item,
+      // 🔥 添加 listing_id 字段，用于创建订单
+      listing_id: item.id,
       // 兼容处理：优先使用 images，如果没有则使用 imageUrls
       images: Array.isArray(item.images) && item.images.length > 0 ? item.images : legacyImages,
     };
@@ -95,6 +138,9 @@ export default function ListingDetailScreen() {
     // 调试：查看转换后的safeItem
     console.log('🔍 Debug - Converted safeItem:', result);
     console.log('🔍 Debug - Converted safeItem.seller:', result.seller);
+    console.log('🔍 Debug - Converted safeItem.shippingFee:', result.shippingFee);
+    console.log('🔍 Debug - Converted safeItem.shippingOption:', result.shippingOption);
+    console.log('🔍 Debug - Converted safeItem.location:', result.location);
     
     return result;
   }, [item]);
@@ -110,7 +156,24 @@ export default function ListingDetailScreen() {
     }, 0),
     [defaultBag],
   );
-  const shippingFee = 8;
+  // 🔥 使用真实的 shipping fee 数据
+  const shippingFee = useMemo(() => {
+    console.log('🔍 Debug - safeItem?.shippingFee:', safeItem?.shippingFee);
+    console.log('🔍 Debug - safeItem?.shippingOption:', safeItem?.shippingOption);
+    console.log('🔍 Debug - safeItem?.location:', safeItem?.location);
+    
+    if (!safeItem?.shippingFee) {
+      console.log('⚠️ Shipping fee is null or undefined, returning 0');
+      return 0;
+    }
+    
+    const fee = typeof safeItem.shippingFee === 'number' 
+      ? safeItem.shippingFee 
+      : Number(safeItem.shippingFee);
+    
+    console.log('✅ Using shipping fee:', fee);
+    return fee;
+  }, [safeItem?.shippingFee]);
 
   const genderLabel = useMemo(() => formatGenderLabel(safeItem?.gender), [safeItem?.gender]);
   const likesCount = safeItem?.likesCount ?? 0;
@@ -157,10 +220,7 @@ export default function ListingDetailScreen() {
       {
         id: "size",
         label: "Size",
-        value:
-          safeItem.size && safeItem.size !== "N/A" && safeItem.size !== "Select"
-            ? safeItem.size
-            : "Not specified",
+        value: safeItem.size ? safeItem.size : "Not specified",
       },
       {
         id: "condition",
@@ -233,7 +293,8 @@ export default function ListingDetailScreen() {
   // 检查Like状态
   useEffect(() => {
     const checkLikeStatus = async () => {
-      if (!safeItem?.id || isOwnListingFinal) return;
+      // 仅在登录用户且不是自己的商品时检查点赞状态，避免未登录产生401
+      if (!safeItem?.id || isOwnListingFinal || !user) return;
       
       try {
         const listingId = Number(safeItem.id);
@@ -246,7 +307,7 @@ export default function ListingDetailScreen() {
     };
 
     checkLikeStatus();
-  }, [safeItem?.id, isOwnListingFinal]);
+  }, [safeItem?.id, isOwnListingFinal, user?.id]);
 
   // 处理Like按钮点击
   const handleLikeToggle = async () => {
@@ -287,7 +348,11 @@ export default function ListingDetailScreen() {
     setReportModalVisible(true);
   };
 
-  const handleSubmitReport = () => {
+  const handleSubmitReport = async () => {
+    if (!safeItem) {
+      Alert.alert("Error", "Unable to submit report for this listing. Please try again later.");
+      return;
+    }
     if (!selectedCategory) {
       Alert.alert("Notice", "Please select a report category");
       return;
@@ -296,22 +361,44 @@ export default function ListingDetailScreen() {
       Alert.alert("Notice", "Please fill in report details");
       return;
     }
-    
-    // TODO: Submit report to backend
-    Alert.alert(
-      "Report Submitted",
-      "Thank you for your feedback. We will review it shortly.",
-      [
-        {
-          text: "OK",
-          onPress: () => {
-            setReportModalVisible(false);
-            setSelectedCategory(null);
-            setReportDetails("");
+
+    try {
+      setIsSubmittingReport(true);
+      await reportsService.submitReport({
+        targetType: "listing",
+        targetId: String(safeItem.id ?? ""),
+        category: selectedCategory,
+        details: reportDetails,
+        reportedListingId: safeItem.id ?? undefined,
+        reportedUsername:
+          typeof safeItem.seller?.id !== "undefined"
+            ? String(safeItem.seller?.id)
+            : safeItem.seller?.name,
+      });
+      Alert.alert(
+        "Report Submitted",
+        "Thank you for your feedback. We will review it shortly.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              setReportModalVisible(false);
+              setSelectedCategory(null);
+              setReportDetails("");
+            },
           },
-        },
-      ]
-    );
+        ],
+      );
+    } catch (error) {
+      console.error("Error submitting report:", error);
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to submit report. Please try again.";
+      Alert.alert("Error", message);
+    } finally {
+      setIsSubmittingReport(false);
+    }
   };
 
   const handleCancelReport = () => {
@@ -448,10 +535,17 @@ export default function ListingDetailScreen() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.submitButton]}
+                  style={[
+                    styles.modalButton,
+                    styles.submitButton,
+                    isSubmittingReport ? { opacity: 0.6 } : undefined,
+                  ]}
                   onPress={handleSubmitReport}
+                  disabled={isSubmittingReport}
                 >
-                  <Text style={styles.submitButtonText}>Submit Report</Text>
+                  <Text style={styles.submitButtonText}>
+                    {isSubmittingReport ? "Submitting..." : "Submit Report"}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -625,13 +719,18 @@ export default function ListingDetailScreen() {
                 });
               }}
             >
-              <Image 
+              <Avatar
                 source={
-                  safeItem?.seller?.avatar && typeof safeItem.seller.avatar === 'string' && safeItem.seller.avatar.trim() !== '' && safeItem.seller.avatar.startsWith('http')
+                  safeItem?.seller?.avatar &&
+                  typeof safeItem.seller.avatar === "string" &&
+                  safeItem.seller.avatar.trim() !== "" &&
+                  safeItem.seller.avatar.startsWith("http")
                     ? { uri: safeItem.seller.avatar }
                     : ASSETS.avatars.default
-                } 
-                style={styles.sellerAvatar} 
+                }
+                style={styles.sellerAvatar}
+                isPremium={safeItem?.seller?.isPremium}
+                self={Boolean(isOwnListingFinal)}
               />
               <View style={{ flex: 1 }}>
                 <Text style={styles.sellerName}>{safeItem?.seller?.name || 'Unknown Seller'}</Text>
@@ -687,85 +786,50 @@ export default function ListingDetailScreen() {
                     
                     console.log("✅ Conversation created/found:", conversation);
                     
-                    // 导航到聊天界面
-                    console.log("🔍 Navigating to ChatScreen...");
-                    
-               // 🔥 正确的导航方式：Buy Stack → Root Stack → Main Tab → Inbox Stack → Chat
-               try {
-                 // 方式1：通过根导航到 Main Tab，然后到 Inbox
-                 const rootNavigation = (navigation as any).getParent?.();
-                 if (rootNavigation) {
-                   rootNavigation.navigate("Main", {
-                     screen: "Inbox",
-                     params: {
-                       screen: "Chat",
-                       params: {
-                         sender: safeItem.seller.name || "Seller",
-                         kind: "order",
-                         conversationId: conversation.id,
-                         order: {
-                           id: safeItem.id || "new-order",
-                           product: {
-                             title: safeItem.title || "Item",
-                             price: Number(safeItem.price) || 0,
-                             size: safeItem.size,
-                             image: safeItem.images?.[0] || ""
-                           },
-                           seller: {
-                             name: safeItem.seller.name || "Seller",
-                             avatar: safeItem.seller.avatar
-                           },
-                           buyer: {
-                             name: "You",
-                             avatar: "https://i.pravatar.cc/100?img=32"
-                           },
-                           status: "Inquiry"
-                         }
-                       }
-                     }
-                   });
-                   console.log("✅ Navigation successful via Main Tab");
-                 } else {
-                   throw new Error("Root navigation not available");
-                 }
-               } catch (navError) {
-                 console.log("❌ Main Tab navigation failed:", navError);
-                 console.log("🔍 Trying alternative navigation...");
-                 
-                 // 方式2：尝试直接导航到 Inbox（可能不会工作，但作为 fallback）
-                 try {
-                   (navigation as any).navigate("Inbox", {
-                     screen: "Chat",
-                     params: {
-                       sender: safeItem.seller.name || "Seller",
-                       kind: "order",
-                       conversationId: conversation.id,
-                       order: {
-                         id: safeItem.id || "new-order",
-                         product: {
-                           title: safeItem.title || "Item",
-                           price: safeItem.price || 0,
-                           size: safeItem.size,
-                           image: safeItem.images?.[0] || ""
-                         },
-                         seller: {
-                           name: safeItem.seller.name || "Seller",
-                           avatar: safeItem.seller.avatar
-                         },
-                         buyer: {
-                           name: "You",
-                           avatar: "https://i.pravatar.cc/100?img=32"
-                         },
-                         status: "Inquiry"
-                       }
-                     }
-                   });
-                   console.log("✅ Navigation successful via direct");
-                 } catch (directError) {
-                   console.error("❌ Direct navigation also failed:", directError);
-                   Alert.alert("Navigation Error", "Unable to open chat. Please try again.");
-                 }
-               }
+                    // 准备 Chat 路由参数，供不同导航路径复用
+                    const chatParams = {
+                      sender: safeItem.seller.name || "Seller",
+                      kind: "order" as const,
+                      conversationId: conversation.id,
+                      fromListing: true,
+                      order: {
+                        id: safeItem.id || "new-order",
+                        product: {
+                          title: safeItem.title || "Item",
+                          price: Number(safeItem.price) || 0,
+                          size: safeItem.size,
+                          image: safeItem.images?.[0] || "",
+                        },
+                        seller: {
+                          name: safeItem.seller.name || "Seller",
+                          avatar: safeItem.seller.avatar,
+                        },
+                        buyer: {
+                          name: user?.username || "You",
+                          avatar: user?.avatar_url ?? "https://i.pravatar.cc/100?img=32",
+                        },
+                        status: "Inquiry",
+                      },
+                    };
+
+                    console.log("🔍 Navigating to Chat screen with params:", chatParams);
+
+                    let rootNavigation: any = navigation;
+                    let currentNav: any = navigation;
+                    while (currentNav?.getParent?.()) {
+                      const parent = currentNav.getParent();
+                      if (!parent) break;
+                      currentNav = parent;
+                    }
+                    rootNavigation = currentNav ?? navigation;
+
+                    if (rootNavigation?.navigate) {
+                      rootNavigation.navigate("ChatStandalone", chatParams);
+                      console.log("✅ Navigation via root ChatStandalone screen");
+                    } else {
+                      navigation.navigate("ChatStandalone", chatParams);
+                      console.log("✅ Navigation via local ChatStandalone fallback");
+                    }
                   } catch (error) {
                     console.error("❌ Error creating conversation:", error);
                     Alert.alert("Error", "Failed to start conversation. Please try again.");
@@ -814,13 +878,60 @@ export default function ListingDetailScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.primaryButton}
-              onPress={() =>
-                navigation.navigate("Checkout", {
-                  items: defaultBag,
-                  subtotal,
-                  shipping: shippingFee,
-                })
-              }
+              onPress={async () => {
+                console.log("🔍 Buy Now button pressed from ListingDetailScreen");
+                
+                // 🔥 创建或获取与卖家的对话，以便下单后能回到聊天界面
+                try {
+                  console.log("🔍 Creating conversation with seller...");
+                  console.log("🔍 SafeItem details:", {
+                    id: safeItem.id,
+                    title: safeItem.title,
+                    seller: safeItem.seller
+                  });
+                  
+                  const sellerIdRaw = safeItem?.seller?.id;
+                  if (!sellerIdRaw) {
+                    Alert.alert("Error", "Unable to identify the seller for this listing.");
+                    return;
+                  }
+                  const sellerId = Number(sellerIdRaw);
+                  if (Number.isNaN(sellerId)) {
+                    Alert.alert("Error", "Invalid seller information for this listing.");
+                    return;
+                  }
+                  const listingId = parseInt(safeItem.id);
+                  
+                  console.log("🔍 Final parameters:", {
+                    sellerId,
+                    listingId
+                  });
+                  
+                  const conversation = await messagesService.getOrCreateSellerConversation(
+                    sellerId,
+                    listingId
+                  );
+                  
+                  console.log("✅ Conversation created/found:", conversation);
+                  
+                  // 🔥 导航到CheckoutScreen，传递conversationId
+                  navigation.navigate("Checkout", {
+                    items: defaultBag,
+                    subtotal,
+                    shipping: shippingFee,
+                    conversationId: conversation.id.toString() // 🔥 传递conversationId
+                  });
+                  
+                } catch (error) {
+                  console.error("❌ Error creating conversation:", error);
+                  // 如果创建对话失败，仍然可以继续结账流程
+                  navigation.navigate("Checkout", {
+                    items: defaultBag,
+                    subtotal,
+                    shipping: shippingFee,
+                  });
+                }
+              }}
             >
               <Text style={styles.primaryText}>Buy Now</Text>
             </TouchableOpacity>

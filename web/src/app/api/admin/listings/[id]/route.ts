@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma, parseJson } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-import { ConditionType, Prisma, TxStatus } from "@prisma/client";
+import { ConditionType, OrderStatus, Prisma } from "@prisma/client";
 import { toNumber } from "@/lib/db";
 
 function mapConditionOut(value: ConditionType | null | undefined):
@@ -37,7 +37,7 @@ function normalizeConditionIn(value: unknown): ConditionType {
   return ConditionType.GOOD;
 }
 
-function mapTxStatus(value: TxStatus | null | undefined):
+function mapTxStatus(value: OrderStatus | null | undefined):
   | "pending"
   | "paid"
   | "shipped"
@@ -45,7 +45,53 @@ function mapTxStatus(value: TxStatus | null | undefined):
   | "cancelled"
   | null {
   if (!value) return null;
-  return value.toString().toLowerCase() as any;
+  switch (value) {
+    case OrderStatus.IN_PROGRESS:
+      return "pending";
+    case OrderStatus.TO_SHIP:
+      return "paid";
+    case OrderStatus.SHIPPED:
+    case OrderStatus.DELIVERED:
+      return "shipped";
+    case OrderStatus.RECEIVED:
+    case OrderStatus.COMPLETED:
+    case OrderStatus.REVIEWED:
+      return "completed";
+    case OrderStatus.CANCELLED:
+      return "cancelled";
+    default:
+      return null;
+  }
+}
+
+function ensureStringArray(value: unknown): string[] {
+  if (!value) return [];
+  const parsed = Array.isArray(value) ? (value as unknown[]) : parseJson<string[]>(value);
+  if (!parsed || !Array.isArray(parsed)) return [];
+  return parsed.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function normalizeJsonInput(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (Array.isArray(value)) {
+    const cleaned = value.filter((item): item is string => typeof item === "string" && item.length > 0);
+    return cleaned;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item: unknown): item is string => typeof item === "string" && item.length > 0);
+      }
+      return parsed;
+    } catch {
+      return trimmed;
+    }
+  }
+  return value;
 }
 
 export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -80,7 +126,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
   const seller = listing.seller_id
     ? await prisma.users.findUnique({ where: { id: listing.seller_id }, select: { username: true } })
     : null;
-  const tx = await prisma.transactions.findFirst({
+  const tx = await prisma.orders.findFirst({
     where: { listing_id: id },
     orderBy: { created_at: "desc" },
     select: { id: true, status: true },
@@ -96,11 +142,11 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
     sold: Boolean(listing.sold),
     price: toNumber(listing.price) ?? 0,
     imageUrl: listing.image_url ?? null,
-    imageUrls: (listing.image_urls as unknown) ?? null,
+    imageUrls: ensureStringArray(listing.image_urls),
     brand: listing.brand ?? null,
     size: listing.size ?? null,
     conditionType: mapConditionOut(listing.condition_type),
-    tags: (listing.tags as unknown) ?? null,
+    tags: ensureStringArray(listing.tags),
     createdAt: listing.created_at.toISOString(),
     soldAt: listing.sold_at ? listing.sold_at.toISOString() : null,
     sellerName: seller?.username ?? null,
@@ -139,11 +185,35 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   if (listed !== undefined) data.listed = Boolean(listed);
   if (price !== undefined) data.price = Number(price);
   if (imageUrl !== undefined) data.image_url = imageUrl ?? null;
-  if (imageUrls !== undefined) data.image_urls = imageUrls ?? null;
+  if (imageUrls !== undefined) {
+    const normalized = normalizeJsonInput(imageUrls);
+    if (normalized !== undefined) {
+      data.image_urls = normalized;
+    }
+  }
   if (brand !== undefined) data.brand = brand ?? null;
   if (size !== undefined) data.size = size ?? null;
   if (conditionType !== undefined) data.condition_type = normalizeConditionIn(conditionType);
-  if (tags !== undefined) data.tags = tags ?? null;
+  if (tags !== undefined) {
+    if (Array.isArray(tags)) {
+      data.tags = tags.length ? JSON.stringify(tags) : null;
+    } else if (typeof tags === "string") {
+      const trimmed = tags.trim();
+      if (!trimmed) {
+        data.tags = null;
+      } else if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+        data.tags = trimmed;
+      } else {
+        const pieces = trimmed
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        data.tags = pieces.length ? JSON.stringify(pieces) : null;
+      }
+    } else {
+      data.tags = tags ?? null;
+    }
+  }
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });
@@ -168,6 +238,8 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
         condition_type: true,
         tags: true,
         created_at: true,
+        sold: true,
+        sold_at: true,
       },
     });
     if (!listing) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -180,13 +252,15 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       sellerId: listing.seller_id ? String(listing.seller_id) : null,
       price: toNumber(listing.price) ?? 0,
       listed: Boolean(listing.listed),
+      sold: Boolean(listing.sold),
       imageUrl: listing.image_url ?? null,
-      imageUrls: (listing.image_urls as unknown) ?? null,
+      imageUrls: ensureStringArray(listing.image_urls),
       brand: listing.brand ?? null,
       size: listing.size ?? null,
       conditionType: mapConditionOut(listing.condition_type),
-      tags: (listing.tags as unknown) ?? null,
+      tags: ensureStringArray(listing.tags),
       createdAt: listing.created_at.toISOString(),
+      soldAt: listing.sold_at ? listing.sold_at.toISOString() : null,
     });
   } catch (error) {
     console.error("Error updating listing:", error);
@@ -204,7 +278,7 @@ export async function DELETE(_req: NextRequest, context: { params: Promise<{ id:
     await prisma.listings.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    // Foreign key (has transactions): fallback to unlist
+    // Foreign key (has orders): fallback to unlist
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2003"

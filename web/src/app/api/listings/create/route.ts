@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { Prisma } from "@prisma/client";
+import { isPremiumUser, getListingLimit } from "@/lib/userPermissions";
 
 export async function POST(req: Request) {
   try {
@@ -20,6 +21,51 @@ export async function POST(req: Request) {
     }
     
     console.log("✅ Authenticated user:", sessionUser.username);
+
+    // 🔥 检查用户的 listing 数量限制
+    const user = await prisma.users.findUnique({
+      where: { id: sessionUser.id },
+      select: {
+        is_premium: true,
+        premium_until: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const isPremium = isPremiumUser(user);
+    const listingLimit = getListingLimit(isPremium);
+
+    // 如果有限制，检查当前活跃 listing 数量
+    if (listingLimit !== null) {
+      const activeListingsCount = await prisma.listings.count({
+        where: {
+          seller_id: sessionUser.id,
+          listed: true,
+          sold: false,
+        },
+      });
+
+      console.log("📊 Listing limit check:", {
+        isPremium,
+        activeListingsCount,
+        listingLimit,
+      });
+
+      if (activeListingsCount >= listingLimit) {
+        return NextResponse.json(
+          {
+            error: "Listing limit reached",
+            message: `Free users can only have ${listingLimit} active listings. Upgrade to Premium for unlimited listings.`,
+            limit: listingLimit,
+            current: activeListingsCount,
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     const body = await req.json();
     console.log("📝 Request body received:", JSON.stringify(body, null, 2));
@@ -58,6 +104,8 @@ export async function POST(req: Request) {
     // 转换condition字符串到ConditionType枚举
     const mapConditionToEnum = (conditionStr: string | undefined) => {
       if (!conditionStr) return "GOOD"; // 默认值
+      
+      // 🔥 标准化输入字符串
       const conditionMap: Record<string, "NEW" | "LIKE_NEW" | "GOOD" | "FAIR" | "POOR"> = {
         "Brand New": "NEW",
         "New": "NEW",
@@ -94,7 +142,7 @@ export async function POST(req: Request) {
         description,
         price: parseFloat(price),
         brand: brand || "",
-        size: size || "N/A",
+        size: size ?? null,
         condition_type: mapConditionToEnum(condition),
         material: material || null,
         tags: tags ? JSON.stringify(tags) : Prisma.JsonNull,
@@ -128,8 +176,8 @@ export async function POST(req: Request) {
       },
     });
 
-    const mapSizeToDisplay = (sizeValue: string | null) => {
-      if (!sizeValue) return "N/A";
+    const mapSizeToDisplay = (sizeValue: string | null): string | null => {
+      if (!sizeValue) return null;
       
       // 处理复杂的尺码字符串（如 "M / EU 38 / UK 10 / US 6"）
       if (sizeValue.includes("/")) {
@@ -168,9 +216,9 @@ export async function POST(req: Request) {
         "Extra Large": "Extra Large",
         
         // 通用选项
-        "Other": "Other", "N/A": "N/A"
+        "Other": "Other"
       };
-      
+
       return sizeMap[sizeValue] || sizeValue;
     };
 
@@ -178,7 +226,7 @@ export async function POST(req: Request) {
       success: true,
       data: {
         id: listing.id.toString(),
-        title: listing.name, // 返回 name 作为 title
+        title: listing.name,
         description: listing.description,
         price: listing.price,
         brand: listing.brand,
