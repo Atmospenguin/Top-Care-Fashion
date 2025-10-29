@@ -1,9 +1,10 @@
 // mobile/src/services/aiService.ts
 import { API_CONFIG, buildUrl, ApiError } from "../config/api";
 
-/** Toggle verbose logging in dev without spamming prod */
+// Toggle verbose logging in dev without spamming prod
 const DEBUG_AI = __DEV__ || process.env.EXPO_PUBLIC_DEBUG_AI === "1";
 
+// ---------- Category Display ----------
 export const CATEGORY_DISPLAY: Record<string, string> = {
   Top: "Tops",
   Bottom: "Bottoms",
@@ -14,6 +15,7 @@ export const CATEGORY_DISPLAY: Record<string, string> = {
   Outerwear: "Outerwear",
 };
 
+// ---------- Types ----------
 type TopK = { label: string; score: number };
 
 export type ClassifyResponse = {
@@ -36,7 +38,25 @@ export type DescribeResponse = {
   };
 };
 
-/** Guess mime from filename; default to jpeg for RN camera roll uris */
+export type SafeBatchResult = {
+  allowAll: boolean;
+  results: Array<{
+    index: number;
+    filename: string;
+    verdict: "SFW" | "NSFW";
+    allow: boolean;
+    reasons: string[];
+    safesearch: {
+      adult: string;
+      racy: string;
+      violence: string;
+      medical: string;
+      spoof: string;
+    };
+  }>;
+};
+
+// ---------- Helpers ----------
 function guessMime(filename: string) {
   const lower = filename.toLowerCase();
   if (lower.endsWith(".png")) return "image/png";
@@ -71,7 +91,7 @@ async function fetchWithTimeout(input: RequestInfo, init: RequestInit, timeoutMs
   }
 }
 
-/** Upload image and classify */
+// ---------- Classify ----------
 export async function classifyImage(uri: string): Promise<ClassifyResponse> {
   const filename = uri.split("/").pop() ?? "photo.jpg";
   const type = guessMime(filename);
@@ -129,7 +149,6 @@ export async function classifyImage(uri: string): Promise<ClassifyResponse> {
         throw new ApiError("Request timed out", 408);
       }
       if (e instanceof ApiError) throw e;
-      // network-level retry
       if (attempt < API_CONFIG.RETRY_ATTEMPTS) {
         await new Promise(r => setTimeout(r, 200 * attempt));
         continue;
@@ -138,11 +157,10 @@ export async function classifyImage(uri: string): Promise<ClassifyResponse> {
     }
   }
 
-  // should not reach here
   throw new ApiError("classify failed after retries", 0);
 }
 
-/** Generate product description */
+// ---------- Describe ----------
 export async function describeProduct(category: string, labels: string[]): Promise<DescribeResponse> {
   const url = buildUrl(API_CONFIG.ENDPOINTS.AI.DESCRIBE);
 
@@ -199,7 +217,42 @@ export async function describeProduct(category: string, labels: string[]): Promi
   throw new ApiError("describe failed after retries", 0);
 }
 
-/** Optional: tiny helper to render a friendly blurb on the client */
+// ---------- SafeSearch moderation ----------
+export async function checkImagesSFW(
+  uris: string[],
+  timeoutMs = API_CONFIG.TIMEOUT
+): Promise<SafeBatchResult> {
+  const form = new FormData();
+  uris.forEach((uri, i) => {
+    const name = uri.split("/").pop() ?? `image_${i + 1}.jpg`;
+    const type = guessMime(name);
+    form.append("images", { uri, name, type } as any);
+  });
+
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+
+  const url = buildUrl(API_CONFIG.ENDPOINTS.AI.SAFE);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      body: form,
+      headers: { Accept: "application/json" }, // let fetch set multipart boundary
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new ApiError(`Safe check failed: HTTP ${res.status} ${text}`, res.status);
+    }
+    return (await res.json()) as SafeBatchResult;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// ---------- UI helper ----------
 export function formatBlurb(category?: string, confidence?: number) {
   if (!category) return "";
   if (typeof confidence !== "number") return `Looks like ${category}`;
