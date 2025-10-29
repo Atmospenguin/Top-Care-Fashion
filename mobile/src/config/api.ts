@@ -1,25 +1,29 @@
-import Constants from 'expo-constants';
+// mobile/src/config/api.ts
+// Global API configuration for Top Care Fashion
 
-// API 配置文件
+export const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ||
+  "https://top-care-fashion-cyan.vercel.app"; // sensible default
+
 export const API_CONFIG = {
-  // 你的 Web API 基础 URL
-  // 从 app.json 的 extra 字段获取，或回退到环境变量
-  BASE_URL: Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000',
-  
-  // API 端点
+  BASE_URL: API_BASE_URL,
   ENDPOINTS: {
-    LISTINGS: '/api/listings',
-    USERS: '/api/users',
-    ORDERS: '/api/orders',
-    LIKES: '/api/likes',
-    CART: '/api/cart',
+    LISTINGS: "/api/listings",
+    USERS: "/api/users",
     AUTH: {
-      SIGNIN: '/api/auth/signin',
-      SIGNUP: '/api/auth/register',
-      ME: '/api/auth/me',
-      SIGNOUT: '/api/auth/signout',
-      FORGOT_PASSWORD: '/api/auth/forgot-password',
-      RESET_PASSWORD: '/api/auth/reset-password',
+      SIGNIN: "/api/auth/signin",
+      SIGNUP: "/api/auth/register",
+      ME: "/api/auth/me",
+      SIGNOUT: "/api/auth/signout",
+    },
+    PROFILE: "/api/profile",
+    FEEDBACK: "/api/feedback",
+    FAQ: "/api/faq",
+    SITE_STATS: "/api/site-stats",
+    AI: {
+      CLASSIFY: "/api/ai/classify",
+      DESCRIBE: "/api/ai/describe",
+      SAFE: "/api/ai/safe",
     },
     PROFILE: '/api/profile',
     FEEDBACK: '/api/feedback',
@@ -27,9 +31,7 @@ export const API_CONFIG = {
     SITE_STATS: '/api/site-stats',
     REPORTS: '/api/reports',
   },
-  
-  // 请求配置
-  TIMEOUT: 10000, // 10秒超时
+  TIMEOUT: 10000,
   RETRY_ATTEMPTS: 3,
   
   // 已废弃：统一通过 apiClient 注入 Authorization 头
@@ -37,23 +39,22 @@ export const API_CONFIG = {
   getAuthHeaders: () => ({}),
 } as const;
 
-// API 响应类型
 export interface ApiResponse<T = any> {
   data?: T;
   error?: string;
   message?: string;
 }
 
-// 错误类型
 export class ApiError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-    public response?: any
-  ) {
+  constructor(public message: string, public status: number, public response?: any) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
   }
 }
 
+// Normalize slashes; prevent POST→GET via redirects or misformed URLs
+export function buildUrl(path: string) {
+  return `${API_BASE_URL.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}
 
+export const DEBUG_API = process.env.EXPO_PUBLIC_DEBUG_API === "1";
