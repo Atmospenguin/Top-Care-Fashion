@@ -147,6 +147,13 @@ function formatData(data: any[], numColumns: number) {
 export default function UserProfileScreen() {
   const navigation = useNavigation<BuyNavigation>();
   const route = useRoute<UserProfileParam>();
+  const openFollowList = (type: "followers" | "following") => {
+    const username = userProfile?.username;
+    if (!username) {
+      return;
+    }
+    navigation.navigate("FollowList", { type, username });
+  };
   const { username: usernameParam, userId, avatar, rating, sales } = route.params || {};
 
   // 状态管理
@@ -755,14 +762,24 @@ export default function UserProfileScreen() {
           {userProfile.bio && <Text style={styles.bioText}>{userProfile.bio}</Text>}
 
           <View style={styles.socialRow}>
-            <View style={styles.statBlock}>
+            <TouchableOpacity
+              style={styles.statBlock}
+              onPress={() => openFollowList("followers")}
+              disabled={!userProfile?.username}
+              activeOpacity={0.7}
+            >
               <Text style={styles.statNumber}>{followers}</Text>
               <Text style={styles.statLabel}>followers</Text>
-            </View>
-            <View style={styles.statBlock}>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.statBlock}
+              onPress={() => openFollowList("following")}
+              disabled={!userProfile?.username}
+              activeOpacity={0.7}
+            >
               <Text style={styles.statNumber}>{following}</Text>
               <Text style={styles.statLabel}>following</Text>
-            </View>
+            </TouchableOpacity>
 
             {/* Follow和Message按钮 - 始终显示，但自己的profile时禁用 */}
             <TouchableOpacity

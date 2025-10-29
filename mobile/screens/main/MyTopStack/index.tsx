@@ -20,6 +20,8 @@ import MyPreferenceScreen from "./MyPreferenceScreen";
 import AddSizeScreen from "./AddSizeScreen";
 import AddStyleScreen from "./AddStyleScreen";
 import EditBrandScreen from "./EditBrandScreen";
+import FollowListScreen from "./FollowListScreen";
+import MyReviewsScreen from "./MyReviewsScreen";
 
 export type PreferenceSizes = {
   shoe?: string;
@@ -76,6 +78,8 @@ export type MyTopStackParamList = {
         source?: "discover" | "mytop";
       }
     | undefined;
+  FollowList: { type: "followers" | "following"; username?: string };
+  MyReviews: undefined;
 };
 
 const Stack = createNativeStackNavigator<MyTopStackParamList>();
@@ -112,6 +116,8 @@ export default function MyTopStackNavigator() {
       <Stack.Screen name="AddSize" component={AddSizeScreen} />
       <Stack.Screen name="AddStyle" component={AddStyleScreen} />
       <Stack.Screen name="EditBrand" component={EditBrandScreen} />
+      <Stack.Screen name="FollowList" component={FollowListScreen} />
+      <Stack.Screen name="MyReviews" component={MyReviewsScreen} />
     </Stack.Navigator>
   );
 }

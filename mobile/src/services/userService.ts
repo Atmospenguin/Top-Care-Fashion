@@ -23,6 +23,17 @@ export interface UserProfile {
   memberSince: string;
 }
 
+export interface FollowListEntry {
+  id: string;
+  username: string | null;
+  avatarUrl: string | null;
+  bio: string | null;
+  location: string | null;
+  followersCount: number;
+  followingCount: number;
+  followedAt: string;
+}
+
 export interface UpdateProfileRequest {
   username?: string;
   email?: string;
@@ -310,7 +321,11 @@ export class UserService {
   }
 
   // 获取当前用户的follow统计
-  async getMyFollowStats(): Promise<{ followersCount: number; followingCount: number }> {
+  async getMyFollowStats(): Promise<{
+    followersCount: number;
+    followingCount: number;
+    reviewsCount: number;
+  }> {
     try {
       console.log("👥 Fetching my follow stats");
       
@@ -325,12 +340,58 @@ export class UserService {
         return {
           followersCount: response.data.user.followersCount,
           followingCount: response.data.user.followingCount,
+          reviewsCount: response.data.user.reviewsCount ?? 0,
         };
       }
       
       throw new Error('Failed to get follow stats');
     } catch (error) {
       console.error('Error getting follow stats:', error);
+      throw error;
+    }
+  }
+
+  async getMyFollowList(type: "followers" | "following"): Promise<FollowListEntry[]> {
+    try {
+      console.log("👥 Fetching my follow list", type);
+
+      const response = await apiClient.get<{ success?: boolean; data?: FollowListEntry[] }>(
+        "/api/profile/follows",
+        { type },
+      );
+
+      if (response.data?.data && Array.isArray(response.data.data)) {
+        console.log(`✅ Loaded ${response.data.data.length} ${type}`);
+        return response.data.data;
+      }
+
+      return [];
+    } catch (error) {
+      console.error(`❌ Error fetching follow list (${type}):`, error);
+      throw error;
+    }
+  }
+
+  async getUserFollowList(
+    username: string,
+    type: "followers" | "following",
+  ): Promise<FollowListEntry[]> {
+    try {
+      console.log("👥 Fetching follow list for user", username, type);
+
+      const response = await apiClient.get<{ success?: boolean; data?: FollowListEntry[] }>(
+        `/api/users/${encodeURIComponent(username)}/follows`,
+        { type },
+      );
+
+      if (response.data?.data && Array.isArray(response.data.data)) {
+        console.log(`✅ Loaded ${response.data.data.length} ${type} for ${username}`);
+        return response.data.data;
+      }
+
+      return [];
+    } catch (error) {
+      console.error(`❌ Error fetching follow list for ${username} (${type}):`, error);
       throw error;
     }
   }

@@ -11,6 +11,7 @@ import SearchResultScreen from "./SearchResultScreen";
 import type { BagItem, ListingItem } from "../../../types/shop";
 import HomeScreen from "../HomeStack/HomeScreen";
 import UserProfileScreen from "./UserProfileScreen";
+import FollowListScreen from "../MyTopStack/FollowListScreen";
   
 export type BuyStackParamList = {
   ListingDetail: { item?: ListingItem; listingId?: string; isOwnListing?: boolean }; // ✅ 支持通过 listingId 导航
@@ -40,6 +41,7 @@ export type BuyStackParamList = {
     items: BagItem[];
   };
   HomeMain: undefined;
+  FollowList: { type: "followers" | "following"; username: string };
 };
 
 const Stack = createNativeStackNavigator<BuyStackParamList>();
@@ -56,6 +58,7 @@ export default function BuyStackNavigator() {
       <Stack.Screen name="Bag" component={BagScreen} />
       <Stack.Screen name="Checkout" component={CheckoutScreen} />
       <Stack.Screen name="Purchase" component={PurchaseScreen} />
+      <Stack.Screen name="FollowList" component={FollowListScreen} />
     </Stack.Navigator>
   );
 }
