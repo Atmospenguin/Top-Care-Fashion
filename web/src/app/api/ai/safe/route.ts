@@ -1,4 +1,4 @@
-// web/src/app/api/ai/safe/route.ts
+    // web/src/app/api/ai/safe/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { ImageAnnotatorClient } from "@google-cloud/vision";
 
