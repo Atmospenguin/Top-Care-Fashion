@@ -75,6 +75,11 @@ export default function SettingScreen() {
         <Text style={styles.sectionTitle}>Actions</Text>
         <View style={styles.sectionBox}>
           <SettingItem
+            icon="chatbox-ellipses-outline"
+            label="Leave feedback"
+            onPress={() => navigation.navigate("Feedback")}
+          />
+          <SettingItem
             icon="flag-outline"
             label="Report"
             onPress={() => navigation.navigate("Report")}

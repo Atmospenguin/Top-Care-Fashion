@@ -218,24 +218,31 @@ export async function updateUserProfile(profileData: any) {
 // 反馈 API
 export async function getFeedbacks() {
   try {
-    const data = await apiClient.get<{ feedbacks: any[] }>('/api/feedback');
-    return data.feedbacks || [];
+    const response = await newApiClient.get<{
+      feedbacks?: any[];
+      testimonials?: any[];
+    }>('/api/feedback');
+    return {
+      feedbacks: response.data?.feedbacks ?? [],
+      testimonials: response.data?.testimonials ?? [],
+    };
   } catch (error) {
     console.error("Error fetching feedbacks:", error);
-    return [];
+    return { feedbacks: [], testimonials: [] };
   }
 }
 
 export async function createFeedback(feedbackData: {
-  type: 'bug' | 'feature' | 'general';
-  title: string;
+  type?: 'bug' | 'feature' | 'general';
+  title?: string;
   description: string;
   priority?: 'low' | 'medium' | 'high';
   tags?: string[];
+  rating?: number;
 }) {
   try {
-    const data = await apiClient.post<any>('/api/feedback', feedbackData);
-    return data;
+    const response = await newApiClient.post<any>('/api/feedback', feedbackData);
+    return response.data;
   } catch (error) {
     console.error("Error creating feedback:", error);
     throw error;

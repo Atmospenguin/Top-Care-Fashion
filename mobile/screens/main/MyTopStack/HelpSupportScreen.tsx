@@ -1,7 +1,10 @@
-import React from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import React, { useCallback } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import type { MyTopStackParamList } from "./index";
 
 const helpTopics = [
   {
@@ -26,7 +29,40 @@ const helpTopics = [
   },
 ];
 
+type HelpSupportNavigation = NativeStackNavigationProp<MyTopStackParamList>;
+
 export default function HelpSupportScreen() {
+  const navigation = useNavigation<HelpSupportNavigation>();
+
+  const handleChatNow = useCallback(() => {
+    const chatParams = {
+      sender: "TOP Support",
+      kind: "support" as const,
+      conversationId: "support-1",
+    };
+
+    const tabNavigation = navigation.getParent?.();
+    if (tabNavigation?.navigate) {
+      tabNavigation.navigate("Inbox", {
+        screen: "Chat",
+        params: chatParams,
+      });
+      return;
+    }
+
+    let currentNav: any = navigation;
+    while (currentNav?.getParent?.()) {
+      currentNav = currentNav.getParent();
+    }
+
+    if (currentNav?.navigate) {
+      currentNav.navigate("ChatStandalone", chatParams);
+      return;
+    }
+
+    Alert.alert("Navigation unavailable", "Please open the Inbox tab to chat with support.");
+  }, [navigation]);
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header title="Help & Support" showBack />
@@ -40,7 +76,7 @@ export default function HelpSupportScreen() {
               We're online 9am – 6pm SGT, Monday to Friday. Drop us a message and we'll get back quickly.
             </Text>
           </View>
-          <TouchableOpacity style={styles.cardButton}>
+          <TouchableOpacity style={styles.cardButton} onPress={handleChatNow}>
             <Text style={styles.cardButtonText}>Chat now</Text>
           </TouchableOpacity>
         </View>

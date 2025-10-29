@@ -70,25 +70,6 @@ export default function MyPremiumScreen() {
     return `(Membership will expire on ${String(user.premiumUntil).slice(0, 10)})`;
   }, [user?.premiumUntil]);
 
-  const boostSummary = useMemo(() => {
-    if (syncing) {
-      return "Monthly Free Boost Credits: ...";
-    }
-
-    if (!benefits) {
-      return user?.isPremium
-        ? "Monthly Free Boost Credits: --"
-        : "Monthly Free Boost Credits: 0/0";
-    }
-
-    if (!benefits.isPremium || benefits.freePromotionLimit === null) {
-      return "Monthly Free Boost Credits: 0/0";
-    }
-
-    const remaining = Math.max(0, benefits.freePromotionsRemaining ?? 0);
-    return `Monthly Free Boost Credits: ${remaining}/${benefits.freePromotionLimit}`;
-  }, [benefits, syncing, user?.isPremium]);
-
   const benefitTiles = useMemo<BenefitItem[]>(() => {
     if (!benefits) {
       return DEFAULT_BENEFITS;
@@ -230,7 +211,6 @@ export default function MyPremiumScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.memberTitle}>Hi, {memberName}</Text>
               <Text style={styles.memberMeta}>Premium status: {memberStatus}</Text>
-              <Text style={styles.memberMeta}>{boostSummary}</Text>
               <Text style={styles.expiryText}>{syncing ? 'Syncing membership…' : expireText}</Text>
             </View>
           </View>

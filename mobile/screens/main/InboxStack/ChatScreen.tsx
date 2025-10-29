@@ -8,7 +8,6 @@ import ASSETS from "../../../constants/assetUrls";
 import { messagesService, ordersService, listingsService, reviewsService, type Message, type ConversationDetail } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
 import { premiumService } from "../../../src/services";
-import { API_CONFIG } from "../../../src/config/api";
 import Avatar from "../../../components/Avatar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
