@@ -6,6 +6,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
@@ -15,6 +16,9 @@ import { captureRef } from "react-native-view-shot";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import SaveOutfitModal from "../../../src/components/SaveOutfitModal";
+import AIOutfitFeedback from "../../../components/AIOutfitFeedback";
+import { outfitService } from "../../../src/services/outfitService";
 import type { BuyStackParamList } from "./index";
 import type { BagItem, ListingItem } from "../../../types/shop";
 
@@ -117,13 +121,61 @@ export default function ViewOutfitScreen() {
   const { baseItem, top, bottom, shoe, accessories, selection } = route.params;
   const captureViewRef = useRef<View | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveOutfitModalVisible, setSaveOutfitModalVisible] = useState(false);
+  const [isSavingOutfit, setIsSavingOutfit] = useState(false);
   
+  // ⭐ NEW: Store AI feedback rating and style name
+  const [aiRating, setAiRating] = useState<number | null>(null);
+  const [styleName, setStyleName] = useState<string | null>(null);
 
   const composedSelection: BagItem[] = useMemo(() => {
     const unique = new Map<string, ListingItem>();
     selection.forEach((entry) => unique.set(entry.item.id, entry.item));
     return Array.from(unique.values()).map((item) => ({ item, quantity: 1 }));
   }, [selection]);
+
+  // ✨ Prepare outfit items for AI analysis
+  const outfitItems = useMemo(() => {
+    const items = [];
+    
+    if (top) {
+      items.push({
+        type: 'top' as const,
+        title: top.title,
+        category: top.category,
+        tags: top.tags || [],
+      });
+    }
+    
+    if (bottom) {
+      items.push({
+        type: 'bottom' as const,
+        title: bottom.title,
+        category: bottom.category,
+        tags: bottom.tags || [],
+      });
+    }
+    
+    if (shoe) {
+      items.push({
+        type: 'shoes' as const,
+        title: shoe.title,
+        category: shoe.category,
+        tags: shoe.tags || [],
+      });
+    }
+    
+    accessories.forEach(acc => {
+      items.push({
+        type: 'accessory' as const,
+        title: acc.title,
+        category: acc.category,
+        tags: acc.tags || [],
+      });
+    });
+    
+    return items;
+  }, [top, bottom, shoe, accessories]);
 
   const handleShare = useCallback(async () => {
     if (!captureViewRef.current) return;
@@ -156,6 +208,40 @@ export default function ViewOutfitScreen() {
     navigation.navigate("Bag", { items: composedSelection });
   }, [navigation, composedSelection]);
 
+  // ⭐ NEW: Callback when AI analysis completes
+  const handleAIAnalysisComplete = useCallback((analysis: { rating: number; styleName: string }) => {
+    console.log('🤖 AI Analysis received:', analysis);
+    setAiRating(analysis.rating);
+    setStyleName(analysis.styleName);
+  }, []);
+
+  const handleSaveOutfit = async (outfitName: string) => {
+    try {
+      setIsSavingOutfit(true);
+      
+      await outfitService.createOutfit({
+        outfit_name: outfitName,
+        base_item_id: baseItem.id,
+        top_item_id: top?.id || null,
+        bottom_item_id: bottom?.id || null,
+        shoe_item_id: shoe?.id || null,
+        accessory_ids: accessories.map(acc => acc.id),
+        
+        // ⭐ NEW: Save AI rating and style name
+        ai_rating: aiRating,
+        style_name: styleName,
+      });
+
+      Alert.alert('Success', `"${outfitName}" saved successfully!`);
+      setSaveOutfitModalVisible(false);
+    } catch (error) {
+      console.error('Error saving outfit:', error);
+      throw error;
+    } finally {
+      setIsSavingOutfit(false);
+    }
+  };
+
   const leftItems: Array<{ item: ListingItem | null }> = [
     { item: top || baseItem },
     { item: bottom || baseItem },
@@ -167,28 +253,53 @@ export default function ViewOutfitScreen() {
     <View style={styles.container}>
       <Header title="View Outfit" showBack />
       <SafeAreaView style={styles.body} edges={["left", "right"]}>
-        <View style={[styles.content, { paddingBottom: 120 }]}>
-          <View
-            ref={captureViewRef}
-            collapsable={false}
-            style={styles.captureCanvas}
-          >
-            <View style={styles.previewRow}>
-              <View style={styles.leftColumn}>
-                {leftItems.map((section, index) => (
-                  <PreviewCard key={index} item={section.item} />
-                ))}
-              </View>
-              <View style={styles.rightColumn}>
-                <Text style={styles.sectionLabel}>ACCESSORIES</Text>
-                <AccessoryGrid items={rightItems} />
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            <View
+              ref={captureViewRef}
+              collapsable={false}
+              style={styles.captureCanvas}
+            >
+              <View style={styles.previewRow}>
+                <View style={styles.leftColumn}>
+                  {leftItems.map((section, index) => (
+                    <PreviewCard key={index} item={section.item} />
+                  ))}
+                </View>
+                <View style={styles.rightColumn}>
+                  <Text style={styles.sectionLabel}>ACCESSORIES</Text>
+                  <AccessoryGrid items={rightItems} />
+                </View>
               </View>
             </View>
+
+            {/* ✨ AI Feedback Component */}
+            <View style={styles.aiFeedbackWrapper}>
+              <AIOutfitFeedback 
+                items={outfitItems}
+                onStyleNameSelected={(name) => {
+                  console.log('AI suggested name:', name);
+                  setStyleName(name);
+                }}
+                onAnalysisComplete={handleAIAnalysisComplete}
+              />
+            </View>
           </View>
-        </View>
+        </ScrollView>
 
         <View style={styles.bottomSafe}>
           <View style={styles.bottomBar}>
+            <TouchableOpacity
+              style={styles.saveOutfitButton}
+              onPress={() => setSaveOutfitModalVisible(true)}
+            >
+              <Icon name="bookmark" size={20} color="#111" />
+              <Text style={styles.saveOutfitButtonText}>Save Outfit</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.secondaryButton}
               onPress={handleShare}
@@ -213,6 +324,13 @@ export default function ViewOutfitScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        <SaveOutfitModal
+          visible={saveOutfitModalVisible}
+          onClose={() => setSaveOutfitModalVisible(false)}
+          onSave={handleSaveOutfit}
+          isLoading={isSavingOutfit}
+        />
       </SafeAreaView>
     </View>
   );
@@ -226,9 +344,13 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
   },
-  content: {
+  scrollView: {
     flex: 1,
-    paddingBottom: 120,
+  },
+  scrollContent: {
+    paddingBottom: 140, // Space for bottom bar
+  },
+  content: {
     paddingHorizontal: 8,
     paddingTop: 0,
     rowGap: 20,
@@ -240,6 +362,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 10,
     borderRadius: 24,
+  },
+  aiFeedbackWrapper: {
+    marginTop: 14, 
   },
   previewRow: {
     flexDirection: "row",
@@ -346,6 +471,25 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingHorizontal: 16,
     paddingBottom: 16,
+    columnGap: 8,
+  },
+  saveOutfitButton: {
+    flex: 1,
+    marginRight: 0,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#111',
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    columnGap: 8,
+  },
+  saveOutfitButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111',
   },
   secondaryButton: {
     flex: 1,
@@ -357,7 +501,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     borderWidth: 1,
     borderColor: "#111",
-    marginRight: 12,
+    marginRight: 0,
     backgroundColor: "#fff",
   },
   secondaryText: {
