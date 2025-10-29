@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { verifyLegacyToken } from '@/lib/jwt';
 import { createSupabaseServer } from '@/lib/supabase';

@@ -30,10 +30,10 @@ const LISTING_SELECT = `
     FROM listings l
     LEFT JOIN users u ON l.seller_id = u.id
     LEFT JOIN LATERAL (
-      SELECT t.id, t.status
-        FROM transactions t
-       WHERE t.listing_id = l.id
-       ORDER BY t.created_at DESC
+      SELECT o.id, o.status
+        FROM orders o
+       WHERE o.listing_id = l.id
+       ORDER BY o.created_at DESC
        LIMIT 1
     ) tx ON TRUE
 `;
@@ -97,11 +97,24 @@ function normalizeConditionIn(value: unknown): "NEW" | "LIKE_NEW" | "GOOD" | "FA
 }
 
 function mapStatus(value: unknown): "pending" | "paid" | "shipped" | "completed" | "cancelled" | null {
-  const normalized = String(value ?? "").toLowerCase();
-  if (["pending", "paid", "shipped", "completed", "cancelled"].includes(normalized)) {
-    return normalized as any;
+  const normalized = String(value ?? "").trim().toUpperCase();
+  switch (normalized) {
+    case "IN_PROGRESS":
+      return "pending";
+    case "TO_SHIP":
+      return "paid";
+    case "SHIPPED":
+    case "DELIVERED":
+      return "shipped";
+    case "RECEIVED":
+    case "COMPLETED":
+    case "REVIEWED":
+      return "completed";
+    case "CANCELLED":
+      return "cancelled";
+    default:
+      return null;
   }
-  return null;
 }
 
 export async function GET() {

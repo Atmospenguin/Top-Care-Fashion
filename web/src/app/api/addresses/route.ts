@@ -3,9 +3,9 @@ import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 
 // 获取用户地址
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const user = await getSessionUser();
+    const user = await getSessionUser(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -47,7 +47,7 @@ export async function GET() {
 // 创建用户地址
 export async function POST(req: NextRequest) {
   try {
-    const user = await getSessionUser();
+    const user = await getSessionUser(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
 // 更新用户地址
 export async function PUT(req: NextRequest) {
   try {
-    const user = await getSessionUser();
+    const user = await getSessionUser(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -232,7 +232,7 @@ export async function PUT(req: NextRequest) {
 // 删除用户地址
 export async function DELETE(req: NextRequest) {
   try {
-    const user = await getSessionUser();
+    const user = await getSessionUser(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

@@ -1,48 +1,50 @@
-import { NextResponse } from "next/server";
-import { getConnection, toNumber } from "@/lib/db";
+import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 
 function mapReviewerType(value: unknown): "buyer" | "seller" {
   return String(value ?? "").toUpperCase() === "SELLER" ? "seller" : "buyer";
 }
 
-export async function GET(_req: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const params = await context.params;
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const conn = await getConnection();
-  const [rows]: any = await conn.execute(
-    `SELECT
-      r.id,
-      t.listing_id AS "listingId",
-      r.reviewer_id AS "reviewerId",
-      r.reviewee_id AS "revieweeId",
-      r.rating,
-      r.comment,
-      r.transaction_id AS "transactionId",
-      r.reviewer_type AS "reviewerType",
-      r.created_at AS "createdAt",
-      reviewer.username AS "reviewerName",
-      reviewee.username AS "revieweeName"
-    FROM reviews r
-    INNER JOIN transactions t ON r.transaction_id = t.id
-    LEFT JOIN users reviewer ON r.reviewer_id = reviewer.id
-    LEFT JOIN users reviewee ON r.reviewee_id = reviewee.id
-    WHERE t.listing_id = ?
-    ORDER BY r.id DESC`,
-    [Number(params.id)]
-  );
-  await conn.end();
-  const reviews = (rows as any[]).map((row) => ({
-    ...row,
-    id: String(row.id),
-    listingId: row.listingId ? String(row.listingId) : null,
-    reviewerId: row.reviewerId ? String(row.reviewerId) : null,
-    revieweeId: row.revieweeId ? String(row.revieweeId) : null,
-    transactionId: row.transactionId ? String(row.transactionId) : null,
-    rating: toNumber(row.rating) ?? 0,
-    reviewerType: mapReviewerType(row.reviewerType),
-    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+
+  const listingId = Number(params.id);
+
+  const reviews = await prisma.reviews.findMany({
+    where: {
+      order: {
+        listing_id: listingId,
+      },
+    },
+    include: {
+      reviewer: { select: { username: true } },
+      reviewee: { select: { username: true } },
+      order: {
+        select: {
+          id: true,
+          listing_id: true,
+        },
+      },
+    },
+    orderBy: { id: "desc" },
+  });
+
+  const payload = reviews.map((review) => ({
+    id: String(review.id),
+    listingId: review.order?.listing_id ? String(review.order.listing_id) : null,
+    reviewerId: String(review.reviewer_id),
+    revieweeId: String(review.reviewee_id),
+    transactionId: review.order ? String(review.order.id) : "",
+    rating: Number(review.rating ?? 0),
+    comment: review.comment ?? "",
+    reviewerType: mapReviewerType(review.reviewer_type),
+    createdAt: review.created_at.toISOString(),
+    reviewerName: review.reviewer?.username ?? null,
+    revieweeName: review.reviewee?.username ?? null,
   }));
-  return NextResponse.json({ reviews });
+
+  return NextResponse.json({ reviews: payload });
 }

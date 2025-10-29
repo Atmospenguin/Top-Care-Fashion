@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, parseJson } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-import { ConditionType, Prisma, TxStatus } from "@prisma/client";
+import { ConditionType, OrderStatus, Prisma } from "@prisma/client";
 import { toNumber } from "@/lib/db";
 
 function mapConditionOut(value: ConditionType | null | undefined):
@@ -37,7 +37,7 @@ function normalizeConditionIn(value: unknown): ConditionType {
   return ConditionType.GOOD;
 }
 
-function mapTxStatus(value: TxStatus | null | undefined):
+function mapTxStatus(value: OrderStatus | null | undefined):
   | "pending"
   | "paid"
   | "shipped"
@@ -45,7 +45,23 @@ function mapTxStatus(value: TxStatus | null | undefined):
   | "cancelled"
   | null {
   if (!value) return null;
-  return value.toString().toLowerCase() as any;
+  switch (value) {
+    case OrderStatus.IN_PROGRESS:
+      return "pending";
+    case OrderStatus.TO_SHIP:
+      return "paid";
+    case OrderStatus.SHIPPED:
+    case OrderStatus.DELIVERED:
+      return "shipped";
+    case OrderStatus.RECEIVED:
+    case OrderStatus.COMPLETED:
+    case OrderStatus.REVIEWED:
+      return "completed";
+    case OrderStatus.CANCELLED:
+      return "cancelled";
+    default:
+      return null;
+  }
 }
 
 function ensureStringArray(value: unknown): string[] {
@@ -110,7 +126,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
   const seller = listing.seller_id
     ? await prisma.users.findUnique({ where: { id: listing.seller_id }, select: { username: true } })
     : null;
-  const tx = await prisma.transactions.findFirst({
+  const tx = await prisma.orders.findFirst({
     where: { listing_id: id },
     orderBy: { created_at: "desc" },
     select: { id: true, status: true },
@@ -262,7 +278,7 @@ export async function DELETE(_req: NextRequest, context: { params: Promise<{ id:
     await prisma.listings.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    // Foreign key (has transactions): fallback to unlist
+    // Foreign key (has orders): fallback to unlist
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2003"
