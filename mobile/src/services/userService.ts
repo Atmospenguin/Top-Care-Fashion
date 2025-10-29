@@ -135,22 +135,20 @@ export class UserService {
         console.log("✅ FormData upload success:", response.data);
         return response.data!.avatarUrl;
       } catch (err) {
-        console.warn("⚠️ FormData upload threw:", err);
-        throw err; // 重新抛出错误以触发 fallback
-      }
+        console.warn("⚠️ FormData upload failed, trying base64 fallback:", err);
+        // --- 方法 2：base64 fallback ---
+        console.log("🔁 Fallback to base64 upload...");
+        const base64Data = await this.convertImageToBase64(imageUri);
+        const res = await apiClient.post<{ avatarUrl: string }>(
+          `${API_CONFIG.ENDPOINTS.PROFILE}/avatar-base64`,
+          { imageData: base64Data, fileName }
+        );
 
-      // --- 方法 2：base64 fallback ---
-      console.log("🔁 Fallback to base64 upload...");
-      const base64Data = await this.convertImageToBase64(imageUri);
-      const res = await apiClient.post<{ avatarUrl: string }>(
-        `${API_CONFIG.ENDPOINTS.PROFILE}/avatar-base64`,
-        { imageData: base64Data, fileName }
-      );
-
-      if (res.data?.avatarUrl) {
-        return res.data!.avatarUrl;
+        if (res.data?.avatarUrl) {
+          return res.data!.avatarUrl;
+        }
+        throw new Error("Avatar upload failed: no avatarUrl");
       }
-      throw new Error("Avatar upload failed: no avatarUrl");
     } catch (error) {
       console.error("❌ Avatar upload error:", error);
       throw error;

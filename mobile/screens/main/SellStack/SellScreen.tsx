@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
   Platform,
   Dimensions,
 } from "react-native";
+import type { TextInput as RNTextInput } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 // note: keep Header's SafeAreaView; remove outer SafeAreaView to avoid double padding
@@ -58,12 +59,10 @@ const SIZE_OPTIONS_SHOES = [
 ];
 
 const SIZE_OPTIONS_ACCESSORIES = [
-  "N/A",
   "One Size",
   "Small",
   "Medium", 
   "Large",
-  "Other",
 ];
 
 const MATERIAL_OPTIONS = [
@@ -120,11 +119,6 @@ type OptionPickerProps = {
   value: string;
   onClose: () => void;
   onSelect: (value: string) => void;
-  allowCustomInput?: boolean;
-  customValue?: string;
-  setCustomValue?: (value: string) => void;
-  customInputLabel?: string;
-  customPlaceholder?: string;
 };
 
 type PhotoItem = {
@@ -142,11 +136,6 @@ function OptionPicker({
   value,
   onClose,
   onSelect,
-  allowCustomInput = false,
-  customValue = "",
-  setCustomValue = () => {},
-  customInputLabel = "Enter a value:",
-  customPlaceholder = "Enter details",
 }: OptionPickerProps) {
   return (
     <Modal transparent animationType="slide" visible={visible} onRequestClose={onClose}>
@@ -169,25 +158,6 @@ function OptionPicker({
             </TouchableOpacity>
           ))}
         </RNScrollView>
-
-        {allowCustomInput && value === "Other" && (
-          <View style={{ marginTop: 8 }}>
-            <Text style={{ fontWeight: "600", marginBottom: 4 }}>{customInputLabel}</Text>
-            <TextInput
-              style={{
-                borderWidth: 1,
-                borderColor: "#ccc",
-                borderRadius: 8,
-                padding: 10,
-                fontSize: 15,
-                backgroundColor: "#fafafa",
-              }}
-              placeholder={customPlaceholder}
-              value={customValue}
-              onChangeText={setCustomValue}
-            />
-          </View>
-        )}
 
         <TouchableOpacity style={styles.sheetCancel} onPress={onClose}>
           <Text style={{ fontWeight: "600" }}>Cancel</Text>
@@ -228,10 +198,15 @@ export default function SellScreen({
   const [material, setMaterial] = useState("Select");
   const [customMaterial, setCustomMaterial] = useState("");
   const [brand, setBrand] = useState("Select");
-  const [brandCustomMode, setBrandCustomMode] = useState(false);
   const [brandCustom, setBrandCustom] = useState("");
   const [price, setPrice] = useState("");
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  const customSizeInputRef = useRef<RNTextInput | null>(null);
+  const customMaterialInputRef = useRef<RNTextInput | null>(null);
+  const brandCustomInputRef = useRef<RNTextInput | null>(null);
+  const shouldFocusSizeInput = useRef(false);
+  const shouldFocusMaterialInput = useRef(false);
+  const shouldFocusBrandInput = useRef(false);
 
   // Shipping
   const [shippingOption, setShippingOption] = useState("Select");
@@ -252,6 +227,39 @@ export default function SellScreen({
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
+  useEffect(() => {
+    if (!showSize && size === "Other" && shouldFocusSizeInput.current) {
+      shouldFocusSizeInput.current = false;
+      const timer = setTimeout(() => {
+        customSizeInputRef.current?.focus();
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [showSize, size]);
+
+  useEffect(() => {
+    if (!showMaterial && material === "Other" && shouldFocusMaterialInput.current) {
+      shouldFocusMaterialInput.current = false;
+      const timer = setTimeout(() => {
+        customMaterialInputRef.current?.focus();
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [showMaterial, material]);
+
+  useEffect(() => {
+    if (brand === "Others" && shouldFocusBrandInput.current) {
+      shouldFocusBrandInput.current = false;
+      const timer = setTimeout(() => {
+        brandCustomInputRef.current?.focus();
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [brand]);
+
   const ensureMediaPermissions = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
@@ -261,7 +269,82 @@ export default function SellScreen({
     return true;
   };
 
-  const handleAddPhoto = async () => {
+  const ensureCameraPermissions = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Please allow camera access to take photos.");
+      return false;
+    }
+    return true;
+  };
+
+  const processSelectedAssets = async (assets: ImagePicker.ImagePickerAsset[]) => {
+    if (!assets.length) {
+      return;
+    }
+
+    const availableSlots = Math.max(PHOTO_LIMIT - photos.length, 0);
+    if (availableSlots <= 0) {
+      Alert.alert("Limit reached", `You can upload up to ${PHOTO_LIMIT} photos per listing.`);
+      return;
+    }
+
+    const assetsToUse = assets.slice(0, availableSlots);
+    if (assets.length > assetsToUse.length) {
+      Alert.alert(
+        "Limit reached",
+        `Only ${PHOTO_LIMIT} photos are allowed. ${assets.length - assetsToUse.length} image(s) were not added.`
+      );
+    }
+
+    for (const asset of assetsToUse) {
+      try {
+        const manipulatedImage = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          [],
+          {
+            compress: 0.85,
+            format: ImageManipulator.SaveFormat.JPEG,
+          }
+        );
+
+        const tempId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+        setPhotos((prev) => [
+          ...prev,
+          {
+            id: tempId,
+            localUri: manipulatedImage.uri,
+            uploading: true,
+          },
+        ]);
+
+        try {
+          const remoteUrl = await listingsService.uploadListingImage(manipulatedImage.uri);
+          setPhotos((prev) =>
+            prev.map((photo) =>
+              photo.id === tempId
+                ? {
+                    ...photo,
+                    remoteUrl,
+                    uploading: false,
+                  }
+                : photo
+            )
+          );
+        } catch (error) {
+          console.error("Photo upload failed:", error);
+          setPhotos((prev) => prev.filter((photo) => photo.id !== tempId));
+          Alert.alert("Upload failed", "We couldn't upload that photo. Please try again.");
+        }
+      } catch (error) {
+        console.error("Image processing failed:", error);
+        Alert.alert("Error", "We couldn't process that photo. Please try again.");
+      }
+    }
+  };
+
+  const handlePickFromLibrary = async () => {
     if (photos.length >= PHOTO_LIMIT) {
       Alert.alert("Limit reached", `You can upload up to ${PHOTO_LIMIT} photos per listing.`);
       return;
@@ -270,72 +353,86 @@ export default function SellScreen({
     const allowed = await ensureMediaPermissions();
     if (!allowed) return;
 
+    const availableSlots = Math.max(PHOTO_LIMIT - photos.length, 1);
+
     try {
-      // 使用 Expo ImagePicker，允许编辑
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
+        allowsMultipleSelection: true,
         quality: 0.85,
-        // 不设置 aspect，让用户自由调整
+        selectionLimit: availableSlots,
       });
 
       if (result.canceled || !result.assets?.length) {
         return;
       }
 
-      const asset = result.assets[0];
-      
-      // 使用 ImageManipulator 进行额外处理（如需要）
-      const manipulatedImage = await ImageManipulator.manipulateAsync(
-        asset.uri,
-        [
-          // 可以添加额外的变换，但保持用户裁剪的结果
-        ],
-        { 
-          compress: 0.85, 
-          format: ImageManipulator.SaveFormat.JPEG 
-        }
-      );
-
-      const tempId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-      setPhotos((prev) => [
-        ...prev,
-        {
-          id: tempId,
-          localUri: manipulatedImage.uri,
-          uploading: true,
-        },
-      ]);
-
-      try {
-        const remoteUrl = await listingsService.uploadListingImage(manipulatedImage.uri);
-        setPhotos((prev) =>
-          prev.map((photo) =>
-            photo.id === tempId
-              ? {
-                  ...photo,
-                  remoteUrl,
-                  uploading: false,
-                }
-              : photo
-          )
-        );
-      } catch (error) {
-        console.error("Photo upload failed:", error);
-        setPhotos((prev) => prev.filter((photo) => photo.id !== tempId));
-        Alert.alert("Upload failed", "We couldn't upload that photo. Please try again.");
-      }
+      await processSelectedAssets(result.assets);
     } catch (error) {
-      // 用户取消选择或其他错误
-      if (error && typeof error === 'object' && 'message' in error) {
-        console.log("Image picker error:", error.message);
+      if (error && typeof error === "object" && "message" in error) {
+        console.log("Image picker error:", (error as Error).message);
       }
     }
   };
 
+  const handleCapturePhoto = async () => {
+    if (photos.length >= PHOTO_LIMIT) {
+      Alert.alert("Limit reached", `You can upload up to ${PHOTO_LIMIT} photos per listing.`);
+      return;
+    }
+
+    const allowed = await ensureCameraPermissions();
+    if (!allowed) return;
+
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.85,
+      });
+
+      if (result.canceled || !result.assets?.length) {
+        return;
+      }
+
+      await processSelectedAssets([result.assets[0]]);
+    } catch (error) {
+      if (error && typeof error === "object" && "message" in error) {
+        console.log("Camera error:", (error as Error).message);
+      }
+    }
+  };
+
+  const handleAddPhoto = () => {
+    if (photos.length >= PHOTO_LIMIT) {
+      Alert.alert("Limit reached", `You can upload up to ${PHOTO_LIMIT} photos per listing.`);
+      return;
+    }
+
+    Alert.alert(
+      "Add Photos",
+      "Choose how you'd like to add photos",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Photo Library", onPress: handlePickFromLibrary },
+        { text: "Camera", onPress: handleCapturePhoto },
+      ]
+    );
+  };
+
   const handleRemovePhoto = (photoId: string) => {
     setPhotos((prev) => prev.filter((photo) => photo.id !== photoId));
+  };
+
+  const handleSelectBrand = (selected: string) => {
+    setBrand(selected);
+    if (selected === "Others") {
+      shouldFocusBrandInput.current = true;
+    } else {
+      shouldFocusBrandInput.current = false;
+      setBrandCustom("");
+    }
   };
 
   // 模拟 AI
@@ -353,13 +450,14 @@ export default function SellScreen({
 
   // 保存 listing
   const handlePostListing = async () => {
-    // 验证必需字段 (只验证核心字段)
-    if (!title.trim()) {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
       Alert.alert("Missing Information", "Please add a title");
       return;
     }
 
-    if (!description.trim()) {
+    const trimmedDescription = description.trim();
+    if (!trimmedDescription) {
       Alert.alert("Missing Information", "Please add a description");
       return;
     }
@@ -374,19 +472,67 @@ export default function SellScreen({
       return;
     }
 
-    if (!price.trim()) {
+    const priceInput = price.trim();
+    if (!priceInput) {
       Alert.alert("Missing Information", "Please enter a price");
       return;
     }
 
-    const priceValue = parseFloat(price);
-    if (isNaN(priceValue) || priceValue <= 0) {
+    const priceValue = parseFloat(priceInput);
+    if (Number.isNaN(priceValue) || priceValue <= 0) {
       Alert.alert("Invalid Price", "Please enter a valid price");
       return;
     }
 
     if (shippingOption === "Select") {
       Alert.alert("Missing Information", "Please select a shipping option");
+      return;
+    }
+
+    const customSizeValue = customSize.trim();
+    if (size === "Other" && !customSizeValue) {
+      Alert.alert("Missing Information", "Please enter a custom size");
+      customSizeInputRef.current?.focus();
+      return;
+    }
+
+    const customMaterialValue = customMaterial.trim();
+    if (material === "Other" && !customMaterialValue) {
+      Alert.alert("Missing Information", "Please enter a custom material");
+      customMaterialInputRef.current?.focus();
+      return;
+    }
+
+    const customBrandValue = brandCustom.trim();
+    if (brand === "Others" && !customBrandValue) {
+      Alert.alert("Missing Information", "Please enter a brand");
+      brandCustomInputRef.current?.focus();
+      return;
+    }
+
+    const shippingFeeInput = shippingFee.trim();
+    let resolvedShippingFee: number | undefined;
+    if (shippingOption === "Buyer pays – fixed fee") {
+      if (!shippingFeeInput) {
+        Alert.alert("Missing Information", "Please enter a shipping fee");
+        return;
+      }
+      const parsedFee = parseFloat(shippingFeeInput);
+      if (Number.isNaN(parsedFee) || parsedFee < 0) {
+        Alert.alert("Invalid Shipping Fee", "Please enter a valid shipping fee");
+        return;
+      }
+      resolvedShippingFee = parsedFee;
+    } else if (shippingFeeInput) {
+      const parsedFee = parseFloat(shippingFeeInput);
+      if (!Number.isNaN(parsedFee)) {
+        resolvedShippingFee = parsedFee;
+      }
+    }
+
+    const trimmedLocation = location.trim();
+    if (shippingOption === "Meet-up" && !trimmedLocation) {
+      Alert.alert("Missing Information", "Please enter a meet-up location");
       return;
     }
 
@@ -400,23 +546,34 @@ export default function SellScreen({
       .map((photo) => photo.remoteUrl!)
       .slice(0, PHOTO_LIMIT);
 
+    const resolvedSize = size === "Other" ? customSizeValue : size !== "Select" ? size : "N/A";
+    const resolvedMaterial =
+      material === "Other"
+        ? customMaterialValue
+        : material !== "Select"
+        ? material
+        : "Polyester";
+    const resolvedBrand =
+      brand !== "Select" ? (brand === "Others" ? customBrandValue : brand) : "";
+    const resolvedGender = gender !== "Select" ? gender.toLowerCase() : "unisex";
+
     setSaving(true);
     try {
       const listingData: CreateListingRequest = {
-        title: title.trim(),
-        description: description.trim(),
+        title: trimmedTitle,
+        description: trimmedDescription,
         price: priceValue,
-        brand: brand !== "Select" ? (brand === "Others" ? brandCustom : brand) : "",
-        size: size !== "Select" ? (size === "Other" ? customSize : size) : "N/A",
+        brand: resolvedBrand,
+        size: resolvedSize,
         condition: condition !== "Select" ? condition : "Good",
-        material: material !== "Select" ? (material === "Other" ? customMaterial : material) : "Polyester",
+        material: resolvedMaterial,
         tags,
         category,
-        gender: gender !== "Select" ? gender.toLowerCase() : "unisex",
+        gender: resolvedGender,
         images: uploadedImages,
         shippingOption,
-        shippingFee: shippingFee ? parseFloat(shippingFee) : undefined,
-        location: shippingOption === "Meet-up" ? location.trim() : undefined,
+        shippingFee: resolvedShippingFee,
+        location: shippingOption === "Meet-up" ? trimmedLocation : undefined,
       };
 
       const createdListing = await listingsService.createListing(listingData);
@@ -435,8 +592,12 @@ export default function SellScreen({
               setCategory("Select");
               setCondition("Select");
               setSize("Select");
+              setCustomSize("");
               setMaterial("Select");
+              setCustomMaterial("");
               setBrand("Select");
+              setBrandCustom("");
+              // brand two-line mode: no toggle state to reset
               setPrice("");
               setPhotos([]);
               setTags([]);
@@ -488,10 +649,12 @@ export default function SellScreen({
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.photoRow}
           >
-            <TouchableOpacity style={styles.photoBox} onPress={handleAddPhoto}>
-              <Icon name="add" size={24} color="#999" />
-              <Text style={styles.photoAddHint}>Add photo</Text>
-            </TouchableOpacity>
+            {photos.length < PHOTO_LIMIT && (
+              <TouchableOpacity style={styles.photoBox} onPress={handleAddPhoto}>
+                <Icon name="add" size={24} color="#999" />
+                <Text style={styles.photoAddHint}>Add photo</Text>
+              </TouchableOpacity>
+            )}
 
             {photos.map((photo, index) => (
               <TouchableOpacity 
@@ -579,13 +742,17 @@ export default function SellScreen({
           {/* Category - 必填 */}
           <Text style={styles.sectionTitle}>Category <Text style={styles.requiredMark}>*</Text></Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCat(true)}>
-            <Text style={styles.selectValue}>{category}</Text>
+            <Text style={styles.selectValue}>
+              {category !== "Select" ? category : "Select"}
+            </Text>
           </TouchableOpacity>
 
           {/* Condition - 必填 */}
           <Text style={styles.sectionTitle}>Condition <Text style={styles.requiredMark}>*</Text></Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCond(true)}>
-            <Text style={styles.selectValue}>{condition}</Text>
+            <Text style={styles.selectValue}>
+              {condition !== "Select" ? condition : "Select"}
+            </Text>
           </TouchableOpacity>
 
           {/* Price - 必填 */}
@@ -601,7 +768,9 @@ export default function SellScreen({
           {/* Shipping - 必填 */}
           <Text style={styles.sectionTitle}>Shipping <Text style={styles.requiredMark}>*</Text></Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowShip(true)}>
-            <Text style={styles.selectValue}>{shippingOption}</Text>
+            <Text style={styles.selectValue}>
+              {shippingOption !== "Select" ? shippingOption : "Select"}
+            </Text>
           </TouchableOpacity>
 
           {shippingOption === "Buyer pays – fixed fee" && (
@@ -632,48 +801,74 @@ export default function SellScreen({
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Additional Details (Optional)</Text>
 
           <Text style={styles.fieldLabel}>Brand</Text>
-          {!brandCustomMode ? (
-            <TouchableOpacity style={styles.selectBtn} onPress={() => setShowBrand(true)}>
-              <Text style={styles.selectValue}>{brand}</Text>
-            </TouchableOpacity>
-          ) : (
-            <View>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter brand (eg. Nike, Zara)"
-                value={brandCustom}
-                onChangeText={setBrandCustom}
-              />
-              <TouchableOpacity
-                style={styles.clearTiny}
-                onPress={() => {
-                  setBrandCustomMode(false);
-                  setBrand("Select");
-                  setBrandCustom("");
-                }}
-              >
-                <Text style={{ color: "#5B21B6" }}>← Back to list</Text>
-              </TouchableOpacity>
-            </View>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowBrand(true)}>
+            <Text style={styles.selectValue}>
+              {brand === "Others"
+                ? brandCustom || "Enter brand"
+                : brand !== "Select"
+                ? brand
+                : "Select"}
+            </Text>
+          </TouchableOpacity>
+          {brand === "Others" && (
+            <TextInput
+              ref={brandCustomInputRef}
+              style={styles.input}
+              placeholder="Enter brand (eg. Nike, Zara)"
+              value={brandCustom}
+              onChangeText={setBrandCustom}
+            />
           )}
 
           <Text style={styles.fieldLabel}>Size</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowSize(true)}>
             <Text style={styles.selectValue}>
-              {size === "Other" && customSize ? customSize : size}
+              {size === "Other"
+                ? customSize || "Enter custom size"
+                : size !== "Select"
+                ? size
+                : "Select"}
             </Text>
           </TouchableOpacity>
+          {size === "Other" && (
+            <TextInput
+              ref={customSizeInputRef}
+              style={styles.input}
+              placeholder="Enter custom size"
+              placeholderTextColor="#999"
+              value={customSize}
+              onChangeText={setCustomSize}
+              returnKeyType="done"
+            />
+          )}
 
           <Text style={styles.fieldLabel}>Material</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowMaterial(true)}>
             <Text style={styles.selectValue}>
-              {material === "Other" && customMaterial ? customMaterial : material}
+              {material === "Other"
+                ? customMaterial || "Enter custom material"
+                : material !== "Select"
+                ? material
+                : "Select"}
             </Text>
           </TouchableOpacity>
+          {material === "Other" && (
+            <TextInput
+              ref={customMaterialInputRef}
+              style={styles.input}
+              placeholder="Enter custom material"
+              placeholderTextColor="#999"
+              value={customMaterial}
+              onChangeText={setCustomMaterial}
+              returnKeyType="done"
+            />
+          )}
 
           <Text style={styles.fieldLabel}>Gender</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowGender(true)}>
-            <Text style={styles.selectValue}>{gender}</Text>
+            <Text style={styles.selectValue}>
+              {gender !== "Select" ? gender : "Select"}
+            </Text>
           </TouchableOpacity>
 
           {/* Tags Section */}
@@ -738,7 +933,7 @@ export default function SellScreen({
       {/* Pickers */}
       <OptionPicker title="Select gender" visible={showGender} options={GENDER_OPTIONS} value={gender} onClose={() => setShowGender(false)} onSelect={setGender} />
       <OptionPicker title="Select category" visible={showCat} options={CATEGORY_OPTIONS} value={category} onClose={() => setShowCat(false)} onSelect={setCategory} />
-      <OptionPicker title="Select brand" visible={showBrand} options={BRAND_OPTIONS} value={brand} onClose={() => setShowBrand(false)} onSelect={setBrand} />
+  <OptionPicker title="Select brand" visible={showBrand} options={BRAND_OPTIONS} value={brand} onClose={() => setShowBrand(false)} onSelect={handleSelectBrand} />
       <OptionPicker title="Select condition" visible={showCond} options={CONDITION_OPTIONS} value={condition} onClose={() => setShowCond(false)} onSelect={setCondition} />
       
       {/* Image Preview Modal - 支持滑动切换 */}
@@ -832,15 +1027,12 @@ export default function SellScreen({
         onClose={() => setShowSize(false)}
         onSelect={(val) => {
           setSize(val);
-          if (val !== "Other") {
+          if (val === "Other") {
+            shouldFocusSizeInput.current = true;
+          } else {
             setCustomSize("");
           }
         }}
-        allowCustomInput
-        customValue={customSize}
-        setCustomValue={setCustomSize}
-        customInputLabel="Enter your size:"
-        customPlaceholder="e.g. EU 47 / custom size"
       />
       <OptionPicker
         title="Select material"
@@ -850,17 +1042,29 @@ export default function SellScreen({
         onClose={() => setShowMaterial(false)}
         onSelect={(val) => {
           setMaterial(val);
-          if (val !== "Other") {
+          if (val === "Other") {
+            shouldFocusMaterialInput.current = true;
+          } else {
             setCustomMaterial("");
           }
         }}
-        allowCustomInput
-        customValue={customMaterial}
-        setCustomValue={setCustomMaterial}
-        customInputLabel="Enter the material:"
-        customPlaceholder="e.g. 100% organic cotton"
       />
-      <OptionPicker title="Select shipping option" visible={showShip} options={SHIPPING_OPTIONS} value={shippingOption} onClose={() => setShowShip(false)} onSelect={setShippingOption} />
+      <OptionPicker
+        title="Select shipping option"
+        visible={showShip}
+        options={SHIPPING_OPTIONS}
+        value={shippingOption}
+        onClose={() => setShowShip(false)}
+        onSelect={(val) => {
+          setShippingOption(val);
+          if (val !== "Buyer pays – fixed fee") {
+            setShippingFee("");
+          }
+          if (val !== "Meet-up") {
+            setLocation("");
+          }
+        }}
+      />
       {/* Tag Picker Modal */}
       <TagPickerModal
         visible={showTagPicker}
@@ -1112,7 +1316,7 @@ const styles = StyleSheet.create({
   selectBtn: { borderWidth: 1, borderColor: "#ddd", borderRadius: 8, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 12, width: "100%" },
   selectValue: { fontSize: 15, color: "#111" },
 
-  clearTiny: { alignSelf: "flex-start", marginTop: -4, marginBottom: 8 },
+  // clearTiny removed (was used for back link in legacy brand UI)
 
   footer: { flexDirection: "row", justifyContent: "space-between", marginTop: 20 },
   draftBtn: { flex: 1, borderWidth: 1, borderColor: "#000", borderRadius: 25, paddingVertical: 12, alignItems: "center", marginRight: 8 },

@@ -35,10 +35,17 @@ interface PricingPlan {
   isPopular: boolean;
 }
 
+interface FeatureCard {
+  title?: string;
+  desc?: string;
+  images?: string[] | null;
+}
+
 interface LandingContent {
   heroTitle: string;
   heroSubtitle: string;
   heroCarouselImages?: string[] | null;
+  featureCards?: FeatureCard[] | null;
   aiFeatures?: {
     mixmatch?: { title?: string; desc?: string; images?: string[] | null; girlImages?: string[] | null; boyImages?: string[] | null };
     ailisting?: { title?: string; desc?: string; images?: string[] | null };
@@ -55,6 +62,7 @@ export default function Home() {
     heroTitle: 'Discover outfits powered by AI',
     heroSubtitle: 'Mix & Match is an AI outfit recommender that builds looks from listed items. Snap, list, and get smart suggestions instantly.',
     heroCarouselImages: undefined,
+    featureCards: undefined,
     aiFeatures: undefined,
   });
   const [loading, setLoading] = useState(true);
@@ -147,7 +155,7 @@ export default function Home() {
 
       {/* AI Features with screenshots + carousels */}
       <div id="features">
-        <AIFeatures config={landingContent.aiFeatures} />
+        <AIFeatures cards={landingContent.featureCards} config={landingContent.aiFeatures} />
       </div>
 
       {/* Social proof + Stats merged */}

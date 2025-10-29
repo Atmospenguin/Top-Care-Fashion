@@ -7,6 +7,7 @@ import {
   FlatList,
   StyleSheet,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
@@ -14,36 +15,12 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { MyTopStackParamList } from "./index";
+import { userService } from "../../../src/services/userService";
+import { useAuth } from "../../../contexts/AuthContext";
+import { STYLE_OPTIONS } from "./styleOptions";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = (width - 48) / 2; // 两列卡片留边距
-
-const STYLES = [
-  {
-    name: "Streetwear",
-    img: "https://tse1.mm.bing.net/th/id/OIP.VzaAIQ7keKtETkQY3XiR7QHaLG?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3",
-  },
-  {
-    name: "90s/Y2K",
-    img: "https://image-cdn.hypb.st/https://hypebeast.com/image/2023/05/diesel-resort-2024-collection-008.jpg?q=75&w=800&cbr=1&fit=max",
-  },
-  {
-    name: "Vintage",
-    img: "https://cdn.mos.cms.futurecdn.net/whowhatwear/posts/291781/vintage-inspired-fashion-brands-291781-1614100119475-image-768-80.jpg",
-  },
-  {
-    name: "Sportswear",
-    img: "https://static.nike.com/a/images/t_PDP_1728_v1/f_auto,q_auto:eco/734a943f-8d74-4841-be22-e6076816ea44/sportswear-tech-fleece-windrunner-mens-full-zip-hoodie-rznlBf.png",
-  },
-  {
-    name: "Independent Brands",
-    img: "https://tse3.mm.bing.net/th/id/OIP.zfm0Md_lr-4tMhh7v1W6vAHaKC?cb=12&w=756&h=1024&rs=1&pid=ImgDetMain&o=7&rm=3",
-  },
-  {
-    name: "Luxury Designer",
-    img: "https://www.chanel.com/us/img/t_one/q_auto:good,f_auto,fl_lossy,dpr_1.2/w_1920/prd-emea/sys-master-content-hfe-h6e-9980941336606look-003-spring-summer-2023-chanel-show.jpg",
-  },
-];
 
 type AddStyleNav = NativeStackNavigationProp<MyTopStackParamList, "AddStyle">;
 type AddStyleRoute = RouteProp<MyTopStackParamList, "AddStyle">;
@@ -51,11 +28,14 @@ type AddStyleRoute = RouteProp<MyTopStackParamList, "AddStyle">;
 export default function AddStyleScreen() {
   const navigation = useNavigation<AddStyleNav>();
   const route = useRoute<AddStyleRoute>();
+  const { updateUser } = useAuth();
   const initialSelected = useMemo(
     () => route.params?.selectedStyles ?? [],
     [route.params]
   );
   const [selected, setSelected] = useState<string[]>(initialSelected);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const toggleSelect = (name: string) => {
     if (selected.includes(name)) {
@@ -71,8 +51,22 @@ export default function AddStyleScreen() {
       ? `Pick ${remaining} more style${remaining > 1 ? "s" : ""}`
       : "You’re all set";
 
-  const handleSave = () => {
-    navigation.navigate("MyPreference", { selectedStyles: selected });
+  const handleSave = async () => {
+    if (saving) return;
+    setError(null);
+    setSaving(true);
+    try {
+      const updatedUser = await userService.updateProfile({
+        preferredStyles: selected,
+      });
+      updateUser(updatedUser);
+      navigation.goBack();
+    } catch (e) {
+      console.error("Failed to save styles:", e);
+      setError("Failed to save styles. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -80,7 +74,7 @@ export default function AddStyleScreen() {
       <Header title="Styles" showBack />
 
       <FlatList
-        data={STYLES}
+        data={STYLE_OPTIONS}
         numColumns={2}
         keyExtractor={(item) => item.name}
         columnWrapperStyle={{ justifyContent: "space-between" }}
@@ -107,7 +101,7 @@ export default function AddStyleScreen() {
               activeOpacity={0.8}
             >
               <Image
-                source={{ uri: item.img }}
+                source={{ uri: item.image }}
                 style={[styles.image, isSelected && { opacity: 0.4 }]}
               />
               {isSelected && (
@@ -123,12 +117,23 @@ export default function AddStyleScreen() {
 
       {/* 底部 Save 按钮 */}
       <View style={styles.footer}>
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
         <TouchableOpacity
-          style={[styles.saveBtn, { backgroundColor: selected.length > 0 ? "#000" : "#ccc" }]}
-          disabled={selected.length === 0}
+          style={[
+            styles.saveBtn,
+            { backgroundColor: saving ? "#ccc" : "#000" },
+          ]}
+          disabled={saving}
           onPress={handleSave}
         >
-          <Text style={styles.saveText}>Save</Text>
+          {saving ? (
+            <View style={styles.saveLoadingRow}>
+              <ActivityIndicator size="small" color="#fff" />
+              <Text style={styles.saveLoadingText}>Saving...</Text>
+            </View>
+          ) : (
+            <Text style={styles.saveText}>Save</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -196,5 +201,21 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  saveLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveLoadingText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  errorText: {
+    color: "#B91C1C",
+    marginBottom: 8,
+    fontSize: 13,
   },
 });

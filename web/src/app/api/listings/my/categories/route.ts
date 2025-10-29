@@ -1,56 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { createSupabaseServer } from "@/lib/supabase";
-import { verifyLegacyToken } from "@/lib/jwt";
+import { getSessionUser } from "@/lib/auth";
 
 /**
  * 获取当前登录用户
  */
-async function getCurrentUser(req: NextRequest) {
-  try {
-    const supabase = await createSupabaseServer();
-
-    // 从 Authorization 头读取 token
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.startsWith("Bearer ")
-      ? authHeader.split(" ")[1]
-      : null;
-
-    let dbUser: any = null;
-
-    if (token) {
-      // 优先尝试本地 JWT（legacy）
-      const v = verifyLegacyToken(token);
-      if (v.valid && v.payload?.uid) {
-        dbUser = await prisma.users.findUnique({ where: { id: Number(v.payload.uid) } });
-      }
-
-      // 再尝试 Supabase JWT
-      if (!dbUser) {
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        if (user && !error) {
-          dbUser = await prisma.users.findUnique({ where: { supabase_user_id: user.id } });
-        }
-      }
-    }
-
-    if (!dbUser) {
-      return null;
-    }
-
-    return dbUser;
-  } catch (err) {
-    console.error("❌ getCurrentUser failed:", err);
-    return null;
-  }
-}
+// 统一鉴权：使用 getSessionUser(req)
 
 /**
  * 获取当前用户listings中实际使用的分类
  */
 export async function GET(req: NextRequest) {
   try {
-    const user = await getCurrentUser(req);
+    const sessionUser = await getSessionUser(req);
+    const user = sessionUser ? sessionUser : null;
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

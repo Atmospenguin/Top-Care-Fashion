@@ -8,10 +8,11 @@ export async function GET() {
     const [content] = await connection.execute(
       `SELECT hero_title, hero_subtitle,
         hero_carousel_images,
+        feature_cards,
         mixmatch_title, mixmatch_desc, mixmatch_images,
-              ailisting_title, ailisting_desc, ailisting_images,
-              search_title, search_desc, search_images
-         FROM landing_content WHERE id = 1`
+        ailisting_title, ailisting_desc, ailisting_images,
+        search_title, search_desc, search_images
+       FROM landing_content WHERE id = 1`
     );
     
     await connection.end();
@@ -20,33 +21,22 @@ export async function GET() {
       return NextResponse.json({
         heroTitle: 'Discover outfits powered by AI',
         heroSubtitle: 'Mix & Match is an AI outfit recommender that builds looks from listed items. Snap, list, and get smart suggestions instantly.',
-        heroCarouselImages: [
-          '/TOPApp/Cart.png',
-          '/TOPApp/Listing%20Detail.png',
-          '/TOPApp/Mix%20%26%20Match.png',
-          '/TOPApp/Search%20Result.png'
-        ],
+        heroCarouselImages: [],
         aiFeatures: {
           mixmatch: {
             title: 'Mix & Match',
             desc: 'AI outfit recommendations from your listed items.',
-            // default unified images: reuse previous girl defaults
-            images: [
-              '/TOPApp/mixnmatch1/Mix%20%26%20Match.png',
-              '/TOPApp/mixnmatch1/Mix%20%26%20Match-1.png',
-              '/TOPApp/mixnmatch1/Mix%20%26%20Match-2.png',
-              '/TOPApp/mixnmatch1/Mix%20%26%20Match-3.png'
-            ],
+            images: [],
           },
           ailisting: {
             title: 'AI Listing',
             desc: 'Auto-generate titles, tags and descriptions from photos.',
-            images: ['/TOPApp/AI-Listing.png']
+            images: []
           },
           search: {
             title: 'Search',
             desc: 'Natural language and image-based search to find pieces fast.',
-            images: ['/TOPApp/Search%20Result.png']
+            images: []
           }
         }
       });
@@ -62,27 +52,60 @@ export async function GET() {
       return null;
     };
 
+    const parseFeatureCards = (val: unknown) => {
+      if (!val) return null;
+      try {
+        const parsed = typeof val === "string" ? JSON.parse(val) : val;
+        if (!Array.isArray(parsed)) return null;
+        return parsed
+          .map((item) => {
+            if (!item || typeof item !== "object") return null;
+            const title = "title" in item && typeof (item as any).title === "string" ? (item as any).title : undefined;
+            const desc = "desc" in item && typeof (item as any).desc === "string" ? (item as any).desc : undefined;
+            const imagesRaw = (item as any).images;
+            const images = Array.isArray(imagesRaw) ? imagesRaw.filter((img) => typeof img === "string") : [];
+            if (!title && !desc && images.length === 0) return null;
+            return { title, desc, images };
+          })
+          .filter(Boolean);
+      } catch {
+        return null;
+      }
+    };
+
+    const fallbackCards = [
+      {
+        title: landingContent.mixmatch_title ?? 'Mix & Match',
+        desc: landingContent.mixmatch_desc ?? 'AI outfit recommendations from your listed items.',
+        images: parseMaybeJsonArray((landingContent as any).mixmatch_images) ?? [],
+      },
+      {
+        title: landingContent.ailisting_title ?? 'AI Listing',
+        desc: landingContent.ailisting_desc ?? 'Auto-generate titles, tags and descriptions from photos.',
+        images: parseMaybeJsonArray(landingContent.ailisting_images) ?? [],
+      },
+      {
+        title: landingContent.search_title ?? 'Search',
+        desc: landingContent.search_desc ?? 'Natural language and image-based search to find pieces fast.',
+        images: parseMaybeJsonArray(landingContent.search_images) ?? [],
+      },
+    ];
+
+    const parsedCards = parseFeatureCards((landingContent as any).feature_cards);
+    const featureCards =
+      parsedCards && parsedCards.length > 0
+        ? parsedCards
+        : fallbackCards;
+
     return NextResponse.json({
       heroTitle: landingContent.hero_title,
       heroSubtitle: landingContent.hero_subtitle,
       heroCarouselImages: parseMaybeJsonArray(landingContent.hero_carousel_images),
+      featureCards,
       aiFeatures: {
-        mixmatch: {
-          title: landingContent.mixmatch_title ?? 'Mix & Match',
-          desc: landingContent.mixmatch_desc ?? 'AI outfit recommendations from your listed items.',
-          // Unified field only (legacy columns removed in DB)
-          images: parseMaybeJsonArray((landingContent as any).mixmatch_images),
-        },
-        ailisting: {
-          title: landingContent.ailisting_title ?? 'AI Listing',
-          desc: landingContent.ailisting_desc ?? 'Auto-generate titles, tags and descriptions from photos.',
-          images: parseMaybeJsonArray(landingContent.ailisting_images),
-        },
-        search: {
-          title: landingContent.search_title ?? 'Search',
-          desc: landingContent.search_desc ?? 'Natural language and image-based search to find pieces fast.',
-          images: parseMaybeJsonArray(landingContent.search_images),
-        },
+        mixmatch: fallbackCards[0],
+        ailisting: fallbackCards[1],
+        search: fallbackCards[2],
       },
     });
   } catch (error) {

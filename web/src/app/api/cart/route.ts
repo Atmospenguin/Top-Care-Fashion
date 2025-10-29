@@ -43,18 +43,19 @@ export async function GET(request: NextRequest) {
     });
 
     // 转换数据格式以匹配前端期望
-    const formattedItems = cartItems.map((cartItem) => {
+    const formattedItems = cartItems.reduce<any[]>((acc, cartItem) => {
       const listing = cartItem.listing;
-      
+      if (!listing) return acc;
+
       // 处理图片数据
-      let images = [];
-      if (listing.image_url) {
-        images = [listing.image_url];
-      } else if (listing.image_urls) {
+      let images: string[] = [];
+      if ((listing as any).image_url) {
+        images = [(listing as any).image_url as string];
+      } else if ((listing as any).image_urls) {
         try {
-          const imageUrls = typeof listing.image_urls === 'string' 
-            ? JSON.parse(listing.image_urls) 
-            : listing.image_urls;
+          const imageUrls = typeof (listing as any).image_urls === 'string'
+            ? JSON.parse((listing as any).image_urls)
+            : (listing as any).image_urls;
           images = Array.isArray(imageUrls) ? imageUrls : [];
         } catch (e) {
           console.log('Error parsing image_urls:', e);
@@ -63,49 +64,48 @@ export async function GET(request: NextRequest) {
       }
 
       // 处理tags数据
-      let tags = [];
-      if (listing.tags) {
+      let tags: string[] = [];
+      if ((listing as any).tags) {
         try {
-          tags = typeof listing.tags === 'string' 
-            ? JSON.parse(listing.tags) 
-            : listing.tags;
-          if (!Array.isArray(tags)) {
-            tags = [];
-          }
+          const parsed = typeof (listing as any).tags === 'string'
+            ? JSON.parse((listing as any).tags)
+            : (listing as any).tags;
+          tags = Array.isArray(parsed) ? parsed : [];
         } catch (e) {
           console.log('Error parsing tags:', e);
           tags = [];
         }
       }
 
-      return {
+      acc.push({
         id: cartItem.id,
         quantity: cartItem.quantity,
         created_at: cartItem.created_at,
         updated_at: cartItem.updated_at,
         item: {
-          id: listing.id.toString(),
-          title: listing.name,
-          price: Number(listing.price),
-          description: listing.description,
-          brand: listing.brand,
-          size: listing.size,
-          condition: listing.condition_type,
-          material: listing.material,
-          gender: listing.gender || 'unisex',
-          tags: tags,
-          category: listing.category?.name || null,
-          images: images,
+          id: (listing as any).id.toString(),
+          title: (listing as any).name,
+          price: Number((listing as any).price),
+          description: (listing as any).description,
+          brand: (listing as any).brand,
+          size: (listing as any).size,
+          condition: (listing as any).condition_type,
+          material: (listing as any).material,
+          gender: (listing as any).gender || 'unisex',
+          tags,
+          category: (listing as any).category?.name || null,
+          images,
           seller: {
-            id: listing.seller.id,
-            name: listing.seller.username,
-            avatar: listing.seller.avatar_url || '',
-            rating: Number(listing.seller.average_rating || 0),
-            sales: Number(listing.seller.total_reviews || 0),
+            id: (listing as any).seller.id,
+            name: (listing as any).seller.username,
+            avatar: (listing as any).seller.avatar_url || '',
+            rating: Number((listing as any).seller.average_rating || 0),
+            sales: Number((listing as any).seller.total_reviews || 0),
           },
         },
-      };
-    });
+      });
+      return acc;
+    }, []);
 
     return NextResponse.json({ items: formattedItems });
 

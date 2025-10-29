@@ -5,7 +5,7 @@ import { getSessionUser } from '@/lib/auth';
 // GET /api/users/[username]/likes - Get public liked listings for a specific user
 export async function GET(
   request: NextRequest,
-  { params }: { params: { username: string } }
+  context: { params: Promise<{ username: string }> }
 ) {
   try {
     const currentUser = await getSessionUser(request);
@@ -13,7 +13,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { username } = params;
+    const { username } = await context.params;
 
     console.log('Getting public liked listings for user:', username);
 
@@ -96,9 +96,9 @@ export async function GET(
 
       return {
         id: likedListing.id,
-        quantity: likedListing.quantity,
+        quantity: 1,
         created_at: likedListing.created_at,
-        updated_at: likedListing.updated_at,
+        updated_at: listing.updated_at || likedListing.created_at,
         item: {
           id: listing.id.toString(),
           title: listing.name,
@@ -112,13 +112,13 @@ export async function GET(
           tags: tags,
           category: listing.category?.name || null,
           images: images,
-          seller: {
+          seller: listing.seller ? {
             id: listing.seller.id,
             name: listing.seller.username,
             avatar: listing.seller.avatar_url || '',
             rating: Number(listing.seller.average_rating || 0),
             sales: Number(listing.seller.total_reviews || 0),
-          },
+          } : null,
         },
       };
     });

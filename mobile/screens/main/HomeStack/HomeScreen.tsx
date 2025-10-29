@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useScrollToTop } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 
@@ -17,6 +17,8 @@ export default function HomeScreen() {
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const route = useRoute<RouteProp<HomeStackParamList, "HomeMain">>();
   const lastRefreshRef = useRef<number | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollOffsetRef = useRef(0);
   const [searchText, setSearchText] = useState("");
   const [featuredItems, setFeaturedItems] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,19 +66,52 @@ export default function HomeScreen() {
   }, [isAuthenticated, loadFeaturedItems]);
 
   const refreshTrigger = route.params?.refreshTS;
+  const scrollToTopTrigger = route.params?.scrollToTopTS;
+  const tabPressTrigger = route.params?.tabPressTS;
 
   useEffect(() => {
     if (refreshTrigger && lastRefreshRef.current !== refreshTrigger) {
       lastRefreshRef.current = refreshTrigger;
       loadFeaturedItems({ isRefresh: true });
+      // 清理参数，避免残留
+      navigation.setParams({ refreshTS: undefined });
     }
   }, [refreshTrigger, loadFeaturedItems]);
+
+  // 单击 Tab：若在顶部则刷新，否则丝滑回顶
+  useEffect(() => {
+    if (tabPressTrigger) {
+      const atTop = (scrollOffsetRef.current || 0) <= 2;
+      if (atTop) {
+        loadFeaturedItems({ isRefresh: true });
+      } else {
+        scrollRef.current?.scrollTo({ y: 0, animated: true });
+      }
+      navigation.setParams({ tabPressTS: undefined });
+    }
+  }, [tabPressTrigger]);
+
+  // 丝滑回到顶部
+  useEffect(() => {
+    if (scrollToTopTrigger) {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      navigation.setParams({ scrollToTopTS: undefined });
+    }
+  }, [scrollToTopTrigger]);
+
+  // Tab 单击滚到顶部
+  useScrollToTop(scrollRef);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
       <ScrollView
+        ref={scrollRef}
         style={styles.container}
         contentContainerStyle={{ paddingBottom: 60 }}
+        onScroll={(e) => {
+          scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

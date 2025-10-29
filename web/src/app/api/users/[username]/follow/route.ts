@@ -1,49 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { createSupabaseServer } from "@/lib/supabase";
-import { verifyLegacyToken } from "@/lib/jwt";
+import { getSessionUser } from "@/lib/auth";
 
-/**
- * 获取当前登录用户
- */
-async function getCurrentUser(req: NextRequest) {
-  try {
-    const supabase = await createSupabaseServer();
-
-    // 从 Authorization 头读取 token
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.startsWith("Bearer ")
-      ? authHeader.split(" ")[1]
-      : null;
-
-    let dbUser: any = null;
-
-    if (token) {
-      // 尝试 Supabase JWT
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-      if (user && !error) {
-        dbUser = await prisma.users.findUnique({ where: { supabase_user_id: user.id } });
-      }
-
-      // 如果 Supabase 校验失败，尝试本地 JWT（legacy）
-      if (!dbUser) {
-        const v = verifyLegacyToken(token);
-        if (v.valid && v.payload?.uid) {
-          dbUser = await prisma.users.findUnique({ where: { id: Number(v.payload.uid) } });
-        }
-      }
-    }
-
-    if (!dbUser) {
-      return null;
-    }
-
-    return dbUser;
-  } catch (err) {
-    console.error("❌ getCurrentUser failed:", err);
-    return null;
-  }
-}
+// 统一走 getSessionUser(req) 鉴权，避免在路由内重复实现
 
 /**
  * POST /api/users/[username]/follow - 关注用户
@@ -54,10 +13,11 @@ export async function POST(req: NextRequest, context: { params: Promise<{ userna
     const targetUsername = params.username;
 
     // 获取当前登录用户
-    const currentUser = await getCurrentUser(req);
-    if (!currentUser) {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const currentUser = sessionUser;
 
     // 找到要关注的用户
     const targetUser = await prisma.users.findUnique({
@@ -95,7 +55,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ userna
       },
     });
 
-    console.log(`✅ User ${currentUser.username} followed ${targetUser.username}`);
+  console.log(`✅ User ${currentUser.username} followed ${targetUser.username}`);
 
     return NextResponse.json({
       success: true,
@@ -121,10 +81,11 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ user
     const targetUsername = params.username;
 
     // 获取当前登录用户
-    const currentUser = await getCurrentUser(req);
-    if (!currentUser) {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const currentUser = sessionUser;
 
     // 找到要取消关注的用户
     const targetUser = await prisma.users.findUnique({
@@ -178,10 +139,11 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
     const targetUsername = params.username;
 
     // 获取当前登录用户
-    const currentUser = await getCurrentUser(req);
-    if (!currentUser) {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const currentUser = sessionUser;
 
     // 找到目标用户
     const targetUser = await prisma.users.findUnique({
