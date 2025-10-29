@@ -2,7 +2,10 @@ import 'react-native-gesture-handler';
 import { enableScreens } from 'react-native-screens';
 import { NavigationContainer, getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import type { NavigatorScreenParams } from "@react-navigation/native";
+import React from "react";
 import { Text } from "react-native";
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { AuthProvider } from "./contexts/AuthContext";
 
 enableScreens();
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -10,7 +13,6 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import SplashScreen from "./screens/auth/SplashScreen";
 import LandingScreen from "./screens/auth/LandingScreen";
 import LoginScreen from "./screens/auth/LoginScreen";
-import RegisterScreen from './screens/auth/RegisterScreen';
 import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
 import OnboardingPreferenceScreen from './screens/auth/OnboardingPreferenceScreen';
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -40,7 +42,6 @@ export type RootStackParamList = {
   Splash: undefined;
   Landing: undefined;
   Login: undefined;
-  Register: undefined;
   ForgotPassword: undefined;
   OnboardingPreference: undefined;
   Main: undefined;
@@ -58,6 +59,7 @@ const Tab = createBottomTabNavigator();
 
 function MainTabs() {
   const HIDDEN_TAB_SCREENS: string[] = [];
+  const lastTabPressRef = React.useRef<Record<string, number>>({});
 
   return (
     <Tab.Navigator
@@ -129,6 +131,18 @@ function MainTabs() {
       <Tab.Screen
         name="Home"
         component={HomeStackNavigator}
+        listeners={({ navigation, route }) => ({
+          tabPress: () => {
+            const now = Date.now();
+            if (navigation.isFocused && navigation.isFocused()) {
+              // 已聚焦：交给屏幕判断是不是在顶部——在顶部就刷新，否则丝滑回顶
+              navigation.navigate("Home", {
+                screen: "HomeMain",
+                params: { tabPressTS: now },
+              });
+            }
+          },
+        })}
         options={({ route }) => {
           const routeName = getFocusedRouteNameFromRoute(route);
           const shouldHide = routeName
@@ -142,12 +156,37 @@ function MainTabs() {
           };
         }}
       />
-  <Tab.Screen name="Discover" component={DiscoverStackNavigator} />
+      <Tab.Screen
+        name="Discover"
+        component={DiscoverStackNavigator}
+        listeners={({ navigation, route }) => ({
+          tabPress: () => {
+            const now = Date.now();
+            const last = lastTabPressRef.current[route.name] || 0;
+            lastTabPressRef.current[route.name] = now;
+            const delta = now - last;
+            if (navigation.isFocused && navigation.isFocused() && delta < 600) {
+              navigation.navigate('Discover', { screen: 'DiscoverMain', params: { refreshTS: now } });
+            }
+          },
+        })}
+      />
       <Tab.Screen name="Sell" component={SellStackNavigator} />
       <Tab.Screen name="Inbox" component={InboxStackNavigator} />
       <Tab.Screen
         name="My TOP"
         component={MyTopStackNavigator}
+        listeners={({ navigation, route }) => ({
+          tabPress: () => {
+            const now = Date.now();
+            if (navigation.isFocused && navigation.isFocused()) {
+              navigation.navigate("My TOP", {
+                screen: "MyTopMain",
+                params: { tabPressTS: now },
+              });
+            }
+          },
+        })}
         options={({ route }) => {
           const routeName = getFocusedRouteNameFromRoute(route);
           const shouldHide = routeName
@@ -167,27 +206,34 @@ function MainTabs() {
 
 export default function App() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Splash" component={SplashScreen} />
-        <Stack.Screen name="Landing" component={LandingScreen} />
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Register" component={RegisterScreen} />
-        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-        <Stack.Screen 
-          name="OnboardingPreference" 
-          component={OnboardingPreferenceScreen}
-          options={{ gestureEnabled: false }}
-        />
-        <Stack.Screen name="Main" component={MainTabs} />
-        <Stack.Screen name="Review" component={ReviewScreen} />
-        <Stack.Screen name="MutualReview" component={MutualReviewScreen} />
-        <Stack.Screen name="Notification" component={NotificationScreen} />
-        {/* Premium stack lives on root; entering it hides the bottom tab by design */}
-        <Stack.Screen name="Premium" component={PremiumStackNavigator} />
-        {/* Buy stack mirrors Premium: lives on root to avoid tab flicker */}
-        <Stack.Screen name="Buy" component={BuyStackNavigator} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Splash" component={SplashScreen} />
+            <Stack.Screen name="Landing" component={LandingScreen} />
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            <Stack.Screen 
+              name="OnboardingPreference" 
+              component={OnboardingPreferenceScreen}
+              options={{ gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="Main"
+              component={MainTabs}
+              options={{ gestureEnabled: false }}
+            />
+            <Stack.Screen name="Review" component={ReviewScreen} />
+            <Stack.Screen name="MutualReview" component={MutualReviewScreen} />
+            <Stack.Screen name="Notification" component={NotificationScreen} />
+            {/* Premium stack lives on root; entering it hides the bottom tab by design */}
+            <Stack.Screen name="Premium" component={PremiumStackNavigator} />
+            {/* Buy stack mirrors Premium: lives on root to avoid tab flicker */}
+            <Stack.Screen name="Buy" component={BuyStackNavigator} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -110,10 +110,12 @@ const [isLoading, setIsLoading] = useState(true);
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, email, password, dob, gender }),
     });
-    const j = await res.json();
-    //ding cheng input
-    // add || 
-    if (!res.ok) throw new Error(j.error || "Register failed");
+
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const errorMessage = j?.error || `HTTP ${res.status}: ${res.statusText}`;
+      throw new Error(errorMessage);
+    }
 
     setUser({
       username: j.user.username,
@@ -159,7 +161,7 @@ const [isLoading, setIsLoading] = useState(true);
       return;
     }
 
-    // ✅ Local login (immediate state update)
+    // ✅ Immediate state update once profile payload is available
     if (j.user) {
       setUser({
         username: j.user.username,

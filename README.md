@@ -135,6 +135,8 @@ The database includes comprehensive test data:
 - [Test Accounts](docs/TEST_ACCOUNTS.md) - Sample user credentials
 - [Plans & Pricing](docs/Plans%20&%20Pricing.md) - Subscription details
 
+- [Operational Lessons & Checklist](development.md#16-operational-lessons--quick-fixes-2025-10-25) - Quick fixes and API hygiene checklist (added 2025-10-25)
+
 ## 🔐 Security
 
 - Supabase Auth for secure authentication

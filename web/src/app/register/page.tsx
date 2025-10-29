@@ -54,7 +54,8 @@ export default function RegisterPage() {
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong";
-      setStatus(message);
+      console.error("Registration error:", err);
+      setStatus(`Registration failed: ${message}`);
     }
   }
 

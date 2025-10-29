@@ -1,125 +1,236 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
-import { Gender, UserRole, UserStatus } from "@prisma/client";
 
-function normalizeDobInput(dob: unknown): { value: string | null; present: boolean } {
-  if (dob === undefined) return { value: null, present: false };
-  if (dob === null) return { value: null, present: true };
-  if (typeof dob !== "string") return { value: null, present: false };
-  const trimmed = dob.trim();
-  if (!trimmed) return { value: null, present: true };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    throw new Error("invalid dob");
+type FollowInfo = { id: number };
+
+type UserProfile = {
+  id: number;
+  username: string | null;
+  email: string | null;
+  phone_number: string | null;
+  bio: string | null;
+  location: string | null;
+  dob: Date | null;
+  gender: string | null;
+  avatar_url: string | null;
+  preferred_styles: unknown;
+  preferred_size_top: string | null;
+  preferred_size_bottom: string | null;
+  preferred_size_shoe: string | null;
+  preferred_brands: unknown;
+  followers: FollowInfo[];
+  following: FollowInfo[];
+};
+
+const normalizePreferredStyles = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) {
+    return value;
   }
-  return { value: trimmed, present: true };
-}
-
-function normalizeGenderInput(gender: unknown): { value: "MALE" | "FEMALE" | null; present: boolean } {
-  if (gender === undefined) return { value: null, present: false };
-  if (gender === null) return { value: null, present: true };
-  if (typeof gender !== "string") return { value: null, present: false };
-  const trimmed = gender.trim();
-  if (!trimmed) return { value: null, present: true };
-  if (trimmed !== "Male" && trimmed !== "Female") {
-    throw new Error("invalid gender");
+  if (value) {
+    return value as unknown[];
   }
-  return { value: trimmed === "Male" ? "MALE" : "FEMALE", present: true };
-}
+  return [];
+};
 
-function mapRole(value: UserRole | null | undefined): "User" | "Admin" {
-  return value === UserRole.ADMIN ? "Admin" : "User";
-}
+const normalizePreferredBrands = (value: unknown): string[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string");
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === "string")
+        : [];
+    } catch (err) {
+      console.warn("Failed to parse preferred_brands string", err);
+      return [];
+    }
+  }
+  if (typeof value === "object") {
+    const candidates = Object.values(value as Record<string, unknown>);
+    return candidates.filter((item): item is string => typeof item === "string");
+  }
+  return [];
+};
 
-function mapStatus(value: UserStatus | null | undefined): "active" | "suspended" {
-  return value === UserStatus.SUSPENDED ? "suspended" : "active";
-}
-
-function mapGenderOut(value: Gender | null | undefined): "Male" | "Female" | null {
-  if (value === Gender.MALE) return "Male";
-  if (value === Gender.FEMALE) return "Female";
+const mapGender = (value: string | null) => {
+  if (value === "MALE") return "Male";
+  if (value === "FEMALE") return "Female";
   return null;
-}
+};
 
-export async function PATCH(req: NextRequest) {
-  const sessionUser = await getSessionUser();
-  if (!sessionUser) {
+const formatUserResponse = (user: UserProfile) => ({
+  id: user.id.toString(),
+  username: user.username,
+  email: user.email,
+  phone: user.phone_number,
+  bio: user.bio,
+  location: user.location,
+  dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
+  gender: mapGender(user.gender),
+  avatar_url: user.avatar_url,
+  followersCount: user.followers.length,
+  followingCount: user.following.length,
+  preferred_styles: normalizePreferredStyles(user.preferred_styles),
+  preferred_size_top: user.preferred_size_top,
+  preferred_size_bottom: user.preferred_size_bottom,
+  preferred_size_shoe: user.preferred_size_shoe,
+  preferred_brands: normalizePreferredBrands(user.preferred_brands),
+});
+
+// 统一使用 getSessionUser，避免路由内重复鉴权
+
+const selectUserProfile = {
+  id: true,
+  username: true,
+  email: true,
+  phone_number: true,
+  bio: true,
+  location: true,
+  dob: true,
+  gender: true,
+  avatar_url: true,
+  preferred_styles: true,
+  preferred_size_top: true,
+  preferred_size_bottom: true,
+  preferred_size_shoe: true,
+  preferred_brands: true,
+  followers: {
+    select: {
+      id: true,
+    },
+  },
+  following: {
+    select: {
+      id: true,
+    },
+  },
+} satisfies Record<string, unknown>;
+
+/**
+ * 获取用户资料
+ */
+export async function GET(req: NextRequest) {
+  const sessionUser = await getSessionUser(req);
+  const dbUser = sessionUser ? await prisma.users.findUnique({ where: { id: sessionUser.id }, select: selectUserProfile }) : null;
+  if (!dbUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const payload = await req.json().catch(() => ({}));
-  const { username, email } = payload as Record<string, unknown>;
+  return NextResponse.json({
+    success: true,
+    user: formatUserResponse(dbUser as UserProfile),
+  });
+}
 
-  const data: Record<string, unknown> = {};
-
-  if (username !== undefined) {
-    if (typeof username !== "string" || !username.trim()) {
-      return NextResponse.json({ error: "invalid username" }, { status: 400 });
-    }
-    data.username = username.trim();
-  }
-
-  if (email !== undefined) {
-    if (typeof email !== "string" || !email.trim()) {
-      return NextResponse.json({ error: "invalid email" }, { status: 400 });
-    }
-    data.email = email.trim();
-  }
-
-  let dobUpdate: { value: string | null; present: boolean };
-  let genderUpdate: { value: "MALE" | "FEMALE" | null; present: boolean };
+/**
+ * 更新用户资料
+ */
+export async function PATCH(req: NextRequest) {
   try {
-    dobUpdate = normalizeDobInput((payload as any).dob);
-    genderUpdate = normalizeGenderInput((payload as any).gender);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "invalid input";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
+    const sessionUser = await getSessionUser(req);
+    const dbUser = sessionUser ? await prisma.users.findUnique({ where: { id: sessionUser.id }, select: selectUserProfile }) : null;
+    if (!dbUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  if (dobUpdate.present) {
-    data.dob = dobUpdate.value ? new Date(dobUpdate.value) : null;
-  }
+    const data = await req.json();
+    console.log("📝 Profile update request data:", JSON.stringify(data, null, 2));
+    console.log("📝 Current user ID:", dbUser.id);
 
-  if (genderUpdate.present) {
-    data.gender = genderUpdate.value as Gender | null;
-  }
+    const updateData: Record<string, unknown> = {};
 
-  if (Object.keys(data).length === 0) {
-    return NextResponse.json({ error: "No fields provided" }, { status: 400 });
-  }
-  try {
-    await prisma.users.update({ where: { id: Number(sessionUser.id) }, data });
+    if (data.username !== undefined && data.username !== null) {
+      updateData.username = data.username;
+    }
+    if (data.email !== undefined && data.email !== null) {
+      updateData.email = data.email;
+    }
+    if (data.phone !== undefined && data.phone !== null) {
+      updateData.phone_number = data.phone;
+    }
+    if (data.bio !== undefined && data.bio !== null) {
+      updateData.bio = data.bio;
+    }
+    if (data.location !== undefined && data.location !== null) {
+      updateData.location = data.location;
+    }
+    if (data.dob !== undefined && data.dob !== null) {
+      updateData.dob = new Date(data.dob);
+    }
+    if (data.gender !== undefined && data.gender !== null) {
+      if (data.gender === "Male") {
+        updateData.gender = "MALE";
+      } else if (data.gender === "Female") {
+        updateData.gender = "FEMALE";
+      } else {
+        updateData.gender = null;
+      }
+    }
+    if (data.avatar_url !== undefined && data.avatar_url !== null) {
+      updateData.avatar_url = data.avatar_url;
+    }
 
-    const user = await prisma.users.findUnique({
-      where: { id: Number(sessionUser.id) },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        role: true,
-        status: true,
-        is_premium: true,
-        premium_until: true,
-        dob: true,
-        gender: true,
-      },
+    if (data.preferredStyles !== undefined) {
+      if (Array.isArray(data.preferredStyles)) {
+        updateData.preferred_styles = data.preferredStyles;
+      } else if (data.preferredStyles === null) {
+        updateData.preferred_styles = null;
+      }
+    }
+
+    if (data.preferredSizes !== undefined && data.preferredSizes !== null) {
+      const sizes = data.preferredSizes as Record<string, unknown>;
+      if (Object.prototype.hasOwnProperty.call(sizes, "top")) {
+        updateData.preferred_size_top = sizes.top ?? null;
+      }
+      if (Object.prototype.hasOwnProperty.call(sizes, "bottom")) {
+        updateData.preferred_size_bottom = sizes.bottom ?? null;
+      }
+      if (Object.prototype.hasOwnProperty.call(sizes, "shoe")) {
+        updateData.preferred_size_shoe = sizes.shoe ?? null;
+      }
+    }
+
+    if (data.preferredBrands !== undefined) {
+      if (Array.isArray(data.preferredBrands)) {
+        updateData.preferred_brands = data.preferredBrands;
+      } else if (data.preferredBrands === null) {
+        updateData.preferred_brands = null;
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      console.log("📝 No fields to update, returning current user data");
+      return NextResponse.json({
+        ok: true,
+        user: formatUserResponse(dbUser as UserProfile),
+      });
+    }
+
+    const updated = await prisma.users.update({
+      where: { id: dbUser.id },
+      data: updateData,
+      select: selectUserProfile,
     });
-    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    console.log("✅ Profile updated successfully");
 
     return NextResponse.json({
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: mapRole(user.role),
-        status: mapStatus(user.status),
-        isPremium: Boolean(user.is_premium),
-        premiumUntil: user.premium_until ?? null,
-        dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
-        gender: mapGenderOut(user.gender),
-      },
+      ok: true,
+      user: formatUserResponse(updated as UserProfile),
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || "update failed" }, { status: 400 });
+  } catch (err) {
+    console.error("❌ Update profile failed:", err);
+    return NextResponse.json(
+      {
+        error: "Update failed",
+        details: err instanceof Error ? err.message : "Unknown error",
+      },
+      { status: 400 },
+    );
   }
 }

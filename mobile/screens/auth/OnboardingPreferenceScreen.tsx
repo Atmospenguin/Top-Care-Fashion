@@ -16,6 +16,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
 import Icon from "../../components/Icon";
+import { userService } from "../../src/services/userService";
 
 type OnboardingNav = NativeStackNavigationProp<RootStackParamList, "Main">;
 
@@ -51,26 +52,49 @@ const STYLE_OPTIONS = [
 ];
 
 const SIZE_OPTIONS_CLOTHES = [
-  "XXS / EU 32 / UK 4 / US 0",
-  "XS / EU 34 / UK 6 / US 2",
-  "S / EU 36 / UK 8 / US 4",
-  "M / EU 38 / UK 10 / US 6",
-  "L / EU 40 / UK 12 / US 8",
-  "XL / EU 42 / UK 14 / US 10",
-  "XXL / EU 44 / UK 16 / US 12",
-  "XXXL / EU 46 / UK 18 / US 14",
+  "XXS",
+  "XS",
+  "S",
+  "M",
+  "L",
+  "XL",
+  "XXL",
+  "XXXL",
+  "Free Size",
+  "Other",
 ];
 
 const SIZE_OPTIONS_SHOES = [
-  "EU 35 / US 5 / UK 3",
-  "EU 36 / US 6 / UK 4",
-  "EU 37 / US 6.5 / UK 4.5",
-  "EU 38 / US 7 / UK 5",
-  "EU 39 / US 8 / UK 6",
-  "EU 40 / US 9 / UK 7",
-  "EU 41 / US 10 / UK 8",
-  "EU 42 / US 11 / UK 9",
-  "EU 43 / US 12 / UK 10",
+  "35",
+  "36",
+  "37",
+  "38",
+  "39",
+  "40",
+  "41",
+  "42",
+  "43",
+  "44",
+  "45",
+  "Other",
+];
+
+const SIZE_OPTIONS_ACCESSORIES = [
+  "N/A",
+  "One Size",
+  "Small",
+  "Medium", 
+  "Large",
+  "Other",
+];
+
+const SIZE_OPTIONS_BAGS = [
+  "N/A",
+  "Small",
+  "Medium",
+  "Large",
+  "Extra Large",
+  "Other",
 ];
 
 export default function OnboardingPreferenceScreen() {
@@ -78,7 +102,7 @@ export default function OnboardingPreferenceScreen() {
   const [currentStep, setCurrentStep] = useState(0);
 
   // User preferences state
-  const [selectedGender, setSelectedGender] = useState<string>("Womenswear");
+  const [selectedGender, setSelectedGender] = useState<string>("Prefer not to say");
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [shoeSize, setShoeSize] = useState<string | null>(null);
   const [topSize, setTopSize] = useState<string | null>(null);
@@ -121,13 +145,32 @@ export default function OnboardingPreferenceScreen() {
     return () => backHandler.remove();
   }, [currentStep]);
 
-  const handleFinish = () => {
-    // TODO: Save preferences to backend/storage
-    console.log("Saving preferences:", {
-      gender: selectedGender,
-      styles: selectedStyles,
-      sizes: { shoe: shoeSize, top: topSize, bottom: bottomSize },
-    });
+  const handleFinish = async () => {
+    // 将 Onboarding 偏好保存到后端（当前后端仅支持 gender 字段；size/style 可在后续扩展）
+    const genderValue =
+      selectedGender === "Female"
+        ? "Female"
+        : selectedGender === "Male"
+        ? "Male"
+        : "OTHER";
+    try {
+      console.log("Saving preferences:", {
+        gender: selectedGender,
+        sizes: { shoe: shoeSize, top: topSize, bottom: bottomSize },
+        styles: selectedStyles,
+      });
+      await userService.updateProfile({
+        gender: (genderValue as any) ?? null,
+        preferredStyles: selectedStyles.length ? selectedStyles : [],
+        preferredSizes: {
+          shoe: shoeSize ?? null,
+          top: topSize ?? null,
+          bottom: bottomSize ?? null,
+        },
+      });
+    } catch (e) {
+      console.warn('Failed to persist preferences, proceeding anyway:', e);
+    }
     // 使用 replace 导航，防止用户返回到引导页面
     navigation.replace("Main");
   };
@@ -202,16 +245,16 @@ export default function OnboardingPreferenceScreen() {
     </Modal>
   );
 
-  // Step 1: Gender Interest
+  // Step 1: Gender
   const renderGenderStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>What are you interested in?</Text>
+      <Text style={styles.stepTitle}>What's your gender?</Text>
       <Text style={styles.stepSubtitle}>
-        This helps us show you relevant fashion items
+        This helps us show you the right recommendations
       </Text>
 
       <View style={styles.genderContainer}>
-        {["Menswear", "Mens & Womenswear", "Womenswear"].map((option) => (
+        {["Female", "Male", "Non-binary / Prefer not to say"].map((option) => (
           <TouchableOpacity
             key={option}
             style={[

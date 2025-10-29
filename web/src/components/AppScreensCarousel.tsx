@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
-const rawFiles = [
+const defaultRawFiles = [
   "Cart.png",
   "Listing Detail.png",
   "Mix & Match.png",
@@ -14,26 +14,29 @@ const rawFiles = [
   "View User Reviews.png",
 ];
 
-const files = rawFiles.map((f) => f.replace(/ /g, "%20"));
-
 export default function AppScreensCarousel({
   intervalMs = 4000,
   className = "",
+  images,
 }: {
   intervalMs?: number;
   className?: string;
+  images?: string[];
 }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
 
-  const slides = useMemo(
-    () =>
-      files.map((f, i) => ({
-        src: `/TOPApp/${f}`,
-        alt: rawFiles[i].replace(".png", ""),
-      })),
-    []
-  );
+  const slides = useMemo(() => {
+    const list = images && images.length > 0
+      ? images
+      : [];
+    return list.map((src) => {
+      const safeSrc = src.replace(/ /g, "%20");
+      const name = safeSrc.split("/").pop() || safeSrc;
+      const alt = name.replace(/%20/g, " ").replace(/\.png$/i, "");
+      return { src: safeSrc, alt };
+    });
+  }, [images]);
 
   useEffect(() => {
     if (paused) return;

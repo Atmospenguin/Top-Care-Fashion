@@ -28,6 +28,7 @@ function toUserResponse(user: {
   premium_until: Date | null;
   dob: Date | null;
   gender: Gender | null;
+  avatar_url?: string | null; // ✅ 添加头像字段
 }) {
   return {
     id: user.id,
@@ -39,6 +40,7 @@ function toUserResponse(user: {
     premiumUntil: user.premium_until ?? null,
     dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
     gender: mapGender(user.gender),
+    avatar: user.avatar_url ?? null, // ✅ 统一成前端使用的 avatar
   };
 }
 
@@ -70,6 +72,7 @@ export async function GET() {
         premium_until: true,
         dob: true,
         gender: true,
+        avatar_url: true, // ✅ 添加头像字段
       },
     });
 
@@ -98,6 +101,7 @@ export async function GET() {
           premium_until: true,
           dob: true,
           gender: true,
+          avatar_url: true, // ✅ 添加头像字段
         },
       });
 

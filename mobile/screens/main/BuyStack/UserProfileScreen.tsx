@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   FlatList,
   Image,
@@ -12,17 +12,22 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
+import ASSETS from "../../../constants/assetUrls";
 import Icon from "../../../components/Icon";
 import FilterModal from "../../../components/FilterModal";
 import { MOCK_LISTINGS } from "../../../mocks/shop";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
+import { userService, type UserProfile } from "../../../src/services/userService";
+import { likesService, messagesService, type LikedListing } from "../../../src/services";
+import { authService } from "../../../src/services/authService";
 
 type UserProfileParam = RouteProp<BuyStackParamList, "UserProfile">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
@@ -38,9 +43,32 @@ const REPORT_CATEGORIES = [
   { id: "other", label: "Something else" },
 ];
 
-const SHOP_CATEGORIES = ["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories", "Dresses"] as const;
-const SHOP_SIZES = ["All", "My Size", "XS", "S", "M", "L", "XL", "XXL"] as const;
-const SHOP_CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
+const SHOP_CATEGORIES = ["All", "Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"] as const;
+const SHOP_APPAREL_SIZES = [
+  "All",
+  "My Size",
+  "XXS",
+  "XS",
+  "S",
+  "M",
+  "L",
+  "XL",
+  "XXL",
+] as const;
+const SHOP_SHOE_SIZES = [
+  "All",
+  "My Size",
+  "35","36","37","38","39","40","41","42","43","44","45","46","47",
+] as const;
+const SHOP_ACCESSORY_SIZES = [
+  "All",
+  "My Size",
+  "One Size",
+  "Small",
+  "Medium",
+  "Large",
+] as const;
+const SHOP_CONDITIONS = ["All", "New", "Like New", "Good", "Fair", "Poor"] as const;
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
 
 const REVIEW_FILTERS = {
@@ -122,6 +150,17 @@ export default function UserProfileScreen() {
     params: { username, avatar, rating, sales },
   } = useRoute<UserProfileParam>();
 
+  // 状态管理
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userListings, setUserListings] = useState<ListingItem[]>([]);
+  const [likedListings, setLikedListings] = useState<LikedListing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [listingsLoading, setListingsLoading] = useState(false);
+  const [likesLoading, setLikesLoading] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
+
   const [activeTab, setActiveTab] = useState<"Shop" | "Likes" | "Reviews">(
     "Shop"
   );
@@ -141,6 +180,17 @@ export default function UserProfileScreen() {
   const [tempShopSize, setTempShopSize] = useState<string>("All");
   const [tempShopCondition, setTempShopCondition] = useState<string>("All");
   const [tempShopSortBy, setTempShopSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
+  const tempShopSizeOptions = useMemo(() => {
+    const cat = tempShopCategory.toLowerCase();
+    if (cat === "footwear") return SHOP_SHOE_SIZES as readonly string[];
+    if (cat === "accessories") return SHOP_ACCESSORY_SIZES as readonly string[];
+    return SHOP_APPAREL_SIZES;
+  }, [tempShopCategory]);
+  useEffect(() => {
+    if (!tempShopSizeOptions.includes(tempShopSize as any)) {
+      setTempShopSize("All");
+    }
+  }, [tempShopSizeOptions, tempShopSize]);
 
   // Review Filter States
   const [reviewsFilterVisible, setReviewsFilterVisible] = useState(false);
@@ -149,18 +199,146 @@ export default function UserProfileScreen() {
   const [reviewRole, setReviewRole] = useState<string>("All");
   const [reviewRating, setReviewRating] = useState<string>("All");
 
-  // Mock data for profile stats
-  const followers = 1234;
-  const following = 567;
-  const reviewsCount = mockReviews.length;
+  // 获取当前用户信息
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const user = await authService.getCurrentUser();
+        setCurrentUser(user);
+        console.log("👤 Current user:", user?.username);
+      } catch (error) {
+        console.error("❌ Error loading current user:", error);
+      }
+    };
 
-  const userListings = useMemo(
-    () =>
-      MOCK_LISTINGS.filter(
-        (listing) => listing.seller.name.toLowerCase() === username.toLowerCase()
-      ),
-    [username]
-  );
+    loadCurrentUser();
+  }, []);
+
+  // 加载用户信息
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      try {
+        setLoading(true);
+        console.log("📖 Loading user profile for:", username);
+        
+        const profile = await userService.getUserProfile(username);
+        if (profile) {
+          setUserProfile(profile);
+          console.log("✅ User profile loaded:", profile.username);
+          
+          // 判断是否在查看自己的profile
+          const isOwn = currentUser && currentUser.username === profile.username;
+          setIsOwnProfile(isOwn);
+          console.log("🔍 Is own profile:", isOwn);
+        } else {
+          Alert.alert("Error", "User not found");
+          navigation.goBack();
+        }
+      } catch (error) {
+        console.error("❌ Error loading user profile:", error);
+        Alert.alert("Error", "Failed to load user profile");
+        navigation.goBack();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserProfile();
+  }, [username, navigation, currentUser]);
+
+  // 加载用户 listings
+  useEffect(() => {
+    const loadUserListings = async () => {
+      if (!userProfile) return;
+      
+      try {
+        setListingsLoading(true);
+        console.log("📖 Loading listings for user:", userProfile.username);
+        
+        const listings = await userService.getUserListings(userProfile.username, 'active');
+        setUserListings(listings);
+        console.log(`✅ Loaded ${listings.length} listings`);
+      } catch (error) {
+        console.error("❌ Error loading user listings:", error);
+        // 使用 mock 数据作为 fallback
+        const mockListings = MOCK_LISTINGS.filter(
+          (listing) => listing.seller.name.toLowerCase() === username.toLowerCase()
+        );
+        setUserListings(mockListings);
+      } finally {
+        setListingsLoading(false);
+      }
+    };
+
+    loadUserListings();
+  }, [userProfile, username]);
+
+  // 加载用户喜欢的商品（查看自己的profile时加载自己的，查看别人的profile时加载公开的）
+  useEffect(() => {
+    const loadLikedListings = async () => {
+      if (!userProfile) return;
+      
+      try {
+        setLikesLoading(true);
+        console.log("❤️ Loading liked listings for user:", userProfile.username);
+        
+        let liked: LikedListing[] = [];
+        if (isOwnProfile) {
+          // 查看自己的profile，加载自己的喜欢商品
+          liked = await likesService.getLikedListings();
+        } else {
+          // 查看别人的profile，加载公开的喜欢商品
+          liked = await likesService.getPublicLikedListings(userProfile.username);
+        }
+        
+        setLikedListings(liked);
+        console.log(`✅ Loaded ${liked.length} liked listings`);
+      } catch (error) {
+        console.error('Error loading liked listings:', error);
+        setLikedListings([]); // 出错时设置为空数组
+      } finally {
+        setLikesLoading(false);
+      }
+    };
+
+    loadLikedListings();
+  }, [userProfile, username, isOwnProfile]);
+
+  // 检查follow状态
+  useEffect(() => {
+    const checkFollowStatus = async () => {
+      if (!userProfile || !currentUser || isOwnProfile) return;
+      
+      try {
+        console.log("👥 Checking follow status for:", userProfile.username);
+        const followStatus = await userService.checkFollowStatus(userProfile.username);
+        setIsFollowing(followStatus);
+        console.log(`✅ Follow status: ${followStatus}`);
+      } catch (error) {
+        console.error("❌ Error checking follow status:", error);
+        // 如果检查失败，默认设为false
+        setIsFollowing(false);
+      }
+    };
+
+    checkFollowStatus();
+  }, [userProfile, currentUser, isOwnProfile]);
+
+  // 使用真实的follow统计数据
+  const followers = userProfile?.followersCount || 0;
+  const following = userProfile?.followingCount || 0;
+  const reviewsCount = userProfile?.reviewsCount || mockReviews.length;
+
+  const mySizes = useMemo(() => {
+    const sizes = [
+      currentUser?.preferred_size_top,
+      currentUser?.preferred_size_bottom,
+      currentUser?.preferred_size_shoe,
+    ]
+      .filter((s): s is string => Boolean(s))
+      .map((s) => String(s).trim().toUpperCase());
+    return Array.from(new Set(sizes));
+  }, [currentUser]);
 
   const filteredListings = useMemo(() => {
     let results = userListings;
@@ -171,10 +349,17 @@ export default function UserProfileScreen() {
 
     if (shopSize !== "All") {
       if (shopSize === "My Size") {
-        const userPreferredSize = "M"; // TODO: pull from user settings once available
-        results = results.filter((item) => item.size === userPreferredSize);
+        if (mySizes.length > 0) {
+          results = results.filter((item) =>
+            mySizes.includes(String(item.size ?? "").trim().toUpperCase()),
+          );
+        }
+        // If no preferred sizes, skip size filtering
       } else {
-        results = results.filter((item) => item.size === shopSize);
+        const needle = String(shopSize).trim().toUpperCase();
+        results = results.filter(
+          (item) => String(item.size ?? "").trim().toUpperCase() === needle,
+        );
       }
     }
 
@@ -189,7 +374,7 @@ export default function UserProfileScreen() {
     }
 
     return results;
-  }, [userListings, shopCategory, shopSize, shopCondition, shopSortBy]);
+  }, [userListings, shopCategory, shopSize, mySizes, shopCondition, shopSortBy]);
 
   const listingsData = useMemo(
     () => formatData(filteredListings, 3),
@@ -293,6 +478,105 @@ export default function UserProfileScreen() {
     setReviewRating("All");
   };
 
+  // Follow/Unfollow 处理函数
+  const handleFollowToggle = async () => {
+    if (!userProfile) return;
+    
+    try {
+      let newFollowStatus: boolean;
+      
+      if (isFollowing) {
+        newFollowStatus = await userService.unfollowUser(userProfile.username);
+      } else {
+        newFollowStatus = await userService.followUser(userProfile.username);
+      }
+      
+      setIsFollowing(newFollowStatus);
+      console.log(`✅ Follow status updated: ${newFollowStatus}`);
+    } catch (error) {
+      console.error("❌ Error toggling follow status:", error);
+      Alert.alert("Error", "Failed to update follow status");
+    }
+  };
+
+  // Message 处理函数
+  const handleMessageUser = async () => {
+    console.log("🔍 UserProfile Message button pressed!");
+    console.log("🔍 UserProfile:", userProfile);
+    
+    if (!userProfile) {
+      console.log("❌ No userProfile found!");
+      Alert.alert("Error", "Unable to find user information");
+      return;
+    }
+    
+    if (!userProfile.id) {
+      console.log("❌ No user ID found!");
+      Alert.alert("Error", "Unable to find user ID");
+      return;
+    }
+    
+    try {
+      // 创建与用户的对话
+      console.log("🔍 Creating conversation with user...");
+      const conversation = await messagesService.createConversation({
+        participant_id: parseInt(userProfile.id), // 🔥 修复：转换为数字
+        type: 'GENERAL'
+      });
+      
+      console.log("✅ Conversation created:", conversation);
+      
+      // 导航到聊天界面
+      console.log("🔍 Navigating to ChatScreen...");
+      
+      // 🔥 正确的导航方式：Buy Stack → Root Stack → Main Tab → Inbox Stack → Chat
+      try {
+        // 方式1：通过根导航到 Main Tab，然后到 Inbox
+        const rootNavigation = (navigation as any).getParent?.();
+        if (rootNavigation) {
+          rootNavigation.navigate("Main", {
+            screen: "Inbox",
+            params: {
+              screen: "Chat",
+              params: {
+                sender: userProfile.username,
+                kind: "general",
+                conversationId: conversation.id,
+                order: null
+              }
+            }
+          });
+          console.log("✅ Navigation successful via Main Tab");
+        } else {
+          throw new Error("Root navigation not available");
+        }
+      } catch (navError) {
+        console.log("❌ Main Tab navigation failed:", navError);
+        console.log("🔍 Trying alternative navigation...");
+        
+        // 方式2：尝试直接导航到 Inbox（可能不会工作，但作为 fallback）
+        try {
+          (navigation as any).navigate("Inbox", {
+            screen: "Chat",
+            params: {
+              sender: userProfile.username,
+              kind: "general",
+              conversationId: conversation.id,
+              order: null
+            }
+          });
+          console.log("✅ Navigation successful via direct");
+        } catch (directError) {
+          console.error("❌ Direct navigation also failed:", directError);
+          Alert.alert("Navigation Error", "Unable to open chat. Please try again.");
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error creating conversation:", error);
+      Alert.alert("Error", "Failed to start conversation. Please try again.");
+    }
+  };
+
   const shopActiveFiltersCount = useMemo(() => {
     let count = 0;
     if (shopCategory !== "All") count++;
@@ -301,6 +585,15 @@ export default function UserProfileScreen() {
     if (shopSortBy !== "Latest") count++;
     return count;
   }, [shopCategory, shopSize, shopCondition, shopSortBy]);
+
+  const tempShopActiveFiltersCount = useMemo(() => {
+    let count = 0;
+    if (tempShopCategory !== "All") count++;
+    if (tempShopSize !== "All") count++;
+    if (tempShopCondition !== "All") count++;
+    if (tempShopSortBy !== "Latest") count++;
+    return count;
+  }, [tempShopCategory, tempShopSize, tempShopCondition, tempShopSortBy]);
 
   const reviewActiveFiltersCount = useMemo(() => {
     let count = 0;
@@ -311,10 +604,35 @@ export default function UserProfileScreen() {
     return count;
   }, [showLatest, showWithPhotos, reviewRole, reviewRating]);
 
+  // 如果正在加载，显示加载状态
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <Header title={username} showBack />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#F54B3D" />
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // 如果没有用户数据，显示错误
+  if (!userProfile) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <Header title={username} showBack />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>User not found</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header 
-        title={username} 
+        title={userProfile.username} 
         showBack 
         rightAction={
           <TouchableOpacity onPress={handleReport} style={styles.reportButton}>
@@ -323,37 +641,89 @@ export default function UserProfileScreen() {
         }
       />
 
+      {/* Profile Section - Depop Style */}
       <View style={styles.profileSection}>
-        <Image source={{ uri: avatar }} style={styles.avatar} />
-        <View style={{ rowGap: 6, flex: 1 }}>
-          <Text style={styles.profileName}>{username}</Text>
-          <View style={styles.profileMeta}>
-            <Icon name="star" size={14} color="#f5a623" />
-            <Text style={styles.profileMetaText}>{rating.toFixed(1)}</Text>
-            <Text style={styles.profileMetaText}>·</Text>
-            <Text style={styles.profileMetaText}>{sales} sales</Text>
+        {/* 头部：头像 + 右侧(名字/星星) */}
+        <View style={styles.headerRow}>
+          <Image 
+            source={
+              userProfile.avatar_url && typeof userProfile.avatar_url === 'string' && userProfile.avatar_url.startsWith('http')
+                ? { uri: userProfile.avatar_url }
+                : avatar && typeof avatar === 'string' && avatar.startsWith('http')
+                ? { uri: avatar }
+                : ASSETS.avatars.default
+            } 
+            style={styles.avatar} 
+          />
+          <View style={styles.nameCol}>
+            <Text style={styles.shopName}>{userProfile.username}</Text>
+            <View style={styles.locationRow}>
+              <Icon name="location-outline" size={12} color="#666" />
+              <Text style={styles.locationText}>Singapore</Text>
+            </View>
+            <View style={styles.starsRow}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Icon key={i} name="star" size={14} color="#FFB800" />
+              ))}
+            </View>
           </View>
         </View>
-        <TouchableOpacity style={styles.messageBtn}>
-          <Icon name="chatbubble-ellipses-outline" size={18} color="#000" />
-          <Text style={styles.messageText}>Message</Text>
-        </TouchableOpacity>
-      </View>
 
-      <View style={styles.statsContainer}>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{followers}</Text>
-          <Text style={styles.statLabel}>Followers</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{following}</Text>
-          <Text style={styles.statLabel}>Following</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{reviewsCount}</Text>
-          <Text style={styles.statLabel}>Reviews</Text>
+        {/* ↓↓↓ 这整块独立放在 headerRow 外面，才能和头像左边对齐 ↓↓↓ */}
+        <View style={styles.belowBlock}>
+          <View style={styles.activityItem}>
+            <Icon name="flash" size={14} color="#007AFF" />
+            <Text style={styles.activityText}>ACTIVE THIS WEEK</Text>
+          </View>
+
+          <View style={styles.activityItem}>
+            <Icon name="diamond" size={14} color="#007AFF" />
+            <Text style={styles.activityText}>{userProfile.soldListings} SOLD</Text>
+          </View>
+
+          {userProfile.bio && <Text style={styles.bioText}>{userProfile.bio}</Text>}
+
+          <View style={styles.socialRow}>
+            <View style={styles.statBlock}>
+              <Text style={styles.statNumber}>{followers}</Text>
+              <Text style={styles.statLabel}>followers</Text>
+            </View>
+            <View style={styles.statBlock}>
+              <Text style={styles.statNumber}>{following}</Text>
+              <Text style={styles.statLabel}>following</Text>
+            </View>
+
+            {/* Follow和Message按钮 - 始终显示，但自己的profile时禁用 */}
+            <TouchableOpacity
+              style={[
+                styles.followBtn, 
+                isFollowing && styles.followBtnActive,
+                isOwnProfile && styles.disabledBtn
+              ]}
+              onPress={isOwnProfile ? undefined : handleFollowToggle}
+              disabled={isOwnProfile}
+            >
+              <Text style={[
+                styles.followBtnText, 
+                isFollowing && styles.followBtnTextActive,
+                isOwnProfile && styles.disabledBtnText
+              ]}>
+                {isFollowing ? "Following" : "Follow"}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.msgBtn, isOwnProfile && styles.disabledBtn]} 
+              onPress={isOwnProfile ? undefined : handleMessageUser}
+              disabled={isOwnProfile}
+            >
+              <Icon 
+                name="mail-outline" 
+                size={24} 
+                color={isOwnProfile ? "#999" : "#F54B3D"} 
+              />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -388,9 +758,16 @@ export default function UserProfileScreen() {
                   </View>
                 )}
               </TouchableOpacity>
-              <Text style={styles.resultCount}>{filteredListings.length} items</Text>
+              <Text style={styles.resultCount}>
+                {listingsLoading ? "Loading..." : `${filteredListings.length} items`}
+              </Text>
             </View>
-            {filteredListings.length ? (
+            {listingsLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#F54B3D" />
+                <Text style={styles.loadingText}>Loading listings...</Text>
+              </View>
+            ) : filteredListings.length ? (
               <FlatList
                 data={listingsData}
                 keyExtractor={(item, index) =>
@@ -409,8 +786,11 @@ export default function UserProfileScreen() {
                       }
                     >
                       <Image
-                        source={{ uri: (item as ListingItem).images[0] }}
+                        source={{ 
+                          uri: (item as ListingItem).images?.[0] || "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image"
+                        }}
                         style={styles.gridImage}
+                        onError={() => console.warn(`Failed to load grid image: ${(item as ListingItem).images?.[0]}`)}
                       />
                     </TouchableOpacity>
                   )
@@ -428,27 +808,70 @@ export default function UserProfileScreen() {
         ) : null}
 
         {activeTab === "Likes" ? (
-          <FlatList
-            data={formatData(
-              likedGallery.map((uri, index) => ({ id: `like-${index}`, uri })),
-              3
-            )}
-            keyExtractor={(item) => item.id}
-            numColumns={3}
-            contentContainerStyle={styles.gridContent}
-            renderItem={({ item }) =>
-              item.empty ? (
-                <View style={[styles.gridItem, styles.gridItemInvisible]} />
-              ) : (
-                <View style={styles.gridItem}>
-                  <Image source={{ uri: item.uri }} style={styles.gridImage} />
-                  <View style={styles.likeBadge}>
-                    <Icon name="heart" size={16} color="#f54b3d" />
-                  </View>
-                </View>
-              )
-            }
-          />
+          likesLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#007AFF" />
+              <Text style={styles.loadingText}>Loading liked items...</Text>
+            </View>
+          ) : likedListings.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Icon name="heart-outline" size={48} color="#bbb" />
+              <Text style={styles.emptyTitle}>
+                {isOwnProfile ? "No liked items yet" : "No public liked items"}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {isOwnProfile 
+                  ? "Items you like will appear here" 
+                  : "This user hasn't liked any items yet"
+                }
+                    applyButtonLabel={`Apply Filters (${tempShopActiveFiltersCount})`}
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={formatData(
+                likedListings.map((likedListing) => ({
+                  id: likedListing.id.toString(),
+                  likedListing: likedListing,
+                })),
+                3
+              )}
+              keyExtractor={(item) => item.id}
+              numColumns={3}
+              contentContainerStyle={styles.gridContent}
+              renderItem={({ item }) =>
+                item.empty || !item.likedListing ? (
+                  <View style={[styles.gridItem, styles.gridItemInvisible]} />
+                ) : (
+                  <TouchableOpacity 
+                    style={styles.gridItem}
+                    onPress={() => {
+                      const listing = item.likedListing.item;
+                      
+                      // 转换数据格式以匹配ListingDetailScreen的期望格式
+                      const listingData = {
+                        ...listing,
+                        // seller数据已经是正确的格式，不需要转换
+                      };
+                      
+                      navigation.navigate("ListingDetail", { item: listingData });
+                    }}
+                  >
+                    <Image 
+                      source={{ 
+                        uri: item.likedListing?.item?.images?.[0] || 
+                             'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop'
+                      }} 
+                      style={styles.gridImage} 
+                    />
+                    <View style={styles.likeBadge}>
+                      <Icon name="heart" size={16} color="#f54b3d" />
+                    </View>
+                  </TouchableOpacity>
+                )
+              }
+            />
+          )
         ) : null}
 
         {activeTab === "Reviews" ? (
@@ -686,7 +1109,7 @@ export default function UserProfileScreen() {
           {
             key: "size",
             title: "Size",
-            options: SHOP_SIZES.map((size) => ({
+            options: tempShopSizeOptions.map((size) => ({
               label: size,
               value: size,
             })),
@@ -717,7 +1140,7 @@ export default function UserProfileScreen() {
         onClose={() => setShopFilterVisible(false)}
         onClear={handleClearShopFilters}
         onApply={handleApplyShopFilters}
-        applyButtonLabel={`Apply Filters (${filteredListings.length})`}
+        applyButtonLabel={`Apply Filters (${tempShopActiveFiltersCount})`}
       />
     </View>
   );
@@ -729,74 +1152,122 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   profileSection: {
-    flexDirection: "row",
-    alignItems: "center",
     paddingHorizontal: 16,
     paddingTop: 20,
-    paddingBottom: 12,
-    columnGap: 16,
+    paddingBottom: 16,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 8,
   },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: "#eee",
+    marginRight: 12,
   },
-  profileName: { fontSize: 18, fontWeight: "700", color: "#111" },
-  profileMeta: {
+  nameCol: {
+    height: 70,
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingVertical: 2,
+    flexShrink: 1,
+  },
+  shopName: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111",
+    maxWidth: "100%",
+  },
+  locationRow: {
     flexDirection: "row",
     alignItems: "center",
     columnGap: 4,
   },
-  profileMetaText: {
-    fontSize: 14,
+  locationText: {
+    fontSize: 12,
     color: "#666",
   },
-  messageBtn: {
+  starsRow: {
+    flexDirection: "row",
+    columnGap: 2,
+  },
+  belowBlock: {
+    marginTop: 6,
+  },
+  activityItem: {
     flexDirection: "row",
     alignItems: "center",
     columnGap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#dcdcdc",
+    marginBottom: 6,
   },
-  messageText: {
-    fontSize: 13,
+  activityText: {
+    fontSize: 12,
+    color: "#007AFF",
     fontWeight: "600",
-    color: "#000",
+    letterSpacing: 0.3,
   },
-  statsContainer: {
+  bioText: {
+    fontSize: 14,
+    color: "#333",
+    lineHeight: 20,
+    marginTop: 2,
+    marginBottom: 10,
+  },
+  // Social Row (Depop-style)
+  socialRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
     alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    backgroundColor: "#f9f9f9",
-    borderRadius: 12,
+    justifyContent: "space-between",
+    columnGap: 18,
   },
-  statItem: {
-    flex: 1,
+  statBlock: {
     alignItems: "center",
-    rowGap: 4,
+    justifyContent: "center",
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: "700",
+  statNumber: {
+    fontSize: 15,
+    fontWeight: "600",
     color: "#111",
   },
   statLabel: {
-    fontSize: 12,
-    color: "#777",
-    fontWeight: "500",
+    fontSize: 13,
+    color: "#555",
   },
-  statDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: "#ddd",
+  followBtn: {
+    backgroundColor: "#F54B3D",
+    paddingVertical: 8,
+    paddingHorizontal: 40,
+    borderRadius: 6,
+    minWidth: 140,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  followBtnActive: {
+    backgroundColor: "#999",
+  },
+  followBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  followBtnTextActive: {
+    color: "#fff",
+  },
+  msgBtn: {
+    width: 44,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+  },
+  disabledBtn: {
+    opacity: 0.5,
+  },
+  disabledBtnText: {
+    color: "#999",
   },
   tabs: {
     flexDirection: "row",
@@ -1123,4 +1594,19 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
   },
+
+  // 新增样式
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#666",
+    marginTop: 12,
+    textAlign: "center",
+  },
+
 });

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Alert,
   Dimensions,
@@ -21,8 +21,11 @@ import type { RouteProp } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import ASSETS from "../../../constants/assetUrls";
 import type { BagItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
+import { likesService, cartService, messagesService } from "../../../src/services";
+import { useAuth } from "../../../contexts/AuthContext";
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
@@ -38,29 +41,62 @@ const REPORT_CATEGORIES = [
   { id: "other", label: "Something else" },
 ];
 
+const formatGenderLabel = (value?: string | null) => {
+  if (!value) return "Unisex";
+  const lower = value.toLowerCase();
+  if (lower === "men" || lower === "male") return "Men";
+  if (lower === "women" || lower === "female") return "Women";
+  if (lower === "unisex") return "Unisex";
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+};
+
+const formatDateString = (value?: string | null) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString();
+};
+
+
 export default function ListingDetailScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
   const {
-    params: { item },
+    params: { item, isOwnListing: isOwnListingParam = false },
   } = useRoute<RouteProp<BuyStackParamList, "ListingDetail">>();
+  const { user } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [reportDetails, setReportDetails] = useState("");
+  const [isLiked, setIsLiked] = useState(false);
+  const [isLoadingLike, setIsLoadingLike] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
 
   // 安全处理 item 数据，兼容 images 和 imageUrls 字段
   const safeItem = useMemo(() => {
     if (!item) return null;
     
-    return {
+    // 调试：查看原始item数据
+    console.log('🔍 Debug - Original item:', item);
+    console.log('🔍 Debug - Original item.seller:', item.seller);
+    
+    const legacyImagesField = (item as { imageUrls?: unknown }).imageUrls;
+    const legacyImages = Array.isArray(legacyImagesField)
+      ? legacyImagesField.filter((img): img is string => typeof img === "string")
+      : [];
+
+    const result = {
       ...item,
       // 兼容处理：优先使用 images，如果没有则使用 imageUrls
-      images: Array.isArray(item.images) ? item.images : 
-              Array.isArray(item.imageUrls) ? item.imageUrls : [],
-      // 确保 colors 是数组
-      colors: Array.isArray(item.colors) ? item.colors : [],
+      images: Array.isArray(item.images) && item.images.length > 0 ? item.images : legacyImages,
     };
+    
+    // 调试：查看转换后的safeItem
+    console.log('🔍 Debug - Converted safeItem:', result);
+    console.log('🔍 Debug - Converted safeItem.seller:', result.seller);
+    
+    return result;
   }, [item]);
 
   const defaultBag = useMemo<BagItem[]>(
@@ -68,10 +104,183 @@ export default function ListingDetailScreen() {
     [safeItem],
   );
   const subtotal = useMemo(
-    () => defaultBag.reduce((sum, current) => sum + current.item.price * current.quantity, 0),
+    () => defaultBag.reduce((sum, current) => {
+      const price = typeof current.item.price === 'number' ? current.item.price : parseFloat(current.item.price || '0');
+      return sum + price * current.quantity;
+    }, 0),
     [defaultBag],
   );
   const shippingFee = 8;
+
+  const genderLabel = useMemo(() => formatGenderLabel(safeItem?.gender), [safeItem?.gender]);
+  const likesCount = safeItem?.likesCount ?? 0;
+  const listedOn = useMemo(() => formatDateString(safeItem?.createdAt), [safeItem?.createdAt]);
+  const updatedOn = useMemo(() => formatDateString(safeItem?.updatedAt), [safeItem?.updatedAt]);
+  const shippingDescription = useMemo(() => {
+    if (!safeItem?.shippingOption || safeItem.shippingOption === "Select") {
+      return "Please contact seller for shipping options and rates.";
+    }
+
+    const feeValue =
+      typeof safeItem.shippingFee === "number"
+        ? safeItem.shippingFee
+        : safeItem.shippingFee
+        ? Number(safeItem.shippingFee)
+        : 0;
+
+    let description = safeItem.shippingOption;
+
+    if (feeValue > 0) {
+      description += ` • Shipping fee: $${feeValue.toFixed(2)}`;
+    }
+
+    if (safeItem.shippingOption === "Meet-up" && safeItem.location) {
+      description += `\n📍 Meet-up location: ${safeItem.location}`;
+    }
+
+    return description;
+  }, [safeItem?.shippingOption, safeItem?.shippingFee, safeItem?.location]);
+  const imageUris = useMemo(() => {
+    if (!Array.isArray(safeItem?.images)) return [];
+    return safeItem.images.filter(
+      (uri): uri is string => typeof uri === "string" && uri.length > 0,
+    );
+  }, [safeItem?.images]);
+
+  const detailMetaCards = useMemo(() => {
+    if (!safeItem) return [];
+
+    const normalize = (value?: string | null) =>
+      typeof value === "string" ? value.trim() : "";
+
+    const cards: Array<{ id: string; label: string; value: string; placeholder?: boolean }> = [
+      {
+        id: "size",
+        label: "Size",
+        value:
+          safeItem.size && safeItem.size !== "N/A" && safeItem.size !== "Select"
+            ? safeItem.size
+            : "Not specified",
+      },
+      {
+        id: "condition",
+        label: "Condition",
+        value:
+          safeItem.condition && safeItem.condition !== "Select"
+            ? safeItem.condition
+            : "Not specified",
+      },
+      {
+        id: "gender",
+        label: "Gender",
+        value: genderLabel,
+      },
+    ];
+
+    const brandValue = normalize(safeItem.brand);
+    if (brandValue && brandValue !== "Select") {
+      cards.push({ id: "brand", label: "Brand", value: brandValue });
+    }
+
+    const materialValue = normalize(safeItem.material);
+    if (
+      materialValue &&
+      materialValue !== "Select" &&
+      materialValue !== "Polyester"
+    ) {
+      cards.push({ id: "material", label: "Material", value: materialValue });
+    }
+
+    if (!brandValue || brandValue === "Select") {
+      if (!materialValue || materialValue === "Select" || materialValue === "Polyester") {
+        cards.push({
+          id: "additional",
+          label: "Additional Details",
+          value: "Not provided by seller",
+          placeholder: true,
+        });
+      }
+    }
+
+    return cards;
+  }, [safeItem, genderLabel]);
+
+  // 检查是否是自己的商品
+  const isOwnListingFinalComputed = useMemo(() => {
+    console.log('🔍 Debug - Current user:', user);
+    console.log('🔍 Debug - SafeItem seller:', safeItem?.seller);
+    console.log('🔍 Debug - User ID:', user?.id);
+    console.log('🔍 Debug - Seller ID:', safeItem?.seller?.id);
+    console.log('🔍 Debug - User ID type:', typeof user?.id);
+    console.log('🔍 Debug - Seller ID type:', typeof safeItem?.seller?.id);
+    
+    // 确保类型一致进行比较
+    const userId = user?.id ? Number(user.id) : null;
+    const sellerId = safeItem?.seller?.id ? Number(safeItem.seller.id) : null;
+    
+    console.log('🔍 Debug - Converted User ID:', userId);
+    console.log('🔍 Debug - Converted Seller ID:', sellerId);
+    console.log('🔍 Debug - IDs match:', userId && sellerId && userId === sellerId);
+    
+    const result = !!(userId && sellerId && userId === sellerId);
+    console.log('🔍 Debug - isOwnListingFinal result:', result);
+    return result;
+  }, [user, safeItem]);
+  
+  // 🔥 优先使用传入的isOwnListing参数，否则使用计算的结果
+  const isOwnListingFinal = isOwnListingParam || isOwnListingFinalComputed;
+
+  // 检查Like状态
+  useEffect(() => {
+    const checkLikeStatus = async () => {
+      if (!safeItem?.id || isOwnListingFinal) return;
+      
+      try {
+        const listingId = Number(safeItem.id);
+        if (Number.isNaN(listingId)) return;
+        const liked = await likesService.getLikeStatus(listingId);
+        setIsLiked(liked);
+      } catch (error) {
+        console.error('Error checking like status:', error);
+      }
+    };
+
+    checkLikeStatus();
+  }, [safeItem?.id, isOwnListingFinal]);
+
+  // 处理Like按钮点击
+  const handleLikeToggle = async () => {
+    if (!safeItem?.id || isLoadingLike || isOwnListingFinal) return;
+    
+    setIsLoadingLike(true);
+    try {
+      const listingId = Number(safeItem.id);
+      if (Number.isNaN(listingId)) return;
+      const newLikedStatus = await likesService.toggleLike(listingId, isLiked);
+      setIsLiked(newLikedStatus);
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      Alert.alert('Error', 'Failed to update like status. Please try again.');
+    } finally {
+      setIsLoadingLike(false);
+    }
+  };
+
+  // 处理Add to Cart按钮点击
+  const handleAddToCart = async () => {
+    if (!safeItem?.id || isAddingToCart || isOwnListingFinal) return;
+    
+    setIsAddingToCart(true);
+    try {
+      await cartService.addToCart(safeItem.id.toString(), 1);
+      Alert.alert('Success', 'Item added to cart successfully!');
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      Alert.alert('Error', 'Failed to add item to cart. Please try again.');
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
 
   const handleReport = () => {
     setShowMenu(false);
@@ -116,9 +325,7 @@ export default function ListingDetailScreen() {
     try {
       if (safeItem) {
         await Share.share({
-          message: `Check out this find on TOP: ${safeItem.title} for $${safeItem.price.toFixed(
-            2
-          )}`,
+          message: `Check out this find on TOP: ${safeItem.title} for $${typeof safeItem.price === 'number' ? safeItem.price.toFixed(2) : parseFloat(safeItem.price || '0').toFixed(2)}`,
         });
       }
     } catch {
@@ -199,7 +406,7 @@ export default function ListingDetailScreen() {
                       key={category.id}
                       style={[
                         styles.categoryItem,
-                        selectedCategory === category.id && styles.categoryItemSelected,
+                        selectedCategory === category.id ? styles.categoryItemSelected : undefined,
                       ]}
                       onPress={() => setSelectedCategory(category.id)}
                     >
@@ -211,7 +418,7 @@ export default function ListingDetailScreen() {
                       <Text
                         style={[
                           styles.categoryLabel,
-                          selectedCategory === category.id && styles.categoryLabelSelected,
+                          selectedCategory === category.id ? styles.categoryLabelSelected : undefined,
                         ]}
                       >
                         {category.label}
@@ -279,86 +486,153 @@ export default function ListingDetailScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.imageCarousel}
         >
-          {safeItem?.images?.map((uri: string, index: number) => (
+          {imageUris.map((uri, index) => (
             <Image
-              key={`${safeItem.id}-${index}`}
+              key={`${safeItem?.id ?? "listing"}-${index}`}
               source={{ uri }}
               style={styles.image}
+              onError={() => console.warn(`Failed to load image: ${uri}`)}
             />
-          )) || []}
+          ))}
+          {imageUris.length === 0 && (
+            <Image
+              source={{ uri: "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image" }}
+              style={styles.image}
+            />
+          )}
         </ScrollView>
 
         <View style={styles.sectionCard}>
           <View style={styles.titleRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>{safeItem?.title || 'Loading...'}</Text>
-              <Text style={styles.price}>${safeItem?.price?.toFixed(2) || '0.00'}</Text>
+              <Text style={styles.price}>${typeof safeItem?.price === 'number' ? safeItem.price.toFixed(2) : parseFloat(safeItem?.price || '0').toFixed(2)}</Text>
             </View>
-            <TouchableOpacity
-              accessibilityRole="button"
-              style={styles.iconButton}
-            >
-              <Icon name="heart-outline" size={22} color="#111" />
-            </TouchableOpacity>
+            <View style={styles.likeButtonWrapper}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                style={[
+                  styles.iconButton,
+                  isLiked ? styles.iconButtonLiked : undefined,
+                  isOwnListingFinal ? styles.iconButtonDisabled : undefined,
+                ]}
+                onPress={handleLikeToggle}
+                disabled={!!(isLoadingLike || isOwnListingFinal)}
+              >
+                <Icon 
+                  name={isLiked ? "heart" : "heart-outline"} 
+                  size={22} 
+                  color={isOwnListingFinal ? "#999" : (isLiked ? "#F54B3D" : "#111")} 
+                />
+              </TouchableOpacity>
+              {likesCount > 0 && (
+                <View style={styles.likeBadge}>
+                  <Text style={styles.likeBadgeText}>
+                    {likesCount > 99 ? "99+" : likesCount}
+                  </Text>
+                </View>
+              )}
+            </View>
             {/* Mix & Match chip aligned with like icon and same height */}
             <TouchableOpacity
               accessibilityRole="button"
-              style={styles.mixChipBtn}
-              onPress={() => safeItem && navigation.navigate("MixMatch", { baseItem: safeItem })}
+              style={[
+                styles.mixChipBtn,
+                isOwnListingFinal ? styles.mixChipBtnDisabled : undefined,
+              ]}
+              onPress={() => !isOwnListingFinal && safeItem && navigation.navigate("MixMatch", { baseItem: safeItem })}
+              disabled={!!isOwnListingFinal}
             >
-              <Text style={styles.mixChipText}>Mix & Match</Text>
+              <Text
+                style={[
+                  styles.mixChipText,
+                  isOwnListingFinal ? styles.mixChipTextDisabled : undefined,
+                ]}
+              >
+                Mix & Match
+              </Text>
             </TouchableOpacity>
 
           </View>
-          <View style={styles.metaRow}>
-            <View style={styles.metaPill}>
-              <Text style={styles.metaLabel}>Size</Text>
-              <Text style={styles.metaValue}>{safeItem?.size || 'N/A'}</Text>
-            </View>
-            <View style={styles.metaPill}>
-              <Text style={styles.metaLabel}>Condition</Text>
-              <Text style={styles.metaValue}>{safeItem?.condition || 'N/A'}</Text>
-            </View>
+          <View style={styles.metaGrid}>
+            {detailMetaCards.map((info) => (
+              <View
+                key={info.id}
+                style={[
+                  styles.metaPill,
+                  info.placeholder ? styles.metaPillPlaceholder : undefined,
+                ]}
+              >
+                <Text style={styles.metaLabel}>{info.label}</Text>
+                <Text
+                  style={[
+                    styles.metaValue,
+                    info.placeholder ? styles.metaValuePlaceholder : undefined,
+                  ]}
+                >
+                  {info.value}
+                </Text>
+              </View>
+            ))}
           </View>
+
           <Text style={styles.description}>{safeItem?.description || 'No description available'}</Text>
 
-          <View style={styles.attributeRow}>
-            <View style={styles.attributeBlock}>
-              <Text style={styles.attributeLabel}>Brand</Text>
-              <Text style={styles.attributeValue}>{safeItem?.brand || 'N/A'}</Text>
-            </View>
-            {safeItem?.material ? (
-              <View style={styles.attributeBlock}>
-                <Text style={styles.attributeLabel}>Material</Text>
-                <Text style={styles.attributeValue}>{safeItem.material}</Text>
+          {/* Tags Section */}
+          {safeItem?.tags && Array.isArray(safeItem.tags) && safeItem.tags.length > 0 && (
+            <View style={styles.tagsSection}>
+              <Text style={styles.tagsLabel}>Tags</Text>
+              <View style={styles.tagsContainer}>
+                {safeItem.tags.map((tag, index) => (
+                  <View key={index} style={styles.tagChip}>
+                    <Text style={styles.tagText}>{tag}</Text>
+                  </View>
+                ))}
               </View>
-            ) : null}
-          </View>
+            </View>
+          )}
 
-          <View style={styles.colorsRow}>
-            {safeItem?.colors?.map((color: string) => (
-              <Text key={color} style={styles.colorChip}>
-                {color}
-              </Text>
-            )) || []}
-          </View>
+          {(listedOn || updatedOn) && (
+            <View style={styles.infoSection}>
+              <Text style={styles.infoHeading}>Listing Info</Text>
+              {listedOn && (
+                <Text style={styles.infoText}>Listed on {listedOn}</Text>
+              )}
+              {updatedOn && (
+                <Text style={styles.infoText}>Last updated {updatedOn}</Text>
+              )}
+            </View>
+          )}
+
         </View>
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionHeading}>Seller</Text>
           <View style={styles.sellerRow}>
             <TouchableOpacity
-              style={styles.sellerInfo}
-              onPress={() =>
-                safeItem?.seller && navigation.navigate("UserProfile", {
+              style={[
+                styles.sellerInfo,
+                isOwnListingFinal ? styles.sellerInfoDisabled : undefined,
+              ]}
+              disabled={isOwnListingFinal}
+              onPress={() => {
+                if (!safeItem?.seller || isOwnListingFinal) return;
+                navigation.navigate("UserProfile", {
                   username: safeItem.seller.name,
                   avatar: safeItem.seller.avatar,
                   rating: safeItem.seller.rating,
                   sales: safeItem.seller.sales,
-                })
-              }
+                });
+              }}
             >
-              <Image source={{ uri: safeItem?.seller?.avatar || '' }} style={styles.sellerAvatar} />
+              <Image 
+                source={
+                  safeItem?.seller?.avatar && typeof safeItem.seller.avatar === 'string' && safeItem.seller.avatar.trim() !== '' && safeItem.seller.avatar.startsWith('http')
+                    ? { uri: safeItem.seller.avatar }
+                    : ASSETS.avatars.default
+                } 
+                style={styles.sellerAvatar} 
+              />
               <View style={{ flex: 1 }}>
                 <Text style={styles.sellerName}>{safeItem?.seller?.name || 'Unknown Seller'}</Text>
                 <View style={styles.sellerMeta}>
@@ -369,42 +643,194 @@ export default function ListingDetailScreen() {
                 </View>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.messageBtn}>
-              <Icon name="chatbubble-ellipses-outline" size={18} color="#000" />
-              <Text style={styles.messageText}>Message</Text>
-            </TouchableOpacity>
+            {!isOwnListingFinal ? (
+              <TouchableOpacity 
+                style={styles.messageBtn}
+                onPress={async () => {
+                  console.log("🔍 Message button pressed!");
+                  console.log("🔍 SafeItem:", safeItem);
+                  console.log("🔍 Seller:", safeItem?.seller);
+                  console.log("🔍 messagesService:", messagesService);
+                  console.log("🔍 messagesService methods:", Object.getOwnPropertyNames(Object.getPrototypeOf(messagesService)));
+                  
+                  // 🔥 确保seller ID和listing ID都是有效的数字
+                  const sellerId = safeItem?.seller?.id ? Number(safeItem.seller.id) : null;
+                  const listingId = safeItem?.id ? parseInt(safeItem.id) : null;
+                  
+                  console.log("🔍 Seller ID:", sellerId, "Type:", typeof sellerId);
+                  console.log("🔍 Listing ID:", listingId, "Type:", typeof listingId);
+                  
+                  if (!sellerId || isNaN(sellerId) || !listingId || isNaN(listingId)) {
+                    console.log("❌ Invalid seller ID or listing ID!");
+                    console.log("❌ Seller ID:", sellerId, "Listing ID:", listingId);
+                    Alert.alert("Error", "Unable to find seller or listing information");
+                    return;
+                  }
+                  
+                  try {
+                    // 创建或获取与卖家的对话
+                    console.log("🔍 Creating conversation with seller...");
+                    console.log("🔍 SafeItem details:", {
+                      id: safeItem.id,
+                      title: safeItem.title,
+                      seller: safeItem.seller
+                    });
+                    console.log("🔍 Final parameters:", {
+                      sellerId,
+                      listingId
+                    });
+                    
+                    const conversation = await messagesService.getOrCreateSellerConversation(
+                      sellerId,
+                      listingId
+                    );
+                    
+                    console.log("✅ Conversation created/found:", conversation);
+                    
+                    // 导航到聊天界面
+                    console.log("🔍 Navigating to ChatScreen...");
+                    
+               // 🔥 正确的导航方式：Buy Stack → Root Stack → Main Tab → Inbox Stack → Chat
+               try {
+                 // 方式1：通过根导航到 Main Tab，然后到 Inbox
+                 const rootNavigation = (navigation as any).getParent?.();
+                 if (rootNavigation) {
+                   rootNavigation.navigate("Main", {
+                     screen: "Inbox",
+                     params: {
+                       screen: "Chat",
+                       params: {
+                         sender: safeItem.seller.name || "Seller",
+                         kind: "order",
+                         conversationId: conversation.id,
+                         order: {
+                           id: safeItem.id || "new-order",
+                           product: {
+                             title: safeItem.title || "Item",
+                             price: Number(safeItem.price) || 0,
+                             size: safeItem.size,
+                             image: safeItem.images?.[0] || ""
+                           },
+                           seller: {
+                             name: safeItem.seller.name || "Seller",
+                             avatar: safeItem.seller.avatar
+                           },
+                           buyer: {
+                             name: "You",
+                             avatar: "https://i.pravatar.cc/100?img=32"
+                           },
+                           status: "Inquiry"
+                         }
+                       }
+                     }
+                   });
+                   console.log("✅ Navigation successful via Main Tab");
+                 } else {
+                   throw new Error("Root navigation not available");
+                 }
+               } catch (navError) {
+                 console.log("❌ Main Tab navigation failed:", navError);
+                 console.log("🔍 Trying alternative navigation...");
+                 
+                 // 方式2：尝试直接导航到 Inbox（可能不会工作，但作为 fallback）
+                 try {
+                   (navigation as any).navigate("Inbox", {
+                     screen: "Chat",
+                     params: {
+                       sender: safeItem.seller.name || "Seller",
+                       kind: "order",
+                       conversationId: conversation.id,
+                       order: {
+                         id: safeItem.id || "new-order",
+                         product: {
+                           title: safeItem.title || "Item",
+                           price: safeItem.price || 0,
+                           size: safeItem.size,
+                           image: safeItem.images?.[0] || ""
+                         },
+                         seller: {
+                           name: safeItem.seller.name || "Seller",
+                           avatar: safeItem.seller.avatar
+                         },
+                         buyer: {
+                           name: "You",
+                           avatar: "https://i.pravatar.cc/100?img=32"
+                         },
+                         status: "Inquiry"
+                       }
+                     }
+                   });
+                   console.log("✅ Navigation successful via direct");
+                 } catch (directError) {
+                   console.error("❌ Direct navigation also failed:", directError);
+                   Alert.alert("Navigation Error", "Unable to open chat. Please try again.");
+                 }
+               }
+                  } catch (error) {
+                    console.error("❌ Error creating conversation:", error);
+                    Alert.alert("Error", "Failed to start conversation. Please try again.");
+                  }
+                }}
+              >
+                <Icon name="chatbubble-ellipses-outline" size={18} color="#000" />
+                <Text style={styles.messageText}>Message</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.ownerBadge}>
+                <Icon name="information-circle-outline" size={16} color="#666" />
+                <Text style={styles.ownerBadgeText}>Your listing</Text>
+              </View>
+            )}
           </View>
         </View>
 
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeading}>Shipping & Returns</Text>
-          <Text style={styles.description}>
-            Ships within 2 business days from New York, USA. Trackable shipping is included.
-            Returns accepted within 7 days of delivery.
-          </Text>
+          <Text style={styles.sectionHeading}>Shipping</Text>
+          <Text style={styles.description}>{shippingDescription}</Text>
         </View>
+
       </ScrollView>
 
       <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={styles.secondaryButton}
-          onPress={() => navigation.navigate("Bag", { items: defaultBag })}
-        >
-          <Icon name="bag-add-outline" size={20} color="#111" />
-          <Text style={styles.secondaryText}>Add to Bag</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={() =>
-            navigation.navigate("Checkout", {
-              items: defaultBag,
-              subtotal,
-              shipping: shippingFee,
-            })
-          }
-        >
-          <Text style={styles.primaryText}>Buy Now</Text>
-        </TouchableOpacity>
+        {!isOwnListingFinal && (
+          <>
+            <TouchableOpacity
+              style={[
+                styles.secondaryButton,
+                isAddingToCart ? styles.secondaryButtonDisabled : undefined,
+              ]}
+              onPress={handleAddToCart}
+              disabled={isAddingToCart}
+            >
+              <Icon name="bag-add-outline" size={20} color={isAddingToCart ? "#999" : "#111"} />
+              <Text
+                style={[
+                  styles.secondaryText,
+                  isAddingToCart ? styles.secondaryTextDisabled : undefined,
+                ]}
+              >
+                {isAddingToCart ? 'Adding...' : 'Add to Bag'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() =>
+                navigation.navigate("Checkout", {
+                  items: defaultBag,
+                  subtotal,
+                  shipping: shippingFee,
+                })
+              }
+            >
+              <Text style={styles.primaryText}>Buy Now</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        {isOwnListingFinal && (
+          <View style={styles.ownListingMessage}>
+            <Text style={styles.ownListingText}>This is your own listing</Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -500,6 +926,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  iconButtonLiked: {
+    borderColor: "#F54B3D",
+    backgroundColor: "#FFF5F5",
+  },
+  iconButtonDisabled: {
+    backgroundColor: "#f5f5f5",
+    opacity: 0.6,
+  },
+  likeButtonWrapper: {
+    position: "relative",
+  },
+  likeBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#111",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  likeBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
   mixChipBtn: {
     height: 40,
     borderRadius: 20,
@@ -511,16 +965,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   mixChipText: { fontSize: 13, fontWeight: "700", color: "#111" },
-  metaRow: {
+  mixChipBtnDisabled: {
+    backgroundColor: "#f5f5f5",
+    opacity: 0.6,
+  },
+  mixChipTextDisabled: {
+    color: "#999",
+  },
+  metaGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     columnGap: 12,
+    rowGap: 12,
   },
   metaPill: {
-    flex: 1,
+    width: "48%",
+    flexGrow: 1,
     paddingVertical: 10,
     borderRadius: 12,
     backgroundColor: "#f6f6f6",
     alignItems: "center",
+    justifyContent: "center",
   },
   metaLabel: {
     fontSize: 12,
@@ -528,41 +993,63 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  metaValue: { fontSize: 14, fontWeight: "600", color: "#111", marginTop: 4 },
+  metaValue: { fontSize: 14, fontWeight: "600", color: "#111", marginTop: 4, textAlign: "center" },
+  metaPillPlaceholder: {
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    borderStyle: "dashed",
+    backgroundColor: "#fff",
+  },
+  metaValuePlaceholder: {
+    color: "#999",
+    fontStyle: "italic",
+  },
   description: {
     fontSize: 14,
     color: "#333",
     lineHeight: 20,
   },
-  attributeRow: {
-    flexDirection: "row",
-    columnGap: 16,
+  tagsSection: {
+    marginTop: 16,
   },
-  attributeBlock: { flex: 1 },
-  attributeLabel: {
+  tagsLabel: {
     fontSize: 12,
     color: "#999",
     textTransform: "uppercase",
     letterSpacing: 0.5,
+    marginBottom: 8,
   },
-  attributeValue: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginTop: 4,
-  },
-  colorsRow: {
+  tagsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
-  colorChip: {
+  tagChip: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "#f0f0f0",
-    fontSize: 12,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  tagText: {
+    fontSize: 13,
+    color: "#666",
+    fontWeight: "500",
+  },
+  infoSection: {
+    rowGap: 4,
+  },
+  infoHeading: {
+    fontSize: 13,
     fontWeight: "600",
-    color: "#333",
+    color: "#666",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  infoText: {
+    fontSize: 13,
+    color: "#444",
   },
   sectionHeading: {
     fontSize: 16,
@@ -578,6 +1065,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
     columnGap: 12,
+  },
+  sellerInfoDisabled: {
+    opacity: 0.5,
   },
   sellerAvatar: {
     width: 48,
@@ -613,6 +1103,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
+  ownerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "#f4f4f4",
+  },
+  ownerBadgeText: {
+    fontSize: 12,
+    color: "#666",
+    fontWeight: "600",
+  },
   bottomBar: {
     position: "absolute",
     left: 0,
@@ -643,6 +1147,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#111",
+  },
+  secondaryButtonDisabled: {
+    backgroundColor: "#f5f5f5",
+    opacity: 0.6,
+  },
+  secondaryTextDisabled: {
+    color: "#999",
   },
   primaryButton: {
     flex: 1,
@@ -793,5 +1304,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     textAlign: "center",
+  },
+  ownListingMessage: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 16,
+  },
+  ownListingText: {
+    fontSize: 16,
+    color: "#666",
+    fontStyle: "italic",
   },
 });

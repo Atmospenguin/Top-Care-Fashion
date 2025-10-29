@@ -1341,12 +1341,17 @@ select
 
 -- 12) landing_content
 insert into
-  landing_content (id, hero_title, hero_subtitle, updated_at)
+  landing_content (id, hero_title, hero_subtitle, feature_cards, updated_at)
 values
   (
     1,
     'Discover outfits powered by AI',
     'Mix & Match is an AI outfit recommender that builds looks from listed items. Snap, list, and get smart suggestions instantly.',
+    '[
+      {"title":"Mix & Match","desc":"AI outfit recommendations from your listed items.","images":[]},
+      {"title":"AI Listing","desc":"Auto-generate titles, tags and descriptions from photos.","images":[]},
+      {"title":"Search","desc":"Natural language and image-based search to find pieces fast.","images":[]}
+    ]'::jsonb,
     now()
   )
 on conflict (id) do nothing;

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Image,
   ScrollView,
@@ -6,18 +6,22 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Alert,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type {
   CompositeNavigationProp,
   NavigatorScreenParams,
 } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RouteProp } from "@react-navigation/native";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { MyTopStackParamList } from "./index";
 import type { RootStackParamList } from "../../../App";
 import type { PremiumStackParamList } from "../PremiumStack";
+import { listingsService } from "../../../src/services/listingsService";
+import type { ListingItem } from "../../../src/types/shop";
 
 export default function ManageListingScreen() {
   const navigation = useNavigation<
@@ -26,15 +30,115 @@ export default function ManageListingScreen() {
       NativeStackNavigationProp<RootStackParamList>
     >
   >();
+  const route = useRoute<RouteProp<MyTopStackParamList, "ManageListing">>();
+
+  const [listing, setListing] = useState<ListingItem | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // ✅ 获取listing数据
+  useEffect(() => {
+    const fetchListing = async () => {
+      try {
+        const listingId = route.params?.listingId;
+        if (!listingId) {
+          Alert.alert("Error", "No listing ID provided");
+          navigation.goBack();
+          return;
+        }
+
+        console.log("📖 Fetching listing for management:", listingId);
+        const listingData = await listingsService.getListingById(listingId);
+        
+        if (listingData) {
+          setListing(listingData);
+          console.log("✅ Listing loaded for management:", listingData.title);
+        } else {
+          Alert.alert("Error", "Listing not found");
+          navigation.goBack();
+        }
+      } catch (error) {
+        console.error("❌ Error fetching listing:", error);
+        Alert.alert("Error", "Failed to load listing");
+        navigation.goBack();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchListing();
+  }, [route.params?.listingId, navigation]);
+
+  // ✅ 处理编辑listing
+  const handleEditListing = () => {
+    if (listing) {
+      navigation.navigate("EditListing", { listingId: listing.id });
+    }
+  };
+
+  // ✅ 处理标记为已售
+  const handleMarkAsSold = () => {
+    if (!listing) return;
+    
+    Alert.alert(
+      "Mark as Sold",
+      "Are you sure you want to mark this item as sold?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Mark as Sold",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await listingsService.updateListing(listing.id, { sold: true, listed: false });
+              Alert.alert("Success", "Item marked as sold");
+              navigation.goBack();
+            } catch (error) {
+              console.error("❌ Error marking as sold:", error);
+              Alert.alert("Error", "Failed to mark as sold");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // ✅ 处理删除listing
+  const handleDeleteListing = () => {
+    if (!listing) return;
+    
+    Alert.alert(
+      "Delete Listing",
+      "Are you sure you want to delete this listing? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await listingsService.deleteListing(listing.id);
+              Alert.alert("Success", "Listing deleted successfully");
+              navigation.goBack();
+            } catch (error) {
+              console.error("❌ Error deleting listing:", error);
+              Alert.alert("Error", "Failed to delete listing");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // ✅ 处理预览listing
+  const handlePreviewListing = () => {
+    if (listing) {
+      navigation.navigate("ActiveListingDetail", { listingId: listing.id });
+    }
+  };
 
   const promotionPlansRoute: NavigatorScreenParams<PremiumStackParamList> = {
     screen: "PromotionPlans",
   };
-
-  // 复用同一条 Listing 的关键信息（与详情一致）
-  const thumb =
-    "https://th.bing.com/th/id/OIP.S07mGFGvwi2ldQARRcy0ngHaJ4?w=138&h=190&c=7&r=0&o=7&cb=12&dpr=2&pid=1.7&rm=3";
-  const price = 35;
 
   // 模拟数据（你确认过的数字）
   const performance = {
@@ -43,6 +147,28 @@ export default function ManageListingScreen() {
     views: 178,
     clicks: 32,
   };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <Header title="Listing" showBack />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!listing) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <Header title="Listing" showBack />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Listing not found</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -53,12 +179,19 @@ export default function ManageListingScreen() {
         <TouchableOpacity
           style={styles.topCard}
           activeOpacity={0.8}
-          onPress={() => navigation.navigate("ActiveListingDetail")}
+          onPress={handlePreviewListing}
         >
-          <Image source={{ uri: thumb }} style={styles.thumb} />
+          <Image 
+            source={{ 
+              uri: listing.images && listing.images.length > 0 
+                ? listing.images[0] 
+                : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image"
+            }} 
+            style={styles.thumb} 
+          />
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Text style={styles.topPrice}>${price}</Text>
+              <Text style={styles.topPrice}>${listing.price}</Text>
               <Icon name="create-outline" size={16} color="#6b6b6b" />
             </View>
             <Text style={styles.previewText}>Preview listing</Text>
@@ -114,7 +247,7 @@ export default function ManageListingScreen() {
 
           <TouchableOpacity
             style={styles.rowItem}
-            onPress={() => navigation.navigate("EditListing")}
+            onPress={handleEditListing}
           >
             <Text style={styles.rowText}>Edit Listing</Text>
             <Icon name="chevron-forward" size={18} color="#999" />
@@ -125,16 +258,16 @@ export default function ManageListingScreen() {
             <Icon name="chevron-forward" size={18} color="#999" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.rowItem} onPress={() => {}}>
+          <TouchableOpacity style={styles.rowItem} onPress={handleMarkAsSold}>
             <Text style={styles.rowText}>Mark as Sold</Text>
             <Icon name="chevron-forward" size={18} color="#999" />
           </TouchableOpacity>
         </View>
       </ScrollView>
 
-      {/* 底部删除（静态） */}
+      {/* 底部删除 */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.deleteBtn} onPress={() => {}}>
+        <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteListing}>
           <Text style={styles.deleteText}>Delete Listing</Text>
         </TouchableOpacity>
       </View>
@@ -143,6 +276,15 @@ export default function ManageListingScreen() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#666",
+  },
   topCard: {
     marginTop: 8,
     marginHorizontal: 16,

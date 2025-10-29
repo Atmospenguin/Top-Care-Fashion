@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,11 +7,14 @@ import {
   FlatList,
   TouchableOpacity,
   Modal,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { MyTopStackParamList } from "./index";
+import { ordersService, Order, OrderStatus } from "../../../src/services";
 import { SOLD_GRID_ITEMS } from "../../../mocks/shop";
 
 // Ensure three-column grid alignment
@@ -30,22 +33,93 @@ function formatData(data: any[], numColumns: number) {
 }
 
 export default function SoldTab() {
-  const [filter, setFilter] = useState("All");
+  const [filter, setFilter] = useState<OrderStatus | "All">("All");
   const [modalVisible, setModalVisible] = useState(false);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const filterLabels: Record<string, string> = {
     All: "All",
-    ToShip: "To Ship",
-    InTransit: "In Transit",
-    Cancelled: "Cancelled",
-    Completed: "Completed",
+    TO_SHIP: "To Ship",
+    SHIPPED: "In Transit",
+    CANCELLED: "Cancelled",
+    COMPLETED: "Completed",
+    REVIEWED: "Reviewed",
   };
 
   const navigation =
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
 
+  // Load sold orders from API
+  useEffect(() => {
+    const loadSoldOrders = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const response = await ordersService.getSoldOrders();
+        setOrders(response.orders);
+      } catch (err) {
+        console.error("Error loading sold orders:", err);
+        setError(err instanceof Error ? err.message : "Failed to load orders");
+        
+        // Fallback to mock data
+        const mockOrders: Order[] = SOLD_GRID_ITEMS.map((item, index) => ({
+          id: parseInt(item.id) || index + 1,
+          buyer_id: 2,
+          seller_id: 1,
+          listing_id: index + 1,
+          status: mapMockStatusToApiStatus(item.status),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          buyer: {
+            id: 2,
+            username: "Buyer",
+            avatar_url: undefined,
+          },
+          seller: {
+            id: 1,
+            username: "You",
+            avatar_url: undefined,
+          },
+          listing: {
+            id: index + 1,
+            name: `Product ${index + 1}`,
+            description: "",
+            price: 0,
+            image_url: item.image,
+            image_urls: [item.image],
+            brand: "",
+            size: "",
+            condition_type: "GOOD",
+          },
+          reviews: [],
+        }));
+        setOrders(mockOrders);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSoldOrders();
+  }, []);
+
+  // Helper function to map mock status to API status
+  function mapMockStatusToApiStatus(mockStatus: string): OrderStatus {
+    switch (mockStatus) {
+      case "ToShip": return "TO_SHIP";
+      case "InTransit": return "SHIPPED";
+      case "Cancelled": return "CANCELLED";
+      case "Completed": return "COMPLETED";
+      case "Reviewed": return "REVIEWED";
+      default: return "TO_SHIP";
+    }
+  }
+
   // Filter data based on status
-  const filtered = SOLD_GRID_ITEMS.filter((item) =>
-    filter === "All" ? true : item.status === filter
+  const filtered = orders.filter((order) =>
+    filter === "All" ? true : order.status === filter
   );
 
   return (
@@ -77,39 +151,80 @@ export default function SoldTab() {
               }}
             >
               <Picker.Item label="All" value="All" />
-              <Picker.Item label="To Ship" value="ToShip" />
-              <Picker.Item label="In Transit" value="InTransit" />
-              <Picker.Item label="Cancelled" value="Cancelled" />
-              <Picker.Item label="Completed" value="Completed" />
+              <Picker.Item label="To Ship" value="TO_SHIP" />
+              <Picker.Item label="In Transit" value="SHIPPED" />
+              <Picker.Item label="Cancelled" value="CANCELLED" />
+              <Picker.Item label="Completed" value="COMPLETED" />
+              <Picker.Item label="Reviewed" value="REVIEWED" />
             </Picker>
           </View>
         </View>
       </Modal>
 
+      {/* Loading state */}
+      {loading && (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#000" />
+          <Text style={{ marginTop: 10 }}>Loading orders...</Text>
+        </View>
+      )}
+
+      {/* Error state */}
+      {error && !loading && (
+        <View style={styles.centered}>
+          <Text style={{ color: "red", textAlign: "center", marginBottom: 10 }}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryBtn}
+            onPress={() => {
+              setError(null);
+              setLoading(true);
+              // Trigger reload
+              setOrders([]);
+            }}
+          >
+            <Text style={styles.retryBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Empty state */}
+      {!loading && !error && filtered.length === 0 && (
+        <View style={styles.emptyBox}>
+          <Text style={styles.emptyText}>
+            You haven't sold anything yet.{"\n"}List items to start selling!
+          </Text>
+        </View>
+      )}
+
       {/* Item grid */}
-      <FlatList
-        data={formatData(filtered, 3)}
-        keyExtractor={(item) => item.id}
-        numColumns={3}
-        renderItem={({ item }) =>
-          item.empty ? (
-            <View style={[styles.item, styles.itemInvisible]} />
-          ) : (
-            <TouchableOpacity
-              style={styles.item}
-              onPress={() => {
-                if (!item.id) return;
-                navigation.navigate("OrderDetail", { id: item.id, source: "sold" });
-              }}
-            >
-              <Image source={{ uri: item.image }} style={styles.image} />
-              <View style={styles.overlay}>
-                <Text style={styles.overlayText}>SOLD</Text>
-              </View>
-            </TouchableOpacity>
-          )
-        }
-      />
+      {!loading && !error && filtered.length > 0 && (
+        <FlatList
+          data={formatData(filtered, 3)}
+          keyExtractor={(item) => item.id.toString()}
+          numColumns={3}
+          renderItem={({ item }) =>
+            item.empty ? (
+              <View style={[styles.item, styles.itemInvisible]} />
+            ) : (
+              <TouchableOpacity
+                style={styles.item}
+                onPress={() => {
+                  if (!item.id) return;
+                  navigation.navigate("OrderDetail", { id: item.id.toString(), source: "sold" });
+                }}
+              >
+                <Image 
+                  source={{ uri: item.listing?.image_url || item.listing?.image_urls?.[0] || "https://via.placeholder.com/100x100" }} 
+                  style={styles.image} 
+                />
+                <View style={styles.overlay}>
+                  <Text style={styles.overlayText}>SOLD</Text>
+                </View>
+              </TouchableOpacity>
+            )
+          }
+        />
+      )}
     </View>
   );
 }
@@ -136,6 +251,36 @@ const styles = StyleSheet.create({
   },
   modalBox: {
     backgroundColor: "#fff",
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  retryBtn: {
+    backgroundColor: "#000",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryBtnText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  emptyBox: {
+    marginTop: 10,
+    marginHorizontal: 16,
+    backgroundColor: "#E6F0FF",
+    borderRadius: 12,
+    padding: 20,
+    alignItems: "center",
+  },
+  emptyText: { 
+    textAlign: "center", 
+    color: "#555",
+    fontSize: 16,
+    lineHeight: 22,
   },
   item: {
     flex: 1,
