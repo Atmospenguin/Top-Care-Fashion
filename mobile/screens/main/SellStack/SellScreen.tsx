@@ -25,7 +25,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { SellStackParamList } from "./SellStackNavigator";
 import { listingsService, type CreateListingRequest } from "../../../src/services/listingsService";
 import { useAutoClassify } from "../../../src/hooks/useAutoClassify";
-import { ClassifyResponse } from "../../../src/services/aiService";
+import { ClassifyResponse, checkImagesSFW } from "../../../src/services/aiService";
 
 /** --- Options (7 categories, plural where appropriate for UI) --- */
 export const CATEGORY_OPTIONS = [
@@ -228,6 +228,9 @@ export default function SellScreen({
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
+  // Moderation state
+  const [moderationChecking, setModerationChecking] = useState(false);
+
   /** ---------- 🧠 AI hook integration ---------- */
   const aiUris = React.useMemo(() => photos.map(p => p.localUri), [photos]);
   const {
@@ -256,7 +259,7 @@ export default function SellScreen({
     [aiItems]
   );
 
-  // 🔁 Auto-update Category from AI (best confidence), unless user has chosen manually
+  // 🔁 Auto-update Category from best AI (unless user has chosen manually)
   useEffect(() => {
     if (userPickedCategory) return;
     const candidates = aiItems
@@ -265,8 +268,6 @@ export default function SellScreen({
 
     if (!candidates.length) return;
     const best = candidates.reduce((a, b) => ((b.confidence ?? 0) > (a.confidence ?? 0) ? b : a));
-
-    // backend likely returns canonical (singular) here → map to UI (plural)
     const mapped = mapToUICategory(best.category);
     if (mapped && CATEGORY_OPTIONS.includes(mapped) && mapped !== category) {
       setCategory(mapped);
@@ -292,6 +293,7 @@ export default function SellScreen({
     return true;
   };
 
+  /** Selection pipeline with SFW moderation (one gate for all chosen images) */
   const processSelectedAssets = async (assets: ImagePicker.ImagePickerAsset[]) => {
     if (!assets.length) return;
 
@@ -309,37 +311,50 @@ export default function SellScreen({
       );
     }
 
-    for (const asset of assetsToUse) {
-      try {
-        const manipulatedImage = await ImageManipulator.manipulateAsync(
-          asset.uri,
-          [],
-          { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
-        );
+    try {
+      // 1) Convert all to JPEG & collect URIs
+      const prepared = await Promise.all(
+        assetsToUse.map(async (asset) => {
+          const img = await ImageManipulator.manipulateAsync(
+            asset.uri,
+            [],
+            { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
+          );
+          return img.uri;
+        })
+      );
 
+      // 2) Run SafeSearch pre-upload moderation once for the batch
+      setModerationChecking(true);
+      const safe = await checkImagesSFW(prepared);
+      setModerationChecking(false);
+
+      if (!safe.allowAll) {
+        const firstBad = safe.results.find(r => !r.allow);
+        const reason = firstBad?.reasons?.join(", ") || "policy";
+        Alert.alert("Content Warning", `Some photos may be NSFW (${reason}). Please choose different photos.`);
+        return; // 🚫 stop here
+      }
+
+      // 3) SFW → add to UI and upload to storage
+      for (const localUri of prepared) {
         const tempId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-        setPhotos((prev) => [
-          ...prev,
-          { id: tempId, localUri: manipulatedImage.uri, uploading: true },
-        ]);
-
+        setPhotos((prev) => [...prev, { id: tempId, localUri, uploading: true }]);
         try {
-          const remoteUrl = await listingsService.uploadListingImage(manipulatedImage.uri);
+          const remoteUrl = await listingsService.uploadListingImage(localUri);
           setPhotos((prev) =>
-            prev.map((photo) =>
-              photo.id === tempId ? { ...photo, remoteUrl, uploading: false } : photo
-            )
+            prev.map((p) => (p.id === tempId ? { ...p, remoteUrl, uploading: false } : p))
           );
         } catch (error) {
           console.error("Photo upload failed:", error);
-          setPhotos((prev) => prev.filter((photo) => photo.id !== tempId));
+          setPhotos((prev) => prev.filter((p) => p.id !== tempId));
           Alert.alert("Upload failed", "We couldn't upload that photo. Please try again.");
         }
-      } catch (error) {
-        console.error("Image processing failed:", error);
-        Alert.alert("Error", "We couldn't process that photo. Please try again.");
       }
+    } catch (error) {
+      setModerationChecking(false);
+      console.error("Selection pipeline failed:", error);
+      Alert.alert("Error", "We couldn't process those photos. Please try again.");
     }
   };
 
@@ -454,7 +469,6 @@ export default function SellScreen({
   const handleReclassifyAll = () => {
     if (!photos.length) return;
     requeueAll();
-    // kick the worker if not already running
     setTimeout(() => aiStart(), 0);
   };
 
@@ -623,6 +637,19 @@ export default function SellScreen({
     }
   };
 
+  /** ---------- Derived “one bubble” AI summary ---------- */
+  const bestAI: ClassifyResponse | null = React.useMemo(() => {
+    const candidates = aiItems
+      .map(i => i.classification)
+      .filter((c): c is ClassifyResponse => !!c?.category);
+    if (!candidates.length) return null;
+    return candidates.reduce((a, b) => ((b.confidence ?? 0) > (a.confidence ?? 0) ? b : a));
+  }, [aiItems]);
+
+  const uiBestCategory = bestAI ? (mapToUICategory(bestAI.category) ?? bestAI.category) : null;
+  const topLabels = bestAI?.labels?.slice(0, 6) ?? [];
+  const bestConfPct = bestAI?.confidence != null ? Math.round(bestAI.confidence * 100) : null;
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header
@@ -651,6 +678,12 @@ export default function SellScreen({
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.photoRow}
           >
+            {moderationChecking && (
+              <View style={{ paddingVertical: 8, paddingRight: 12 }}>
+                <ActivityIndicator />
+              </View>
+            )}
+
             {photos.length < PHOTO_LIMIT && (
               <TouchableOpacity style={styles.photoBox} onPress={handleAddPhoto}>
                 <Icon name="add" size={24} color="#999" />
@@ -663,7 +696,6 @@ export default function SellScreen({
               const info = findAI(photo.localUri);
               const isBusy =
                 aiRunning && (info?.status === "classifying" || info?.status === "describing");
-              const cls = info?.classification;
 
               return (
                 <View key={photo.id} style={styles.photoColumn}>
@@ -690,62 +722,76 @@ export default function SellScreen({
                     )}
                   </TouchableOpacity>
 
-                  {/* AI info */}
-                  <View style={styles.aiInfoBox}>
-                    {isBusy && (
-                      <View style={{ flexDirection: "row", alignItems: "center", columnGap: 6 }}>
-                        <ActivityIndicator />
-                        <Text>
-                          {info?.status === "classifying" && "Classifying…"}
-                          {info?.status === "describing" && "Describing…"}
-                        </Text>
-                      </View>
-                    )}
-
-                    {!isBusy && info?.status === "error" && (
-                      <Text style={{ color: "red" }} numberOfLines={2}>
-                        AI error: {info.error}
+                  {/* per-photo busy/error (compact) */}
+                  {isBusy && (
+                    <View style={{ marginTop: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <ActivityIndicator />
+                      <Text style={{ fontSize: 12 }}>
+                        {info?.status === "classifying" ? "Classifying…" : "Describing…"}
                       </Text>
-                    )}
-
-                    {!isBusy && info?.status === "done" && cls && (
-                      <View>
-                        <Text style={{ fontWeight: "700" }} numberOfLines={1}>
-                          {/* Show UI category equivalent for clarity */}
-                          {mapToUICategory(cls.category) ?? cls.category}
-                        </Text>
-                        {typeof cls.confidence === "number" && (
-                          <View style={{ marginTop: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: "#E8F5E9" }}>
-                            <Text style={{ fontSize: 12, fontWeight: "600", color: "#1B5E20" }}>
-                              {Math.round(cls.confidence * 100)}%
-                            </Text>
-                          </View>
-                        )}
-                        {Array.isArray(cls.labels) && cls.labels.length > 0 && (
-                          <View style={styles.labelChipsRow}>
-                            {cls.labels.slice(0, 6).map((label) => (
-                              <View key={label} style={styles.labelChip}>
-                                <Text style={styles.labelChipText}>{label}</Text>
-                              </View>
-                            ))}
-                          </View>
-                        )}
-                      </View>
-                    )}
-                  </View>
+                    </View>
+                  )}
+                  {!isBusy && info?.status === "error" && (
+                    <Text style={{ color: "#B00020", marginTop: 6 }} numberOfLines={2}>
+                      AI error: {info.error}
+                    </Text>
+                  )}
                 </View>
               );
             })}
           </ScrollView>
 
+          {/* 🔵 ONE consolidated AI bubble under the image row */}
+          {(aiRunning || bestAI) && (
+            <View style={styles.aiBubbleWrapOne}>
+              <View style={styles.aiBubbleOne}>
+                {aiRunning && !bestAI && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <ActivityIndicator />
+                    <Text style={{ fontWeight: "600" }}>Analyzing photos…</Text>
+                  </View>
+                )}
+
+                {bestAI && (
+                  <View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <Icon name="sparkles" size={16} color="#5B21B6" />
+                      <Text style={styles.aiBubbleTitle}>
+                        Best match: {uiBestCategory}
+                      </Text>
+                    </View>
+
+                    {bestConfPct !== null && (
+                      <View style={styles.confBar}>
+                        <View style={[styles.confFill, { width: `${Math.min(100, Math.max(0, bestConfPct))}%` }]} />
+                        <Text style={styles.confText}>{bestConfPct}%</Text>
+                      </View>
+                    )}
+
+                    {!!topLabels.length && (
+                      <View style={styles.labelChipsRow}>
+                        {topLabels.map((label) => (
+                          <View key={label} style={styles.labelChip}>
+                            <Text style={styles.labelChipText}>{label}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+              <View style={styles.aiBubbleTailOne} />
+            </View>
+          )}
+
           {/* ⬇️ Single global reclassify button (aligned under the padded photo row) */}
           <View style={styles.reclassifyAllWrap}>
             <TouchableOpacity
               onPress={handleReclassifyAll}
-              disabled={aiRunning || photos.length === 0}
+              disabled={moderationChecking || aiRunning || photos.length === 0}
               style={[
                 styles.reclassifyAllBtn,
-                (aiRunning || photos.length === 0) && { opacity: 0.6 },
+                (moderationChecking || aiRunning || photos.length === 0) && { opacity: 0.6 },
               ]}
             >
               {aiRunning ? (
@@ -807,11 +853,11 @@ export default function SellScreen({
               <Text style={{ marginBottom: 8 }}>{aiDesc}</Text>
 
               <View style={styles.aiActionRow}>
-                <TouchableOpacity style={styles.useSmallBtn} onPress={() => setDescription(aiDesc!)}>
+                <TouchableOpacity style={styles.useSmallBtn} onPress={() => {
+                  if (aiDesc) setDescription(aiDesc);
+                  setAiDesc(null);
+                  }}>
                   <Text style={{ color: "#fff", fontWeight: "600" }}>Use description</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={generateDescription}>
-                  <Icon name="shuffle" size={20} color="#5B21B6" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -1245,7 +1291,7 @@ function TagPickerModal({
             value={customTag}
             onChangeText={setCustomTag}
           />
-        <TouchableOpacity
+          <TouchableOpacity
             style={styles.customTagAddBtn}
             onPress={() => {
               addTag(customTag.trim());
@@ -1270,7 +1316,7 @@ const styles = StyleSheet.create({
 
   photoRow: {
     paddingVertical: 4,
-    paddingHorizontal: 16, // align with button below
+    paddingHorizontal: 16, // align with button/bubble below
     alignItems: "flex-start",
   },
   photoColumn: {
@@ -1319,24 +1365,74 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  aiInfoBox: {
-    marginTop: 6,
-    padding: 6,
-    borderRadius: 8,
-    backgroundColor: "#fafafa",
-    minHeight: 74,
-    justifyContent: "center",
+  /* ONE AI speech bubble (consolidated) */
+  aiBubbleWrapOne: {
+    marginTop: 8,
+    marginBottom: 4,
+    paddingHorizontal: 16,
+    alignItems: "flex-start",
   },
+  aiBubbleOne: {
+    backgroundColor: "#F6F6FF",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#E2E2F5",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    width: "100%",
+  },
+  aiBubbleTailOne: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 10,
+    borderRightWidth: 10,
+    borderTopWidth: 12,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: "#F6F6FF",
+    marginLeft: 26,
+  },
+  aiBubbleTitle: { fontWeight: "700", color: "#111" },
+
+  confBar: {
+    height: 18,
+    borderRadius: 999,
+    backgroundColor: "#EEE",
+    overflow: "hidden",
+    justifyContent: "center",
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  confFill: {
+    ...StyleSheet.absoluteFillObject,
+    width: "0%",
+    backgroundColor: "#5B21B6",
+    borderRadius: 999,
+  },
+  confText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#fff",
+    textAlign: "center",
+  },
+
   labelChipsRow: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 },
-  labelChip: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 999, backgroundColor: "#eee", marginRight: 4, marginBottom: 4 },
-  labelChipText: { fontSize: 11 },
+  labelChip: {
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    backgroundColor: "#eee",
+    marginRight: 6,
+    marginBottom: 6,
+  },
+  labelChipText: { fontSize: 12 },
 
   /* Global reclassify button under photos */
   reclassifyAllWrap: {
     marginTop: 8,
     marginBottom: 12,
     width: "100%",
-    paddingHorizontal: 16, // match row padding
+    paddingHorizontal: 16, // match row/bubble padding
   },
   reclassifyAllBtn: {
     backgroundColor: "#111",
