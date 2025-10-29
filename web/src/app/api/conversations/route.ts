@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 
@@ -10,11 +9,6 @@ if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
 
 // 🔧 获取 TOP Support 用户 ID
 const SUPPORT_USER_ID = Number(process.env.SUPPORT_USER_ID) || 59;
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 // GET /api/conversations - 获取当前用户的所有对话
 export async function GET(request: NextRequest) {

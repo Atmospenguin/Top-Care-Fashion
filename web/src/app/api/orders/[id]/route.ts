@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { verifyLegacyToken } from '@/lib/jwt';
 import { createSupabaseServer } from '@/lib/supabase';
@@ -379,7 +378,6 @@ export async function PATCH(
     try {
       const isSeller = currentUser.id === existingOrder.seller_id;
       const targetUserId = isSeller ? existingOrder.buyer_id : existingOrder.seller_id;
-      const targetUser = isSeller ? existingOrder.buyer : existingOrder.seller;
 
       // 🔥 查找正确的 conversation
       const conversation = await prisma.conversations.findFirst({
@@ -478,7 +476,6 @@ export async function PATCH(
         try {
           // 🔥 根据状态生成统一的系统消息内容（前端会动态转换显示）
           let systemMessage = '';
-          let messageStatus = status;
           
           switch (status) {
             case 'SHIPPED':
@@ -491,7 +488,6 @@ export async function PATCH(
             case 'COMPLETED':
               // ✅ 统一使用 COMPLETED 作为状态
               systemMessage = 'Order confirmed received. Transaction completed.';
-              messageStatus = 'COMPLETED';
               break;
             case 'CANCELLED':
               systemMessage = '@User cancelled the order.';
@@ -507,8 +503,6 @@ export async function PATCH(
               conversationId: conversation.id,
               senderId: currentUser.id,
               receiverId: targetUserId,
-              orderId: orderId,
-              status: messageStatus,
               content: systemMessage,
               actorName: actorName,
             });

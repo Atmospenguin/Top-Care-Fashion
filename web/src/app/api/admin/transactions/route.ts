@@ -20,6 +20,7 @@ export async function GET() {
           brand: true,
           size: true,
           condition_type: true,
+          price: true,
         },
       },
     },

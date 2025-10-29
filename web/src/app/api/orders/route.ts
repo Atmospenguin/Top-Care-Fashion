@@ -486,8 +486,6 @@ export async function POST(request: NextRequest) {
         conversationId: conversation.id,
         senderId: currentUser.id,
         receiverId: sellerId,
-        orderId: order.id,
-        status: 'PAID',
         content: "@Buyer has paid for the order.\nPlease pack the item and ship to the address provided on TOP.",
         actorName: currentUser.username
       });

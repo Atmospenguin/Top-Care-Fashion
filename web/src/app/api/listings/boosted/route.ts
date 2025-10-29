@@ -56,7 +56,7 @@ function coerceArray(value: unknown): string[] {
       if (Array.isArray(parsed)) {
         return parsed.filter((item): item is string => typeof item === "string" && item.length > 0);
       }
-    } catch (_err) {
+    } catch {
       if (value.startsWith("http")) {
         return [value];
       }
@@ -83,7 +83,7 @@ function toIso(value: Date | null): string | null {
   }
   try {
     return value.toISOString();
-  } catch (_err) {
+  } catch {
     return null;
   }
 }

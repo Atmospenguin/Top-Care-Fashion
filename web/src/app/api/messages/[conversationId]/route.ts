@@ -314,7 +314,7 @@ export async function GET(
             if (typeof imageUrls === 'string') {
               try {
                 imageUrls = JSON.parse(imageUrls);
-              } catch (e) {
+              } catch {
                 imageUrls = null;
               }
             }
@@ -370,11 +370,11 @@ export async function GET(
             // 🔥 处理image_urls字段 - 可能是JSON字符串或数组
             let imageUrls = conversation.listing.image_urls;
             if (typeof imageUrls === 'string') {
-              try {
-                imageUrls = JSON.parse(imageUrls);
-              } catch (e) {
-                imageUrls = null;
-              }
+          try {
+            imageUrls = JSON.parse(imageUrls);
+          } catch {
+            imageUrls = null;
+          }
             }
             
             if (Array.isArray(imageUrls) && imageUrls.length > 0) {
@@ -420,7 +420,7 @@ export async function POST(
     if (!sessionUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const dbUser = { id: sessionUser.id, username: sessionUser.username } as const;
 
-    const { content, message_type = "TEXT", sentByUser } = await request.json();
+    const { content, message_type = "TEXT" } = await request.json();
     
     console.log("📥 Received message:", { content, message_type, conversationId: rawId });
     
@@ -504,7 +504,7 @@ export async function POST(
     if (!sessionUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const dbUser = { id: sessionUser.id, username: sessionUser.username } as const;
 
-    const { content, message_type = "TEXT", sentByUser } = await request.json();
+    const { content, message_type = "TEXT" } = await request.json();
     
     console.log("📥 Received message (regular conversation):", { content, message_type, conversationId });
 

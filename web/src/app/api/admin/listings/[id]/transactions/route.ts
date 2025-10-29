@@ -15,6 +15,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
     include: {
       buyer: { select: { username: true } },
       seller: { select: { username: true } },
+      listing: { select: { price: true } },
     },
     orderBy: { created_at: "desc" },
   });

@@ -3,17 +3,6 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
-const defaultRawFiles = [
-  "Cart.png",
-  "Listing Detail.png",
-  "Mix & Match.png",
-  "Search Result.png",
-  "Sell.png",
-  "Shop.png",
-  "View User Detail.png",
-  "View User Reviews.png",
-];
-
 export default function AppScreensCarousel({
   intervalMs = 4000,
   className = "",

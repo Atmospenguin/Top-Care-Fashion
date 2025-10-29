@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getConnection, parseJson, toBoolean, toNumber } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 
-type TagList = string[];
-
 type ImageList = string[];
 
 const LISTING_SELECT = `

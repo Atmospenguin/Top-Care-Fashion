@@ -66,7 +66,6 @@ export async function GET(
 
     // 判断用户角色
     const isBuyer = order.buyer_id === currentUser.id;
-    const isSeller = order.seller_id === currentUser.id;
 
     // 返回评论状态
     return NextResponse.json({

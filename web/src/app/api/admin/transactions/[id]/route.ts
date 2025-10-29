@@ -24,6 +24,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
           brand: true,
           size: true,
           condition_type: true,
+          price: true,
         },
       },
     },

@@ -56,7 +56,7 @@ export async function GET(
       title: notification.title,
       message: notification.message,
       image: notification.image_url || notification.related_user?.avatar_url,
-      time: formatTime(notification.created_at),
+      time: notification.created_at ? formatTime(notification.created_at) : null,
       isRead: notification.is_read,
       orderId: notification.order_id,
       listingId: notification.listing_id?.toString(),

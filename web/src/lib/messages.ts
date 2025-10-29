@@ -8,15 +8,10 @@ export async function postSystemMessageOnce(params: {
   conversationId: number;
   senderId: number;
   receiverId: number;
-  orderId: number;
-  status: string;
   content: string;
   actorName?: string;
 }) {
-  const { conversationId, senderId, receiverId, orderId, status, content, actorName } = params;
-  
-  // Create idempotency key: orderId + ":" + status
-  const idempotencyKey = `${orderId}:${status}`;
+  const { conversationId, senderId, receiverId, content, actorName } = params;
   
   // Replace placeholders in content with actual actor name
   let finalContent = content;
@@ -25,21 +20,25 @@ export async function postSystemMessageOnce(params: {
   }
   
   try {
-    const message = await prisma.messages.upsert({
+    const existing = await prisma.messages.findFirst({
       where: {
-        idempotencyKey: idempotencyKey,
-      },
-      update: {
-        // If exists, update the content (in case message text changed)
+        conversation_id: conversationId,
+        message_type: 'SYSTEM',
         content: finalContent,
       },
-      create: {
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    const message = await prisma.messages.create({
+      data: {
         conversation_id: conversationId,
         sender_id: senderId,
         receiver_id: receiverId,
         content: finalContent,
         message_type: 'SYSTEM',
-        idempotencyKey: idempotencyKey,
       },
     });
     

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 
 // GET /api/users/[username]/reviews - Get reviews for a user
@@ -8,7 +7,6 @@ export async function GET(
   { params }: { params: Promise<{ username: string }> }
 ) {
   try {
-    const currentUser = await getSessionUser(request);
     const resolvedParams = await params;
     const username = resolvedParams.username;
 
