@@ -13,8 +13,14 @@ export default function SignInPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setStatus("Signing in...");
+
+    
     try {
-      await signIn(email, password);
+
+      // Ensure email has no duplicate cases from db
+      const normalizedEmail = email.trim().toLowerCase();
+
+      await signIn(normalizedEmail, password);
       setStatus("Success");
       router.push("/");
     } catch (err: any) {
