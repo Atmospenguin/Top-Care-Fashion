@@ -34,16 +34,52 @@ function extractValidationErrors(error: unknown): string | null {
 }
 
 export async function POST(req: NextRequest) {
+  //ding cheng input
+  console.log("🟢 Register route called");
+
   const body = await req.json().catch(() => ({}));
   const { username, email, password, dob, gender } = body as Record<string, unknown>;
 
   const normalizedUsername = typeof username === "string" ? username.trim() : "";
-  const normalizedEmail = typeof email === "string" ? email.trim() : "";
+  //prevents duplicates of same email but diff lower and higher cases
+  const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
   const normalizedPassword = typeof password === "string" ? password : "";
 
   if (!normalizedUsername || !normalizedEmail || !normalizedPassword) {
     return NextResponse.json({ error: "missing fields" }, { status: 400 });
   }
+
+  console.log("📧 Email entered:", normalizedEmail);
+
+  //ding cheng input for verification of valid/invalid email
+  //I used regular expression(regex) for the email verification
+  //ensure that regex is the exact same as the backend
+  const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z][A-Za-z0-9.-]*\.[A-Za-z]{2,}$/;
+  
+  
+  //if statement to check if the entered email is true(valid) or false(invalid)
+  if (!emailRegex.test(normalizedEmail)) {
+  console.log("System detected invalid email format!");
+  return NextResponse.json({ error: "Invalid e-mail entered, pls re-enter" }, { status: 400 });
+}
+console.log("✅ The email entered has passed regex check");
+
+// add password length logic 
+if (normalizedPassword.length < 6) {
+    return NextResponse.json(
+      { error: "Password must be at least 6 characters long." },
+      { status: 400 }
+    );
+  }
+  // increase security of password logic
+  if (!/[A-Za-z]/.test(normalizedPassword) || !/\d/.test(normalizedPassword)) {
+    return NextResponse.json(
+      { error: "Password must include both letters and numbers." },
+      { status: 400 }
+    );
+  }
+
+
 
   const trimmedDob = typeof dob === "string" ? dob.trim() : "";
   let normalizedDob: string | null = null;
@@ -78,13 +114,25 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    //ding cheng input
+    // code to mitigate supabase bugs or duplication errors
     if (signUpError) {
+      console.error("signUp error from supabase:", signUpError.message);
+    // logic to ensure registered email cannot be used again
+    const msg = signUpError.message.toLowerCase();
+      if (msg.includes("already registered") || msg.includes("already exists")) {
+        return NextResponse.json({ error: "The email entered is already registered" }, { status: 409 });
+      }
+
       return NextResponse.json({ error: signUpError.message }, { status: 400 });
     }
 
     const supaUser = signUpData.user;
+
+    // mitigation of rare case of supabase bug of signup succeeding but no return 
     if (!supaUser) {
-      return NextResponse.json({ error: "Sign up failed" }, { status: 500 });
+      console.error(" no user returned from successfully signup from supabase ");
+      return NextResponse.json({ error: " detected irregular signup behavior, please retry again " }, { status: 500 });
     }
 
     const userGender = mapGenderIn(normalizedGender);
@@ -97,7 +145,8 @@ export async function POST(req: NextRequest) {
           role: UserRole.USER,
           status: UserStatus.ACTIVE,
           supabase_user_id: supaUser.id,
-          dob: normalizedDob ? new Date(normalizedDob) : undefined,
+          //ensure timezone has not bugs such as off-by-one
+         dob: normalizedDob ? new Date(`${normalizedDob}T00:00:00Z`) : undefined,
           gender: userGender ?? undefined,
         },
         select: {
@@ -137,6 +186,6 @@ export async function POST(req: NextRequest) {
     if (error instanceof NextResponse) return error;
     console.error("Register error:", error);
     const message = error instanceof Error ? error.message : "registration failed";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json({ error: message || "registration failed" }, { status: 400 });
   }
 }

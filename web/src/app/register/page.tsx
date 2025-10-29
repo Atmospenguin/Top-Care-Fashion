@@ -17,10 +17,41 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setStatus("Submitting...");
+
+    // ding cheng input
+
+    //switching between my backend input(true) and superbase(false) for testing
+    const USE_BACKEND = true;
+
+    // email format validation on front end
+
+    const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z][A-Za-z0-9.-]*\.[A-Za-z]{2,}$/;
+  if (!emailRegex.test(email)) {
+    setStatus("Invalid e-mail entered, pls re-enter a valid email");
+    return;
+  }
+
     try {
-      await signUp({ username, email, password, dob, gender: gender || undefined });
-      setStatus("Success! Redirecting...");
-      router.push("/");
+      if (USE_BACKEND) {
+        // posting registration request to dingcheng's backend
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, email, password, dob, gender }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Register failed");
+
+        setStatus("Success! Redirecting...");
+        router.push("/");
+      } else {
+
+        //  use Supabase code(false)
+        await signUp({ username, email, password, dob, gender: gender || undefined });
+        setStatus("Success! Redirecting...");
+        router.push("/");
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       setStatus(message);

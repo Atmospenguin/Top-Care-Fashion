@@ -17,6 +17,9 @@ export type User = {
 type AuthContextType = {
   user: User | null;
   isAuthenticated: boolean;
+  //ding cheng input
+  // add in new boolean isLoading to handle loading of page for session
+  isLoading: boolean;
   signUp: (data: { username: string; email: string; password: string; dob?: string; gender?: Gender }) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => void;
@@ -41,21 +44,35 @@ function normalizeGender(value: unknown): Gender | undefined {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  //ding cheng input
+  //this to prevent the user interface from entering between login and logout
+const [isLoading, setIsLoading] = useState(true);
+
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) setUser(JSON.parse(raw));
-    } catch {}
+    } catch (err) {
+      console.error("AuthContext: localStorage failed to read", err);
+    }
   }, []);
 
   // Hydrate from server session
   useEffect(() => {
+    //temporary test 
+    ////
+    console.log("AuthContext: Starting session hydration...");
     (async () => {
       try {
         const r = await fetch("/api/auth/me", { cache: "no-store" });
         const j = await r.json();
-        if (j.user) {
+        ////
+        console.log("/api/auth/me response:", j);
+
+        //ding cheng input
+        //ensure that frontend prevent crashes and remain in state of not being logined
+        if (j?.user?.username) {
           setUser({
             username: j.user.username,
             email: j.user.email,
@@ -64,8 +81,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             actor: j.user.role === "Admin" ? "Admin" : "User",
             isPremium: !!j.user.isPremium,
           });
+        } else {
+          setUser(null);
         }
-      } catch {}
+      } catch (err) {
+        console.error("AuthContext: hydration failed", err);
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+        console.log("🏁 AuthContext: Session hydration complete");
+      }
     })();
   }, []);
 
@@ -73,7 +98,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       if (user) localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
       else localStorage.removeItem(STORAGE_KEY);
-    } catch {}
+    } catch (err) {
+      //added to console to check write
+      console.error("Error from AuthContext: localStorage unable to write", err);
+    }
   }, [user]);
 
   const signUp: AuthContextType["signUp"] = async ({ username, email, password, dob, gender }) => {
@@ -82,8 +110,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, email, password, dob, gender }),
     });
-    if (!res.ok) throw new Error("Register failed");
     const j = await res.json();
+    //ding cheng input
+    // add || 
+    if (!res.ok) throw new Error(j.error || "Register failed");
+
     setUser({
       username: j.user.username,
       email: j.user.email,
@@ -100,27 +131,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
-    let j: any = null;
-    try {
-      j = await res.json();
-    } catch {}
-    if (!res.ok) {
-      const msg = (j && (j.error || j.message)) || "Invalid credentials";
-      throw new Error(msg);
+
+      //ding cheng input 
+      //
+
+     const j = await res.json();
+    if (!res.ok) throw new Error(j.error || "Invalid credentials");
+
+      //ding cheng input
+      //handle of supabase response with safety
+
+// ✅ If Supabase login successful but /api/auth/me not hydrated yet
+    if (j.ok && j.supabaseUserId && !j.user) {
+      console.log("✅ Supabase login success — fetching fresh user profile...");
+      const r = await fetch("/api/auth/me", { cache: "no-store" });
+      const k = await r.json();
+      if (k?.user?.username) {
+        setUser({
+          username: k.user.username,
+          email: k.user.email,
+          dob: normalizeDob(k.user.dob),
+          gender: normalizeGender(k.user.gender),
+          actor: k.user.role === "Admin" ? "Admin" : "User",
+          isPremium: !!k.user.isPremium,
+        });
+      }
+      return;
     }
-    setUser({
-      username: j.user.username,
-      email: j.user.email,
-      dob: normalizeDob(j.user.dob),
-      gender: normalizeGender(j.user.gender),
-      actor: j.user.role === "Admin" ? "Admin" : "User",
-      isPremium: !!j.user.isPremium,
-    });
+
+    // ✅ Local login (immediate state update)
+    if (j.user) {
+      setUser({
+        username: j.user.username,
+        email: j.user.email,
+        dob: normalizeDob(j.user.dob),
+        gender: normalizeGender(j.user.gender),
+        actor: j.user.role === "Admin" ? "Admin" : "User",
+        isPremium: !!j.user.isPremium,
+      });
+    }
   };
 
   const signOut = () => {
-    fetch("/api/auth/signout", { method: "POST" });
+    //ding cheng input
+    //catch 
+    fetch("/api/auth/signout", { method: "POST" }).catch(() => {});
     setUser(null);
+    ////
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   const resetPassword: AuthContextType["resetPassword"] = async (email) => {
@@ -147,15 +205,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify(payload),
     });
 
-    let j: any = null;
-    try {
-      j = await res.json();
-    } catch {}
+    //ding cheng input
 
-    if (!res.ok) {
-      const msg = (j && (j.error || j.message)) || "Profile update failed";
-      throw new Error(msg);
-    }
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || "Failed to update profile");
 
     setUser({
       username: j.user.username,
@@ -172,8 +225,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const value = useMemo<AuthContextType>(
-    () => ({ user, isAuthenticated: !!user, signUp, signIn, signOut, resetPassword, updateProfile, setActor }),
-    [user]
+    //ding cheng input
+    () => ({ user, isAuthenticated: !!user, isLoading, signUp, signIn, signOut, resetPassword, updateProfile, setActor }),
+    [user, isLoading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
