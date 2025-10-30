@@ -1,54 +1,182 @@
 import { API_CONFIG, ApiResponse, ApiError } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+
+const AUTH_TOKEN_KEY = 'auth_token';
+const REFRESH_TOKEN_KEY = 'refresh_token';
+
+const EXPO_EXTRA = (Constants?.expoConfig?.extra ?? {}) as Record<string, unknown>;
+
+function resolveEnvVar(key: string): string | undefined {
+  const envValue =
+    typeof process !== 'undefined' && process.env
+      ? (process.env as Record<string, string | undefined>)[key]
+      : undefined;
+  const extraValue = EXPO_EXTRA[key];
+  const resolved =
+    typeof envValue === 'string' && envValue.trim().length
+      ? envValue
+      : typeof extraValue === 'string' && (extraValue as string).trim().length
+        ? (extraValue as string)
+        : undefined;
+  return resolved;
+}
+
+const SUPABASE_URL = resolveEnvVar('EXPO_PUBLIC_SUPABASE_URL');
+const SUPABASE_ANON_KEY = resolveEnvVar('EXPO_PUBLIC_SUPABASE_ANON_KEY');
 
 // 基础 API 客户端类
 class ApiClient {
   private baseURL: string;
   private timeout: number;
   private authToken: string | null = null;
+  private refreshToken: string | null = null;
+  private refreshPromise: Promise<boolean> | null = null;
+  private supabaseUrl: string | null;
+  private supabaseAnonKey: string | null;
   // 仅用于 GET 的请求去重：相同 URL 的并发请求复用同一 Promise，避免重复发起
   private inFlightGet: Map<string, Promise<ApiResponse<any>>> = new Map();
 
   constructor() {
     this.baseURL = API_CONFIG.BASE_URL;
     this.timeout = API_CONFIG.TIMEOUT;
-    this.loadStoredToken();
+    this.supabaseUrl = SUPABASE_URL ?? null;
+    this.supabaseAnonKey = SUPABASE_ANON_KEY ?? null;
+    this.loadStoredTokens();
   }
 
   // 从 AsyncStorage 加载存储的 token
-  private async loadStoredToken(): Promise<void> {
+  private async loadStoredTokens(): Promise<void> {
     try {
-      const storedToken = await AsyncStorage.getItem('auth_token');
-      console.log("🔍 loadStoredToken - storedToken:", storedToken ? "present" : "null");
-      if (storedToken) {
-        this.authToken = storedToken;
-        console.log("🔍 API Client - Loaded stored token:", storedToken.substring(0, 20) + "...");
+      const [storedAccessToken, storedRefreshToken] = await Promise.all([
+        AsyncStorage.getItem(AUTH_TOKEN_KEY),
+        AsyncStorage.getItem(REFRESH_TOKEN_KEY),
+      ]);
+      console.log("🔍 loadStoredTokens - accessToken:", storedAccessToken ? "present" : "null", "| refreshToken:", storedRefreshToken ? "present" : "null");
+      if (storedAccessToken) {
+        this.authToken = storedAccessToken;
+        console.log("🔍 API Client - Loaded stored access token:", this.previewToken(storedAccessToken));
       } else {
-        console.log("🔍 API Client - No stored token found");
+        console.log("🔍 API Client - No stored access token found");
+      }
+      if (storedRefreshToken) {
+        this.refreshToken = storedRefreshToken;
+        console.log("🔍 API Client - Loaded stored refresh token:", this.previewToken(storedRefreshToken));
       }
     } catch (error) {
-      console.log('🔍 API Client - Failed to load stored token:', error);
+      console.log('🔍 API Client - Failed to load stored tokens:', error);
     }
   }
 
+  private previewToken(token: string): string {
+    if (token.length <= 16) return token;
+    const head = token.slice(0, 8);
+    const tail = token.slice(-6);
+    return `${head}...${tail}`;
+  }
+
+  private async ensureRefreshTokenLoaded(): Promise<void> {
+    if (this.refreshToken) return;
+    try {
+      const storedRefreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+      if (storedRefreshToken) {
+        this.refreshToken = storedRefreshToken;
+        console.log("🔍 API Client - Lazy-loaded refresh token:", this.previewToken(storedRefreshToken));
+      }
+    } catch (error) {
+      console.log('🔍 API Client - Failed to hydrate refresh token:', error);
+    }
+  }
+
+  private async tryRefreshSession(): Promise<boolean> {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+    this.refreshPromise = (async () => {
+      await this.ensureRefreshTokenLoaded();
+      const tokenToRefresh = this.refreshToken;
+      if (!tokenToRefresh) {
+        console.log("🔍 API Client - No refresh token available for session refresh");
+        return false;
+      }
+      if (!this.supabaseUrl || !this.supabaseAnonKey) {
+        console.warn("🔍 API Client - Supabase config missing, cannot refresh session");
+        return false;
+      }
+      const refreshEndpoint = `${this.supabaseUrl.replace(/\/+$/, '')}/auth/v1/token?grant_type=refresh_token`;
+      try {
+        console.log("🔍 API Client - Refreshing session via Supabase");
+        const response = await fetch(refreshEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: this.supabaseAnonKey,
+            Authorization: `Bearer ${this.supabaseAnonKey}`,
+          },
+          body: JSON.stringify({ refresh_token: tokenToRefresh }),
+        });
+
+        if (!response.ok) {
+          const errorBody = await response.text().catch(() => '');
+          console.warn(`🔍 API Client - Refresh request failed: HTTP ${response.status} ${response.statusText}`, errorBody);
+          return false;
+        }
+
+        const data = await response.json();
+        const newAccessToken: string | undefined =
+          typeof data.access_token === 'string'
+            ? data.access_token
+            : data.session?.access_token;
+        const newRefreshToken: string | undefined =
+          typeof data.refresh_token === 'string'
+            ? data.refresh_token
+            : data.session?.refresh_token;
+
+        if (!newAccessToken) {
+          console.warn("🔍 API Client - Refresh response missing access token");
+          return false;
+        }
+
+        this.setAuthToken(newAccessToken, newRefreshToken ?? tokenToRefresh);
+        console.log("🔍 API Client - Session refresh succeeded");
+        return true;
+      } catch (error) {
+        console.warn("🔍 API Client - Session refresh error:", error);
+        return false;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+    return this.refreshPromise;
+  }
+
   // 设置认证 token
-  public setAuthToken(token: string): void {
-    this.authToken = token;
-    AsyncStorage.setItem('auth_token', token);
-    console.log("🔍 API Client - Token set and stored");
-    console.log("🔑 Full JWT Token:", token);
+  public setAuthToken(accessToken: string, refreshToken?: string | null): void {
+    this.authToken = accessToken;
+    AsyncStorage.setItem(AUTH_TOKEN_KEY, accessToken).catch((error) => {
+      console.log('🔍 API Client - Failed to persist access token:', error);
+    });
+    console.log("🔍 API Client - Access token stored:", this.previewToken(accessToken));
+
+    if (refreshToken) {
+      this.refreshToken = refreshToken;
+      AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken).catch((error) => {
+        console.log('🔍 API Client - Failed to persist refresh token:', error);
+      });
+      console.log("🔍 API Client - Refresh token stored:", this.previewToken(refreshToken));
+    }
   }
 
   // 获取当前 token (调试用)
   public async getCurrentToken(): Promise<string | null> {
     if (this.authToken) {
-      console.log("🔑 Current JWT Token:", this.authToken);
+      console.log("🔑 Current JWT Token:", this.previewToken(this.authToken));
       return this.authToken;
     }
     try {
-      const storedToken = await AsyncStorage.getItem('auth_token');
+      const storedToken = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
       if (storedToken) {
-        console.log("🔑 Stored JWT Token:", storedToken);
+        console.log("🔑 Stored JWT Token:", this.previewToken(storedToken));
         return storedToken;
       }
     } catch (e) {
@@ -60,12 +188,14 @@ class ApiClient {
   // 清除认证 token
   public clearAuthToken(): void {
     this.authToken = null;
-    try {
-      AsyncStorage.removeItem('auth_token');
-      console.log('🔍 API Client - Cleared stored token');
-    } catch (e) {
-      console.log('🔍 API Client - Failed to clear stored token:', e);
-    }
+    this.refreshToken = null;
+    AsyncStorage.removeItem(AUTH_TOKEN_KEY).catch((error) => {
+      console.log('🔍 API Client - Failed to clear stored access token:', error);
+    });
+    AsyncStorage.removeItem(REFRESH_TOKEN_KEY).catch((error) => {
+      console.log('🔍 API Client - Failed to clear stored refresh token:', error);
+    });
+    console.log('🔍 API Client - Cleared stored tokens');
   }
 
   // 构建完整 URL
@@ -75,20 +205,21 @@ class ApiClient {
 
   // 获取认证头
   private async getAuthHeaders(): Promise<Record<string, string>> {
-    console.log("🔍 getAuthHeaders - this.authToken:", this.authToken ? "present" : "null");
+    console.log("🔍 getAuthHeaders - accessToken in memory:", this.authToken ? "present" : "null");
     
     // 仅使用本地存储的 token（来自 Web API 登录返回的 access_token）
     if (this.authToken) {
-      console.log("🔑 Using JWT Token for API request:", this.authToken);
+      console.log("🔑 Using JWT Token for API request:", this.previewToken(this.authToken));
       return { Authorization: `Bearer ${this.authToken}` };
     }
     
     try {
-      const storedToken = await AsyncStorage.getItem('auth_token');
-      console.log("🔍 getAuthHeaders - storedToken:", storedToken ? "present" : "null");
+      const storedToken = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+      console.log("🔍 getAuthHeaders - stored access token:", storedToken ? "present" : "null");
       if (storedToken) {
         this.authToken = storedToken;
-        console.log("🔑 Using stored JWT Token for API request:", storedToken);
+        console.log("🔑 Using stored JWT Token for API request:", this.previewToken(storedToken));
+        await this.ensureRefreshTokenLoaded();
         return { Authorization: `Bearer ${storedToken}` };
       }
     } catch (e) {
@@ -152,13 +283,12 @@ class ApiClient {
         // 如果是 401 错误且还有重试次数，尝试刷新 session
         if (response.status === 401 && retryCount < 1) {
           console.log(`🔍 API Client - 401 error, attempting session refresh (retry ${retryCount + 1})`);
-          
-          // 清除当前 token
-          this.authToken = null;
-          await AsyncStorage.removeItem('auth_token');
-          
-          // 递归重试
-          return this.request<T>(endpoint, options, retryCount + 1);
+          const refreshed = await this.tryRefreshSession();
+          if (refreshed) {
+            return this.request<T>(endpoint, options, retryCount + 1);
+          }
+          console.warn("🔍 API Client - Session refresh failed, clearing stored tokens");
+          this.clearAuthToken();
         }
         
         throw new ApiError(

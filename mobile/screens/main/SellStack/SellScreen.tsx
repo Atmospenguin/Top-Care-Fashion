@@ -29,7 +29,7 @@ import { listingsService, type CreateListingRequest } from "../../../src/service
 import { benefitsService, type UserBenefitsPayload } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useAutoClassify } from "../../../src/hooks/useAutoClassify";
-import { ClassifyResponse, checkImagesSFW } from "../../../src/services/aiService";
+import { ClassifyResponse, checkImagesSFW, describeProduct } from "../../../src/services/aiService";
 
 /** --- Options (7 categories, plural where appropriate for UI) --- */
 export const CATEGORY_OPTIONS = [
@@ -570,17 +570,10 @@ export default function SellScreen({
     try {
       const labels = aiItems.flatMap(i => i.classification?.labels ?? []).slice(0, 10);
 
-      const res = await fetch("https://top-care-fashion-cyan.vercel.app/api/ai/describe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          category: canonicalCategory, // send singular canonical
-          labels: labels.length ? labels : ["fashion", "clothing"],
-        }),
-      });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await describeProduct(
+        canonicalCategory,
+        labels.length ? labels : ["fashion", "clothing"]
+      );
       setAiDesc(data.blurb || "No description returned");
     } catch (err) {
       console.error("AI describer failed:", err);

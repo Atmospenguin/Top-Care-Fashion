@@ -1,7 +1,7 @@
 // App.tsx
 import 'react-native-gesture-handler';
 import { enableScreens } from 'react-native-screens';
-import React from 'react';
+import React, { useRef } from 'react';
 import { Text } from 'react-native';
 import { NavigationContainer, getFocusedRouteNameFromRoute, type NavigatorScreenParams } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -59,6 +59,7 @@ const Tab = createBottomTabNavigator();
 
 function MainTabs() {
   const HIDDEN_TAB_SCREENS: string[] = [];
+  const lastTabPressRef = useRef<Record<string, number>>({});
 
   return (
     <Tab.Navigator
@@ -138,20 +139,18 @@ function MainTabs() {
             const now = Date.now();
             const last = lastTabPressRef.current[route.name] || 0;
             lastTabPressRef.current[route.name] = now;
-            const delta = now - last;
-            
-            // 只有在 isFocused 并且连续快速点击时才传递 tabPressTS 触发刷新
-            // 这样可以避免在子页面时重新打开主页
+
+            // 如果当前 My TOP tab 已经聚焦（用户在 My TOP 内），导航到 MyTopMain
+            // 这样可以实现：
+            // 1. 从子页面返回到主页面
+            // 2. 在主页面时触发刷新/滚动
             if (navigation.isFocused && navigation.isFocused()) {
-              const focusedRoute = getFocusedRouteNameFromRoute(route);
-              // 只有当前就在 MyTopMain 页面时才触发刷新逻辑
-              if (!focusedRoute || focusedRoute === 'MyTopMain') {
-                navigation.navigate("My TOP", {
-                  screen: "MyTopMain",
-                  params: { tabPressTS: now },
-                });
-              }
+              navigation.navigate("My TOP", {
+                screen: "MyTopMain",
+                params: { tabPressTS: now },
+              });
             }
+            // 否则，让默认的 tab 切换行为生效
           },
         })}
         options={({ route }) => {

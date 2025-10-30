@@ -17,6 +17,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -48,7 +49,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
       const res = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ email, password }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -74,9 +75,17 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
       <div className="max-w-xl mx-auto mt-10 p-6 border rounded-lg shadow-sm">
         <h2 className="text-xl font-semibold mb-2">Admin Login</h2>
         <p className="text-sm text-gray-600 mb-4">
-          You do not have admin access. Please enter the admin password to continue.
+          You do not have admin access. Please sign in with an admin Supabase account to continue.
         </p>
         <form onSubmit={onSubmit} className="space-y-3">
+          <input
+            type="email"
+            className="w-full border rounded px-3 py-2"
+            placeholder="Admin Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
           <input
             type="password"
             className="w-full border rounded px-3 py-2"

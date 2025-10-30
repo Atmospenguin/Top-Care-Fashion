@@ -1,9 +1,19 @@
 // mobile/src/config/api.ts
 // Global API configuration for Top Care Fashion
 
+import Constants from "expo-constants";
+
+const expoExtra = Constants?.expoConfig?.extra ?? {};
+const extraApiUrl = typeof expoExtra.EXPO_PUBLIC_API_URL === "string" ? expoExtra.EXPO_PUBLIC_API_URL : undefined;
+const extraApiBaseUrl =
+  typeof expoExtra.EXPO_PUBLIC_API_BASE_URL === "string" ? expoExtra.EXPO_PUBLIC_API_BASE_URL : undefined;
+
 export const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL ||
   process.env.EXPO_PUBLIC_API_BASE_URL ||
-  "https://top-care-fashion-cyan.vercel.app"; // sensible default
+  extraApiUrl ||
+  extraApiBaseUrl ||
+  "https://top-care-fashion.vercel.app/"; // sensible default
 
 export const API_CONFIG = {
   BASE_URL: API_BASE_URL,
@@ -20,16 +30,13 @@ export const API_CONFIG = {
     FEEDBACK: "/api/feedback",
     FAQ: "/api/faq",
     SITE_STATS: "/api/site-stats",
+    LIKES: "/api/likes",
     AI: {
       CLASSIFY: "/api/ai/classify",
       DESCRIBE: "/api/ai/describe",
       SAFE: "/api/ai/safe",
     },
-    PROFILE: '/api/profile',
-    FEEDBACK: '/api/feedback',
-    FAQ: '/api/faq',
-    SITE_STATS: '/api/site-stats',
-    REPORTS: '/api/reports',
+    REPORTS: "/api/reports",
   },
   TIMEOUT: 10000,
   RETRY_ATTEMPTS: 3,
