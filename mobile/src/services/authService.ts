@@ -52,24 +52,22 @@ export class AuthService {
   // 用户登录 - 纯 Web API
   async signIn(credentials: SignInRequest): Promise<AuthResponse> {
     try {
-      console.log("🔍 Starting Web API sign in...");
       const response = await apiClient.post<AuthResponse>(
         API_CONFIG.ENDPOINTS.AUTH.SIGNIN,
         credentials
       );
-      
+
       if (response.data) {
-        console.log('🔍 Web API login successful, user:', response.data.user.username);
         if (response.data.access_token) {
           console.log("🔑 Current JWT Token:", response.data.access_token);
           apiClient.setAuthToken(response.data.access_token);
         }
         return response.data;
       }
-      
-      throw new Error('Web API login failed');
+
+      throw new Error('Login failed');
     } catch (error) {
-      console.error('🔍 Error signing in:', error);
+      console.error('Error signing in:', error);
       throw error;
     }
   }
@@ -77,20 +75,18 @@ export class AuthService {
   // 用户注册 - 纯 Web API
   async signUp(userData: SignUpRequest): Promise<AuthResponse> {
     try {
-      console.log("🔍 Starting Web API sign up...");
       const response = await apiClient.post<AuthResponse>(
         API_CONFIG.ENDPOINTS.AUTH.SIGNUP,
         userData
       );
-      
+
       if (response.data) {
-        console.log('🔍 Web API registration successful, user:', response.data.user.username);
         return response.data;
       }
-      
-      throw new Error('Web API registration failed');
+
+      throw new Error('Registration failed');
     } catch (error) {
-      console.error('🔍 Error signing up:', error);
+      console.error('Error signing up:', error);
       throw error;
     }
   }
@@ -111,20 +107,13 @@ export class AuthService {
   // 用户登出 - 纯 Web API
   async signOut(): Promise<void> {
     try {
-      console.log("🔍 Starting Web API sign out...");
       await apiClient.post(API_CONFIG.ENDPOINTS.AUTH.SIGNOUT);
-      console.log('🔍 Web API sign out successful');
-      // Try to clear auth token in a type-safe/runtime-safe way:
-      // Prefer calling setAuthToken(undefined) if available on the client implementation,
-      // otherwise try to call clearAuthToken at runtime (some implementations may provide it).
-      if (typeof (apiClient as any).setAuthToken === 'function') {
-        (apiClient as any).setAuthToken(undefined);
-      } else if (typeof (apiClient as any).clearAuthToken === 'function') {
-        (apiClient as any).clearAuthToken();
-      }
     } catch (error) {
-      console.error('🔍 Error signing out:', error);
-      throw error;
+      console.error('Error signing out from server:', error);
+      // Continue to clear local tokens even if server logout fails
+    } finally {
+      // Always clear local auth tokens, even if server logout fails
+      apiClient.clearAuthToken();
     }
   }
 
@@ -141,11 +130,9 @@ export class AuthService {
   // 请求密码重置
   async forgotPassword(email: string): Promise<void> {
     try {
-      console.log("🔍 Requesting password reset for:", email);
       await apiClient.post(API_CONFIG.ENDPOINTS.AUTH.FORGOT_PASSWORD, { email });
-      console.log('🔍 Password reset email sent successfully');
     } catch (error) {
-      console.error('🔍 Error requesting password reset:', error);
+      console.error('Error requesting password reset:', error);
       throw error;
     }
   }
@@ -153,14 +140,25 @@ export class AuthService {
   // 重置密码
   async resetPassword(token: string, newPassword: string): Promise<void> {
     try {
-      console.log("🔍 Resetting password with token");
-      await apiClient.post(API_CONFIG.ENDPOINTS.AUTH.RESET_PASSWORD, { 
-        token, 
-        newPassword 
+      await apiClient.post(API_CONFIG.ENDPOINTS.AUTH.RESET_PASSWORD, {
+        token,
+        newPassword
       });
-      console.log('🔍 Password reset successful');
     } catch (error) {
-      console.error('🔍 Error resetting password:', error);
+      console.error('Error resetting password:', error);
+      throw error;
+    }
+  }
+
+  // 修改密码
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    try {
+      await apiClient.post(API_CONFIG.ENDPOINTS.AUTH.CHANGE_PASSWORD, {
+        currentPassword,
+        newPassword,
+      });
+    } catch (error) {
+      console.error('Error changing password:', error);
       throw error;
     }
   }

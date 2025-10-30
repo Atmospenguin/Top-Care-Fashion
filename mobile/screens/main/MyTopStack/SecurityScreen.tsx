@@ -2,8 +2,25 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { MyTopStackParamList } from "./index";
 
 export default function SecurityScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
+
+  const openChangePassword = () => {
+    navigation.navigate("ChangePassword");
+  };
+
+  const openForgotPassword = () => {
+    const tabNavigator = navigation.getParent();
+    const rootNavigator = tabNavigator?.getParent?.();
+    if (rootNavigator && typeof rootNavigator.navigate === "function") {
+      rootNavigator.navigate("ForgotPassword" as never);
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header title="Security" showBack />
@@ -12,8 +29,8 @@ export default function SecurityScreen() {
         {/* Password Section */}
         <Text style={styles.sectionTitle}>Password</Text>
         <View style={styles.sectionBox}>
-          <SettingItem icon="key-outline" label="Change Password" />
-          <SettingItem icon="lock-open-outline" label="Forgot Password" />
+          <SettingItem icon="key-outline" label="Change Password" onPress={openChangePassword} />
+          <SettingItem icon="lock-open-outline" label="Forgot Password" onPress={openForgotPassword} />
         </View>
 
         {/* Authentication Section */}

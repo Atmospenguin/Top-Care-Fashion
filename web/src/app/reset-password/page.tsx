@@ -10,8 +10,13 @@ export default function ResetPasswordPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setStatus("Sending...");
-    await resetPassword(email);
-    setStatus("Password reset email sent (demo)");
+    try {
+      await resetPassword(email);
+      setStatus("Password reset email sent. Please check your inbox.");
+    } catch (error: any) {
+      const message = error?.message || "Failed to send password reset email.";
+      setStatus(message);
+    }
   }
 
   return (

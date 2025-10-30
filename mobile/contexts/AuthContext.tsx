@@ -35,6 +35,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
   resetPassword: (token: string, newPassword: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   updateUser: (updatedUser: User) => void;
   error: string | null;
   clearError: () => void;
@@ -123,7 +124,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error during logout:', error);
     } finally {
+      // Clear all local auth data
       setUser(null);
+      setError(null);
       setLoading(false);
     }
   };
@@ -146,6 +149,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await authService.resetPassword(token, newPassword);
     } catch (error: any) {
       setError(error.message || 'Failed to reset password');
+      throw error;
+    }
+  };
+
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    try {
+      setError(null);
+      await authService.changePassword(currentPassword, newPassword);
+    } catch (error: any) {
+      setError(error.message || 'Failed to change password');
       throw error;
     }
   };
@@ -222,6 +235,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     requestPasswordReset,
     resetPassword: resetPasswordHandler,
+    changePassword,
     updateUser,
     error,
     clearError,
