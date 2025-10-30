@@ -35,6 +35,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
   resetPassword: (token: string, newPassword: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   updateUser: (updatedUser: User) => void;
   error: string | null;
   clearError: () => void;
@@ -52,6 +53,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // 开关：启动时强制进入登录页（开发/演示用）
+  const FORCE_LOGIN_ON_START = true;
 
   // 检查用户是否已登录
   const isAuthenticated = !!user;
@@ -120,7 +124,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error during logout:', error);
     } finally {
+      // Clear all local auth data
       setUser(null);
+      setError(null);
       setLoading(false);
     }
   };
@@ -143,6 +149,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await authService.resetPassword(token, newPassword);
     } catch (error: any) {
       setError(error.message || 'Failed to reset password');
+      throw error;
+    }
+  };
+
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    try {
+      setError(null);
+      await authService.changePassword(currentPassword, newPassword);
+    } catch (error: any) {
+      setError(error.message || 'Failed to change password');
       throw error;
     }
   };
@@ -175,6 +191,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const checkAuthStatus = async () => {
       try {
         setLoading(true);
+
+        if (FORCE_LOGIN_ON_START) {
+          // 启动即清除本地 token，确保进入登录页
+          try {
+            const { apiClient } = await import('../src/services/api');
+            apiClient.clearAuthToken();
+          } catch {}
+          setUser(null);
+          return; // 直接结束检查流程
+        }
+
         const baseUser = await authService.getCurrentUser();
         if (baseUser) {
           try {
@@ -208,6 +235,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     requestPasswordReset,
     resetPassword: resetPasswordHandler,
+    changePassword,
     updateUser,
     error,
     clearError,

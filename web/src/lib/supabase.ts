@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { createBrowserClient, createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
 function resolveServerEnv(primary: string, fallbacks: string[]): string | undefined {
   const keys = [primary, ...fallbacks];
@@ -12,15 +12,6 @@ function resolveServerEnv(primary: string, fallbacks: string[]): string | undefi
   return undefined;
 }
 
-function assertClientEnv(name: "NEXT_PUBLIC_SUPABASE_URL" | "NEXT_PUBLIC_SUPABASE_ANON_KEY") {
-  const value = process.env[name];
-  if (!value || !value.trim()) {
-    throw new Error(
-      `${name} is required. Add it in your environment variables (Vercel Settings → Environment Variables).`
-    );
-  }
-  return value;
-}
 
 export async function createSupabaseServer() {
   const cookieStore = await cookies();
@@ -34,11 +25,6 @@ export async function createSupabaseServer() {
       "DATABASE_SUPABASE_ANON_KEY",
       "DATABASE_NEXT_PUBLIC_SUPABASE_ANON_KEY",
     ]) ?? "";
-
-  console.log("🔍 Supabase Server Config:", {
-    url: supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : "missing",
-    key: supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : "missing"
-  });
 
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
@@ -69,13 +55,6 @@ export async function createSupabaseServer() {
       },
     },
   });
-}
-
-export function createSupabaseBrowser() {
-  const supabaseUrl = assertClientEnv("NEXT_PUBLIC_SUPABASE_URL");
-  const supabaseAnonKey = assertClientEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-
-  return createBrowserClient(supabaseUrl, supabaseAnonKey);
 }
 
 

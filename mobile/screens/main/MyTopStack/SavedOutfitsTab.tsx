@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,132 +10,51 @@ import {
   ActivityIndicator,
   Modal,
   ScrollView,
-  Dimensions,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from '../../../components/Icon';
+import { outfitService } from '../../../src/services/outfitService';
+import { listingsService } from '../../../src/services/listingsService';
+import type { SavedOutfit } from '../../../src/services/outfitService';
+import type { ListingItem } from '../../../types/shop';
 
-interface SavedOutfit {
-  id: number;
-  outfit_name: string | null;
-  user_id: number;
-  base_item_id: number | null;
-  top_item_id: number | null;
-  bottom_item_id: number | null;
-  shoe_item_id: number | null;
-  accessory_ids: number[];
-  created_at: string;
-  updated_at: string;
-  
-  // ⭐ Match scores from AI
-  base_category?: string;
-  top_match_score?: number;
-  bottom_match_score?: number;
-  shoe_match_score?: number;
-  accessory_match_scores?: Record<string, number>;
-  total_price?: number;
-  
-  // ⭐ NEW: AI outfit rating (1-10) and style name
-  ai_rating?: number;
-  style_name?: string;
-}
-
-interface ListingItem {
-  id: string;
-  title: string;
-  images: string[];
-  price: number;
-  category: string;
-}
-
-interface OutfitWithItems extends SavedOutfit {
+type OutfitWithItems = SavedOutfit & {
   base_item?: ListingItem;
   top_item?: ListingItem;
   bottom_item?: ListingItem;
   shoe_item?: ListingItem;
   accessory_items?: ListingItem[];
-}
-
-const API_URL = 'http://192.168.31.188:3000';
-const { width } = Dimensions.get('window');
+};
 
 export default function SavedOutfitsTab() {
   const [outfits, setOutfits] = useState<OutfitWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOutfit, setSelectedOutfit] = useState<OutfitWithItems | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const listingCache = useRef<Map<number, ListingItem | null>>(new Map());
 
-  useEffect(() => {
-    fetchSavedOutfits();
-  }, []);
+  const fetchListingDetails = useCallback(async (listingId: number): Promise<ListingItem | null> => {
+    if (listingCache.current.has(listingId)) {
+      return listingCache.current.get(listingId) ?? null;
+    }
 
-  const fetchListingDetails = async (listingId: number): Promise<ListingItem | null> => {
     try {
-      const token = await AsyncStorage.getItem('authToken');
-      console.log(`📦 Fetching listing ${listingId}...`);
-      
-      const response = await fetch(`${API_URL}/api/listings/${listingId}`, {
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-      });
-
-      console.log(`📦 Listing ${listingId} response status:`, response.status);
-
-      if (!response.ok) {
-        console.log(`❌ Failed to fetch listing ${listingId}`);
-        return null;
-      }
-
-      const result = await response.json();
-      console.log(`🔍 Full response for listing ${listingId}:`, JSON.stringify(result, null, 2));
-      
-      // Try different response structures
-      const listing = result.data || result.listing || result;
-      console.log(`✅ Fetched listing ${listingId}:`, listing?.title || listing?.name);
-      
-      // Map the response to our ListingItem format
-      if (listing) {
-        return {
-          id: String(listing.id),
-          title: listing.title || listing.name || 'Unknown Item',
-          images: listing.images || listing.image_urls || [listing.image_url] || [],
-          price: listing.price || 0,
-          category: listing.category || '',
-        };
-      }
-      
-      return null;
+      const listing = await listingsService.getListingById(String(listingId));
+      listingCache.current.set(listingId, listing);
+      return listing;
     } catch (error) {
       console.error('❌ Error fetching listing:', listingId, error);
+      listingCache.current.set(listingId, null);
       return null;
     }
-  };
+  }, []);
 
-  const fetchSavedOutfits = async () => {
+  const fetchSavedOutfits = useCallback(async () => {
     try {
-      const token = await AsyncStorage.getItem('authToken');
-      
-      console.log('🔍 Fetching saved outfits...');
-      
-      const response = await fetch(`${API_URL}/api/outfits`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-      });
+      setLoading(true);
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch: ${response.status}`);
-      }
-
-      const result = await response.json();
-      const outfitsData: SavedOutfit[] = result.data || [];
-      
+      const outfitsData = await outfitService.getSavedOutfits();
       console.log('📖 Fetched', outfitsData.length, 'outfits');
 
-      // Fetch item details for each outfit
       const outfitsWithItems = await Promise.all(
         outfitsData.map(async (outfit) => {
           const [base_item, top_item, bottom_item, shoe_item] = await Promise.all([
@@ -168,7 +87,11 @@ export default function SavedOutfitsTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchListingDetails]);
+
+  useEffect(() => {
+    fetchSavedOutfits();
+  }, [fetchSavedOutfits]);
 
   const handleViewOutfit = (outfit: OutfitWithItems) => {
     console.log('👁️ Viewing outfit:', outfit.outfit_name);
@@ -191,55 +114,15 @@ export default function SavedOutfitsTab() {
         style: 'destructive',
         onPress: async () => {
           try {
-            const token = await AsyncStorage.getItem('authToken');
-            
-            const response = await fetch(`${API_URL}/api/outfits/${outfitId}`, {
-              method: 'DELETE',
-              headers: {
-                'Authorization': token ? `Bearer ${token}` : '',
-              },
-            });
-
-            if (response.ok) {
-              setOutfits(outfits.filter(o => o.id !== outfitId));
-              Alert.alert('Success', 'Outfit deleted');
-            } else {
-              Alert.alert('Error', 'Failed to delete outfit');
-            }
+            await outfitService.deleteOutfit(outfitId);
+            setOutfits((prev) => prev.filter((o) => o.id !== outfitId));
+            Alert.alert('Success', 'Outfit deleted');
           } catch (error) {
             Alert.alert('Error', 'Failed to delete outfit');
           }
         },
       },
     ]);
-  };
-
-  // ⭐ NEW: Calculate outfit rating out of 10 based on match scores
-  const calculateOutfitRating = (outfit: OutfitWithItems): number => {
-    const scores: number[] = [];
-    
-    // Collect all match scores
-    if (outfit.top_match_score && outfit.top_match_score > 0) {
-      scores.push(outfit.top_match_score);
-    }
-    if (outfit.bottom_match_score && outfit.bottom_match_score > 0) {
-      scores.push(outfit.bottom_match_score);
-    }
-    if (outfit.shoe_match_score && outfit.shoe_match_score > 0) {
-      scores.push(outfit.shoe_match_score);
-    }
-    if (outfit.accessory_match_scores) {
-      Object.values(outfit.accessory_match_scores).forEach(score => {
-        if (score > 0) scores.push(score);
-      });
-    }
-    
-    // If no scores, return 0
-    if (scores.length === 0) return 0;
-    
-    // Calculate average (0-100) and convert to /10
-    const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
-    return Math.round(avgScore / 10); // Convert to 10-point scale
   };
 
   // ⭐ NEW: Helper to render match percentage badge
@@ -266,21 +149,27 @@ export default function SavedOutfitsTab() {
     );
   };
 
-  const renderItemImage = (item?: ListingItem, label?: string, matchScore?: number) => {
+  const renderItemImage = (item?: ListingItem, label?: string, matchScore?: number | null) => {
     if (!item) return null;
+
+    const primaryImage = Array.isArray(item.images) && item.images.length > 0
+      ? item.images[0]
+      : 'https://via.placeholder.com/150';
+
+    const displayScore = typeof matchScore === 'number' ? matchScore : undefined;
 
     return (
       <View style={styles.itemContainer}>
         <View style={styles.imageWrapper}>
           <Image
-            source={{ uri: item.images[0] || 'https://via.placeholder.com/150' }}
+            source={{ uri: primaryImage }}
             style={styles.itemImage}
             resizeMode="cover"
           />
           {/* ⭐ NEW: Show match badge if score exists */}
-          {matchScore && matchScore > 0 && (
+          {displayScore && displayScore > 0 && (
             <View style={styles.badgeContainer}>
-              {getMatchBadge(matchScore)}
+              {getMatchBadge(displayScore)}
             </View>
           )}
         </View>
@@ -366,7 +255,7 @@ export default function SavedOutfitsTab() {
                   {renderItemImage(
                     acc,
                     `Accessory ${idx + 1}`,
-                    item.accessory_match_scores?.[acc.id]
+                    item.accessory_match_scores?.[String(acc.id)]
                   )}
                 </View>
               ))}
@@ -444,7 +333,7 @@ export default function SavedOutfitsTab() {
                         {renderItemImage(
                           item,
                           undefined,
-                          selectedOutfit.accessory_match_scores?.[item.id]
+                          selectedOutfit.accessory_match_scores?.[String(item.id)]
                         )}
                       </View>
                     ))}
