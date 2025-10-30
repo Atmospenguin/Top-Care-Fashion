@@ -5,6 +5,7 @@ import SettingScreen from "./SettingScreen";
 import EditProfileScreen from "./EditProfileScreen";
 import OrderDetailScreen from "./OrderDetailScreen";
 import SecurityScreen from "./SecurityScreen";
+import ChangePasswordScreen from "./ChangePasswordScreen";
 import NotificationsScreen from "./NotificationsScreen";
 import PrivacyScreen from "./PrivacyScreen";
 import HelpSupportScreen from "./HelpSupportScreen";
@@ -47,6 +48,7 @@ export type MyTopStackParamList = {
   EditProfile: undefined;
   Settings: undefined;
   Security: undefined;
+  ChangePassword: undefined;
   Notifications: undefined;
   Privacy: undefined;
   HelpSupport: undefined;
@@ -138,6 +140,7 @@ export default function MyTopStackNavigator() {
         options={{ tabBarStyle: { display: "none" } } as any}
       />
       <Stack.Screen name="Security" component={SecurityScreen} />
+      <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="Privacy" component={PrivacyScreen} />
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />

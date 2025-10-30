@@ -1,14 +1,32 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../App";
 import { LOGO_FULL_COLOR } from "../../constants/assetUrls";
 import Icon from "../../components/Icon";
+import { useAuth } from "../../contexts/AuthContext";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ForgotPassword">;
 
 export default function ForgotPasswordScreen({ navigation }: Props) {
+  const { requestPasswordReset } = useAuth();
   const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const onSubmit = async () => {
+    if (!email.trim()) return;
+    setSubmitting(true);
+    setStatus("Sending...");
+    try {
+      await requestPasswordReset(email.trim());
+      setStatus("Password reset email sent. Please check your inbox.");
+    } catch (error: any) {
+      setStatus(error?.message || "Failed to send reset email");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -39,9 +57,15 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
       />
 
       {/* Send Code 按钮 */}
-      <TouchableOpacity style={styles.sendBtn}>
-        <Text style={styles.sendBtnText}>Send Code</Text>
+      <TouchableOpacity style={styles.sendBtn} onPress={onSubmit} disabled={submitting}>
+        {submitting ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.sendBtnText}>Send Email</Text>
+        )}
       </TouchableOpacity>
+
+      {status ? <Text style={styles.status}>{status}</Text> : null}
     </View>
   );
 }
@@ -93,5 +117,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sendBtnText: { color: "#fff", fontSize: 18, fontWeight: "700" },
+  status: {
+    marginTop: 24,
+    textAlign: "center",
+    color: "#6B7280",
+    fontSize: 14,
+  },
 });
-

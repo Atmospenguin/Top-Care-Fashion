@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 
 export type Gender = "Male" | "Female";
 export type Actor = "User" | "Admin";
@@ -24,6 +24,7 @@ type AuthContextType = {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => void;
   resetPassword: (email: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
   setActor: (actor: Actor) => void;
 };
@@ -104,7 +105,7 @@ const [isLoading, setIsLoading] = useState(true);
     }
   }, [user]);
 
-  const signUp: AuthContextType["signUp"] = async ({ username, email, password, dob, gender }) => {
+  const signUp = useCallback<AuthContextType["signUp"]>(async ({ username, email, password, dob, gender }) => {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -125,9 +126,9 @@ const [isLoading, setIsLoading] = useState(true);
       actor: j.user.role === "Admin" ? "Admin" : "User",
       isPremium: !!j.user.isPremium,
     });
-  };
+  }, []);
 
-  const signIn: AuthContextType["signIn"] = async (email, password) => {
+  const signIn = useCallback<AuthContextType["signIn"]>(async (email, password) => {
     const res = await fetch("/api/auth/signin", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -172,24 +173,42 @@ const [isLoading, setIsLoading] = useState(true);
         isPremium: !!j.user.isPremium,
       });
     }
-  };
+  }, []);
 
-  const signOut = () => {
+  const signOut = useCallback(() => {
     //ding cheng input
     //catch 
     fetch("/api/auth/signout", { method: "POST" }).catch(() => {});
     setUser(null);
     ////
     localStorage.removeItem(STORAGE_KEY);
-  };
+  }, []);
 
-  const resetPassword: AuthContextType["resetPassword"] = async (email) => {
-    void email;
-    await new Promise((r) => setTimeout(r, 250));
-    // placeholder implementation
-  };
+  const resetPassword = useCallback<AuthContextType["resetPassword"]>(async (email) => {
+    const res = await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(j.error || "Failed to request password reset");
+    }
+  }, []);
 
-  const updateProfile: AuthContextType["updateProfile"] = async (data) => {
+  const changePassword = useCallback<AuthContextType["changePassword"]>(async (currentPassword, newPassword) => {
+    const res = await fetch("/api/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(j.error || "Failed to change password");
+    }
+  }, []);
+
+  const updateProfile = useCallback<AuthContextType["updateProfile"]>(async (data) => {
     const payload: Record<string, unknown> = {};
     if (data.username !== undefined) payload.username = data.username;
     if (data.email !== undefined) payload.email = data.email;
@@ -220,7 +239,7 @@ const [isLoading, setIsLoading] = useState(true);
       actor: j.user.role === "Admin" ? "Admin" : "User",
       isPremium: !!j.user.isPremium,
     });
-  };
+  }, []);
 
   const setActor = React.useCallback((actor: Actor) => {
     setUser((prev) => {
@@ -231,8 +250,19 @@ const [isLoading, setIsLoading] = useState(true);
   }, []);
 
   const value = useMemo<AuthContextType>(
-    () => ({ user, isAuthenticated: !!user, isLoading, signUp, signIn, signOut, resetPassword, updateProfile, setActor }),
-    [user, isLoading, setActor]
+    () => ({
+      user,
+      isAuthenticated: !!user,
+      isLoading,
+      signUp,
+      signIn,
+      signOut,
+      resetPassword,
+      changePassword,
+      updateProfile,
+      setActor,
+    }),
+    [user, isLoading, signUp, signIn, signOut, resetPassword, changePassword, updateProfile, setActor]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
