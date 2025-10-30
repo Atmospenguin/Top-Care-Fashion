@@ -303,8 +303,9 @@ export async function getOrders(type?: 'buy' | 'sell', status?: string) {
     if (type) params.type = type;
     if (status) params.status = status;
     
-    const data = await apiClient.get<{ orders: any[] }>('/api/orders', params);
-    return data.orders || [];
+    // 使用带有 Bearer Token 的新客户端
+    const response = await newApiClient.get<{ orders: any[] }>('/api/orders', params);
+    return response.data?.orders || [];
   } catch (error) {
     console.error("Error fetching orders:", error);
     return [];

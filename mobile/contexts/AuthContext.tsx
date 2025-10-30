@@ -53,6 +53,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 开关：启动时强制进入登录页（开发/演示用）
+  const FORCE_LOGIN_ON_START = true;
+
   // 检查用户是否已登录
   const isAuthenticated = !!user;
 
@@ -175,6 +178,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const checkAuthStatus = async () => {
       try {
         setLoading(true);
+
+        if (FORCE_LOGIN_ON_START) {
+          // 启动即清除本地 token，确保进入登录页
+          try {
+            const { apiClient } = await import('../src/services/api');
+            apiClient.clearAuthToken();
+          } catch {}
+          setUser(null);
+          return; // 直接结束检查流程
+        }
+
         const baseUser = await authService.getCurrentUser();
         if (baseUser) {
           try {

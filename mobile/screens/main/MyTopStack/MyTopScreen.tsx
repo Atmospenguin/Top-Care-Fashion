@@ -19,8 +19,7 @@ import type { RouteProp } from "@react-navigation/native";
 import type { MyTopStackParamList } from "./index";
 import SoldTab from "./SoldTab";
 import PurchasesTab from "./PurchasesTab";
-import LikesTab from "./LikesTab";
-import SavedOutfitsTab from "./SavedOutfitsTab";
+import LikesTabs from "./LikesTabs";
 import { useAuth } from "../../../contexts/AuthContext";
 import { listingsService, premiumService } from "../../../src/services";
 import { userService } from "../../../src/services/userService";
@@ -52,7 +51,7 @@ export default function MyTopScreen() {
   const lastRefreshRef = useRef<number | null>(null);
   const isRefreshingRef = useRef<boolean>(false);
   const [activeTab, setActiveTab] =
-    useState<"Shop" | "Sold" | "Purchases" | "Likes" | "Saved Outfits">("Shop");
+    useState<"Shop" | "Sold" | "Purchases" | "Likes">("Shop");
 
   // ✅ 添加真实数据状态
   const [shopListings, setShopListings] = useState<ListingItem[]>([]);
@@ -399,12 +398,11 @@ export default function MyTopScreen() {
     navigation.navigate("ActiveListingDetail", { listingId: listing.id });
   };
 
-  const tabs: Array<"Shop" | "Sold" | "Purchases" | "Likes" | "Saved Outfits"> = [
+  const tabs: Array<"Shop" | "Sold" | "Purchases" | "Likes"> = [
     "Shop",
     "Sold",
     "Purchases",
     "Likes",
-	"Saved Outfits",
   ];
 
   const handleOpenFollowList = (type: "followers" | "following") => {
@@ -575,8 +573,7 @@ export default function MyTopScreen() {
 
         {activeTab === "Sold" && <SoldTab />}
         {activeTab === "Purchases" && <PurchasesTab />}
-        {activeTab === "Likes" && <LikesTab />}
-		{activeTab === "Saved Outfits" && <SavedOutfitsTab />}
+    {activeTab === "Likes" && <LikesTabs />}
       </View>
 
       <FilterModal

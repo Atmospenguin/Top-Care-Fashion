@@ -61,7 +61,8 @@ export class AuthService {
       if (response.data) {
         console.log('🔍 Web API login successful, user:', response.data.user.username);
         if (response.data.access_token) {
-          apiClient.setAuthToken(response.data.access_token, response.data.refresh_token ?? null);
+          console.log("🔑 Current JWT Token:", response.data.access_token);
+          apiClient.setAuthToken(response.data.access_token);
         }
         return response.data;
       }
@@ -113,7 +114,14 @@ export class AuthService {
       console.log("🔍 Starting Web API sign out...");
       await apiClient.post(API_CONFIG.ENDPOINTS.AUTH.SIGNOUT);
       console.log('🔍 Web API sign out successful');
-      apiClient.clearAuthToken();
+      // Try to clear auth token in a type-safe/runtime-safe way:
+      // Prefer calling setAuthToken(undefined) if available on the client implementation,
+      // otherwise try to call clearAuthToken at runtime (some implementations may provide it).
+      if (typeof (apiClient as any).setAuthToken === 'function') {
+        (apiClient as any).setAuthToken(undefined);
+      } else if (typeof (apiClient as any).clearAuthToken === 'function') {
+        (apiClient as any).clearAuthToken();
+      }
     } catch (error) {
       console.error('🔍 Error signing out:', error);
       throw error;
