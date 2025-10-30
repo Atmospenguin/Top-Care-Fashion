@@ -118,11 +118,16 @@ const Stack = createNativeStackNavigator<MyTopStackParamList>();
 
 export default function MyTopStackNavigator() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        gestureEnabled: true, // ✅ 默认启用手势返回
+      }}
+    >
       <Stack.Screen
         name="MyTopMain"
         component={MyTopScreen}
-        options={{ gestureEnabled: false }}
+        options={{ gestureEnabled: false }} // ✅ 主页面禁用手势，防止意外退出
       />
       <Stack.Screen name="Settings" component={SettingScreen} /> 
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />

@@ -114,7 +114,7 @@ export async function signIn(email: string, password: string) {
 
     if (data.data?.user) {
       if (data.data.access_token) {
-        newApiClient.setAuthToken(data.data.access_token);
+        newApiClient.setAuthToken(data.data.access_token, data.data.refresh_token ?? null);
       }
       try {
         const profileResponse = await newApiClient.get<{ ok: boolean; user: any }>('/api/profile');
