@@ -1230,7 +1230,7 @@ export default function ChatScreen() {
               {!["IN_PROGRESS", "TO_SHIP", "COMPLETED", "REVIEWED"].includes(o.status) && (
                 <View style={styles.statusBadge}>
                   <Text style={styles.statusBadgeText}>{getDisplayStatus(o.status)}</Text>
-                </View>
+      </View>
               )}
             </>
           )}
@@ -1682,7 +1682,7 @@ export default function ChatScreen() {
         showBack 
         onBackPress={() => {
           console.log("🔙 Back button pressed in ChatScreen");
-          
+
           // 🔍 调试：检查当前导航状态
           const state = navigation.getState();
           console.log("🔍 Current navigation state:", JSON.stringify(state, null, 2));
@@ -1707,6 +1707,11 @@ export default function ChatScreen() {
         contentContainerStyle={{ padding: 12, paddingBottom: 12 }}
         ListFooterComponent={renderReviewCtaFooter}
         renderItem={({ item }) => {
+          // 兜底：如果运行时拿到的是裸字符串/数字，包一层 <Text>
+          if (typeof (item as any) === "string" || typeof (item as any) === "number") {
+            return <View style={{ marginBottom: 12 }}><Text style={styles.textLeft}>{String(item)}</Text></View>;
+          }
+
           if (item.type === "orderCard") {
             // 🔥 判断订单卡片应该显示在左侧还是右侧
             // 如果当前用户是买家，订单卡片应该显示在右侧
@@ -1752,7 +1757,7 @@ export default function ChatScreen() {
                     source={
                       sender === "TOP Support"
                         ? ASSETS.avatars.top
-                        : item.senderInfo?.avatar
+                        : item.senderInfo?.avatar 
                         ? { uri: item.senderInfo.avatar }
                         : ASSETS.avatars.default
                     }
@@ -1788,8 +1793,9 @@ export default function ChatScreen() {
           );
           }
 
-          // 未知类型，返回 null
-          return null;
+          // 未知类型，返回 null（并加安全日志）
+          console.warn("ChatScreen: Unknown item type", (item as any)?.type);
+          return <View style={{ marginBottom: 12 }}><Text style={styles.textLeft}>{String((item as any) ?? "")}</Text></View>;
         }}
       />
 
@@ -1800,7 +1806,7 @@ export default function ChatScreen() {
           <View style={[styles.inputBar, { marginBottom: bottomInset - 12 }]}> {/* 修复缺少右括号 */}
           <TextInput
             style={styles.textInput}
-            placeholder="Type a message..." 
+            placeholder="Type a message..."
             value={input}
             onChangeText={setInput}
           />

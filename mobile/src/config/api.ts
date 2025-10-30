@@ -31,6 +31,7 @@ export const API_CONFIG = {
     FAQ: "/api/faq",
     SITE_STATS: "/api/site-stats",
     LIKES: "/api/likes",
+    ORDERS: "/api/orders",
     AI: {
       CLASSIFY: "/api/ai/classify",
       DESCRIBE: "/api/ai/describe",

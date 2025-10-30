@@ -1,10 +1,11 @@
-// @ts-nocheck
 // 使用示例：如何在其他组件中触发notification
 
 import { notificationService } from './notificationService';
+import type { OrderStatus } from './ordersService';
+import { ordersService } from './ordersService';
 
 // 示例1: 当有人like了商品时
-const handleLikeListing = async (likerName: string, listingTitle: string, likerAvatar?: string) => {
+export const handleLikeListing = async (likerName: string, listingTitle: string, likerAvatar?: string) => {
   try {
     // 创建like notification
     const notification = notificationService.generateLikeNotification(
@@ -23,7 +24,7 @@ const handleLikeListing = async (likerName: string, listingTitle: string, likerA
 };
 
 // 示例2: 当有人follow了用户时
-const handleFollowUser = async (followerName: string, followerAvatar?: string) => {
+export const handleFollowUser = async (followerName: string, followerAvatar?: string) => {
   try {
     const notification = notificationService.generateFollowNotification(
       followerName, 
@@ -39,7 +40,7 @@ const handleFollowUser = async (followerName: string, followerAvatar?: string) =
 };
 
 // 示例3: 当有人留下review时
-const handleLeaveReview = async (reviewerName: string, listingTitle: string, rating: number, reviewerAvatar?: string) => {
+export const handleLeaveReview = async (reviewerName: string, listingTitle: string, rating: number, reviewerAvatar?: string) => {
   try {
     const notification = notificationService.generateReviewNotification(
       reviewerName, 
@@ -57,7 +58,7 @@ const handleLeaveReview = async (reviewerName: string, listingTitle: string, rat
 };
 
 // 示例4: 当订单状态变化时
-const handleOrderStatusChange = async (orderData: any, isSeller: boolean) => {
+export const handleOrderStatusChange = async (orderData: any, isSeller: boolean) => {
   try {
     const notification = notificationService.generateOrderNotification(orderData, isSeller);
     
@@ -71,7 +72,7 @@ const handleOrderStatusChange = async (orderData: any, isSeller: boolean) => {
 };
 
 // 示例5: 具体的订单状态通知示例
-const orderStatusExamples = {
+export const orderStatusExamples = {
   // 买家付款
   buyerPaid: {
     orderData: {
@@ -123,8 +124,7 @@ const orderStatusExamples = {
 };
 
 // 示例5: 在ChatScreen中集成notification
-// 当订单状态变化时，同时创建notification
-const updateOrderStatus = async (orderId: string, newStatus: string) => {
+export const updateOrderStatus = async (orderId: number, newStatus: OrderStatus, isSeller: boolean) => {
   try {
     // 更新订单状态
     const updatedOrder = await ordersService.updateOrderStatus(orderId, { status: newStatus });
@@ -139,13 +139,4 @@ const updateOrderStatus = async (orderId: string, newStatus: string) => {
   } catch (error) {
     console.error("❌ Error updating order:", error);
   }
-};
-
-export {
-  handleLikeListing,
-  handleFollowUser,
-  handleLeaveReview,
-  handleOrderStatusChange,
-  updateOrderStatus,
-  orderStatusExamples
 };
