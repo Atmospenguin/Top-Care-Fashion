@@ -53,6 +53,31 @@ class ReviewsService {
       throw error;
     }
   }
+
+  // 检查订单的评论状态（用于显示 Review CTA）
+  async check(orderId: number): Promise<{
+    userRole: 'buyer' | 'seller';
+    hasUserReviewed: boolean;
+    hasOtherReviewed: boolean;
+    reviewsCount: number;
+    userReview: Review | null;
+    otherReview: Review | null;
+  }> {
+    try {
+      const response = await apiClient.get<{
+        userRole: 'buyer' | 'seller';
+        hasUserReviewed: boolean;
+        hasOtherReviewed: boolean;
+        reviewsCount: number;
+        userReview: Review | null;
+        otherReview: Review | null;
+      }>(`/api/orders/${orderId}/reviews/check`);
+      return response.data;
+    } catch (error) {
+      console.error('Error checking review status:', error);
+      throw error;
+    }
+  }
 }
 
 export const reviewsService = new ReviewsService();

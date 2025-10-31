@@ -86,22 +86,40 @@ export default function NotificationScreen() {
   const resolveConversationContext = async (notification: Notification) => {
     let conversationId = notification.conversationId;
     let orderId = notification.orderId;
+    let sender: string | undefined = undefined;
 
-    if ((!conversationId || !orderId) && notification.orderId) {
-      const conversations = await getConversationsWithCache();
+    // 尝试从对话缓存中获取 sender 信息
+    const conversations = await getConversationsWithCache();
+    
+    if (conversationId) {
+      // 如果已有 conversationId，直接从缓存中查找
+      const matchedConversation = conversations.find((conv) => conv.id === conversationId);
+      if (matchedConversation) {
+        sender = matchedConversation.sender;
+        console.log("💬 Found sender from conversation cache:", sender);
+      }
+    } else if (notification.orderId) {
+      // 如果没有 conversationId，通过 orderId 查找
       const matchedConversation = conversations.find((conv) => conv.order?.id?.toString() === notification.orderId);
-
       if (matchedConversation) {
         conversationId = matchedConversation.id;
         orderId = matchedConversation.order?.id ?? notification.orderId;
+        sender = matchedConversation.sender;
         console.log("💬 Resolved conversation via orderId:", {
           matchedConversationId: matchedConversation.id,
           orderId,
+          sender,
         });
       }
     }
 
-    return { conversationId, orderId };
+    // 如果没有找到 sender，尝试从 notification 中获取
+    if (!sender && notification.username) {
+      sender = notification.username;
+      console.log("💬 Using sender from notification:", sender);
+    }
+
+    return { conversationId, orderId, sender };
   };
 
   const handleDeleteNotification = (notification: Notification) => {
@@ -176,13 +194,14 @@ export default function NotificationScreen() {
       switch (notifType) {
         case 'order':
         case 'review': {
-          const { conversationId, orderId } = await resolveConversationContext(notification);
+          const { conversationId, orderId, sender } = await resolveConversationContext(notification);
 
           // ✅ 导航到 ChatScreen（InboxStack → Chat）
           if (conversationId && orderId) {
             console.log("📱 Navigating to ChatScreen:", {
               conversationId,
               orderId,
+              sender: sender || notification.username || "TOP Support",
             });
             try {
               rootNav.navigate("Main", {
@@ -192,6 +211,7 @@ export default function NotificationScreen() {
                   params: {
                     conversationId,
                     orderId,
+                    sender: sender || notification.username || "TOP Support", // ✅ 传递正确的 sender
                   },
                 },
               });
@@ -287,13 +307,15 @@ export default function NotificationScreen() {
 
   const renderNotification = ({ item }: { item: Notification }) => {
     // ✅ 优先显示商品图片，其次显示用户头像，最后显示默认头像
+    const actorImage = item.image && item.image.trim() ? { uri: item.image } : null;
+    const listingPreview = item.listingImage && item.listingImage.trim() ? { uri: item.listingImage } : null;
+    const prioritizeActor = item.type === 'order' || item.type === 'review' || item.type === 'follow';
+
     let imageSource;
-    if (item.listingImage && item.listingImage !== '') {
-      imageSource = { uri: item.listingImage };
-    } else if (item.image && item.image !== '') {
-      imageSource = { uri: item.image };
+    if (prioritizeActor) {
+      imageSource = actorImage ?? listingPreview ?? ASSETS.avatars.default;
     } else {
-      imageSource = ASSETS.avatars.default;
+      imageSource = listingPreview ?? actorImage ?? ASSETS.avatars.default;
     }
 
     const renderRightActions = () => (
@@ -315,10 +337,7 @@ export default function NotificationScreen() {
           onPress={() => handleNotificationPress(item)}
           activeOpacity={0.7}
         >
-          <Image
-            source={imageSource}
-            style={styles.avatar}
-          />
+          <Image source={imageSource} style={styles.avatar} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.title, !item.isRead && styles.unreadTitle]}>
               {item.title}

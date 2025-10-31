@@ -11,6 +11,7 @@ export { messagesService } from './messagesService';
 export { reviewsService } from './reviewsService';
 export { notificationService } from './notificationService';
 export { premiumService, PremiumServiceType } from './premiumService';
+export { benefitsService, BenefitsServiceType } from './benefitsService';
 export { NotificationHelper } from './notificationHelper';
 
 // 导出类型
@@ -47,4 +48,5 @@ export type {
   Notification, 
   NotificationParams 
 } from './notificationService';
+export type { UserBenefitsPayload } from './benefitsService';
 

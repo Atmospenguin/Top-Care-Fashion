@@ -31,7 +31,6 @@ const normalizeParticipant = (input: any): NormalizedUser => {
       avatar: null,
       isPremium: false,
     };
-  }
 
   const rawId =
     input.id ?? input.user_id ?? input.participant_id ?? input.owner_id ?? input.member_id;
@@ -358,33 +357,8 @@ class MessagesService {
         kind: "order",
         unread: false,
         lastFrom: "seller",
-        order: newConversation.listing ? {
-          id: newConversation.listing.id.toString(),
-          product: {
-            title: newConversation.listing.name,
-            price: Number(newConversation.listing.price),
-            size: newConversation.listing.size,
-            image: newConversation.listing.image_url || (newConversation.listing.image_urls as any)?.[0] || null
-          },
-          seller: { 
-            name: otherUser.username,
-            avatar: otherUser.avatar_url 
-          },
-          status: "Inquiry"
-        } : {
-          id: listingId?.toString() || "unknown",
-          product: {
-            title: "Item",
-            price: 0,
-            size: "Unknown",
-            image: null
-          },
-          seller: { 
-            name: otherUser.username,
-            avatar: otherUser.avatar_url 
-          },
-          status: "Inquiry"
-        }
+        isPremium: participantSummary.isPremium,
+        order: orderSummary,
       };
     } catch (error) {
       console.error('Error getting or creating seller conversation:', error);
