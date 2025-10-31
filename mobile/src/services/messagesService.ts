@@ -31,6 +31,7 @@ const normalizeParticipant = (input: any): NormalizedUser => {
       avatar: null,
       isPremium: false,
     };
+  }
 
   const rawId =
     input.id ?? input.user_id ?? input.participant_id ?? input.owner_id ?? input.member_id;
@@ -115,6 +116,12 @@ export interface Conversation {
     seller: { 
       name: string;
       avatar?: string | null;
+      isPremium?: boolean;
+    };
+    buyer?: {
+      name: string;
+      avatar?: string | null;
+      isPremium?: boolean;
     };
     status: string;
   } | null;
@@ -138,13 +145,11 @@ export interface Message {
     product: {
       title: string;
       price: number;
+    };
     seller: { 
       name: string;
       avatar?: string | null;
     };
-    status: string;
-  };
-    seller: { name: string };
     status: string;
   };
 }
