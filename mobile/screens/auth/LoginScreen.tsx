@@ -41,19 +41,21 @@ export default function LoginScreen({ navigation }: Props) {
       clearError();
       await login(email.trim(), password);
       // 登录成功后，拉取一次用户资料以判定是否已有偏好
-      let hasPreference = false;
+      let hasCompletePreferences = false;
       try {
         const me = await getCurrentUser();
         const u = (me as any)?.data?.user || null;
-        hasPreference = Boolean(
-          u && (
-            u.gender ||
-            (Array.isArray(u.preferred_styles) && u.preferred_styles.length > 0) ||
-            u.preferred_size_top || u.preferred_size_bottom || u.preferred_size_shoe
-          )
+        // 严格检查：要求所有偏好字段都已填写
+        hasCompletePreferences = Boolean(
+          u &&
+          u.gender &&
+          Array.isArray(u.preferred_styles) && u.preferred_styles.length > 0 &&
+          u.preferred_size_shoe &&
+          u.preferred_size_top &&
+          u.preferred_size_bottom
         );
       } catch {}
-      navigation.replace(hasPreference ? "Main" : "OnboardingPreference");
+      navigation.replace(hasCompletePreferences ? "Main" : "OnboardingPreference");
     } catch (error: any) {
       Alert.alert("Login Failed", error.message || "Please check your credentials and try again");
     } finally {

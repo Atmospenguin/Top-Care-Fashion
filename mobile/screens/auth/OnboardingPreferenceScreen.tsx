@@ -190,7 +190,8 @@ export default function OnboardingPreferenceScreen() {
       case 1:
         return selectedStyles.length > 0;
       case 2:
-        return shoeSize !== null || topSize !== null || bottomSize !== null;
+        // All three sizes must be filled
+        return shoeSize !== null && topSize !== null && bottomSize !== null;
       default:
         return false;
     }
@@ -340,7 +341,7 @@ export default function OnboardingPreferenceScreen() {
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>What are your sizes?</Text>
       <Text style={styles.stepSubtitle}>
-        This helps us recommend items that fit you (optional)
+        Please provide all three sizes to help us recommend items that fit you
       </Text>
 
       <View style={styles.sizesContainer}>

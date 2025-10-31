@@ -10,12 +10,14 @@ import type { MyTopStackParamList } from "./index";
 import { useNavigation as useRootNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp as RootStackNav } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../../App";
+import { useAuth } from "../../../contexts/AuthContext";
 
 export default function SettingScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
   const rootNavigation =
     useRootNavigation<RootStackNav<RootStackParamList>>();
+  const { logout } = useAuth();
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -87,9 +89,10 @@ export default function SettingScreen() {
           <SettingItem
             icon="log-out-outline"
             label="Log out"
-            onPress={() => {
-              console.log("Logout pressed - navigating to Login");
-              // navigate to root Login screen
+            onPress={async () => {
+              console.log("Logout pressed - clearing tokens");
+              await logout();
+              console.log("Logout complete - navigating to Login");
               rootNavigation.navigate("Login");
             }}
           />

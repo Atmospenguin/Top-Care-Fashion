@@ -16,3 +16,4 @@ yarn-error.log*
 .DS_Store
 docs/vercel_supabase_credentials
 .vercel
+.claude/settings.local.json
