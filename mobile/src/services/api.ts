@@ -186,16 +186,18 @@ class ApiClient {
   }
 
   // 清除认证 token
-  public clearAuthToken(): void {
+  public async clearAuthToken(): Promise<void> {
     this.authToken = null;
     this.refreshToken = null;
-    AsyncStorage.removeItem(AUTH_TOKEN_KEY).catch((error) => {
-      console.log('🔍 API Client - Failed to clear stored access token:', error);
-    });
-    AsyncStorage.removeItem(REFRESH_TOKEN_KEY).catch((error) => {
-      console.log('🔍 API Client - Failed to clear stored refresh token:', error);
-    });
-    console.log('🔍 API Client - Cleared stored tokens');
+    try {
+      await Promise.all([
+        AsyncStorage.removeItem(AUTH_TOKEN_KEY),
+        AsyncStorage.removeItem(REFRESH_TOKEN_KEY),
+      ]);
+      console.log('🔍 API Client - Cleared stored tokens');
+    } catch (error) {
+      console.log('🔍 API Client - Failed to clear stored tokens:', error);
+    }
   }
 
   // 构建完整 URL
@@ -288,7 +290,7 @@ class ApiClient {
             return this.request<T>(endpoint, options, retryCount + 1);
           }
           console.warn("🔍 API Client - Session refresh failed, clearing stored tokens");
-          this.clearAuthToken();
+          await this.clearAuthToken();
         }
         
         throw new ApiError(

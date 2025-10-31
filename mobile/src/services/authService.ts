@@ -113,7 +113,7 @@ export class AuthService {
       // Continue to clear local tokens even if server logout fails
     } finally {
       // Always clear local auth tokens, even if server logout fails
-      apiClient.clearAuthToken();
+      await apiClient.clearAuthToken();
     }
   }
 
