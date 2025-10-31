@@ -1582,7 +1582,8 @@ export default function ChatScreen() {
     }
 
     const order = orderCard.order;
-    const orderId = order.id;
+    // ✅ 使用 resolveOrderId 规范化 orderId，确保格式一致
+    const orderId = resolveOrderId(order);
 
     // 守则 #5: 只在 COMPLETED/RECEIVED/REVIEWED 状态显示
     if (order.status !== "COMPLETED" && order.status !== "RECEIVED" && order.status !== "REVIEWED") {
@@ -1597,8 +1598,40 @@ export default function ChatScreen() {
     
     // 如果还未加载状态，触发加载
     if (!status) {
+      console.log("⏳ Review status not loaded yet, checking for order:", orderId);
       checkOrderReviewStatus(orderId);
-      return null; // 等待下次渲染
+      // ✅ 即使状态未加载，也显示一个基本的 "Leave Review" CTA，避免完全空白
+      // 这样用户至少可以看到 CTA，即使 API 调用延迟或失败
+      return (
+        <View key={`cta-review-loading-${orderId}`} style={{ marginBottom: 12, paddingHorizontal: 12 }}>
+          <View style={styles.reviewBox}>
+            <Text style={styles.reviewHint}>How was your experience? Leave a review to help others discover great items.</Text>
+            <TouchableOpacity 
+              style={styles.reviewBtnCenter}
+              onPress={async () => {
+                console.log("⭐ Leave Review button pressed (loading state) for order:", orderId);
+                const rootNavigation = (navigation as any).getParent?.();
+                const isBuyer = user?.username === order.buyer?.name;
+                const reviewType = isBuyer ? "buyer" : "seller";
+                if (rootNavigation) {
+                  rootNavigation.navigate("Review", { 
+                    orderId: orderId,
+                    reviewType: reviewType
+                  });
+                } else {
+                  (navigation as any).navigate("Review", { 
+                    orderId: orderId,
+                    reviewType: reviewType
+                  });
+                }
+                await refreshReviewStatus(orderId);
+              }}
+            >
+              <Text style={styles.reviewBtnText}>Leave Review</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
     }
 
     // 判断用户角色
@@ -1612,9 +1645,20 @@ export default function ChatScreen() {
     }
 
     // 守则 #3: 使用稳定的 key
+    const reviewNode = renderReviewCTA(orderId, ctaText, reviewType);
+
+    if (typeof (reviewNode as any) === 'string') {
+      console.warn('⚠️ renderReviewCTA returned a string, wrapping in <Text>:', reviewNode);
+      return (
+        <View key={`cta-review-${orderId}`} style={{ marginBottom: 12, paddingHorizontal: 12 }}>
+          <Text style={styles.reviewHint}>{String(reviewNode)}</Text>
+        </View>
+      );
+    }
+
     return (
       <View key={`cta-review-${orderId}`} style={{ marginBottom: 12, paddingHorizontal: 12 }}>
-        {renderReviewCTA(orderId, ctaText, reviewType)}
+        {reviewNode}
       </View>
     );
   };
@@ -1936,390 +1980,6 @@ const styles = StyleSheet.create({
   orderContent: {
     flex: 1,
     marginRight: 12,
-  },
-  orderTitle: { 
-    fontWeight: "700", 
-    fontSize: 16, 
-    marginBottom: 6,
-    color: "#111"
-  },
-  orderPrice: { 
-    color: "#e11d48", 
-    fontWeight: "800", 
-    marginBottom: 6,
-    fontSize: 16
-  },
-  orderMeta: { 
-    color: "#555", 
-    marginBottom: 2,
-    fontSize: 13
-  },
-  orderStatus: { 
-    color: "#666",
-    fontSize: 13
-  },
-  orderActions: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  buyButton: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 80,
-    borderWidth: 1,
-    borderColor: "#000",
-  },
-  buyButtonText: {
-    color: "#000",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  actionButton: {
-    backgroundColor: "#000",
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 80,
-  },
-  actionButtonText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  sellerActions: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statusBadge: {
-    backgroundColor: "#f0f0f0",
-    borderRadius: 16,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    minWidth: 80,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statusBadgeText: {
-    color: "#666",
-    fontWeight: "600",
-    fontSize: 12,
-    textAlign: "center",
-  },
-
-  // review CTA
-  reviewBox: {
-    backgroundColor: "#F6F6F6",
-    borderRadius: 12,
-    padding: 14,
-    marginHorizontal: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  reviewHint: { color: "#555", fontSize: 14, marginBottom: 12, lineHeight: 20, textAlign: "center" },
-  reviewBtnCenter: {
-    alignSelf: "center",
-    backgroundColor: "#fff",
-    borderRadius: 999,
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#ddd",
-  },
-  reviewBtnText: { fontSize: 14, color: "#111", fontWeight: "700" },
-
-  // input bar
-  inputBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#ddd",
-    backgroundColor: "#fff",
-  },
-  textInput: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    backgroundColor: "#f5f5f5",
-    fontSize: 15,
-    marginRight: 8,
-  },
-  sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#007AFF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-});
-olor: "#000",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  actionButton: {
-    backgroundColor: "#000",
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 80,
-  },
-  actionButtonText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  sellerActions: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statusBadge: {
-    backgroundColor: "#f0f0f0",
-    borderRadius: 16,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    minWidth: 80,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statusBadgeText: {
-    color: "#666",
-    fontWeight: "600",
-    fontSize: 12,
-    textAlign: "center",
-  },
-
-  // review CTA
-  reviewBox: {
-    backgroundColor: "#F6F6F6",
-    borderRadius: 12,
-    padding: 14,
-    marginHorizontal: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  reviewHint: { color: "#555", fontSize: 14, marginBottom: 12, lineHeight: 20, textAlign: "center" },
-  reviewBtnCenter: {
-    alignSelf: "center",
-    backgroundColor: "#fff",
-    borderRadius: 999,
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#ddd",
-  },
-  reviewBtnText: { fontSize: 14, color: "#111", fontWeight: "700" },
-
-  // input bar
-  inputBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#ddd",
-    backgroundColor: "#fff",
-  },
-  textInput: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    backgroundColor: "#f5f5f5",
-    fontSize: 15,
-    marginRight: 8,
-  },
-  sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#007AFF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-});
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  userCardBtn: {
-    alignSelf: "flex-end",
-    backgroundColor: "#fff",
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#ddd",
-    marginTop: 8,
-  },
-  userCardBtnText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#111",
-  },
-
-  // order card
-  orderCard: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 1,
-    alignItems: "center",
-  },
-  orderThumb: { 
-    width: 64, 
-    height: 64, 
-    borderRadius: 8, 
-    marginRight: 12, 
-    backgroundColor: "#eee" 
-  },
-  orderContent: {
-    flex: 1,
-    marginRight: 12,
-  },
-  orderTitle: { 
-    fontWeight: "700", 
-    fontSize: 16, 
-    marginBottom: 6,
-    color: "#111"
-  },
-  orderPrice: { 
-    color: "#e11d48", 
-    fontWeight: "800", 
-    marginBottom: 6,
-    fontSize: 16
-  },
-  orderMeta: { 
-    color: "#555", 
-    marginBottom: 2,
-    fontSize: 13
-  },
-  orderStatus: { 
-    color: "#666",
-    fontSize: 13
-  },
-  orderActions: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  buyButton: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 80,
-    borderWidth: 1,
-    borderColor: "#000",
-  },
-  buyButtonText: {
-    color: "#000",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  actionButton: {
-    backgroundColor: "#000",
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 80,
-  },
-  actionButtonText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  sellerActions: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statusBadge: {
-    backgroundColor: "#f0f0f0",
-    borderRadius: 16,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    minWidth: 80,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statusBadgeText: {
-    color: "#666",
-    fontWeight: "600",
-    fontSize: 12,
-    textAlign: "center",
-  },
-
-  // review CTA
-  reviewBox: {
-    backgroundColor: "#F6F6F6",
-    borderRadius: 12,
-    padding: 14,
-    marginHorizontal: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  reviewHint: { color: "#555", fontSize: 14, marginBottom: 12, lineHeight: 20, textAlign: "center" },
-  reviewBtnCenter: {
-    alignSelf: "center",
-    backgroundColor: "#fff",
-    borderRadius: 999,
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#ddd",
-  },
-  reviewBtnText: { fontSize: 14, color: "#111", fontWeight: "700" },
-
-  // input bar
-  inputBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#ddd",
-    backgroundColor: "#fff",
-  },
-  textInput: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    backgroundColor: "#f5f5f5",
-    fontSize: 15,
-    marginRight: 8,
-  },
-  sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#007AFF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-});ginRight: 12,
   },
   orderTitle: { 
     fontWeight: "700", 
