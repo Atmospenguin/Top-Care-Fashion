@@ -15,7 +15,7 @@ export class NotificationHelper {
         // 创建notification并指定目标用户
         await notificationService.createNotification({
           ...notification,
-          userId: targetUserId.toString()
+          targetUserId: targetUserId.toString()
         });
         
         console.log("✅ Order status notification created for user:", targetUserId);
@@ -44,7 +44,8 @@ export class NotificationHelper {
       
       await notificationService.createNotification({
         ...notification,
-        userId: sellerId.toString(),
+        targetUserId: sellerId.toString(),
+        relatedUserId: notification.relatedUserId ?? likerId.toString() ?? undefined,
         listingId: listingId.toString()
       });
       
@@ -70,7 +71,8 @@ export class NotificationHelper {
       
       await notificationService.createNotification({
         ...notification,
-        userId: targetUserId.toString()
+        targetUserId: targetUserId.toString(),
+        relatedUserId: notification.relatedUserId ?? followerId.toString() ?? undefined
       });
       
       console.log("✅ Follow notification created for user:", targetUserId);
@@ -100,7 +102,8 @@ export class NotificationHelper {
       
       await notificationService.createNotification({
         ...notification,
-        userId: sellerId.toString(),
+        targetUserId: sellerId.toString(),
+        relatedUserId: notification.relatedUserId ?? reviewerId.toString() ?? undefined,
         listingId: listingId.toString()
       });
       

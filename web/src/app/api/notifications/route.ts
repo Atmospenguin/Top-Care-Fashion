@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
         type: notification.type.toLowerCase(),
         title: notification.title,
         message: notification.message,
-        image: notification.image_url || notification.related_user?.avatar_url,
+        image: notification.related_user?.avatar_url || notification.image_url,
         listingImage,
         time: notification.created_at ? formatTime(notification.created_at) : null,
         isRead: notification.is_read,

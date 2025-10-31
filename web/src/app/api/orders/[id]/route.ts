@@ -376,8 +376,8 @@ export async function PATCH(
 
     // 🔔 创建订单状态变化notification
     try {
-      const isSeller = currentUser.id === existingOrder.seller_id;
-      const targetUserId = isSeller ? existingOrder.buyer_id : existingOrder.seller_id;
+  const isSeller = currentUser.id === existingOrder.seller_id;
+  const targetUserId = isSeller ? existingOrder.buyer_id : existingOrder.seller_id;
 
       // 🔥 查找正确的 conversation
       const conversation = await prisma.conversations.findFirst({
@@ -451,25 +451,27 @@ export async function PATCH(
       }
       
       if (notificationTitle && targetUserId) {
-        // 对于CANCELLED状态，使用currentUser的头像
-        // 对于其他状态，使用对方的头像
-        const notificationImageUrl = status === 'CANCELLED' 
-          ? currentUser.avatar_url 
-          : (isSeller ? existingOrder.buyer.avatar_url : existingOrder.seller.avatar_url);
+        // ✅ ORDER 通知应该显示发起操作的用户（currentUser）的头像和信息
+        // - 当卖家发货 → 通知买家，显示卖家头像
+        // - 当买家确认收货 → 通知卖家，显示买家头像
+        // - 当取消订单 → 通知对方，显示取消者头像
+        // related_user_id 应该是发起操作的用户（currentUser）
+        const relatedUserId = currentUser.id;
+        const notificationImageUrl = currentUser.avatar_url;
         
         await prisma.notifications.create({
           data: {
-            user_id: targetUserId,
+            user_id: targetUserId, // 接收通知的用户
             type: 'ORDER',
             title: notificationTitle,
             message: notificationMessage,
-            image_url: notificationImageUrl,
+            image_url: notificationImageUrl, // ✅ 发起操作的用户（currentUser）的头像
             order_id: orderId.toString(),
-            related_user_id: currentUser.id, // 发起操作的用户
+            related_user_id: relatedUserId, // ✅ 发起操作的用户（currentUser）的 ID
             conversation_id: conversation?.id, // ✅ 添加对话ID
           },
         });
-        console.log(`🔔 Order status notification created for user ${targetUserId} (${status})`);
+        console.log(`🔔 Order status notification created for user ${targetUserId} (${status}), related_user_id: ${relatedUserId} (${currentUser.username})`);
       }
       
       // 🔔 创建系统消息到对话中（如果找到 conversation）
