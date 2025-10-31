@@ -202,7 +202,10 @@ class ApiClient {
 
   // 构建完整 URL
   private buildUrl(endpoint: string): string {
-    return `${this.baseURL}${endpoint}`;
+    // 规范化：移除baseURL末尾的斜杠，移除endpoint开头的斜杠，然后用单个斜杠连接
+    const base = this.baseURL.replace(/\/+$/, '');
+    const path = endpoint.replace(/^\/+/, '');
+    return `${base}/${path}`;
   }
 
   // 获取认证头
