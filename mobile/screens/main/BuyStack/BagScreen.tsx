@@ -16,11 +16,20 @@ import type { RouteProp } from "@react-navigation/native";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { BuyStackParamList } from "./index";
-import type { BagItem, ListingItem } from "../../../types/shop";
+import type { BagItem, ListingItem, Gender } from "../../../types/shop";
 import { DEFAULT_BAG_ITEMS } from "../../../mocks/shop";
 import { cartService, CartItem } from "../../../src/services";
 
 const BASE_DATE_ISO = new Date(0).toISOString();
+
+// Helper to validate and convert gender string to Gender type
+const normalizeGender = (gender: string | undefined | null): Gender | null | undefined => {
+  if (!gender) return undefined;
+  if (gender === "Men" || gender === "Women" || gender === "Unisex") {
+    return gender as Gender;
+  }
+  return undefined;
+};
 
 const normalizeListingItem = (item: ListingItem): ListingItem => ({
   ...item,
@@ -50,7 +59,7 @@ const cartItemToListingItem = (item: CartItem["item"]): ListingItem =>
     size: item.size ?? null,
     condition: item.condition ?? null,
     material: item.material ?? undefined,
-    gender: item.gender ?? undefined,
+    gender: normalizeGender(item.gender),
     tags: item.tags ?? undefined,
     images: item.images ?? [],
     category: (item.category ?? null) as ListingItem["category"],

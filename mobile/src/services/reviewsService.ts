@@ -72,6 +72,9 @@ class ReviewsService {
         userReview: Review | null;
         otherReview: Review | null;
       }>(`/api/orders/${orderId}/reviews/check`);
+      if (!response.data) {
+        throw new Error('No data returned from reviews check');
+      }
       return response.data;
     } catch (error) {
       console.error('Error checking review status:', error);
