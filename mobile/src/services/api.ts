@@ -211,13 +211,13 @@ class ApiClient {
   // 获取认证头
   private async getAuthHeaders(): Promise<Record<string, string>> {
     console.log("🔍 getAuthHeaders - accessToken in memory:", this.authToken ? "present" : "null");
-    
-    // 仅使用本地存储的 token（来自 Web API 登录返回的 access_token）
+
+    // 使用 Supabase access token
     if (this.authToken) {
       console.log("🔑 Using JWT Token for API request:", this.previewToken(this.authToken));
       return { Authorization: `Bearer ${this.authToken}` };
     }
-    
+
     try {
       const storedToken = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
       console.log("🔍 getAuthHeaders - stored access token:", storedToken ? "present" : "null");
@@ -230,7 +230,7 @@ class ApiClient {
     } catch (e) {
       console.log('🔍 API Client - Error reading stored token:', e);
     }
-    
+
     console.log("❌ No auth token available, returning empty headers");
     return {};
   }
@@ -284,7 +284,7 @@ class ApiClient {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        
+
         // 如果是 401 错误且还有重试次数，尝试刷新 session
         if (response.status === 401 && retryCount < 1) {
           console.log(`🔍 API Client - 401 error, attempting session refresh (retry ${retryCount + 1})`);
@@ -295,7 +295,7 @@ class ApiClient {
           console.warn("🔍 API Client - Session refresh failed, clearing stored tokens");
           await this.clearAuthToken();
         }
-        
+
         throw new ApiError(
           errorData.message || `HTTP ${response.status}`,
           response.status,
