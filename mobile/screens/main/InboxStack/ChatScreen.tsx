@@ -267,14 +267,7 @@ export default function ChatScreen() {
   const refreshReviewStatus = async (orderId: string) => {
     try {
       const status = await reviewsService.check(parseInt(orderId));
-      console.log("🔍 API returned review status for order", orderId, ":", {
-        userRole: status.userRole,
-        hasUserReviewed: status.hasUserReviewed,
-        hasOtherReviewed: status.hasOtherReviewed,
-        reviewsCount: status.reviewsCount,
-        userReview: status.userReview ? "exists" : null,
-        otherReview: status.otherReview ? "exists" : null
-      });
+      console.log("🔍 API returned review status for order", orderId, "hasUserReviewed:", status.hasUserReviewed, "hasOtherReviewed:", status.hasOtherReviewed);
       setReviewStatuses(prev => ({
         ...prev,
         [orderId]: {
@@ -285,7 +278,7 @@ export default function ChatScreen() {
           otherReview: status.otherReview,
         }
       }));
-      console.log("⭐ Review status refreshed for order", orderId, ":", status);
+      console.log("⭐ Review status refreshed for order", orderId);
     } catch (error) {
       const statusCode = getErrorStatusCode(error);
       if (statusCode === 403) {
@@ -510,8 +503,9 @@ export default function ChatScreen() {
       const conversationData = await messagesService.getMessages(conversationId);
       setConversation(conversationData);
       
-      console.log("🔍 API 返回的对话数据:", conversationData);
+      // 🔥 安全地输出日志，避免包含换行符导致崩溃
       console.log("🔍 API 返回的消息数量:", conversationData.messages?.length || 0);
+      console.log("🔍 Conversation ID:", conversationData.conversation?.id);
       
       // 转换 API 数据为 ChatItem 格式
       const apiItems: ChatItem[] = conversationData.messages.map((msg: Message) => {
@@ -552,8 +546,9 @@ export default function ChatScreen() {
         }
       });
 
+      // 🔥 安全地输出日志
       console.log("🔍 转换后的消息数量:", apiItems.length);
-      console.log("🔍 转换后的消息:", apiItems);
+      console.log("🔍 转换后的消息类型:", apiItems.map((item, idx) => `${idx}:${item.type}`).join(", "));
 
       // 处理不同类型的聊天
       let finalItems = apiItems;
@@ -569,7 +564,7 @@ export default function ChatScreen() {
         // 优先使用 route.params.order，如果没有则使用 conversation.order
         const rawOrderData = order || conversation?.order;
         console.log("🔍 Order 数据来源:", order ? "route.params" : "conversation");
-        console.log("🔍 Order 数据:", JSON.stringify(rawOrderData, null, 2));
+        console.log("🔍 Order ID:", rawOrderData?.id, "Status:", rawOrderData?.status);
         
         if (rawOrderData) {
           const orderData = normalizeOrder(rawOrderData);
@@ -583,7 +578,7 @@ export default function ChatScreen() {
             order: orderData
           };
           
-          console.log("🔍 创建的商品卡片:", JSON.stringify(orderCard, null, 2));
+          console.log("🔍 创建的商品卡片 ID:", orderCard.id);
           
           // 检查是否已经有商品卡片，避免重复
           const hasOrderCard = apiItems.some(item => item.type === "orderCard");
@@ -611,8 +606,9 @@ export default function ChatScreen() {
         setItems(mergeMessages([], [welcomeMessage]));
         console.log("🔍 Added welcome message for new user");
       } else {
-        console.log("🔍 Final items before setItems:", finalItems);
+        // 🔥 安全地输出日志，避免包含换行符的文本导致 LogBox 崩溃
         console.log("🔍 Final items length:", finalItems.length);
+        console.log("🔍 Final items types:", finalItems.map((item, idx) => `${idx}:${item.type}`).join(", "));
         
         setItems(mergeMessages([], finalItems));
         console.log("🔍 Loaded", finalItems.length, "messages from API");
@@ -758,7 +754,7 @@ export default function ChatScreen() {
           quantity: 1
         };
         
-        console.log("🔍 Navigating to Checkout with item:", singleItem);
+        console.log("🔍 Navigating to Checkout with listing ID:", listingId);
         
         // 🔥 BuyStack在根级别，直接导航
         rootNavigation.navigate("Buy", {
@@ -1242,17 +1238,18 @@ export default function ChatScreen() {
   type SystemItem = Extract<ChatItem, { type: "system" }>;
 
   const renderSystem = (item: SystemItem) => {
-    const { id, text, time, sentByUser, avatar, senderInfo } = item;
-    
-    // 🔥 通用调试日志
-    console.log("🔍 renderSystem called:", {
-      text: text.substring(0, 50),
-      senderInfoId: senderInfo?.id,
-      senderInfoUsername: senderInfo?.username,
-      userId: user?.id,
-      userUsername: user?.username,
-      sentByUser
-    });
+    try {
+      const { id, text, time, sentByUser, avatar, senderInfo } = item;
+      
+      // 🔥 通用调试日志（避免输出包含换行符的文本）
+      console.log("🔍 renderSystem called:", {
+        textPreview: text.substring(0, 50).replace(/\n/g, "\\n"), // 转义换行符
+        senderInfoId: senderInfo?.id,
+        senderInfoUsername: senderInfo?.username,
+        userId: user?.id,
+        userUsername: user?.username,
+        sentByUser
+      });
     
     // 判断是不是时间格式（更严格）：匹配像 "Sep 20, 2025" 或 "Jul 13, 2025" 的开头
     const isDateLike = /^\w{3}\s\d{1,2},\s\d{4}/.test(text);
@@ -1270,7 +1267,7 @@ export default function ChatScreen() {
       const isCurrentUserSender = senderInfo?.id === user?.id || Number(senderInfo?.id) === Number(user?.id);
       
       console.log("🔍 PAID message debug:", {
-        text: text.substring(0, 30),
+        textPreview: text.substring(0, 30).replace(/\n/g, "\\n"),
         senderInfoId: senderInfo?.id,
         senderInfoIdType: typeof senderInfo?.id,
         userId: user?.id,
@@ -1291,7 +1288,7 @@ export default function ChatScreen() {
       const isCurrentUserSender = senderInfo?.id === user?.id || Number(senderInfo?.id) === Number(user?.id);
       
       console.log("🔍 SHIPPED message debug:", {
-        text: text.substring(0, 30),
+        textPreview: text.substring(0, 30).replace(/\n/g, "\\n"),
         senderInfoId: senderInfo?.id,
         userId: user?.id,
         isCurrentUserSender,
@@ -1306,7 +1303,7 @@ export default function ChatScreen() {
       const isCurrentUserSender = senderInfo?.id === user?.id || Number(senderInfo?.id) === Number(user?.id);
       
       console.log("🔍 DELIVERED message debug:", {
-        text: text.substring(0, 30),
+        textPreview: text.substring(0, 30).replace(/\n/g, "\\n"),
         senderInfoId: senderInfo?.id,
         userId: user?.id,
         isCurrentUserSender,
@@ -1323,7 +1320,7 @@ export default function ChatScreen() {
       const isCurrentUserSender = senderInfo?.id === user?.id || Number(senderInfo?.id) === Number(user?.id);
       
       console.log("🔍 COMPLETED message debug:", {
-        text: text.substring(0, 30),
+        textPreview: text.substring(0, 30).replace(/\n/g, "\\n"),
         senderInfoId: senderInfo?.id,
         userId: user?.id,
         isCurrentUserSender,
@@ -1340,7 +1337,7 @@ export default function ChatScreen() {
       const isCurrentUserSender = senderInfo?.id === user?.id || Number(senderInfo?.id) === Number(user?.id);
       
       console.log("🔍 CANCELLED message debug:", {
-        text: text.substring(0, 30),
+        textPreview: text.substring(0, 30).replace(/\n/g, "\\n"),
         senderInfoId: senderInfo?.id,
         userId: user?.id,
         isCurrentUserSender,
@@ -1369,7 +1366,7 @@ export default function ChatScreen() {
       const isMine = Number(senderInfo?.id) === Number(user?.id); // ✅ 使用 Number() 转换
       
       console.log("🔍 renderSystem debug:", {
-        text: text.substring(0, 20) + "...",
+        textPreview: text.substring(0, 20).replace(/\n/g, "\\n") + "...",
         sentByUser,
         isMine,
         senderInfoId: senderInfo?.id,
@@ -1436,18 +1433,25 @@ export default function ChatScreen() {
         </View>
       </>
     );
+    } catch (error) {
+      console.error("❌ Error in renderSystem:", error);
+      console.error("❌ Item id:", item.id, "type:", item.type);
+      // 🔥 兜底：返回一个安全的错误提示
+      return (
+        <View style={{ marginBottom: 12 }}>
+          <View style={styles.systemBox}>
+            <Text style={styles.systemText}>[System message render error]</Text>
+          </View>
+        </View>
+      );
+    }
   };
 
   const renderReviewCTA = (orderId: string, text: string, reviewType?: "buyer" | "seller") => {
     const status = reviewStatuses[orderId];
     
-    // 🔍 调试日志
-    console.log("🔍 renderReviewCTA - orderId:", orderId, "status:", {
-      hasUserReviewed: status?.hasUserReviewed,
-      hasOtherReviewed: status?.hasOtherReviewed,
-      userReview: status?.userReview,
-      otherReview: status?.otherReview
-    });
+    // 🔍 调试日志（简化输出避免 LogBox 崩溃）
+    console.log("🔍 renderReviewCTA - orderId:", orderId, "hasUserReviewed:", status?.hasUserReviewed, "hasOtherReviewed:", status?.hasOtherReviewed);
     
     // 状态 4: 双评状态 - 显示 "View Mutual Review"
     if (status?.hasUserReviewed && status?.hasOtherReviewed) {
@@ -1575,11 +1579,15 @@ export default function ChatScreen() {
 
   // 🔥 守则 #2: 固定位置渲染 Review CTA（ListFooterComponent）
   const renderReviewCtaFooter = () => {
-    // 找到 orderCard
-    const orderCard = items.find(item => item.type === "orderCard");
-    if (!orderCard || orderCard.type !== "orderCard") {
-      return null;
-    }
+    try {
+      console.log("🔍 renderReviewCtaFooter called");
+      // 找到 orderCard
+      const orderCard = items.find(item => item.type === "orderCard");
+      if (!orderCard || orderCard.type !== "orderCard") {
+        console.log("🔍 No order card found");
+        return null;
+      }
+      console.log("🔍 Order card found:", orderCard.order.id);
 
     const order = orderCard.order;
     // ✅ 使用 resolveOrderId 规范化 orderId，确保格式一致
@@ -1647,8 +1655,9 @@ export default function ChatScreen() {
     // 守则 #3: 使用稳定的 key
     const reviewNode = renderReviewCTA(orderId, ctaText, reviewType);
 
-    if (typeof (reviewNode as any) === 'string') {
-      console.warn('⚠️ renderReviewCTA returned a string, wrapping in <Text>:', reviewNode);
+    // 🔥 检查是否为原始类型（字符串、数字等）
+    if (typeof reviewNode === 'string' || typeof reviewNode === 'number' || typeof reviewNode === 'boolean') {
+      console.warn('⚠️ renderReviewCTA returned a primitive value, wrapping in <Text>:', reviewNode);
       return (
         <View key={`cta-review-${orderId}`} style={{ marginBottom: 12, paddingHorizontal: 12 }}>
           <Text style={styles.reviewHint}>{String(reviewNode)}</Text>
@@ -1656,11 +1665,21 @@ export default function ChatScreen() {
       );
     }
 
+    // 🔥 检查是否为 null 或 undefined
+    if (reviewNode === null || reviewNode === undefined) {
+      return null;
+    }
+
     return (
       <View key={`cta-review-${orderId}`} style={{ marginBottom: 12, paddingHorizontal: 12 }}>
         {reviewNode}
       </View>
     );
+    } catch (error) {
+      console.error("❌ Error in renderReviewCtaFooter:", error);
+      console.error("❌ Error stack:", (error as Error).stack);
+      return null;
+    }
   };
 
   // 🔥 渲染评论回复邀请卡片
@@ -1729,8 +1748,8 @@ export default function ChatScreen() {
 
           // 🔍 调试：检查当前导航状态
           const state = navigation.getState();
-          console.log("🔍 Current navigation state:", JSON.stringify(state, null, 2));
           console.log("🔍 Current route name:", state.routes[state.index]?.name);
+          console.log("🔍 Routes count:", state.routes.length);
           console.log("🔍 Can go back:", navigation.canGoBack());
           
           // 🔥 兜底逻辑：确保能正确返回到 InboxScreen
@@ -1750,11 +1769,15 @@ export default function ChatScreen() {
         keyExtractor={(it) => it.id}
         contentContainerStyle={{ padding: 12, paddingBottom: 12 }}
         ListFooterComponent={renderReviewCtaFooter}
-        renderItem={({ item }) => {
-          // 兜底：如果运行时拿到的是裸字符串/数字，包一层 <Text>
-          if (typeof (item as any) === "string" || typeof (item as any) === "number") {
-            return <View style={{ marginBottom: 12 }}><Text style={styles.textLeft}>{String(item)}</Text></View>;
-          }
+        renderItem={({ item, index }) => {
+          try {
+            console.log("🔍 Rendering item", index, "type:", (item as any)?.type);
+            
+            // 兜底：如果运行时拿到的是裸字符串/数字，包一层 <Text>
+            if (typeof (item as any) === "string" || typeof (item as any) === "number") {
+              console.log("🔍 Item is primitive, type:", typeof item);
+              return <View style={{ marginBottom: 12 }}><Text style={styles.textLeft}>{String(item)}</Text></View>;
+            }
 
           if (item.type === "orderCard") {
             // 🔥 判断订单卡片应该显示在左侧还是右侧
@@ -1837,9 +1860,27 @@ export default function ChatScreen() {
           );
           }
 
-          // 未知类型，返回 null（并加安全日志）
-          console.warn("ChatScreen: Unknown item type", (item as any)?.type);
-          return <View style={{ marginBottom: 12 }}><Text style={styles.textLeft}>{String((item as any) ?? "")}</Text></View>;
+          // 🔥 未知类型，安全地包装为 Text（兜底逻辑）
+          console.warn("ChatScreen: Unknown item type:", (item as any)?.type, "id:", (item as any)?.id);
+          // 🔥 确保任何内容都被包裹在 <Text> 中
+          const itemContent = (item as any)?.text ?? (item as any)?.content ?? String(item ?? "Unknown item");
+          return (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={styles.textLeft}>{String(itemContent)}</Text>
+            </View>
+          );
+          } catch (error) {
+            console.error("❌ Error rendering item", index, ":", error);
+            console.error("❌ Item type:", (item as any)?.type, "id:", (item as any)?.id);
+            console.error("❌ Error stack:", (error as Error).stack);
+            return (
+              <View style={{ marginBottom: 12 }}>
+                <View style={styles.systemBox}>
+                  <Text style={styles.systemText}>[Item render error at index {index}]</Text>
+                </View>
+              </View>
+            );
+          }
         }}
       />
 

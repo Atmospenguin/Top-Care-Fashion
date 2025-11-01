@@ -2,11 +2,16 @@
 import 'react-native-gesture-handler';
 import { enableScreens } from 'react-native-screens';
 import React from 'react';
-import { Text } from 'react-native';
+import { Text, LogBox } from 'react-native';
 import { NavigationContainer, getFocusedRouteNameFromRoute, type NavigatorScreenParams } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
+// 🔥 临时忽略 LogBox 渲染错误（由于日志包含特殊字符导致）
+LogBox.ignoreLogs([
+  'Text strings must be rendered within a <Text> component',
+]);
 
 import { AuthProvider } from './contexts/AuthContext'; // <-- make sure this path is correct
 import { navigationRef } from './src/services/navigationService';
