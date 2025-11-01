@@ -44,6 +44,9 @@ export async function GET(req: NextRequest) {
       where.sold = true;
     } else if (status === "unlisted") {
       where.listed = false;
+    } else if (status === "draft") {
+      where.listed = false;
+      where.sold = false;
     }
     // 如果status是'all'或者没有指定，则获取所有listings
 
@@ -128,7 +131,7 @@ export async function GET(req: NextRequest) {
 
     // 🔥 为每个sold商品获取conversationId
     const listingsWithConversations = await Promise.all(
-      listings.map(async (listing) => {
+      listings.map(async (listing: any) => {
         let conversationId = null;
         if (status === "sold" && listing.orders?.[0]) {
           const latestOrder = listing.orders[0];
@@ -189,7 +192,7 @@ export async function GET(req: NextRequest) {
       return [];
     };
 
-    const formattedListings = listingsWithConversations.map((listing) => {
+  const formattedListings = listingsWithConversations.map((listing: any) => {
       const images = (() => {
         const parsed = parseJsonArray(listing.image_urls);
         if (parsed.length > 0) {

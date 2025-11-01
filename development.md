@@ -24,6 +24,8 @@ This guide outlines setup, architecture, conventions, workflows, and operational
 - Run (dev)
   - Web: `cd web && npm run dev`
   - Mobile: `cd mobile && npx expo start`
+  - Expo will now point API calls at the local Next.js server on port 3000 during development; keep the web dev server running or override the port via `EXPO_PUBLIC_DEV_API_PORT`.
+  - If Expo reports the bundler host as `localhost`, set `EXPO_LOCAL_HOST_ADDRESS` (for example `10.0.2.2` on Android emulators) so the mobile client can reach your machine.
 
 > TIP: In UI, prefer brand accents (hex #F54B3D) for interactive states and links.
 
