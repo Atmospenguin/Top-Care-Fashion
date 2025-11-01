@@ -147,12 +147,12 @@ export default function OnboardingPreferenceScreen() {
 
   const handleFinish = async () => {
     // 将 Onboarding 偏好保存到后端（当前后端仅支持 gender 字段；size/style 可在后续扩展）
-    const genderValue =
+    const genderValue: "Female" | "Male" | null =
       selectedGender === "Female"
         ? "Female"
         : selectedGender === "Male"
         ? "Male"
-        : "OTHER";
+        : null;
     try {
       console.log("Saving preferences:", {
         gender: selectedGender,
@@ -160,7 +160,7 @@ export default function OnboardingPreferenceScreen() {
         styles: selectedStyles,
       });
       await userService.updateProfile({
-        gender: (genderValue as any) ?? null,
+  gender: genderValue,
         preferredStyles: selectedStyles.length ? selectedStyles : [],
         preferredSizes: {
           shoe: shoeSize ?? null,
