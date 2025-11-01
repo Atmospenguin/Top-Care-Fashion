@@ -264,6 +264,17 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (body.listed !== undefined) updateData.listed = body.listed;
     if (body.sold !== undefined) updateData.sold = body.sold;
 
+    // 🔥 处理 category（通过 name 查找 category_id）
+    if (body.category !== undefined && typeof body.category === "string" && body.category.trim().length > 0) {
+      try {
+        const categoryId = await getCategoryId(body.category);
+        updateData.category_id = categoryId;
+        console.log("✅ Category resolved:", body.category, "->", categoryId);
+      } catch (err) {
+        console.warn("⚠️ Unable to resolve category:", body.category, err);
+      }
+    }
+
     updateData.updated_at = new Date();
 
     console.log("📝 Update data prepared:", JSON.stringify(updateData, null, 2));
@@ -391,4 +402,63 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
       { status: 500 }
     );
   }
+}
+
+/**
+ * 🔥 获取 category ID（通过 category name）
+ */
+type BaseCategory = "Accessories" | "Bottoms" | "Footwear" | "Outerwear" | "Tops";
+const BASE_CATEGORY_NAMES: BaseCategory[] = ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"];
+
+async function getCategoryId(categoryName: string): Promise<number> {
+  const name = categoryName.trim().toLowerCase();
+
+  const synonymMap: Record<string, BaseCategory> = {
+    accessories: "Accessories",
+    accessory: "Accessories",
+    bags: "Accessories",
+    belts: "Accessories",
+    bottoms: "Bottoms",
+    pants: "Bottoms",
+    trousers: "Bottoms",
+    shorts: "Bottoms",
+    skirts: "Bottoms",
+    leggings: "Bottoms",
+    joggers: "Bottoms",
+    footwear: "Footwear",
+    shoes: "Footwear",
+    shoe: "Footwear",
+    boots: "Footwear",
+    sneakers: "Footwear",
+    outerwear: "Outerwear",
+    coats: "Outerwear",
+    jackets: "Outerwear",
+    blazers: "Outerwear",
+    tops: "Tops",
+    top: "Tops",
+    shirts: "Tops",
+    shirt: "Tops",
+    hoodies: "Tops",
+    sweaters: "Tops",
+    dress: "Tops",
+    dresses: "Tops",
+    activewear: "Tops",
+    others: "Accessories",
+    other: "Accessories",
+  };
+
+  const mapped =
+    synonymMap[name] ??
+    BASE_CATEGORY_NAMES.find((cat) => cat.toLowerCase() === name) ??
+    "Tops";
+
+  const category = await prisma.listing_categories.findFirst({
+    where: { name: mapped },
+  });
+
+  if (!category) {
+    throw new Error(`Base category '${mapped}' is missing from the database.`);
+  }
+
+  return category.id;
 }
