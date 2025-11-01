@@ -31,6 +31,11 @@ export async function GET(
     const likedListings = await prisma.user_likes.findMany({
       where: {
         user_id: targetUser.id,
+        // 🔥 只显示未售出且已上架的商品
+        listing: {
+          sold: false,
+          listed: true,
+        },
       },
       include: {
         listing: {
