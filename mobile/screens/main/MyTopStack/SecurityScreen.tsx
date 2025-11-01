@@ -32,20 +32,6 @@ export default function SecurityScreen() {
           <SettingItem icon="key-outline" label="Change Password" onPress={openChangePassword} />
           <SettingItem icon="lock-open-outline" label="Forgot Password" onPress={openForgotPassword} />
         </View>
-
-        {/* Authentication Section */}
-        <Text style={styles.sectionTitle}>Login & Authentication</Text>
-        <View style={styles.sectionBox}>
-          <SettingItem icon="finger-print-outline" label="Two-Factor Authentication" />
-          <SettingItem icon="phone-portrait-outline" label="Manage Login Devices" />
-        </View>
-
-        {/* Other Section */}
-        <Text style={styles.sectionTitle}>Account Safety</Text>
-        <View style={styles.sectionBox}>
-          <SettingItem icon="shield-checkmark-outline" label="Suspicious Login Alerts" />
-          <SettingItem icon="help-circle-outline" label="Report a Security Issue" />
-        </View>
       </ScrollView>
     </View>
   );
