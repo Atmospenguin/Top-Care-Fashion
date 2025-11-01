@@ -109,7 +109,7 @@ export default function DiscoverCategoryScreen() {
                 ?.getParent()
                 ?.navigate('Buy', {
                   screen: 'SearchResult',
-                  params: { query: category, gender },
+                  params: { query: '', category, gender },
                 })
             }
           >

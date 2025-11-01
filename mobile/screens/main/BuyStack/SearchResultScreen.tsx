@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
   Animated,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -18,11 +19,11 @@ import FilterModal from "../../../components/FilterModal";
 import { fetchListings } from "../../../api";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
+import { listingsService, type CategoryData } from "../../../src/services/listingsService";
 
 type SearchResultRoute = RouteProp<BuyStackParamList, "SearchResult">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
 
-const MAIN_CATEGORIES = ["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"] as const;
 const SIZES = ["All", "My Size", "XS", "S", "M", "L", "XL", "XXL"] as const;
 const CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
@@ -30,13 +31,13 @@ const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as con
 export default function SearchResultScreen() {
   const navigation = useNavigation<BuyNavigation>();
   const {
-    params: { query },
+    params: { query, category: initialCategory },
   } = useRoute<SearchResultRoute>();
 
   const [filterModalVisible, setFilterModalVisible] = useState(false);
 
   // Applied filters (used for actual filtering)
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || "All");
   const [selectedSize, setSelectedSize] = useState<string>("All");
   const [selectedCondition, setSelectedCondition] = useState<string>("All");
   const [minPrice, setMinPrice] = useState<string>("");
@@ -58,37 +59,80 @@ export default function SearchResultScreen() {
   const [headerVisible, setHeaderVisible] = useState(true);
 
   const [apiListings, setApiListings] = useState<ListingItem[]>([]);
+  const [categories, setCategories] = useState<string[]>(["All"]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
+  // Load categories from database
+  useEffect(() => {
+    let mounted = true;
+    console.log('🔍 SearchResult: Loading categories from DB...');
+    listingsService.getCategories()
+      .then((data: CategoryData) => {
+        if (!mounted) return;
+        // Extract all unique category names from all genders
+        const allCategories = new Set<string>();
+        allCategories.add("All");
+
+        Object.values(data).forEach((genderData) => {
+          Object.keys(genderData).forEach((category) => {
+            allCategories.add(category);
+          });
+        });
+
+        const categoryArray = Array.from(allCategories);
+        console.log('🔍 SearchResult: Loaded categories:', categoryArray);
+        setCategories(categoryArray);
+      })
+      .catch((error) => {
+        console.error('🔍 SearchResult: Error loading categories:', error);
+        // Fallback to default categories
+        setCategories(["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"]);
+      })
+      .finally(() => {
+        if (mounted) setCategoriesLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
+    console.log('🔍 SearchResult: Starting to fetch listings...');
     fetchListings()
       .then((items) => {
         if (!mounted) return;
+        console.log('🔍 SearchResult: Received items:', items?.length || 0);
+        console.log('🔍 SearchResult: First item:', JSON.stringify(items?.[0], null, 2));
         // items should be ListingItem[] shape; if not, map minimally
-        setApiListings(
-          (items || []).map((it: any) => ({
-            id: String(it.id ?? it._id ?? Math.random().toString(36).slice(2)),
-            title: String(it.title ?? "Untitled"),
-            description: String(it.description ?? ""),
-            brand: String(it.brand ?? ""),
-            colors: Array.isArray(it.colors)
-              ? it.colors
-              : it.color
-              ? [String(it.color)]
-              : [],
-            price: Number(it.price ?? 0),
-            size: String(it.size ?? "M"),
-            condition: String(it.condition ?? "Good"),
-            category: String(it.category ?? "top"),
-            images: Array.isArray(it.images) && it.images.length > 0 ? it.images : [
-              typeof it.image === "string" ? it.image : "https://via.placeholder.com/512"
-            ],
-            seller: it.seller ?? { id: "api", name: "Seller" },
-            location: it.location ?? "",
-          })) as ListingItem[]
-        );
+        const mappedItems = (items || []).map((it: any) => ({
+          id: String(it.id ?? it._id ?? Math.random().toString(36).slice(2)),
+          title: String(it.title ?? "Untitled"),
+          description: String(it.description ?? ""),
+          brand: String(it.brand ?? ""),
+          colors: Array.isArray(it.colors)
+            ? it.colors
+            : it.color
+            ? [String(it.color)]
+            : [],
+          price: Number(it.price ?? 0),
+          size: String(it.size ?? "M"),
+          condition: String(it.condition ?? "Good"),
+          category: String(it.category ?? "top"),
+          images: Array.isArray(it.images) && it.images.length > 0 ? it.images : [
+            typeof it.image === "string" ? it.image : "https://via.placeholder.com/512"
+          ],
+          seller: it.seller ?? { id: "api", name: "Seller" },
+          location: it.location ?? "",
+        })) as ListingItem[];
+        console.log('🔍 SearchResult: Mapped items:', mappedItems.length);
+        setApiListings(mappedItems);
       })
-      .catch(() => setApiListings([]));
+      .catch((error) => {
+        console.error('🔍 SearchResult: Error fetching listings:', error);
+        setApiListings([]);
+      });
     return () => {
       mounted = false;
     };
@@ -97,20 +141,44 @@ export default function SearchResultScreen() {
   const sourceListings = apiListings;
 
   const filteredListings = useMemo(() => {
-    let results = sourceListings.filter((item) =>
+    console.log('🔍 SearchResult: Filtering with query:', query);
+    console.log('🔍 SearchResult: Initial category:', initialCategory);
+    console.log('🔍 SearchResult: Selected category:', selectedCategory);
+    console.log('🔍 SearchResult: Source listings count:', sourceListings.length);
+
+    // If query is empty, don't filter by title
+    let results = query ? sourceListings.filter((item) =>
       item.title.toLowerCase().includes(query.toLowerCase())
-    );
+    ) : sourceListings;
+    console.log('🔍 SearchResult: After query filter:', results.length);
 
     if (selectedCategory !== "All") {
+      console.log('🔍 SearchResult: Filtering by category:', selectedCategory);
       results = results.filter((item) => {
         const categoryLower = selectedCategory.toLowerCase();
         const itemCategory = (item.category ?? "").toString().toLowerCase();
-        if (categoryLower === "tops") return itemCategory === "top";
-        if (categoryLower === "bottoms") return itemCategory === "bottom";
-        if (categoryLower === "footwear") return itemCategory === "shoe";
-        if (categoryLower === "accessories") return itemCategory === "accessory";
+        console.log('🔍 SearchResult: Item category:', item.category, '-> mapped:', itemCategory, 'vs filter:', categoryLower);
+
+        // Match API format: category values can be "Tops", "Bottoms", "Footwear", "Accessories"
+        // or legacy format: "top", "bottom", "shoe", "accessory"
+        if (categoryLower === "tops") {
+          return itemCategory === "top" || itemCategory === "tops";
+        }
+        if (categoryLower === "bottoms") {
+          return itemCategory === "bottom" || itemCategory === "bottoms";
+        }
+        if (categoryLower === "footwear") {
+          return itemCategory === "shoe" || itemCategory === "footwear";
+        }
+        if (categoryLower === "accessories") {
+          return itemCategory === "accessory" || itemCategory === "accessories";
+        }
+        if (categoryLower === "outerwear") {
+          return itemCategory === "outerwear";
+        }
         return true;
       });
+      console.log('🔍 SearchResult: After category filter:', results.length);
     }
 
     if (selectedSize !== "All") {
@@ -121,10 +189,12 @@ export default function SearchResultScreen() {
       } else {
         results = results.filter((item) => item.size === selectedSize);
       }
+      console.log('🔍 SearchResult: After size filter:', results.length);
     }
 
     if (selectedCondition !== "All") {
       results = results.filter((item) => item.condition === selectedCondition);
+      console.log('🔍 SearchResult: After condition filter:', results.length);
     }
 
     // Apply custom price range
@@ -132,6 +202,7 @@ export default function SearchResultScreen() {
     const max = maxPrice ? parseFloat(maxPrice) : Infinity;
     if (minPrice || maxPrice) {
       results = results.filter((item) => item.price >= min && item.price <= max);
+      console.log('🔍 SearchResult: After price filter:', results.length);
     }
 
     // Apply sorting
@@ -141,6 +212,11 @@ export default function SearchResultScreen() {
       results = [...results].sort((a, b) => b.price - a.price);
     }
     // Latest is the default order
+
+    console.log('🔍 SearchResult: Final filtered count:', results.length);
+    if (results.length > 0) {
+      console.log('🔍 SearchResult: First filtered item:', JSON.stringify(results[0], null, 2));
+    }
 
     return results;
   }, [query, selectedCategory, selectedSize, selectedCondition, minPrice, maxPrice, sortBy, sourceListings]);
@@ -315,7 +391,7 @@ export default function SearchResultScreen() {
           {
             key: "category",
             title: "Category",
-            options: MAIN_CATEGORIES.map((category) => ({
+            options: categories.map((category) => ({
               label: category,
               value: category,
             })),

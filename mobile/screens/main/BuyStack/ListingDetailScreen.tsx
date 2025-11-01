@@ -47,11 +47,27 @@ const REPORT_CATEGORIES = [
 
 const formatGenderLabel = (value?: string | null) => {
   if (!value) return "Unisex";
+
+  // Handle enum values directly (Men, Women, Unisex)
+  if (value === "Men" || value === "Women" || value === "Unisex") {
+    return value;
+  }
+
+  // Handle legacy lowercase values
   const lower = value.toLowerCase();
   if (lower === "men" || lower === "male") return "Men";
   if (lower === "women" || lower === "female") return "Women";
   if (lower === "unisex") return "Unisex";
-  return lower.charAt(0).toUpperCase() + lower.slice(1);
+
+  // Fallback: capitalize first letter
+  return value.charAt(0).toUpperCase() + value.slice(1);
+};
+
+const formatSizeLabel = (value?: string | null) => {
+  if (!value || value === "Select" || value === "null") return "Not specified";
+
+  // Return as-is for valid sizes
+  return value;
 };
 
 const formatDateString = (value?: string | null) => {
@@ -211,6 +227,8 @@ export default function ListingDetailScreen() {
     );
   }, [safeItem?.images]);
 
+  const sizeLabel = useMemo(() => formatSizeLabel(safeItem?.size), [safeItem?.size]);
+
   const detailMetaCards = useMemo(() => {
     if (!safeItem) return [];
 
@@ -221,7 +239,7 @@ export default function ListingDetailScreen() {
       {
         id: "size",
         label: "Size",
-        value: safeItem.size ? safeItem.size : "Not specified",
+        value: sizeLabel,
       },
       {
         id: "condition",
@@ -264,7 +282,7 @@ export default function ListingDetailScreen() {
     }
 
     return cards;
-  }, [safeItem, genderLabel]);
+  }, [safeItem, genderLabel, sizeLabel]);
 
   // 检查是否是自己的商品
   const isOwnListingFinalComputed = useMemo(() => {
