@@ -25,6 +25,9 @@ function resolveEnvVar(key: string): string | undefined {
 const SUPABASE_URL = resolveEnvVar('EXPO_PUBLIC_SUPABASE_URL');
 const SUPABASE_ANON_KEY = resolveEnvVar('EXPO_PUBLIC_SUPABASE_ANON_KEY');
 
+// 认证失败回调类型
+type OnAuthFailureCallback = () => void;
+
 // 基础 API 客户端类
 class ApiClient {
   private baseURL: string;
@@ -34,6 +37,7 @@ class ApiClient {
   private refreshPromise: Promise<boolean> | null = null;
   private supabaseUrl: string | null;
   private supabaseAnonKey: string | null;
+  private onAuthFailure: OnAuthFailureCallback | null = null;
   // 仅用于 GET 的请求去重：相同 URL 的并发请求复用同一 Promise，避免重复发起
   private inFlightGet: Map<string, Promise<ApiResponse<any>>> = new Map();
 
@@ -43,6 +47,11 @@ class ApiClient {
     this.supabaseUrl = SUPABASE_URL ?? null;
     this.supabaseAnonKey = SUPABASE_ANON_KEY ?? null;
     this.loadStoredTokens();
+  }
+
+  // 设置认证失败回调
+  public setOnAuthFailure(callback: OnAuthFailureCallback | null): void {
+    this.onAuthFailure = callback;
   }
 
   // 从 AsyncStorage 加载存储的 token
@@ -200,6 +209,18 @@ class ApiClient {
     }
   }
 
+  // 开发工具：手动设置无效 token 以测试自动刷新和登出逻辑
+  public async setInvalidTokenForTesting(): Promise<void> {
+    const invalidToken = 'invalid-token-for-testing';
+    this.authToken = invalidToken;
+    this.refreshToken = null; // 同时清除 refresh token，确保 refresh 也会失败
+    await Promise.all([
+      AsyncStorage.setItem(AUTH_TOKEN_KEY, invalidToken),
+      AsyncStorage.removeItem(REFRESH_TOKEN_KEY), // 删除 refresh token
+    ]);
+    console.log('🧪 API Client - Set invalid token for testing (and cleared refresh token). Next API call will trigger 401 and auto-refresh flow.');
+  }
+
   // 构建完整 URL
   private buildUrl(endpoint: string): string {
     // 规范化：移除baseURL末尾的斜杠，移除endpoint开头的斜杠，然后用单个斜杠连接
@@ -211,13 +232,13 @@ class ApiClient {
   // 获取认证头
   private async getAuthHeaders(): Promise<Record<string, string>> {
     console.log("🔍 getAuthHeaders - accessToken in memory:", this.authToken ? "present" : "null");
-    
-    // 仅使用本地存储的 token（来自 Web API 登录返回的 access_token）
+
+    // 使用 Supabase access token
     if (this.authToken) {
       console.log("🔑 Using JWT Token for API request:", this.previewToken(this.authToken));
       return { Authorization: `Bearer ${this.authToken}` };
     }
-    
+
     try {
       const storedToken = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
       console.log("🔍 getAuthHeaders - stored access token:", storedToken ? "present" : "null");
@@ -230,7 +251,7 @@ class ApiClient {
     } catch (e) {
       console.log('🔍 API Client - Error reading stored token:', e);
     }
-    
+
     console.log("❌ No auth token available, returning empty headers");
     return {};
   }
@@ -284,7 +305,7 @@ class ApiClient {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        
+
         // 如果是 401 错误且还有重试次数，尝试刷新 session
         if (response.status === 401 && retryCount < 1) {
           console.log(`🔍 API Client - 401 error, attempting session refresh (retry ${retryCount + 1})`);
@@ -294,8 +315,14 @@ class ApiClient {
           }
           console.warn("🔍 API Client - Session refresh failed, clearing stored tokens");
           await this.clearAuthToken();
+
+          // 触发认证失败回调（导航到登录页）
+          if (this.onAuthFailure) {
+            console.log("🔍 API Client - Triggering auth failure callback (navigating to login)");
+            this.onAuthFailure();
+          }
         }
-        
+
         throw new ApiError(
           errorData.message || `HTTP ${response.status}`,
           response.status,

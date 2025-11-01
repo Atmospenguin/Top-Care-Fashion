@@ -35,11 +35,11 @@ function mapGender(value: unknown): "Male" | "Female" | null {
 
 export async function getSessionUser(req?: Request): Promise<SessionUser | null> {
   const store = await cookies();
-  
+
   // 首先尝试 Supabase 认证
   try {
     const supabase = await createSupabaseServer();
-    
+
     // 如果有 Request 对象，尝试从 Authorization header 获取 token
     if (req) {
       const authHeader = req.headers.get('authorization');
@@ -95,6 +95,11 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
         } catch (error) {
           console.log("❌ Bearer token auth failed:", error);
         }
+
+        // 如果提供了 Authorization header 但验证失败，不要 fallback 到 cookie
+        // 直接返回 null，让 API 返回 401
+        console.log("🔍 Bearer token provided but invalid, skipping cookie fallback");
+        return null;
       }
     }
     

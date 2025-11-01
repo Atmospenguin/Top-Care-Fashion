@@ -9,6 +9,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuthProvider } from './contexts/AuthContext'; // <-- make sure this path is correct
+import { navigationRef } from './src/services/navigationService';
 
 // Auth / entry screens
 import SplashScreen from './screens/auth/SplashScreen';
@@ -52,6 +53,14 @@ export type RootStackParamList = {
   ViewReview: { orderId: string };
   Notification: undefined;
   MutualReview: { orderId: string };
+  // Standalone chat screen (opened outside the Inbox tab). Params are optional.
+  ChatStandalone?: {
+    sender?: string;
+    kind?: string;
+    order?: any;
+    conversationId?: string | null;
+    autoSendPaidMessage?: boolean;
+  } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -189,7 +198,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Splash" component={SplashScreen} />
             <Stack.Screen name="Landing" component={LandingScreen} />

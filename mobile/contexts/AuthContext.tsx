@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authService, premiumService } from '../src/services';
+import { apiClient } from '../src/services/api';
+import { navigateToLogin } from '../src/services/navigationService';
 
 // 用户类型定义 (匹配 Web API)
 export interface User {
@@ -195,7 +197,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (FORCE_LOGIN_ON_START) {
           // 启动即清除本地 token，确保进入登录页
           try {
-            const { apiClient } = await import('../src/services/api');
             await apiClient.clearAuthToken();
           } catch {}
           setUser(null);
@@ -221,9 +222,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
+    // 设置认证失败回调：当 session refresh 失败时自动登出并导航到登录页
+    apiClient.setOnAuthFailure(() => {
+      console.log('🔍 Auth failure detected, logging out and navigating to login');
+      setUser(null);
+      setError(null);
+      navigateToLogin();
+    });
+
     checkAuthStatus();
+
     // 移动端不订阅 Supabase 事件，完全依赖 Web API
-    return () => {};
+    return () => {
+      apiClient.setOnAuthFailure(null);
+    };
   }, []);
 
   const value: AuthContextType = {
