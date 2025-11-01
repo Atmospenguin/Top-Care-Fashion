@@ -33,13 +33,13 @@ model users {
   preferred_size_bottom      String?                @db.VarChar(50)
   preferred_size_shoe        String?                @db.VarChar(50)
   preferred_brands           Json?
-  likes_visibility           VisibilitySetting      @default(PUBLIC)
-  follows_visibility         VisibilitySetting      @default(PUBLIC)
   mix_match_used_count       Int?                   @default(0)
   free_promotions_used       Int?                   @default(0)
   free_promotions_reset_at   DateTime?              @db.Timestamptz(6)
   last_sign_in_at            DateTime?              @db.Timestamptz(6)
   country                    String?                @db.VarChar(64)
+  likes_visibility           VisibilitySetting      @default(PUBLIC)
+  follows_visibility         VisibilitySetting      @default(PUBLIC)
   cart_items                 cart_items[]
   conversations_initiated    conversations[]        @relation("ConversationInitiator")
   conversations_participated conversations[]        @relation("ConversationParticipant")
