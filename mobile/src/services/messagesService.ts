@@ -31,6 +31,7 @@ const normalizeParticipant = (input: any): NormalizedUser => {
       avatar: null,
       isPremium: false,
     };
+  }
 
   const rawId =
     input.id ?? input.user_id ?? input.participant_id ?? input.owner_id ?? input.member_id;
