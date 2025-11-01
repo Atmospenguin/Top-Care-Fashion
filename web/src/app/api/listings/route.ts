@@ -23,7 +23,18 @@ export async function GET(req: Request) {
     }
 
     if (genderParam) {
-      where.gender = genderParam.toLowerCase();
+      const normalizeGender = (value: string): "Men" | "Women" | "Unisex" | undefined => {
+        const lower = value.toLowerCase();
+        if (lower === "men" || lower === "male") return "Men";
+        if (lower === "women" || lower === "female") return "Women";
+        if (lower === "unisex" || lower === "all") return "Unisex";
+        return undefined;
+      };
+
+      const normalizedGender = normalizeGender(genderParam);
+      if (normalizedGender) {
+        where.gender = normalizedGender;
+      }
     }
 
     if (search) {
@@ -43,6 +54,11 @@ export async function GET(req: Request) {
         where.OR = searchFilters;
       }
     }
+
+  // 获取总记录数（用于分页）
+  const totalCount = await prisma.listings.count({
+    where,
+  });
 
   // 获取 listings
   const listings = await prisma.listings.findMany({
@@ -226,8 +242,8 @@ export async function GET(req: Request) {
       success: true,
       data: {
         items: formattedListings,
-        total: formattedListings.length,
-        hasMore: formattedListings.length === limit,
+        total: totalCount, // 真实的总记录数
+        hasMore: offset + formattedListings.length < totalCount, // 精确判断是否有更多数据
       },
     });
 

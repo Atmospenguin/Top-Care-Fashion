@@ -161,25 +161,23 @@ export default function CheckoutScreen() {
           id: bagItem.item.id,
           title: bagItem.item.title,
           seller: bagItem.item.seller,
-          listing_id: bagItem.item.listing_id
         });
-        
-        // 🔥 使用 listing_id 或降级使用 id
-        const listingId = bagItem.item.listing_id || bagItem.item.id;
+
+        // 🔥 使用 id 作为 listing_id
+        const listingId = bagItem.item.id;
         if (!listingId) {
-          console.error("❌ Missing listing_id and id in item:", bagItem.item);
+          console.error("❌ Missing id in item:", bagItem.item);
           Alert.alert(
-            "Error", 
+            "Error",
             `Cannot create order for "${bagItem.item.title}": missing listing information. Please try again.`
           );
           setIsCreatingOrder(false);
           return;
         }
         console.log("✅ Final listing_id to use:", listingId);
-        console.log("✅ Source:", bagItem.item.listing_id ? "listing_id" : "id");
-        
+
         const newOrder = await ordersService.createOrder({
-          listing_id: listingId,
+          listing_id: Number(listingId),
           buyer_name: shippingAddress.name,
           buyer_phone: shippingAddress.phone,
           shipping_address: `${shippingAddress.line1}, ${shippingAddress.city}, ${shippingAddress.state} ${shippingAddress.postalCode}`,
@@ -222,7 +220,7 @@ export default function CheckoutScreen() {
                         title: items[0]?.item.title || "Item",
                         price: items[0]?.item.price || 0,
                         size: items[0]?.item.size,
-                        image: items[0]?.item.image || null,
+                        image: items[0]?.item.images?.[0] || null,
                         shippingFee: shipping,
                       },
                       seller: {
@@ -236,7 +234,7 @@ export default function CheckoutScreen() {
                         avatar: user?.avatar_url || "",
                       },
                       status: "IN_PROGRESS",
-                      listing_id: items[0]?.item.listing_id,
+                      listing_id: items[0]?.item.id,
                       buyer_id: user?.id ? Number(user.id) : undefined,
                       seller_id: items[0]?.item.seller?.id,
                     };
@@ -258,10 +256,10 @@ export default function CheckoutScreen() {
                     });
                   } catch (error) {
                     console.error("❌ Error navigating to Chat:", error);
-                    navigation.goBack();
+                    (navigation as any).goBack();
                   }
                 } else {
-                  navigation.goBack();
+                  (navigation as any).goBack();
                 }
               }
             }

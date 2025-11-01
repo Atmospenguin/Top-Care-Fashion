@@ -13,6 +13,7 @@ export interface UserListingsQueryParams {
   status?: 'active' | 'sold' | 'all' | 'unlisted';
   category?: string;
   condition?: string;
+  gender?: "Men" | "Women" | "Unisex";
   minPrice?: number;
   maxPrice?: number;
   sortBy?: 'latest' | 'price_low_to_high' | 'price_high_to_low';
@@ -28,6 +29,13 @@ export interface ListingsQueryParams {
   limit?: number;
   offset?: number;
   gender?: string;
+}
+
+// 分页响应类型
+export interface ListingsResponse {
+  items: ListingItem[];
+  hasMore: boolean;
+  total: number;
 }
 
 export interface BoostedListingSummary {
@@ -297,7 +305,7 @@ export class ListingsService {
       size: sanitizeStringValue(listing.size),
       condition: sanitizeStringValue(listing.condition),
       material: sanitizeStringValue(listing.material),
-      gender: sanitizeStringValue(listing.gender),
+      gender: listing.gender, // Gender is already typed correctly from API
       shippingOption: sanitizeStringValue(listing.shippingOption),
       location: sanitizeStringValue(listing.location),
       description:
@@ -442,20 +450,31 @@ export class ListingsService {
     }
   }
 
-  // 获取商品列表
-  async getListings(params?: ListingsQueryParams): Promise<ListingItem[]> {
+  // 获取商品列表（支持分页）
+  async getListings(params?: ListingsQueryParams): Promise<ListingsResponse> {
     try {
-      const response = await apiClient.get<{ success: boolean; data: { items: ListingItem[] } }>(
+      const response = await apiClient.get<{
+        success: boolean;
+        data: {
+          items: ListingItem[];
+          hasMore: boolean;
+          total: number;
+        }
+      }>(
         API_CONFIG.ENDPOINTS.LISTINGS,
         params
       );
-      
-      if (response.data?.success && response.data.data?.items) {
-        return response.data.data.items.map((item) =>
-          this.sanitizeListingItem(item)
-        );
+
+      if (response.data?.success && response.data.data) {
+        return {
+          items: response.data.data.items.map((item) =>
+            this.sanitizeListingItem(item)
+          ),
+          hasMore: response.data.data.hasMore,
+          total: response.data.data.total,
+        };
       }
-      
+
       throw new Error('No listings data received');
     } catch (error) {
       console.error('Error fetching listings:', error);
@@ -488,17 +507,17 @@ export class ListingsService {
   }
 
   // 搜索商品
-  async searchListings(query: string, params?: Omit<ListingsQueryParams, 'search'>): Promise<ListingItem[]> {
+  async searchListings(query: string, params?: Omit<ListingsQueryParams, 'search'>): Promise<ListingsResponse> {
     return this.getListings({ ...params, search: query });
   }
 
   // 按分类获取商品
-  async getListingsByCategory(category: string, params?: Omit<ListingsQueryParams, 'category'>): Promise<ListingItem[]> {
+  async getListingsByCategory(category: string, params?: Omit<ListingsQueryParams, 'category'>): Promise<ListingsResponse> {
     return this.getListings({ ...params, category });
   }
 
   // 按价格范围获取商品
-  async getListingsByPriceRange(minPrice: number, maxPrice: number, params?: Omit<ListingsQueryParams, 'minPrice' | 'maxPrice'>): Promise<ListingItem[]> {
+  async getListingsByPriceRange(minPrice: number, maxPrice: number, params?: Omit<ListingsQueryParams, 'minPrice' | 'maxPrice'>): Promise<ListingsResponse> {
     return this.getListings({ ...params, minPrice, maxPrice });
   }
 
@@ -610,6 +629,7 @@ export class ListingsService {
       if (params?.status) queryParams.status = params.status;
       if (params?.category) queryParams.category = params.category;
       if (params?.condition) queryParams.condition = params.condition;
+      if (params?.gender) queryParams.gender = params.gender;
       if (params?.minPrice !== undefined) queryParams.minPrice = params.minPrice;
       if (params?.maxPrice !== undefined) queryParams.maxPrice = params.maxPrice;
       if (params?.sortBy) queryParams.sortBy = params.sortBy;

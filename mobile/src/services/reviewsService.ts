@@ -7,6 +7,7 @@ export interface Review {
   reviewee_id: number;
   rating: number;
   comment: string | null;
+  images?: string[];
   created_at: string;
   reviewer: {
     id: number;
@@ -72,6 +73,9 @@ class ReviewsService {
         userReview: Review | null;
         otherReview: Review | null;
       }>(`/api/orders/${orderId}/reviews/check`);
+      if (!response.data) {
+        throw new Error('No data returned from reviews check');
+      }
       return response.data;
     } catch (error) {
       console.error('Error checking review status:', error);

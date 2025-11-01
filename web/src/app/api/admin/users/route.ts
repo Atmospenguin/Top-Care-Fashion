@@ -13,8 +13,16 @@ function mapStatus(value: UserStatus): "active" | "suspended" {
 
 function mapGender(value: Gender | null): "Male" | "Female" | null {
   if (!value) return null;
-  if (value === Gender.MALE) return "Male";
-  if (value === Gender.FEMALE) return "Female";
+
+  // Handle new enum values
+  if (value === "Men" as Gender) return "Male";
+  if (value === "Women" as Gender) return "Female";
+  if (value === "Unisex" as Gender) return null;
+
+  // Backward compatibility with old enum
+  if (value === "MALE" as Gender) return "Male";
+  if (value === "FEMALE" as Gender) return "Female";
+
   return null;
 }
 

@@ -28,8 +28,16 @@ function mapStatus(value: unknown): "active" | "suspended" {
 function mapGender(value: unknown): "Male" | "Female" | null {
   const normalized = String(value ?? "").toUpperCase();
   if (!normalized) return null;
+
+  // Handle new enum values (Men, Women, Unisex)
+  if (normalized === "MEN") return "Male";
+  if (normalized === "WOMEN") return "Female";
+  if (normalized === "UNISEX") return null;
+
+  // Backward compatibility with old enum (MALE, FEMALE)
   if (normalized === "MALE") return "Male";
   if (normalized === "FEMALE") return "Female";
+
   return null;
 }
 

@@ -12,14 +12,26 @@ function mapStatus(status: UserStatus | null | undefined): "active" | "suspended
 }
 
 function mapGenderOut(value: Gender | null | undefined): "Male" | "Female" | null {
-  if (value === Gender.MALE) return "Male";
-  if (value === Gender.FEMALE) return "Female";
+  if (!value) return null;
+
+  // Handle new enum values
+  if (value === "Men" as Gender) return "Male";
+  if (value === "Women" as Gender) return "Female";
+  if (value === "Unisex" as Gender) return null;
+
+  // Backward compatibility with old enum (will be removed after migration)
+  if (value === "MALE" as Gender) return "Male";
+  if (value === "FEMALE" as Gender) return "Female";
+
   return null;
 }
 
-function mapGenderIn(value: "Male" | "Female" | null): Gender | null {
+function mapGenderIn(value: "Male" | "Female" | "Unisex" | null): Gender | null {
   if (!value) return null;
-  return value === "Male" ? Gender.MALE : Gender.FEMALE;
+  if (value === "Male") return "Men" as Gender;
+  if (value === "Female") return "Women" as Gender;
+  if (value === "Unisex") return "Unisex" as Gender;
+  return null;
 }
 
 function extractValidationErrors(error: unknown): string | null {
@@ -90,13 +102,13 @@ if (normalizedPassword.length < 6) {
     normalizedDob = trimmedDob;
   }
 
-  let normalizedGender: "Male" | "Female" | null = null;
+  let normalizedGender: "Male" | "Female" | "Unisex" | null = null;
   if (typeof gender === "string" && gender.trim()) {
     const trimmedGender = gender.trim();
-    if (trimmedGender !== "Male" && trimmedGender !== "Female") {
+    if (trimmedGender !== "Male" && trimmedGender !== "Female" && trimmedGender !== "Unisex") {
       return NextResponse.json({ error: "invalid gender" }, { status: 400 });
     }
-    normalizedGender = trimmedGender as "Male" | "Female";
+    normalizedGender = trimmedGender as "Male" | "Female" | "Unisex";
   }
 
   const supabase = await createSupabaseServer();

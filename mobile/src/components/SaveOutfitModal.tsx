@@ -130,7 +130,7 @@ export default function SaveOutfitModal({
 
             {/* Info text */}
             <View style={styles.infoContainer}>
-              <Icon name="info-circle" size={16} color="#666" />
+              <Icon name="information-circle-outline" size={16} color="#666" />
               <Text style={styles.infoText}>
                 Give your outfit a name so you can easily find it later
               </Text>

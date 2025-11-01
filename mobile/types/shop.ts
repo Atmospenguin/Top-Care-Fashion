@@ -1,5 +1,8 @@
 export type ListingCategory = "Accessories" | "Bottoms" | "Footwear" | "Outerwear" | "Tops";
 
+// Gender enum type
+export type Gender = "Men" | "Women" | "Unisex";
+
 export type ListingItem = {
   id: string;
   title: string;
@@ -9,7 +12,7 @@ export type ListingItem = {
   size: string | null;
   condition: string | null;
   material?: string | null;
-  gender?: string | null;
+  gender?: Gender | null;
   tags?: string[]; // 添加用户自定义标签
   images: string[];
   category?: ListingCategory | null;

@@ -58,8 +58,17 @@ const normalizePreferredBrands = (value: unknown): string[] => {
 };
 
 const mapGender = (value: string | null) => {
+  if (!value) return null;
+
+  // Handle new enum values (Men, Women, Unisex)
+  if (value === "Men") return "Male";
+  if (value === "Women") return "Female";
+  if (value === "Unisex") return null;
+
+  // Backward compatibility with old enum (MALE, FEMALE)
   if (value === "MALE") return "Male";
   if (value === "FEMALE") return "Female";
+
   return null;
 };
 
@@ -166,9 +175,11 @@ export async function PATCH(req: NextRequest) {
     }
     if (data.gender !== undefined && data.gender !== null) {
       if (data.gender === "Male") {
-        updateData.gender = "MALE";
+        updateData.gender = "Men";
       } else if (data.gender === "Female") {
-        updateData.gender = "FEMALE";
+        updateData.gender = "Women";
+      } else if (data.gender === "Unisex") {
+        updateData.gender = "Unisex";
       } else {
         updateData.gender = null;
       }

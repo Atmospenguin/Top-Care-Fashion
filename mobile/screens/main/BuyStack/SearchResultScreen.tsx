@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
   Animated,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -15,30 +16,56 @@ import type { RouteProp } from "@react-navigation/native";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import FilterModal from "../../../components/FilterModal";
-import { fetchListings } from "../../../api";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
+import { listingsService, type CategoryData } from "../../../src/services/listingsService";
 
 type SearchResultRoute = RouteProp<BuyStackParamList, "SearchResult">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
 
-const MAIN_CATEGORIES = ["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"] as const;
 const SIZES = ["All", "My Size", "XS", "S", "M", "L", "XL", "XXL"] as const;
 const CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
+const GENDER_OPTIONS = ["All", "Men", "Women", "Unisex"] as const;
+
+const mapGenderParamToOption = (gender?: string | null): typeof GENDER_OPTIONS[number] => {
+  if (!gender) return "All";
+  const lower = gender.toLowerCase();
+  if (lower === "men") return "Men";
+  if (lower === "women") return "Women";
+  if (lower === "unisex") return "Unisex";
+  return "All";
+};
+
+const mapGenderOptionToApiParam = (
+  gender?: string,
+): "Men" | "Women" | "Unisex" | undefined => {
+  if (!gender || gender === "All") return undefined;
+  const lower = gender.toLowerCase();
+  if (lower === "men") return "Men";
+  if (lower === "women") return "Women";
+  if (lower === "unisex") return "Unisex";
+  return undefined;
+};
 
 export default function SearchResultScreen() {
   const navigation = useNavigation<BuyNavigation>();
   const {
-    params: { query },
+    params: { query, category: initialCategory, gender: initialGenderParam },
   } = useRoute<SearchResultRoute>();
+
+  const normalizedInitialGender = useMemo(
+    () => mapGenderParamToOption(initialGenderParam),
+    [initialGenderParam],
+  );
 
   const [filterModalVisible, setFilterModalVisible] = useState(false);
 
   // Applied filters (used for actual filtering)
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || "All");
   const [selectedSize, setSelectedSize] = useState<string>("All");
   const [selectedCondition, setSelectedCondition] = useState<string>("All");
+  const [selectedGender, setSelectedGender] = useState<string>(normalizedInitialGender);
   const [minPrice, setMinPrice] = useState<string>("");
   const [maxPrice, setMaxPrice] = useState<string>("");
   const [sortBy, setSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
@@ -47,6 +74,7 @@ export default function SearchResultScreen() {
   const [tempCategory, setTempCategory] = useState<string>("All");
   const [tempSize, setTempSize] = useState<string>("All");
   const [tempCondition, setTempCondition] = useState<string>("All");
+  const [tempGender, setTempGender] = useState<string>(normalizedInitialGender);
   const [tempMinPrice, setTempMinPrice] = useState<string>("");
   const [tempMaxPrice, setTempMaxPrice] = useState<string>("");
   const [tempSortBy, setTempSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
@@ -58,59 +86,180 @@ export default function SearchResultScreen() {
   const [headerVisible, setHeaderVisible] = useState(true);
 
   const [apiListings, setApiListings] = useState<ListingItem[]>([]);
+  const [categories, setCategories] = useState<string[]>(["All"]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
+  // Pagination state
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const PAGE_SIZE = 20;
 
   useEffect(() => {
+    setSelectedGender(normalizedInitialGender);
+    setTempGender(normalizedInitialGender);
+  }, [normalizedInitialGender]);
+
+  // Load categories from database
+  useEffect(() => {
     let mounted = true;
-    fetchListings()
-      .then((items) => {
+    console.log('🔍 SearchResult: Loading categories from DB...');
+    listingsService.getCategories()
+      .then((data: CategoryData) => {
         if (!mounted) return;
-        // items should be ListingItem[] shape; if not, map minimally
-        setApiListings(
-          (items || []).map((it: any) => ({
-            id: String(it.id ?? it._id ?? Math.random().toString(36).slice(2)),
-            title: String(it.title ?? "Untitled"),
-            description: String(it.description ?? ""),
-            brand: String(it.brand ?? ""),
-            colors: Array.isArray(it.colors)
-              ? it.colors
-              : it.color
-              ? [String(it.color)]
-              : [],
-            price: Number(it.price ?? 0),
-            size: String(it.size ?? "M"),
-            condition: String(it.condition ?? "Good"),
-            category: String(it.category ?? "top"),
-            images: Array.isArray(it.images) && it.images.length > 0 ? it.images : [
-              typeof it.image === "string" ? it.image : "https://via.placeholder.com/512"
-            ],
-            seller: it.seller ?? { id: "api", name: "Seller" },
-            location: it.location ?? "",
-          })) as ListingItem[]
-        );
+        // Extract all unique category names from all genders
+        const allCategories = new Set<string>();
+        allCategories.add("All");
+
+        Object.values(data).forEach((genderData) => {
+          Object.keys(genderData).forEach((category) => {
+            allCategories.add(category);
+          });
+        });
+
+        const categoryArray = Array.from(allCategories);
+        console.log('🔍 SearchResult: Loaded categories:', categoryArray);
+        setCategories(categoryArray);
       })
-      .catch(() => setApiListings([]));
+      .catch((error) => {
+        console.error('🔍 SearchResult: Error loading categories:', error);
+        // Fallback to default categories
+        setCategories(["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"]);
+      })
+      .finally(() => {
+        if (mounted) setCategoriesLoading(false);
+      });
+
     return () => {
       mounted = false;
     };
   }, []);
 
+  // Load initial listings with pagination
+  useEffect(() => {
+    loadInitialListings();
+  }, [query, initialCategory, normalizedInitialGender]);
+
+  const loadInitialListings = async () => {
+    try {
+      setInitialLoading(true);
+      console.log('🔍 SearchResult: Loading initial listings...');
+
+      const result = await listingsService.getListings({
+        search: query || undefined,
+        category: initialCategory && initialCategory !== 'All' ? initialCategory : undefined,
+        gender: mapGenderOptionToApiParam(normalizedInitialGender),
+        limit: PAGE_SIZE,
+        offset: 0,
+      });
+
+      console.log('🔍 SearchResult: Received items:', result.items.length);
+      console.log('🔍 SearchResult: Has more:', result.hasMore);
+      console.log('🔍 SearchResult: First item:', JSON.stringify(result.items[0], null, 2));
+
+      // ✅ Use items directly from API - no error-prone mapping!
+      setApiListings(result.items);
+      setHasMore(result.hasMore);
+      setOffset(PAGE_SIZE);
+    } catch (error) {
+      console.error('🔍 SearchResult: Error loading listings:', error);
+      setApiListings([]);
+      setHasMore(false);
+    } finally {
+      setInitialLoading(false);
+    }
+  };
+
+  // Load more listings when scrolling to bottom
+  const loadMore = async () => {
+    if (!hasMore || isLoadingMore || initialLoading) {
+      console.log('🔍 SearchResult: Skip load more', { hasMore, isLoadingMore, initialLoading });
+      return;
+    }
+
+    try {
+      setIsLoadingMore(true);
+      console.log('🔍 SearchResult: Loading more listings at offset:', offset);
+
+      const result = await listingsService.getListings({
+        search: query || undefined,
+        category: selectedCategory === 'All' ? undefined : selectedCategory,
+        gender: mapGenderOptionToApiParam(selectedGender),
+        limit: PAGE_SIZE,
+        offset: offset,
+      });
+
+      console.log('🔍 SearchResult: Loaded', result.items.length, 'more items');
+
+      setApiListings(prev => [...prev, ...result.items]);
+      setHasMore(result.hasMore);
+      setOffset(prev => prev + PAGE_SIZE);
+    } catch (error) {
+      console.error('🔍 SearchResult: Error loading more:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
   const sourceListings = apiListings;
 
   const filteredListings = useMemo(() => {
-    let results = sourceListings.filter((item) =>
+    console.log('🔍 SearchResult: Filtering with query:', query);
+    console.log('🔍 SearchResult: Initial category:', initialCategory);
+    console.log('🔍 SearchResult: Selected category:', selectedCategory);
+    console.log('🔍 SearchResult: Source listings count:', sourceListings.length);
+
+    // If query is empty, don't filter by title
+    let results = query ? sourceListings.filter((item) =>
       item.title.toLowerCase().includes(query.toLowerCase())
-    );
+    ) : sourceListings;
+    console.log('🔍 SearchResult: After query filter:', results.length);
 
     if (selectedCategory !== "All") {
+      console.log('🔍 SearchResult: Filtering by category:', selectedCategory);
       results = results.filter((item) => {
         const categoryLower = selectedCategory.toLowerCase();
         const itemCategory = (item.category ?? "").toString().toLowerCase();
-        if (categoryLower === "tops") return itemCategory === "top";
-        if (categoryLower === "bottoms") return itemCategory === "bottom";
-        if (categoryLower === "footwear") return itemCategory === "shoe";
-        if (categoryLower === "accessories") return itemCategory === "accessory";
+        console.log('🔍 SearchResult: Item category:', item.category, '-> mapped:', itemCategory, 'vs filter:', categoryLower);
+
+        // Match API format: category values can be "Tops", "Bottoms", "Footwear", "Accessories"
+        // or legacy format: "top", "bottom", "shoe", "accessory"
+        if (categoryLower === "tops") {
+          return itemCategory === "top" || itemCategory === "tops";
+        }
+        if (categoryLower === "bottoms") {
+          return itemCategory === "bottom" || itemCategory === "bottoms";
+        }
+        if (categoryLower === "footwear") {
+          return itemCategory === "shoe" || itemCategory === "footwear";
+        }
+        if (categoryLower === "accessories") {
+          return itemCategory === "accessory" || itemCategory === "accessories";
+        }
+        if (categoryLower === "outerwear") {
+          return itemCategory === "outerwear";
+        }
         return true;
       });
+      console.log('🔍 SearchResult: After category filter:', results.length);
+    }
+
+    if (selectedGender !== "All") {
+      const selectedGenderLower = selectedGender.toLowerCase();
+      console.log('🔍 SearchResult: Filtering by gender:', selectedGenderLower);
+      results = results.filter((item) => {
+        const itemGender = (item.gender ?? "").toString().toLowerCase();
+        if (!itemGender) return false;
+        if (selectedGenderLower === "men") {
+          return itemGender === "men" || itemGender === "male";
+        }
+        if (selectedGenderLower === "women") {
+          return itemGender === "women" || itemGender === "female";
+        }
+        return itemGender === "unisex";
+      });
+      console.log('🔍 SearchResult: After gender filter:', results.length);
     }
 
     if (selectedSize !== "All") {
@@ -121,10 +270,12 @@ export default function SearchResultScreen() {
       } else {
         results = results.filter((item) => item.size === selectedSize);
       }
+      console.log('🔍 SearchResult: After size filter:', results.length);
     }
 
     if (selectedCondition !== "All") {
       results = results.filter((item) => item.condition === selectedCondition);
+      console.log('🔍 SearchResult: After condition filter:', results.length);
     }
 
     // Apply custom price range
@@ -132,6 +283,7 @@ export default function SearchResultScreen() {
     const max = maxPrice ? parseFloat(maxPrice) : Infinity;
     if (minPrice || maxPrice) {
       results = results.filter((item) => item.price >= min && item.price <= max);
+      console.log('🔍 SearchResult: After price filter:', results.length);
     }
 
     // Apply sorting
@@ -142,24 +294,41 @@ export default function SearchResultScreen() {
     }
     // Latest is the default order
 
+    console.log('🔍 SearchResult: Final filtered count:', results.length);
+    if (results.length > 0) {
+      console.log('🔍 SearchResult: First filtered item:', JSON.stringify(results[0], null, 2));
+    }
+
     return results;
-  }, [query, selectedCategory, selectedSize, selectedCondition, minPrice, maxPrice, sortBy, sourceListings]);
+  }, [
+    query,
+    selectedCategory,
+    selectedGender,
+    selectedSize,
+    selectedCondition,
+    minPrice,
+    maxPrice,
+    sortBy,
+    sourceListings,
+  ]);
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (selectedCategory !== "All") count++;
+    if (selectedGender !== "All") count++;
     if (selectedSize !== "All") count++;
     if (selectedCondition !== "All") count++;
     if (minPrice || maxPrice) count++;
     if (sortBy !== "Latest") count++;
     return count;
-  }, [selectedCategory, selectedSize, selectedCondition, minPrice, maxPrice, sortBy]);
+  }, [selectedCategory, selectedGender, selectedSize, selectedCondition, minPrice, maxPrice, sortBy]);
 
   const handleOpenFilters = () => {
     // Sync temp filters with current applied filters
     setTempCategory(selectedCategory);
     setTempSize(selectedSize);
     setTempCondition(selectedCondition);
+    setTempGender(selectedGender);
     setTempMinPrice(minPrice);
     setTempMaxPrice(maxPrice);
     setTempSortBy(sortBy);
@@ -170,6 +339,7 @@ export default function SearchResultScreen() {
     setTempCategory("All");
     setTempSize("All");
     setTempCondition("All");
+    setTempGender("All");
     setTempMinPrice("");
     setTempMaxPrice("");
     setTempSortBy("Latest");
@@ -179,6 +349,7 @@ export default function SearchResultScreen() {
     setSelectedCategory(tempCategory);
     setSelectedSize(tempSize);
     setSelectedCondition(tempCondition);
+    setSelectedGender(tempGender);
     setMinPrice(tempMinPrice);
     setMaxPrice(tempMaxPrice);
     setSortBy(tempSortBy);
@@ -267,10 +438,12 @@ export default function SearchResultScreen() {
         contentContainerStyle={styles.gridContent}
         onScroll={handleScroll}
         scrollEventThrottle={16}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.gridItem}
-            onPress={() => navigation.navigate("ListingDetail", { item })}
+            onPress={() => navigation.navigate("ListingDetail", { listingId: item.id })}
           >
             <Image source={{ uri: item.images[0] }} style={styles.gridImage} />
             <View style={styles.itemInfo}>
@@ -285,27 +458,49 @@ export default function SearchResultScreen() {
           </TouchableOpacity>
         )}
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Icon name="search-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyTitle}>No results found</Text>
-            <Text style={styles.emptySubtitle}>
-              Try adjusting your filters or search terms
-            </Text>
-          </View>
-        }
-        ListFooterComponent={
-          filteredListings.length > 0 ? (
-            <View style={styles.footerContainer}>
-              <View style={styles.footerDivider} />
-              <Text style={styles.footerText}>
-                You've reached the end • {filteredListings.length} {filteredListings.length === 1 ? 'item' : 'items'} found
-              </Text>
-              <Text style={styles.footerSubtext}>
-                Try adjusting your filters to see more results
+          initialLoading ? (
+            <View style={styles.emptyState}>
+              <ActivityIndicator size="large" color="#7C3AED" />
+              <Text style={{ marginTop: 16, color: '#666' }}>Loading...</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Icon name="search-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyTitle}>No results found</Text>
+              <Text style={styles.emptySubtitle}>
+                Try adjusting your filters or search terms
               </Text>
             </View>
-          ) : null
+          )
         }
+        ListFooterComponent={() => {
+          if (isLoadingMore) {
+            return (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#7C3AED" />
+                <Text style={{ marginTop: 8, color: '#666', fontSize: 14 }}>
+                  Loading more...
+                </Text>
+              </View>
+            );
+          }
+
+          if (!hasMore && filteredListings.length > 0) {
+            return (
+              <View style={styles.footerContainer}>
+                <View style={styles.footerDivider} />
+                <Text style={styles.footerText}>
+                  You've reached the end • {filteredListings.length} {filteredListings.length === 1 ? 'item' : 'items'} found
+                </Text>
+                <Text style={styles.footerSubtext}>
+                  Try adjusting your filters to see more results
+                </Text>
+              </View>
+            );
+          }
+
+          return null;
+        }}
       />
 
       {/* Filter Modal */}
@@ -315,12 +510,22 @@ export default function SearchResultScreen() {
           {
             key: "category",
             title: "Category",
-            options: MAIN_CATEGORIES.map((category) => ({
+            options: categories.map((category) => ({
               label: category,
               value: category,
             })),
             selectedValue: tempCategory,
             onSelect: (value) => setTempCategory(String(value)),
+          },
+          {
+            key: "gender",
+            title: "Gender",
+            options: GENDER_OPTIONS.map((gender) => ({
+              label: gender,
+              value: gender,
+            })),
+            selectedValue: tempGender,
+            onSelect: (value) => setTempGender(String(value)),
           },
           {
             key: "size",

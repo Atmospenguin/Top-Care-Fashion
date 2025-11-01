@@ -7,10 +7,10 @@ import type { RouteProp } from "@react-navigation/native";
 
 import Icon from "../../../components/Icon";
 import type { HomeStackParamList } from "./index";
-import { fetchListings } from "../../../api";
 import type { RootStackParamList } from "../../../App";
 import type { ListingItem } from "../../../types/shop";
 import { useAuth } from "../../../contexts/AuthContext";
+import { listingsService } from "../../../src/services/listingsService";
 
 export default function HomeScreen() {
   const navigation =
@@ -25,6 +25,12 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Pagination state
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const PAGE_SIZE = 20;
+
   const { isAuthenticated } = useAuth();
 
   // 获取推荐商品数据（仅登录后触发）
@@ -38,13 +44,22 @@ export default function HomeScreen() {
       }
 
       console.log('🔍 HomeScreen: Loading featured items...');
-      const items = await fetchListings({ limit: 20 });
-      console.log('🔍 HomeScreen: Received items:', items?.length || 0);
-      console.log('🔍 HomeScreen: Items data:', items);
-      setFeaturedItems(items);
+      const result = await listingsService.getListings({
+        limit: PAGE_SIZE,
+        offset: 0,
+      });
+
+      console.log('🔍 HomeScreen: Received items:', result.items.length);
+      console.log('🔍 HomeScreen: Has more:', result.hasMore);
+
+      setFeaturedItems(result.items);
+      setHasMore(result.hasMore);
+      setOffset(PAGE_SIZE);
     } catch (err) {
       console.error('Error loading featured items:', err);
       setError('Failed to load items');
+      setFeaturedItems([]);
+      setHasMore(false);
     } finally {
       if (opts?.isRefresh) {
         setRefreshing(false);
@@ -53,6 +68,34 @@ export default function HomeScreen() {
       }
     }
   }, []);
+
+  // Load more items when scrolling to bottom
+  const loadMore = useCallback(async () => {
+    if (!hasMore || isLoadingMore || loading || !isAuthenticated) {
+      console.log('🔍 HomeScreen: Skip load more', { hasMore, isLoadingMore, loading, isAuthenticated });
+      return;
+    }
+
+    try {
+      setIsLoadingMore(true);
+      console.log('🔍 HomeScreen: Loading more items at offset:', offset);
+
+      const result = await listingsService.getListings({
+        limit: PAGE_SIZE,
+        offset: offset,
+      });
+
+      console.log('🔍 HomeScreen: Loaded', result.items.length, 'more items');
+
+      setFeaturedItems(prev => [...prev, ...result.items]);
+      setHasMore(result.hasMore);
+      setOffset(prev => prev + PAGE_SIZE);
+    } catch (err) {
+      console.error('Error loading more items:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [hasMore, isLoadingMore, loading, isAuthenticated, offset]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -113,6 +156,8 @@ export default function HomeScreen() {
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.gridContainer}
         showsVerticalScrollIndicator={false}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -217,7 +262,24 @@ export default function HomeScreen() {
             )}
           </View>
         )}
-        ListFooterComponent={() => <View style={{ height: 60 }} />}
+        ListFooterComponent={() => {
+          if (isLoadingMore) {
+            return (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#007AFF" />
+                <Text style={styles.loadingText}>Loading more...</Text>
+              </View>
+            );
+          }
+          if (!hasMore && featuredItems.length > 0) {
+            return (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Text style={{ color: '#999', fontSize: 14 }}>You've reached the end</Text>
+              </View>
+            );
+          }
+          return <View style={{ height: 60 }} />;
+        }}
         renderItem={({ item }) => {
           const primaryImage =
             (Array.isArray(item.images) && item.images[0]) ||
@@ -232,7 +294,7 @@ export default function HomeScreen() {
                   ?.getParent()
                   ?.navigate("Buy", {
                     screen: "ListingDetail",
-                    params: { item },
+                    params: { listingId: item.id },
                   } as any)
               }
               accessibilityRole="button"
