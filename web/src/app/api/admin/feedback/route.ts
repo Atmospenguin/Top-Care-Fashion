@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getConnection, parseJson, toBoolean, toNumber } from "@/lib/db";
+import { prisma, parseJson, toNumber } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 
 type TagList = string[];
@@ -7,32 +7,31 @@ type TagList = string[];
 export async function GET() {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const conn = await getConnection();
-  const [rows]: any = await conn.execute(
-    `SELECT
-      f.id,
-      f.user_id AS "userId",
-      f.user_email AS "userEmail",
-      f.user_name AS "userName",
-      f.message,
-      f.rating,
-      f.tags,
-      f.featured,
-      f.created_at AS "createdAt",
-      u.username AS "associatedUserName"
-    FROM feedback f
-    LEFT JOIN users u ON f.user_id = u.id
-    ORDER BY f.id DESC`
-  );
-  await conn.end();
 
-  const feedbacks = (rows as any[]).map((feedback) => ({
-    ...feedback,
+  const feedbackList = await prisma.feedback.findMany({
+    include: {
+      user: {
+        select: {
+          username: true,
+        },
+      },
+    },
+    orderBy: {
+      id: "desc",
+    },
+  });
+
+  const feedbacks = feedbackList.map((feedback) => ({
     id: String(feedback.id),
-    userId: feedback.userId !== undefined && feedback.userId !== null ? String(feedback.userId) : undefined,
+    userId: feedback.user_id !== null ? String(feedback.user_id) : undefined,
+    userEmail: feedback.user_email,
+    userName: feedback.user_name,
+    message: feedback.message,
     rating: toNumber(feedback.rating),
     tags: parseJson<TagList>(feedback.tags) ?? [],
-    featured: toBoolean(feedback.featured),
+    featured: feedback.featured,
+    createdAt: feedback.created_at.toISOString(),
+    associatedUserName: feedback.user?.username,
   }));
 
   return NextResponse.json({ feedbacks });
@@ -54,23 +53,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "userName is required for featured feedback" }, { status: 400 });
     }
 
-    const connection = await getConnection();
-
-    await connection.execute(
-      `INSERT INTO feedback (user_id, user_email, user_name, message, rating, tags, featured, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [
-        userId ? Number(userId) : null,
-        userEmail || null,
-        userName || null,
+    await prisma.feedback.create({
+      data: {
+        user_id: userId ? Number(userId) : null,
+        user_email: userEmail || null,
+        user_name: userName || null,
         message,
-        rating !== undefined && rating !== null ? Number(rating) : null,
-        tags ? JSON.stringify(tags) : null,
-        Boolean(featured),
-      ]
-    );
-
-    await connection.end();
+        rating: rating !== undefined && rating !== null ? Number(rating) : null,
+        tags: tags ? JSON.stringify(tags) : null,
+        featured: Boolean(featured),
+      },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
