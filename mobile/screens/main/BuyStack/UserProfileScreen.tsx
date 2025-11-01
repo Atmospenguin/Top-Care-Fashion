@@ -73,6 +73,7 @@ const SHOP_ACCESSORY_SIZES = [
 ] as const;
 const SHOP_CONDITIONS = ["All", "New", "Like New", "Good", "Fair", "Poor"] as const;
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
+const GENDER_OPTIONS = ["All", "Men", "Women", "Unisex"] as const;
 
 const REVIEW_FILTERS = {
   ROLE: ["All", "From Buyer", "From Seller"] as const,
@@ -202,6 +203,7 @@ export default function UserProfileScreen() {
   const [shopCategory, setShopCategory] = useState<string>("All");
   const [shopSize, setShopSize] = useState<string>("All");
   const [shopCondition, setShopCondition] = useState<string>("All");
+  const [shopGender, setShopGender] = useState<string>("All");
   const [shopSortBy, setShopSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
 
   // Shop Filter Modal States
@@ -209,6 +211,7 @@ export default function UserProfileScreen() {
   const [tempShopCategory, setTempShopCategory] = useState<string>("All");
   const [tempShopSize, setTempShopSize] = useState<string>("All");
   const [tempShopCondition, setTempShopCondition] = useState<string>("All");
+  const [tempShopGender, setTempShopGender] = useState<string>("All");
   const [tempShopSortBy, setTempShopSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
   const tempShopSizeOptions = useMemo(() => {
     const cat = tempShopCategory.toLowerCase();
@@ -646,6 +649,21 @@ export default function UserProfileScreen() {
       results = results.filter((item) => item.condition === shopCondition);
     }
 
+    if (shopGender !== "All") {
+      const genderNeedle = shopGender.toLowerCase();
+      results = results.filter((item) => {
+        const itemGender = (item.gender ?? "").toString().toLowerCase();
+        if (!itemGender) return false;
+        if (genderNeedle === "men") {
+          return itemGender === "men" || itemGender === "male";
+        }
+        if (genderNeedle === "women") {
+          return itemGender === "women" || itemGender === "female";
+        }
+        return itemGender === "unisex";
+      });
+    }
+
     if (shopSortBy === "Price Low to High") {
       results.sort((a, b) => a.price - b.price);
     } else if (shopSortBy === "Price High to Low") {
@@ -653,7 +671,7 @@ export default function UserProfileScreen() {
     }
 
     return results;
-  }, [userListings, shopCategory, shopSize, mySizes, shopCondition, shopSortBy]);
+  }, [userListings, shopCategory, shopSize, mySizes, shopCondition, shopGender, shopSortBy]);
 
   const listingsData = useMemo(
     () => formatData(filteredListings, 3),
@@ -754,6 +772,7 @@ export default function UserProfileScreen() {
     setTempShopCategory(shopCategory);
     setTempShopSize(shopSize);
     setTempShopCondition(shopCondition);
+    setTempShopGender(shopGender);
     setTempShopSortBy(shopSortBy);
     setShopFilterVisible(true);
   };
@@ -763,6 +782,7 @@ export default function UserProfileScreen() {
     setShopCategory(tempShopCategory);
     setShopSize(tempShopSize);
     setShopCondition(tempShopCondition);
+    setShopGender(tempShopGender);
     setShopSortBy(tempShopSortBy);
     setShopFilterVisible(false);
   };
@@ -771,6 +791,7 @@ export default function UserProfileScreen() {
     setTempShopCategory("All");
     setTempShopSize("All");
     setTempShopCondition("All");
+    setTempShopGender("All");
     setTempShopSortBy("Latest");
   };
 
@@ -891,18 +912,20 @@ export default function UserProfileScreen() {
     if (shopCategory !== "All") count++;
     if (shopSize !== "All") count++;
     if (shopCondition !== "All") count++;
+    if (shopGender !== "All") count++;
     if (shopSortBy !== "Latest") count++;
     return count;
-  }, [shopCategory, shopSize, shopCondition, shopSortBy]);
+  }, [shopCategory, shopSize, shopCondition, shopGender, shopSortBy]);
 
   const tempShopActiveFiltersCount = useMemo(() => {
     let count = 0;
     if (tempShopCategory !== "All") count++;
     if (tempShopSize !== "All") count++;
     if (tempShopCondition !== "All") count++;
+    if (tempShopGender !== "All") count++;
     if (tempShopSortBy !== "Latest") count++;
     return count;
-  }, [tempShopCategory, tempShopSize, tempShopCondition, tempShopSortBy]);
+  }, [tempShopCategory, tempShopSize, tempShopCondition, tempShopGender, tempShopSortBy]);
 
   const reviewActiveFiltersCount = useMemo(() => {
     let count = 0;
@@ -1554,6 +1577,16 @@ export default function UserProfileScreen() {
             })),
             selectedValue: tempShopCondition,
             onSelect: (value) => setTempShopCondition(String(value)),
+          },
+          {
+            key: "gender",
+            title: "Gender",
+            options: GENDER_OPTIONS.map((gender) => ({
+              label: gender,
+              value: gender,
+            })),
+            selectedValue: tempShopGender,
+            onSelect: (value) => setTempShopGender(String(value)),
           },
           {
             key: "sort",

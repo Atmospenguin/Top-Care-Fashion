@@ -7,6 +7,7 @@ export interface Review {
   reviewee_id: number;
   rating: number;
   comment: string | null;
+  images?: string[];
   created_at: string;
   reviewer: {
     id: number;

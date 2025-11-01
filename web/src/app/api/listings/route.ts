@@ -23,7 +23,18 @@ export async function GET(req: Request) {
     }
 
     if (genderParam) {
-      where.gender = genderParam.toLowerCase();
+      const normalizeGender = (value: string): "Men" | "Women" | "Unisex" | undefined => {
+        const lower = value.toLowerCase();
+        if (lower === "men" || lower === "male") return "Men";
+        if (lower === "women" || lower === "female") return "Women";
+        if (lower === "unisex" || lower === "all") return "Unisex";
+        return undefined;
+      };
+
+      const normalizedGender = normalizeGender(genderParam);
+      if (normalizedGender) {
+        where.gender = normalizedGender;
+      }
     }
 
     if (search) {

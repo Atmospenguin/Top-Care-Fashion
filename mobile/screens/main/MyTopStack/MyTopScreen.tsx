@@ -28,6 +28,17 @@ import type { UserListingsQueryParams } from "../../../src/services/listingsServ
 
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
 const SHOP_CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
+const GENDER_OPTIONS = ["All", "Men", "Women", "Unisex"] as const;
+
+const mapGenderOptionToApiParam = (
+  value: string,
+): "Men" | "Women" | "Unisex" | undefined => {
+  const lower = value.toLowerCase();
+  if (lower === "men") return "Men";
+  if (lower === "women") return "Women";
+  if (lower === "unisex") return "Unisex";
+  return undefined;
+};
 
 // --- 保证 3 列对齐 ---
 function formatData(data: any[], numColumns: number) {
@@ -82,6 +93,8 @@ export default function MyTopScreen() {
   const [selectedCondition, setSelectedCondition] = useState<string>("All");
   const [tempCategory, setTempCategory] = useState<string>("All");
   const [tempCondition, setTempCondition] = useState<string>("All");
+  const [selectedGender, setSelectedGender] = useState<string>("All");
+  const [tempGender, setTempGender] = useState<string>("All");
 
   // ✅ 获取用户分类
   const fetchUserCategories = async () => {
@@ -172,12 +185,13 @@ export default function MyTopScreen() {
   const applyFiltersWithValues = async (
     category: string,
     condition: string,
+    genderValue: string,
     minPriceValue: string,
     maxPriceValue: string,
     sortByValue: string
   ) => {
     setLoading(true);
-    
+
     try {
       const filters: Partial<UserListingsQueryParams> = {};
       
@@ -188,11 +202,16 @@ export default function MyTopScreen() {
       if (condition !== "All") {
         filters.condition = condition;
       }
-      
+
+      const apiGender = mapGenderOptionToApiParam(genderValue);
+      if (apiGender) {
+        filters.gender = apiGender;
+      }
+
       if (minPriceValue) {
         filters.minPrice = parseFloat(minPriceValue);
       }
-      
+
       if (maxPriceValue) {
         filters.maxPrice = parseFloat(maxPriceValue);
       }
@@ -229,11 +248,16 @@ export default function MyTopScreen() {
       if (selectedCondition !== "All") {
         filters.condition = selectedCondition;
       }
-      
+
+      const apiGender = mapGenderOptionToApiParam(selectedGender);
+      if (apiGender) {
+        filters.gender = apiGender;
+      }
+
       if (minPrice) {
         filters.minPrice = parseFloat(minPrice);
       }
-      
+
       if (maxPrice) {
         filters.maxPrice = parseFloat(maxPrice);
       }
@@ -509,14 +533,27 @@ export default function MyTopScreen() {
                     Active ({listedCount})
                   </Text>
                   <TouchableOpacity 
-                    onPress={() => setFilterModalVisible(true)}
+                    onPress={() => {
+                      setTempCategory(selectedCategory);
+                      setTempCondition(selectedCondition);
+                      setTempGender(selectedGender);
+                      setTempMinPrice(minPrice);
+                      setTempMaxPrice(maxPrice);
+                      setTempSortBy(sortBy);
+                      setFilterModalVisible(true);
+                    }}
                     style={styles.filterButtonContainer}
                   >
                     <Icon name="filter" size={24} color="#111" />
-                    {(selectedCategory !== "All" || selectedCondition !== "All" || minPrice || maxPrice || sortBy !== "Latest") && (
+                    {(selectedCategory !== "All" || selectedCondition !== "All" || selectedGender !== "All" || minPrice || maxPrice || sortBy !== "Latest") && (
                       <View style={styles.filterBadge}>
                         <Text style={styles.filterBadgeText}>
-                          {(selectedCategory !== "All" ? 1 : 0) + (selectedCondition !== "All" ? 1 : 0) + (minPrice ? 1 : 0) + (maxPrice ? 1 : 0) + (sortBy !== "Latest" ? 1 : 0)}
+                          {(selectedCategory !== "All" ? 1 : 0) +
+                            (selectedCondition !== "All" ? 1 : 0) +
+                            (selectedGender !== "All" ? 1 : 0) +
+                            (minPrice ? 1 : 0) +
+                            (maxPrice ? 1 : 0) +
+                            (sortBy !== "Latest" ? 1 : 0)}
                         </Text>
                       </View>
                     )}
@@ -634,6 +671,16 @@ export default function MyTopScreen() {
             onSelect: (value) => setTempCondition(String(value)),
           },
           {
+            key: "gender",
+            title: "Gender",
+            options: GENDER_OPTIONS.map((gender) => ({
+              label: gender,
+              value: gender,
+            })),
+            selectedValue: tempGender,
+            onSelect: (value) => setTempGender(String(value)),
+          },
+          {
             key: "priceRange",
             title: "Price Range",
             type: "range",
@@ -659,28 +706,31 @@ export default function MyTopScreen() {
         onApply={() => {
           setSelectedCategory(tempCategory);
           setSelectedCondition(tempCondition);
+          setSelectedGender(tempGender);
           setMinPrice(tempMinPrice);
           setMaxPrice(tempMaxPrice);
           setSortBy(tempSortBy);
           setFilterModalVisible(false);
-          
+
           // 立即应用filter，使用临时值
-          applyFiltersWithValues(tempCategory, tempCondition, tempMinPrice, tempMaxPrice, tempSortBy);
+          applyFiltersWithValues(tempCategory, tempCondition, tempGender, tempMinPrice, tempMaxPrice, tempSortBy);
         }}
         onClear={() => {
           setTempCategory("All");
           setTempCondition("All");
+          setTempGender("All");
           setTempMinPrice("");
           setTempMaxPrice("");
           setTempSortBy("Latest");
-          
+
           // 立即清除filter
           setSelectedCategory("All");
           setSelectedCondition("All");
+          setSelectedGender("All");
           setMinPrice("");
           setMaxPrice("");
           setSortBy("Latest");
-          applyFiltersWithValues("All", "All", "", "", "Latest");
+          applyFiltersWithValues("All", "All", "All", "", "", "Latest");
         }}
         applyButtonLabel="Apply Filters"
       />

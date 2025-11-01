@@ -13,6 +13,7 @@ export interface UserListingsQueryParams {
   status?: 'active' | 'sold' | 'all' | 'unlisted';
   category?: string;
   condition?: string;
+  gender?: "Men" | "Women" | "Unisex";
   minPrice?: number;
   maxPrice?: number;
   sortBy?: 'latest' | 'price_low_to_high' | 'price_high_to_low';
@@ -628,6 +629,7 @@ export class ListingsService {
       if (params?.status) queryParams.status = params.status;
       if (params?.category) queryParams.category = params.category;
       if (params?.condition) queryParams.condition = params.condition;
+      if (params?.gender) queryParams.gender = params.gender;
       if (params?.minPrice !== undefined) queryParams.minPrice = params.minPrice;
       if (params?.maxPrice !== undefined) queryParams.maxPrice = params.maxPrice;
       if (params?.sortBy) queryParams.sortBy = params.sortBy;

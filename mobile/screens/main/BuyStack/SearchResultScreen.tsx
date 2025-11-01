@@ -26,12 +26,38 @@ type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
 const SIZES = ["All", "My Size", "XS", "S", "M", "L", "XL", "XXL"] as const;
 const CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
+const GENDER_OPTIONS = ["All", "Men", "Women", "Unisex"] as const;
+
+const mapGenderParamToOption = (gender?: string | null): typeof GENDER_OPTIONS[number] => {
+  if (!gender) return "All";
+  const lower = gender.toLowerCase();
+  if (lower === "men") return "Men";
+  if (lower === "women") return "Women";
+  if (lower === "unisex") return "Unisex";
+  return "All";
+};
+
+const mapGenderOptionToApiParam = (
+  gender?: string,
+): "Men" | "Women" | "Unisex" | undefined => {
+  if (!gender || gender === "All") return undefined;
+  const lower = gender.toLowerCase();
+  if (lower === "men") return "Men";
+  if (lower === "women") return "Women";
+  if (lower === "unisex") return "Unisex";
+  return undefined;
+};
 
 export default function SearchResultScreen() {
   const navigation = useNavigation<BuyNavigation>();
   const {
-    params: { query, category: initialCategory },
+    params: { query, category: initialCategory, gender: initialGenderParam },
   } = useRoute<SearchResultRoute>();
+
+  const normalizedInitialGender = useMemo(
+    () => mapGenderParamToOption(initialGenderParam),
+    [initialGenderParam],
+  );
 
   const [filterModalVisible, setFilterModalVisible] = useState(false);
 
@@ -39,6 +65,7 @@ export default function SearchResultScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || "All");
   const [selectedSize, setSelectedSize] = useState<string>("All");
   const [selectedCondition, setSelectedCondition] = useState<string>("All");
+  const [selectedGender, setSelectedGender] = useState<string>(normalizedInitialGender);
   const [minPrice, setMinPrice] = useState<string>("");
   const [maxPrice, setMaxPrice] = useState<string>("");
   const [sortBy, setSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
@@ -47,6 +74,7 @@ export default function SearchResultScreen() {
   const [tempCategory, setTempCategory] = useState<string>("All");
   const [tempSize, setTempSize] = useState<string>("All");
   const [tempCondition, setTempCondition] = useState<string>("All");
+  const [tempGender, setTempGender] = useState<string>(normalizedInitialGender);
   const [tempMinPrice, setTempMinPrice] = useState<string>("");
   const [tempMaxPrice, setTempMaxPrice] = useState<string>("");
   const [tempSortBy, setTempSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
@@ -67,6 +95,11 @@ export default function SearchResultScreen() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const PAGE_SIZE = 20;
+
+  useEffect(() => {
+    setSelectedGender(normalizedInitialGender);
+    setTempGender(normalizedInitialGender);
+  }, [normalizedInitialGender]);
 
   // Load categories from database
   useEffect(() => {
@@ -106,7 +139,7 @@ export default function SearchResultScreen() {
   // Load initial listings with pagination
   useEffect(() => {
     loadInitialListings();
-  }, [query, initialCategory]);
+  }, [query, initialCategory, normalizedInitialGender]);
 
   const loadInitialListings = async () => {
     try {
@@ -116,6 +149,7 @@ export default function SearchResultScreen() {
       const result = await listingsService.getListings({
         search: query || undefined,
         category: initialCategory && initialCategory !== 'All' ? initialCategory : undefined,
+        gender: mapGenderOptionToApiParam(normalizedInitialGender),
         limit: PAGE_SIZE,
         offset: 0,
       });
@@ -151,6 +185,7 @@ export default function SearchResultScreen() {
       const result = await listingsService.getListings({
         search: query || undefined,
         category: selectedCategory === 'All' ? undefined : selectedCategory,
+        gender: mapGenderOptionToApiParam(selectedGender),
         limit: PAGE_SIZE,
         offset: offset,
       });
@@ -210,6 +245,23 @@ export default function SearchResultScreen() {
       console.log('🔍 SearchResult: After category filter:', results.length);
     }
 
+    if (selectedGender !== "All") {
+      const selectedGenderLower = selectedGender.toLowerCase();
+      console.log('🔍 SearchResult: Filtering by gender:', selectedGenderLower);
+      results = results.filter((item) => {
+        const itemGender = (item.gender ?? "").toString().toLowerCase();
+        if (!itemGender) return false;
+        if (selectedGenderLower === "men") {
+          return itemGender === "men" || itemGender === "male";
+        }
+        if (selectedGenderLower === "women") {
+          return itemGender === "women" || itemGender === "female";
+        }
+        return itemGender === "unisex";
+      });
+      console.log('🔍 SearchResult: After gender filter:', results.length);
+    }
+
     if (selectedSize !== "All") {
       if (selectedSize === "My Size") {
         // TODO: Get user's preferred size from user settings/preferences
@@ -248,23 +300,35 @@ export default function SearchResultScreen() {
     }
 
     return results;
-  }, [query, selectedCategory, selectedSize, selectedCondition, minPrice, maxPrice, sortBy, sourceListings]);
+  }, [
+    query,
+    selectedCategory,
+    selectedGender,
+    selectedSize,
+    selectedCondition,
+    minPrice,
+    maxPrice,
+    sortBy,
+    sourceListings,
+  ]);
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (selectedCategory !== "All") count++;
+    if (selectedGender !== "All") count++;
     if (selectedSize !== "All") count++;
     if (selectedCondition !== "All") count++;
     if (minPrice || maxPrice) count++;
     if (sortBy !== "Latest") count++;
     return count;
-  }, [selectedCategory, selectedSize, selectedCondition, minPrice, maxPrice, sortBy]);
+  }, [selectedCategory, selectedGender, selectedSize, selectedCondition, minPrice, maxPrice, sortBy]);
 
   const handleOpenFilters = () => {
     // Sync temp filters with current applied filters
     setTempCategory(selectedCategory);
     setTempSize(selectedSize);
     setTempCondition(selectedCondition);
+    setTempGender(selectedGender);
     setTempMinPrice(minPrice);
     setTempMaxPrice(maxPrice);
     setTempSortBy(sortBy);
@@ -275,6 +339,7 @@ export default function SearchResultScreen() {
     setTempCategory("All");
     setTempSize("All");
     setTempCondition("All");
+    setTempGender("All");
     setTempMinPrice("");
     setTempMaxPrice("");
     setTempSortBy("Latest");
@@ -284,6 +349,7 @@ export default function SearchResultScreen() {
     setSelectedCategory(tempCategory);
     setSelectedSize(tempSize);
     setSelectedCondition(tempCondition);
+    setSelectedGender(tempGender);
     setMinPrice(tempMinPrice);
     setMaxPrice(tempMaxPrice);
     setSortBy(tempSortBy);
@@ -450,6 +516,16 @@ export default function SearchResultScreen() {
             })),
             selectedValue: tempCategory,
             onSelect: (value) => setTempCategory(String(value)),
+          },
+          {
+            key: "gender",
+            title: "Gender",
+            options: GENDER_OPTIONS.map((gender) => ({
+              label: gender,
+              value: gender,
+            })),
+            selectedValue: tempGender,
+            onSelect: (value) => setTempGender(String(value)),
           },
           {
             key: "size",
