@@ -84,7 +84,6 @@ const MATERIAL_OPTIONS = [
 ];
 const SHIPPING_OPTIONS = [
   "Free shipping", 
-  "Buyer pays – $3 (within 10km)", 
   "Buyer pays – $5 (island-wide)", 
   "Buyer pays – fixed fee", 
   "Meet-up"
