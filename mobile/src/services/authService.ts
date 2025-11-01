@@ -58,14 +58,21 @@ export class AuthService {
       );
 
       if (response.data) {
-        if (response.data.access_token) {
-          console.log("🔑 Current JWT Token:", response.data.access_token);
+        console.log('🔍 Web API login successful, user:', response.data.user.username);
+
+        // 使用 Supabase tokens (access_token + refresh_token)
+        if (response.data.access_token && response.data.refresh_token) {
+          console.log("🔑 Storing Supabase access token and refresh token");
+          apiClient.setAuthToken(response.data.access_token, response.data.refresh_token);
+        } else if (response.data.access_token) {
+          console.warn("⚠️ No refresh token received, only storing access token");
           apiClient.setAuthToken(response.data.access_token);
         }
+
         return response.data;
       }
 
-      throw new Error('Login failed');
+      throw new Error('Web API login failed');
     } catch (error) {
       console.error('Error signing in:', error);
       throw error;
@@ -142,7 +149,7 @@ export class AuthService {
     try {
       await apiClient.post(API_CONFIG.ENDPOINTS.AUTH.RESET_PASSWORD, {
         token,
-        newPassword
+        newPassword,
       });
     } catch (error) {
       console.error('Error resetting password:', error);

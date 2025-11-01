@@ -371,17 +371,16 @@ export default function MyTopScreen() {
   );
 
   // ✅ 使用真实用户数据，提供默认值以防用户数据为空
-  const sortedListings = useMemo(() => {
-    const listed = shopListings.filter((listing) => listing.listed !== false);
-    const unlisted = shopListings.filter((listing) => listing.listed === false);
-    return [...listed, ...unlisted];
-  }, [shopListings]);
-
-  const listedCount = useMemo(
-    () => sortedListings.filter((listing) => listing.listed !== false).length,
-    [sortedListings]
+  const activeListings = useMemo(
+    () => shopListings.filter((listing) => listing.listed !== false),
+    [shopListings]
   );
-  const unlistedCount = sortedListings.length - listedCount;
+  const inactiveListings = useMemo(
+    () => shopListings.filter((listing) => listing.listed === false),
+    [shopListings]
+  );
+
+  const listedCount = activeListings.length;
 
   const displayUser = {
     username: user?.username || "User",
@@ -390,7 +389,7 @@ export default function MyTopScreen() {
     reviews: followStats.reviewsCount,
     bio: user?.bio || "Welcome to my profile!",
     avatar: user?.avatar_url || DEFAULT_AVATAR,
-    activeListings: sortedListings, // ✅ 使用真实的listings，并将未上架的放在末尾
+    activeListings, // ✅ 使用真实的listings
   };
 
   // ✅ 处理listing点击
@@ -507,7 +506,7 @@ export default function MyTopScreen() {
                 {/* Active Title */}
                 <View style={styles.activeRow}>
                   <Text style={styles.activeTitle}>
-                    Active ({listedCount} listed{unlistedCount > 0 ? ` · ${unlistedCount} unlisted` : ""})
+                    Active ({listedCount})
                   </Text>
                   <TouchableOpacity 
                     onPress={() => setFilterModalVisible(true)}
@@ -538,7 +537,6 @@ export default function MyTopScreen() {
               const imageUri = listing.images && listing.images.length > 0
                 ? listing.images[0]
                 : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
-              const isUnlisted = listing.listed === false;
 
               return (
                 <TouchableOpacity
@@ -547,14 +545,46 @@ export default function MyTopScreen() {
                   activeOpacity={0.85}
                 >
                   <Image source={{ uri: imageUri }} style={styles.itemImage} />
-                  {isUnlisted && (
-                    <View style={styles.unlistedOverlay}>
-                      <Text style={styles.unlistedOverlayText}>Unlisted</Text>
-                    </View>
-                  )}
                 </TouchableOpacity>
               );
             }}
+            ListFooterComponent={
+              inactiveListings.length > 0 ? (
+                <View style={styles.inactiveSection}>
+                  <Text style={styles.inactiveTitle}>
+                    Inactive ({inactiveListings.length})
+                  </Text>
+                  <FlatList
+                    data={formatData(inactiveListings, 3)}
+                    keyExtractor={(item) => String(item.id)}
+                    numColumns={3}
+                    scrollEnabled={false}
+                    contentContainerStyle={styles.inactiveListContent}
+                    renderItem={({ item: footerItem }) => {
+                      if ((footerItem as any).empty) {
+                        return <View style={[styles.itemBox, styles.itemInvisible]} />;
+                      }
+                      const listing = footerItem as ListingItem;
+                      const imageUri = listing.images && listing.images.length > 0
+                        ? listing.images[0]
+                        : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
+                      return (
+                        <TouchableOpacity
+                          style={styles.itemBox}
+                          onPress={() => handleListingPress(listing)}
+                          activeOpacity={0.85}
+                        >
+                          <Image source={{ uri: imageUri }} style={styles.itemImage} />
+                          <View style={styles.unlistedOverlay}>
+                            <Text style={styles.unlistedOverlayText}>UNLISTED</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    }}
+                  />
+                </View>
+              ) : null
+            }
             ListEmptyComponent={
               loading ? (
                 <View style={[styles.emptyBox]}>
@@ -786,6 +816,18 @@ const styles = StyleSheet.create({
     height: "100%",
     resizeMode: "cover",
   },
+  inactiveSection: {
+    marginTop: 16,
+    paddingHorizontal: 12,
+  },
+  inactiveTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  inactiveListContent: {
+    paddingBottom: 16,
+  },
   unlistedOverlay: {
     position: "absolute",
     top: 0,
@@ -800,6 +842,8 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     letterSpacing: 0.5,
+    fontSize: 16,
+    textTransform: "uppercase",
   },
   itemInvisible: {
     backgroundColor: "transparent",

@@ -109,6 +109,12 @@ export type Feedback = {
   tags?: string[]; // Tags for categorization
   featured: boolean; // Featured on homepage
   createdAt: string;
+  isPublic?: boolean; // Whether feedback is public
+  type?: string; // Feedback type (general, bug, feature, etc.)
+  title?: string; // Feedback title
+  priority?: string; // Priority level (low, medium, high)
+  status?: string; // Status (open, in_progress, closed)
+  updatedAt?: string; // Last updated timestamp
 };
 
 // Legacy type for backward compatibility

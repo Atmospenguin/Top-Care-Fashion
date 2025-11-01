@@ -1,43 +1,58 @@
 import { NextResponse } from "next/server";
-import { getConnection, toBoolean } from "@/lib/db";
+import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
+import { Gender, UserRole, UserStatus } from "@prisma/client";
 
-function mapRole(value: unknown): "User" | "Admin" {
-  return String(value ?? "").toUpperCase() === "ADMIN" ? "Admin" : "User";
+function mapRole(value: UserRole): "User" | "Admin" {
+  return value === UserRole.ADMIN ? "Admin" : "User";
 }
 
-function mapStatus(value: unknown): "active" | "suspended" {
-  return String(value ?? "").toUpperCase() === "SUSPENDED" ? "suspended" : "active";
+function mapStatus(value: UserStatus): "active" | "suspended" {
+  return value === UserStatus.SUSPENDED ? "suspended" : "active";
 }
 
-function mapGender(value: unknown): "Male" | "Female" | null {
-  const normalized = String(value ?? "").toUpperCase();
-  if (normalized === "MALE") return "Male";
-  if (normalized === "FEMALE") return "Female";
+function mapGender(value: Gender | null): "Male" | "Female" | null {
+  if (!value) return null;
+  if (value === Gender.MALE) return "Male";
+  if (value === Gender.FEMALE) return "Female";
   return null;
 }
 
 export async function GET() {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const conn = await getConnection();
-  const [rows]: any = await conn.execute(
-    "SELECT id, username, email, status, role, is_premium, premium_until, dob, gender, avatar_url AS \"avatar_url\", created_at AS \"createdAt\" FROM users ORDER BY created_at DESC"
-  );
-  await conn.end();
 
-  const users = (rows as any[]).map((row) => ({
-    id: String(row.id),
-    username: row.username,
-    email: row.email,
-    status: mapStatus(row.status),
-    role: mapRole(row.role),
-    is_premium: toBoolean(row.is_premium),
-    premium_until: row.premium_until ?? null,
-    dob: row.dob ? (row.dob instanceof Date ? row.dob.toISOString().slice(0, 10) : String(row.dob)) : null,
-    gender: mapGender(row.gender),
-    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
-    avatar_url: row.avatar_url ?? null,
+  const dbUsers = await prisma.users.findMany({
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      status: true,
+      role: true,
+      is_premium: true,
+      premium_until: true,
+      dob: true,
+      gender: true,
+      avatar_url: true,
+      created_at: true,
+    },
+    orderBy: {
+      created_at: "desc",
+    },
+  });
+
+  const users = dbUsers.map((user) => ({
+    id: String(user.id),
+    username: user.username,
+    email: user.email,
+    status: mapStatus(user.status),
+    role: mapRole(user.role),
+    is_premium: user.is_premium,
+    premium_until: user.premium_until?.toISOString() ?? null,
+    dob: user.dob?.toISOString().slice(0, 10) ?? null,
+    gender: mapGender(user.gender),
+    createdAt: user.created_at.toISOString(),
+    avatar_url: user.avatar_url ?? null,
   }));
 
   return NextResponse.json({ users });
