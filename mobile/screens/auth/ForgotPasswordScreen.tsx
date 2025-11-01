@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../App";
@@ -13,14 +13,24 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
 
   const onSubmit = async () => {
-    if (!email.trim()) return;
+    if (!email.trim() || countdown > 0) return;
     setSubmitting(true);
     setStatus("Sending...");
     try {
       await requestPasswordReset(email.trim());
       setStatus("Password reset email sent. Please check your inbox.");
+      setCountdown(60); // Start 60-second cooldown
     } catch (error: any) {
       setStatus(error?.message || "Failed to send reset email");
     } finally {
@@ -57,11 +67,17 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
       />
 
       {/* Send Code 按钮 */}
-      <TouchableOpacity style={styles.sendBtn} onPress={onSubmit} disabled={submitting}>
+      <TouchableOpacity
+        style={[styles.sendBtn, (submitting || countdown > 0) && styles.sendBtnDisabled]}
+        onPress={onSubmit}
+        disabled={submitting || countdown > 0}
+      >
         {submitting ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.sendBtnText}>Send Email</Text>
+          <Text style={styles.sendBtnText}>
+            {countdown > 0 ? `Resend in ${countdown}s` : "Send Email"}
+          </Text>
         )}
       </TouchableOpacity>
 
@@ -111,10 +127,13 @@ const styles = StyleSheet.create({
 
   sendBtn: {
     height: 56,
-    backgroundColor: "#111827", 
+    backgroundColor: "#111827",
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+  },
+  sendBtnDisabled: {
+    opacity: 0.5,
   },
   sendBtnText: { color: "#fff", fontSize: 18, fontWeight: "700" },
   status: {
