@@ -175,11 +175,11 @@ export async function POST(req: NextRequest) {
         listed: Boolean(listed),
         price: Number(price),
         image_url: imageUrl || null,
-        image_urls: imageUrls ? JSON.stringify(imageUrls) : null,
+        image_urls: imageUrls ? JSON.stringify(imageUrls) : undefined,
         brand: brand || null,
         size: size || null,
         condition_type: normalizeConditionIn(conditionType),
-        tags: tags ? JSON.stringify(tags) : null,
+        tags: tags ? JSON.stringify(tags) : undefined,
       },
       include: {
         seller: {

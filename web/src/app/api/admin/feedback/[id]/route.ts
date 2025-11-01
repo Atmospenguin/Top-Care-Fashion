@@ -43,15 +43,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const updateData: {
-    user_id?: number | null;
-    user_email?: string | null;
-    user_name?: string | null;
-    message?: string | null;
-    rating?: number | null;
-    tags?: any;
-    featured?: boolean;
-  } = {};
+  const updateData: any = {};
 
   if ("userId" in body) {
     const userId = body.userId;
@@ -96,7 +88,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
   if ("tags" in body) {
     const tags = Array.isArray(body.tags) ? body.tags : null;
-    updateData.tags = tags ? JSON.stringify(tags) : null;
+    updateData.tags = tags ? JSON.stringify(tags) : undefined;
   }
 
   if ("featured" in body) {

@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         user_name: userName || null,
         message,
         rating: rating !== undefined && rating !== null ? Number(rating) : null,
-        tags: tags ? JSON.stringify(tags) : null,
+        tags: tags ? JSON.stringify(tags) : undefined,
         featured: Boolean(featured),
       },
     });
