@@ -36,12 +36,17 @@ import { useAuth } from "../../../contexts/AuthContext";
 import { useAutoClassify } from "../../../src/hooks/useAutoClassify";
 import { ClassifyResponse, checkImagesSFW, describeProduct } from "../../../src/services/aiService";
 import type { ListingItem } from "../../../types/shop";
+import { sortCategories } from "../../../utils/categoryHelpers";
 
-/** --- Options (7 categories, plural where appropriate for UI) --- */
-export const CATEGORY_OPTIONS = [
-  "Accessories", "Bottoms", "Footwear", "Outerwear", "Tops", "Bags", "Dresses",
-] as const;
-type UICategory = typeof CATEGORY_OPTIONS[number];
+/** --- Options (categories loaded dynamically from database) --- */
+type UICategory =
+  | "Accessories"
+  | "Bottoms"
+  | "Footwear"
+  | "Outerwear"
+  | "Tops"
+  | "Bags"
+  | "Dresses";
 
 type CanonicalCategory =
   | "Top"
@@ -200,6 +205,10 @@ export default function SellScreen({
   const [aiDesc, setAiDesc] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Dynamic categories loaded from database
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
   // Gender
   const [gender, setGender] = useState("Select");
 
@@ -225,6 +234,31 @@ export default function SellScreen({
   const shouldFocusSizeInput = useRef(false);
   const shouldFocusMaterialInput = useRef(false);
   const shouldFocusBrandInput = useRef(false);
+
+  // Load categories from database
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const data = await listingsService.getCategories();
+        const allCategories = new Set<string>();
+        Object.values(data).forEach((genderData) => {
+          Object.keys(genderData).forEach((cat) => {
+            allCategories.add(cat);
+          });
+        });
+        const sorted = sortCategories(Array.from(allCategories));
+        setCategoryOptions(sorted);
+      } catch (error) {
+        console.error("Failed to load categories:", error);
+        // Fallback to empty array - user will need to manually select
+        setCategoryOptions([]);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+    loadCategories();
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -382,11 +416,11 @@ export default function SellScreen({
     setGender(mappedGender);
 
     let resolvedCategory: UICategory | "Select" = "Select";
-    if (listing.category && CATEGORY_OPTIONS.includes(listing.category as UICategory)) {
+    if (listing.category && categoryOptions.includes(listing.category)) {
       resolvedCategory = listing.category as UICategory;
     } else if (listing.category) {
       const mapped = mapToUICategory(listing.category);
-      if (mapped && CATEGORY_OPTIONS.includes(mapped)) {
+      if (mapped && categoryOptions.includes(mapped)) {
         resolvedCategory = mapped;
       }
     }
@@ -573,7 +607,7 @@ export default function SellScreen({
     if (!candidates.length) return;
     const best = candidates.reduce((a, b) => ((b.confidence ?? 0) > (a.confidence ?? 0) ? b : a));
     const mapped = mapToUICategory(best.category);
-    if (mapped && CATEGORY_OPTIONS.includes(mapped) && mapped !== category) {
+    if (mapped && categoryOptions.includes(mapped) && mapped !== category) {
       setCategory(mapped);
     }
   }, [aiItems, userPickedCategory, category]);
@@ -1561,7 +1595,7 @@ export default function SellScreen({
       <OptionPicker
         title="Select category"
         visible={showCat}
-        options={[...CATEGORY_OPTIONS]}
+        options={categoryOptions}
         value={category}
         onClose={() => setShowCat(false)}
         onSelect={(val) => {

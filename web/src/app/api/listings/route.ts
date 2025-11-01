@@ -44,6 +44,11 @@ export async function GET(req: Request) {
       }
     }
 
+  // 获取总记录数（用于分页）
+  const totalCount = await prisma.listings.count({
+    where,
+  });
+
   // 获取 listings
   const listings = await prisma.listings.findMany({
       where,
@@ -226,8 +231,8 @@ export async function GET(req: Request) {
       success: true,
       data: {
         items: formattedListings,
-        total: formattedListings.length,
-        hasMore: formattedListings.length === limit,
+        total: totalCount, // 真实的总记录数
+        hasMore: offset + formattedListings.length < totalCount, // 精确判断是否有更多数据
       },
     });
 

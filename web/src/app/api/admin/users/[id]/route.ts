@@ -29,8 +29,16 @@ function mapStatusOut(value: UserStatus): "active" | "suspended" {
 
 function mapGenderOut(value: Gender | null): "Male" | "Female" | null {
   if (!value) return null;
-  if (value === Gender.MALE) return "Male";
-  if (value === Gender.FEMALE) return "Female";
+
+  // Handle new enum values
+  if (value === "Men" as Gender) return "Male";
+  if (value === "Women" as Gender) return "Female";
+  if (value === "Unisex" as Gender) return null;
+
+  // Backward compatibility with old enum
+  if (value === "MALE" as Gender) return "Male";
+  if (value === "FEMALE" as Gender) return "Female";
+
   return null;
 }
 
@@ -59,8 +67,16 @@ function normalizePremium(value: unknown): boolean {
 function normalizeGenderIn(value: unknown): Gender | null {
   const normalized = String(value ?? "").trim();
   if (!normalized) return null;
-  if (normalized === "Male" || normalized.toUpperCase() === "MALE") return Gender.MALE;
-  if (normalized === "Female" || normalized.toUpperCase() === "FEMALE") return Gender.FEMALE;
+
+  // Handle new API format (Male, Female, Unisex)
+  if (normalized === "Male") return "Men" as Gender;
+  if (normalized === "Female") return "Women" as Gender;
+  if (normalized === "Unisex") return "Unisex" as Gender;
+
+  // Backward compatibility with uppercase old enum
+  if (normalized.toUpperCase() === "MALE" || normalized.toUpperCase() === "MEN") return "Men" as Gender;
+  if (normalized.toUpperCase() === "FEMALE" || normalized.toUpperCase() === "WOMEN") return "Women" as Gender;
+
   return null;
 }
 

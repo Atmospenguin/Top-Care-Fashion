@@ -31,6 +31,8 @@ import { premiumService } from "../../../src/services";
 import { likesService, messagesService, type LikedListing } from "../../../src/services";
 import { authService } from "../../../src/services/authService";
 import { reportsService } from "../../../src/services/reportsService";
+import { listingsService } from "../../../src/services/listingsService";
+import { sortCategories } from "../../../utils/categoryHelpers";
 
 type UserProfileParam = RouteProp<BuyStackParamList, "UserProfile">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
@@ -45,8 +47,6 @@ const REPORT_CATEGORIES = [
   { id: "outside_payment", label: "Out of app payment or activity" },
   { id: "other", label: "Something else" },
 ];
-
-const SHOP_CATEGORIES = ["All", "Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"] as const;
 const SHOP_APPAREL_SIZES = [
   "All",
   "My Size",
@@ -186,6 +186,10 @@ export default function UserProfileScreen() {
   const [isOwnProfile, setIsOwnProfile] = useState(false);
   const [username, setUsername] = useState<string>(usernameParam || "");
 
+  // Dynamic categories loaded from database
+  const [shopCategories, setShopCategories] = useState<string[]>(["All"]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
   const [activeTab, setActiveTab] = useState<"Shop" | "Likes" | "Reviews">(
     "Shop"
   );
@@ -243,6 +247,30 @@ export default function UserProfileScreen() {
     };
 
     loadCurrentUser();
+  }, []);
+
+  // Load categories from database
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const data = await listingsService.getCategories();
+        const allCategories = new Set<string>();
+        Object.values(data).forEach((genderData) => {
+          Object.keys(genderData).forEach((cat) => {
+            allCategories.add(cat);
+          });
+        });
+        const sorted = sortCategories(Array.from(allCategories));
+        setShopCategories(["All", ...sorted]);
+      } catch (error) {
+        console.error("Failed to load categories:", error);
+        setShopCategories(["All"]);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+    loadCategories();
   }, []);
 
   // Sync premium status on focus, same as MyPremiumScreen
@@ -1122,7 +1150,7 @@ export default function UserProfileScreen() {
                     <TouchableOpacity
                       style={styles.gridItem}
                       onPress={() =>
-                        navigation.navigate("ListingDetail", { item: item as ListingItem })
+                        navigation.navigate("ListingDetail", { listingId: (item as ListingItem).id })
                       }
                     >
                       <Image
@@ -1245,7 +1273,7 @@ export default function UserProfileScreen() {
                       return (
                         <TouchableOpacity
                           style={styles.gridItem}
-                          onPress={() => navigation.navigate("ListingDetail", { item: listingData })}
+                          onPress={() => navigation.navigate("ListingDetail", { listingId: listingData.id })}
                         >
                           <Image
                             source={{
@@ -1500,7 +1528,7 @@ export default function UserProfileScreen() {
           {
             key: "category",
             title: "Category",
-            options: SHOP_CATEGORIES.map((category) => ({
+            options: shopCategories.map((category) => ({
               label: category,
               value: category,
             })),

@@ -16,7 +16,6 @@ import type { RouteProp } from "@react-navigation/native";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import FilterModal from "../../../components/FilterModal";
-import { fetchListings } from "../../../api";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
 import { listingsService, type CategoryData } from "../../../src/services/listingsService";
@@ -62,6 +61,13 @@ export default function SearchResultScreen() {
   const [categories, setCategories] = useState<string[]>(["All"]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
+  // Pagination state
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const PAGE_SIZE = 20;
+
   // Load categories from database
   useEffect(() => {
     let mounted = true;
@@ -97,46 +103,69 @@ export default function SearchResultScreen() {
     };
   }, []);
 
+  // Load initial listings with pagination
   useEffect(() => {
-    let mounted = true;
-    console.log('🔍 SearchResult: Starting to fetch listings...');
-    fetchListings()
-      .then((items) => {
-        if (!mounted) return;
-        console.log('🔍 SearchResult: Received items:', items?.length || 0);
-        console.log('🔍 SearchResult: First item:', JSON.stringify(items?.[0], null, 2));
-        // items should be ListingItem[] shape; if not, map minimally
-        const mappedItems = (items || []).map((it: any) => ({
-          id: String(it.id ?? it._id ?? Math.random().toString(36).slice(2)),
-          title: String(it.title ?? "Untitled"),
-          description: String(it.description ?? ""),
-          brand: String(it.brand ?? ""),
-          colors: Array.isArray(it.colors)
-            ? it.colors
-            : it.color
-            ? [String(it.color)]
-            : [],
-          price: Number(it.price ?? 0),
-          size: String(it.size ?? "M"),
-          condition: String(it.condition ?? "Good"),
-          category: String(it.category ?? "top"),
-          images: Array.isArray(it.images) && it.images.length > 0 ? it.images : [
-            typeof it.image === "string" ? it.image : "https://via.placeholder.com/512"
-          ],
-          seller: it.seller ?? { id: "api", name: "Seller" },
-          location: it.location ?? "",
-        })) as ListingItem[];
-        console.log('🔍 SearchResult: Mapped items:', mappedItems.length);
-        setApiListings(mappedItems);
-      })
-      .catch((error) => {
-        console.error('🔍 SearchResult: Error fetching listings:', error);
-        setApiListings([]);
+    loadInitialListings();
+  }, [query, initialCategory]);
+
+  const loadInitialListings = async () => {
+    try {
+      setInitialLoading(true);
+      console.log('🔍 SearchResult: Loading initial listings...');
+
+      const result = await listingsService.getListings({
+        search: query || undefined,
+        category: initialCategory && initialCategory !== 'All' ? initialCategory : undefined,
+        limit: PAGE_SIZE,
+        offset: 0,
       });
-    return () => {
-      mounted = false;
-    };
-  }, []);
+
+      console.log('🔍 SearchResult: Received items:', result.items.length);
+      console.log('🔍 SearchResult: Has more:', result.hasMore);
+      console.log('🔍 SearchResult: First item:', JSON.stringify(result.items[0], null, 2));
+
+      // ✅ Use items directly from API - no error-prone mapping!
+      setApiListings(result.items);
+      setHasMore(result.hasMore);
+      setOffset(PAGE_SIZE);
+    } catch (error) {
+      console.error('🔍 SearchResult: Error loading listings:', error);
+      setApiListings([]);
+      setHasMore(false);
+    } finally {
+      setInitialLoading(false);
+    }
+  };
+
+  // Load more listings when scrolling to bottom
+  const loadMore = async () => {
+    if (!hasMore || isLoadingMore || initialLoading) {
+      console.log('🔍 SearchResult: Skip load more', { hasMore, isLoadingMore, initialLoading });
+      return;
+    }
+
+    try {
+      setIsLoadingMore(true);
+      console.log('🔍 SearchResult: Loading more listings at offset:', offset);
+
+      const result = await listingsService.getListings({
+        search: query || undefined,
+        category: selectedCategory === 'All' ? undefined : selectedCategory,
+        limit: PAGE_SIZE,
+        offset: offset,
+      });
+
+      console.log('🔍 SearchResult: Loaded', result.items.length, 'more items');
+
+      setApiListings(prev => [...prev, ...result.items]);
+      setHasMore(result.hasMore);
+      setOffset(prev => prev + PAGE_SIZE);
+    } catch (error) {
+      console.error('🔍 SearchResult: Error loading more:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   const sourceListings = apiListings;
 
@@ -343,10 +372,12 @@ export default function SearchResultScreen() {
         contentContainerStyle={styles.gridContent}
         onScroll={handleScroll}
         scrollEventThrottle={16}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.gridItem}
-            onPress={() => navigation.navigate("ListingDetail", { item })}
+            onPress={() => navigation.navigate("ListingDetail", { listingId: item.id })}
           >
             <Image source={{ uri: item.images[0] }} style={styles.gridImage} />
             <View style={styles.itemInfo}>
@@ -361,27 +392,49 @@ export default function SearchResultScreen() {
           </TouchableOpacity>
         )}
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Icon name="search-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyTitle}>No results found</Text>
-            <Text style={styles.emptySubtitle}>
-              Try adjusting your filters or search terms
-            </Text>
-          </View>
-        }
-        ListFooterComponent={
-          filteredListings.length > 0 ? (
-            <View style={styles.footerContainer}>
-              <View style={styles.footerDivider} />
-              <Text style={styles.footerText}>
-                You've reached the end • {filteredListings.length} {filteredListings.length === 1 ? 'item' : 'items'} found
-              </Text>
-              <Text style={styles.footerSubtext}>
-                Try adjusting your filters to see more results
+          initialLoading ? (
+            <View style={styles.emptyState}>
+              <ActivityIndicator size="large" color="#7C3AED" />
+              <Text style={{ marginTop: 16, color: '#666' }}>Loading...</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Icon name="search-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyTitle}>No results found</Text>
+              <Text style={styles.emptySubtitle}>
+                Try adjusting your filters or search terms
               </Text>
             </View>
-          ) : null
+          )
         }
+        ListFooterComponent={() => {
+          if (isLoadingMore) {
+            return (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#7C3AED" />
+                <Text style={{ marginTop: 8, color: '#666', fontSize: 14 }}>
+                  Loading more...
+                </Text>
+              </View>
+            );
+          }
+
+          if (!hasMore && filteredListings.length > 0) {
+            return (
+              <View style={styles.footerContainer}>
+                <View style={styles.footerDivider} />
+                <Text style={styles.footerText}>
+                  You've reached the end • {filteredListings.length} {filteredListings.length === 1 ? 'item' : 'items'} found
+                </Text>
+                <Text style={styles.footerSubtext}>
+                  Try adjusting your filters to see more results
+                </Text>
+              </View>
+            );
+          }
+
+          return null;
+        }}
       />
 
       {/* Filter Modal */}

@@ -26,9 +26,9 @@ import type { RouteProp } from "@react-navigation/native";
 import type { MyTopStackParamList } from "./index";
 import { listingsService } from "../../../src/services/listingsService";
 import type { ListingItem } from "../../../types/shop";
+import { sortCategories } from "../../../utils/categoryHelpers";
 
 /** --- Options --- */
-const CATEGORY_OPTIONS = ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"];
 const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "Others"];
 const CONDITION_OPTIONS = ["Brand New", "Like new", "Good", "Fair", "Poor"];
 const SIZE_OPTIONS_CLOTHES = [
@@ -168,6 +168,10 @@ export default function EditListingScreen() {
   const [saving, setSaving] = useState(false);
   const [listing, setListing] = useState<ListingItem | null>(null);
 
+  // Dynamic categories loaded from database
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
   // ✅ 表单状态
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -194,6 +198,30 @@ export default function EditListingScreen() {
   const [brandCustom, setBrandCustom] = useState("");
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const scrollViewRef = useRef<RNScrollView>(null);
+
+  // Load categories from database
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const data = await listingsService.getCategories();
+        const allCategories = new Set<string>();
+        Object.values(data).forEach((genderData) => {
+          Object.keys(genderData).forEach((cat) => {
+            allCategories.add(cat);
+          });
+        });
+        const sorted = sortCategories(Array.from(allCategories));
+        setCategoryOptions(sorted);
+      } catch (error) {
+        console.error("Failed to load categories:", error);
+        setCategoryOptions([]);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+    loadCategories();
+  }, []);
 
   // ✅ 获取listing数据
   useEffect(() => {
@@ -1050,7 +1078,7 @@ export default function EditListingScreen() {
       <OptionPicker
         title="Select category"
         visible={showCat}
-        options={CATEGORY_OPTIONS}
+        options={categoryOptions}
         value={category}
         onClose={() => setShowCat(false)}
         onSelect={setCategory}

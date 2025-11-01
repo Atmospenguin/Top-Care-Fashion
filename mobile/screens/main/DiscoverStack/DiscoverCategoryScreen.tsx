@@ -7,6 +7,7 @@ import type { RouteProp } from "@react-navigation/native";
 import Header from "../../../components/Header";
 import { listingsService, type CategoryData } from "../../../src/services/listingsService";
 import type { DiscoverStackParamList } from "./index";
+import { CATEGORY_DISPLAY_ORDER } from "../../../utils/categoryHelpers";
 
 type DiscoverNavigation = NativeStackNavigationProp<DiscoverStackParamList>;
 type DiscoverCategoryRoute = RouteProp<DiscoverStackParamList, "DiscoverCategory">;
@@ -15,7 +16,7 @@ export default function DiscoverCategoryScreen() {
   const navigation = useNavigation<DiscoverNavigation & any>();
   const { params } = useRoute<DiscoverCategoryRoute>();
   const { gender } = params;
-  
+
   const [categories, setCategories] = useState<CategoryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,15 +38,13 @@ export default function DiscoverCategoryScreen() {
     }
   };
 
-  const CATEGORY_ORDER: string[] = ["Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"];
-
   const mainCategories = useMemo(() => {
     const genderCategories = categories?.[gender];
     if (!genderCategories) {
       return [] as string[];
     }
     const available = Object.keys(genderCategories);
-    return CATEGORY_ORDER.filter((category) => available.includes(category));
+    return CATEGORY_DISPLAY_ORDER.filter((category) => available.includes(category));
   }, [categories, gender]);
 
   const headerTitle = gender === "men" ? "Men" : gender === "women" ? "Women" : "Unisex";

@@ -90,7 +90,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
       bio: user.bio,
       location: user.location,
       dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
-      gender: user.gender === "MALE" ? "Male" : user.gender === "FEMALE" ? "Female" : null,
+      gender: user.gender === "Men" ? "Male" : user.gender === "Women" ? "Female" : user.gender === "MALE" ? "Male" : user.gender === "FEMALE" ? "Female" : null,
       avatar_url: user.avatar_url,
       rating: Number(user.average_rating) || 0,
       reviewsCount: Number(user.total_reviews) || 0,
