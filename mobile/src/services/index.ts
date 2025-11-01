@@ -58,7 +58,8 @@ export type {
 export type {
   ReportTargetType,
   SubmitReportParams,
-  SubmitReportResponse
+  SubmitReportResponse,
+  UserReportSummary
 } from './reportsService';
 export type { UserBenefitsPayload } from './benefitsService';
 export type {

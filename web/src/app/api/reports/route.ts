@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { ReportStatus, ReportTargetType } from "@prisma/client";
 
 type IncomingTargetType = "listing" | "user" | "general" | string;
 
@@ -24,6 +25,65 @@ function buildReason(category?: string, details?: string): string {
     parts.push(details.trim());
   }
   return parts.join(" - ");
+}
+
+function mapTargetTypeOut(value: ReportTargetType): "listing" | "user" {
+  return value === "LISTING" ? "listing" : "user";
+}
+
+function mapStatusOut(value: ReportStatus): "open" | "resolved" | "dismissed" {
+  switch (value) {
+    case "RESOLVED":
+      return "resolved";
+    case "DISMISSED":
+      return "dismissed";
+    default:
+      return "open";
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const user = await getSessionUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const identifiers = [user.username, user.email]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map((value) => value.trim());
+
+  if (identifiers.length === 0) {
+    return NextResponse.json({ reports: [] }, { status: 200 });
+  }
+
+  try {
+    const reports = await prisma.reports.findMany({
+      where: {
+        reporter: {
+          in: identifiers,
+        },
+      },
+      orderBy: {
+        created_at: "desc",
+      },
+    });
+
+    const payload = reports.map((report) => ({
+      id: String(report.id),
+      targetType: mapTargetTypeOut(report.target_type),
+      targetId: report.target_id,
+      reason: report.reason,
+      status: mapStatusOut(report.status),
+      createdAt: report.created_at.toISOString(),
+      resolvedAt: report.resolved_at ? report.resolved_at.toISOString() : null,
+      notes: report.notes ?? null,
+    }));
+
+    return NextResponse.json({ reports: payload }, { status: 200 });
+  } catch (error) {
+    console.error("Failed to fetch reports:", error);
+    return NextResponse.json({ error: "Failed to load reports" }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
