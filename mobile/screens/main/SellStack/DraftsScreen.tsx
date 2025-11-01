@@ -1,71 +1,146 @@
-import React, { useState } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image } from "react-native";
+import React, { useCallback, useState } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  RefreshControl,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
 // Keep SafeAreaView inside Header only; avoid double SafeArea padding here
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
-
-type Draft = {
-  id: string;
-  description: string;
-  date: string;
-  thumbnail?: string;
-};
-
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { SellStackParamList } from "./SellStackNavigator";
+import { useFocusEffect } from "@react-navigation/native";
+import { listingsService } from "../../../src/services/listingsService";
+import type { ListingItem } from "../../../types/shop";
 
 type DraftsScreenProps = {
   navigation: NativeStackNavigationProp<SellStackParamList, "Drafts">;
 };
 
 export default function DraftsScreen({ navigation }: DraftsScreenProps) {
-  // 模拟一些草稿数据
-  const [drafts, setDrafts] = useState<Draft[]>([
-    {
-      id: "1",
-      description: "Blue and white Ader Error x Converse trainers #sneakers",
-      date: "2025-10-02 09:45",
-      thumbnail: "https://via.placeholder.com/60", // 以后替换成 asset URL
-    },
-    {
-      id: "2",
-      description: "Zara beige coat, worn twice, very good condition",
-      date: "2025-10-01 22:30",
-    },
-  ]);
+  const [drafts, setDrafts] = useState<ListingItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const clearDrafts = () => setDrafts([]);
+  const fetchDrafts = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false;
+      if (!silent) {
+        setLoading(true);
+      }
+      try {
+        const data = await listingsService.getDrafts();
+        setDrafts(data);
+      } catch (error) {
+        console.error("Failed to load drafts:", error);
+        Alert.alert("Error", "Failed to load drafts. Pull to refresh to try again.");
+      } finally {
+        if (!silent) {
+          setLoading(false);
+        }
+      }
+    },
+    []
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchDrafts();
+    }, [fetchDrafts])
+  );
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchDrafts({ silent: true });
+    setRefreshing(false);
+  }, [fetchDrafts]);
+
+  const handleDeleteDraft = useCallback((draft: ListingItem) => {
+    Alert.alert("Delete draft?", "This will permanently remove the draft.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await listingsService.deleteListing(draft.id);
+            setDrafts((prev) => prev.filter((item) => item.id !== draft.id));
+          } catch (error) {
+            console.error("Failed to delete draft:", error);
+            Alert.alert("Error", "Could not delete the draft. Please try again.");
+          }
+        },
+      },
+    ]);
+  }, []);
+
+  const formatTimestamp = (value?: string | null) => {
+    if (!value) {
+      return "Not yet saved";
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+    return parsed.toLocaleString();
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header
         title="Drafts"
         showBack
+        onBackPress={() => {
+          // 返回到 SellMain（新建状态，不带 draftId）
+          navigation.navigate("SellMain");
+        }}
         rightAction={
-          drafts.length > 0 ? (
-            <TouchableOpacity onPress={clearDrafts}>
-              <Icon name="trash-outline" size={22} color="#111" />
-            </TouchableOpacity>
-          ) : null
+          <TouchableOpacity onPress={() => fetchDrafts()} disabled={loading || refreshing}>
+            <Icon
+              name="refresh"
+              size={22}
+              color={loading || refreshing ? "#ccc" : "#111"}
+            />
+          </TouchableOpacity>
         }
       />
 
-      {drafts.length === 0 ? (
-        <View style={styles.emptyBox}>
-          <Text style={styles.emptyText}>No drafts yet</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={drafts}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16 }}
-          renderItem={({ item }) => (
+      <FlatList
+        data={drafts}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ padding: 16, flexGrow: 1 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#111" />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyBox}>
+            {loading ? (
+              <ActivityIndicator />
+            ) : (
+              <Text style={styles.emptyText}>No drafts yet</Text>
+            )}
+          </View>
+        }
+        renderItem={({ item }) => {
+          const thumbnail = item.images?.[0];
+          const summary = item.title || item.description || "Untitled draft";
+          const timestamp = formatTimestamp(item.updatedAt ?? item.createdAt);
+
+          return (
             <TouchableOpacity
               style={styles.draftRow}
               onPress={() => navigation.navigate("SellMain", { draftId: item.id })}
+              onLongPress={() => handleDeleteDraft(item)}
+              delayLongPress={250}
             >
-              {item.thumbnail ? (
-                <Image source={{ uri: item.thumbnail }} style={styles.thumb} />
+              {thumbnail ? (
+                <Image source={{ uri: thumbnail }} style={styles.thumb} />
               ) : (
                 <View style={[styles.thumb, styles.thumbPlaceholder]}>
                   <Icon name="image-outline" size={22} color="#aaa" />
@@ -73,15 +148,15 @@ export default function DraftsScreen({ navigation }: DraftsScreenProps) {
               )}
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text numberOfLines={1} style={styles.desc}>
-                  {item.description}
+                  {summary}
                 </Text>
-                <Text style={styles.date}>{item.date}</Text>
+                <Text style={styles.date}>{timestamp}</Text>
               </View>
               <Icon name="chevron-forward" size={20} color="#999" />
             </TouchableOpacity>
-          )}
-        />
-      )}
+          );
+        }}
+      />
     </View>
   );
 }

@@ -17,7 +17,7 @@ export { NotificationHelper } from './notificationHelper';
 
 // 导出类型
 export type { ApiResponse, ApiError } from '../config/api';
-export type { ListingsQueryParams } from './listingsService';
+export type { ListingsQueryParams, DraftListingRequest } from './listingsService';
 export type { User, SignInRequest, SignUpRequest, AuthResponse } from './authService';
 export type { UpdateProfileRequest } from './userService';
 export type { Feedback, CreateFeedbackRequest } from './feedbackService';
