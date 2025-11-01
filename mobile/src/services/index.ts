@@ -3,7 +3,7 @@ export { apiClient } from './api';
 export { listingsService, ListingsService } from './listingsService';
 export { authService, AuthService } from './authService';
 export { userService, UserService } from './userService';
-export { feedbackService, FeedbackService } from './feedbackService';
+export { feedbackService } from './feedbackService';
 export { ordersService } from './ordersService';
 export { likesService } from './likesService';
 export { cartService } from './cartService';
@@ -12,6 +12,7 @@ export { reviewsService } from './reviewsService';
 export { notificationService } from './notificationService';
 export { premiumService, PremiumServiceType } from './premiumService';
 export { benefitsService, BenefitsServiceType } from './benefitsService';
+export { paymentMethodsService } from './paymentMethodsService';
 export { NotificationHelper } from './notificationHelper';
 
 // 导出类型
@@ -44,9 +45,14 @@ export type {
   CreateConversationParams, 
   SendMessageParams 
 } from './messagesService';
-export type { 
-  Notification, 
-  NotificationParams 
+export type {
+  Notification,
+  NotificationParams
 } from './notificationService';
 export type { UserBenefitsPayload } from './benefitsService';
+export type {
+  PaymentMethod,
+  CreatePaymentMethodRequest,
+  UpdatePaymentMethodRequest
+} from './paymentMethodsService';
 
