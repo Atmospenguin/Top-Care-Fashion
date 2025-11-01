@@ -700,6 +700,55 @@ export default function ChatScreen() {
     }
   };
 
+  // —— 头像点击处理 —— //
+  const handleAvatarPress = (avatarUserId?: number | string, avatarUsername?: string) => {
+    console.log("🔍 Avatar pressed - userId:", avatarUserId, "username:", avatarUsername);
+    console.log("🔍 Current user:", user?.id, user?.username);
+    
+    // 判断是否是当前用户
+    const isCurrentUser = avatarUserId && user?.id && Number(avatarUserId) === Number(user.id);
+    
+    if (isCurrentUser) {
+      // 🔥 点击自己的头像 -> 跳转到 MyTop
+      console.log("🔍 Navigating to MyTop (own profile)");
+      const rootNavigation = (navigation as any).getParent?.();
+      if (rootNavigation) {
+        rootNavigation.navigate("Main", {
+          screen: "MyTop",
+          params: {
+            screen: "MyTopMain"
+          }
+        });
+      }
+    } else {
+      // 🔥 点击对方头像 -> 跳转到 UserProfile
+      console.log("🔍 Navigating to UserProfile:", avatarUsername);
+      
+      // 如果没有 username，尝试从 sender 或 conversation 获取
+      let targetUsername = avatarUsername;
+      if (!targetUsername) {
+        // 从对话中获取对方用户名
+        const otherUser = conversation?.conversation?.otherUser;
+        targetUsername = otherUser?.username || sender;
+      }
+      
+      if (!targetUsername) {
+        Alert.alert("Error", "Unable to find user information");
+        return;
+      }
+      
+      const rootNavigation = (navigation as any).getParent?.();
+      if (rootNavigation) {
+        rootNavigation.navigate("Buy", {
+          screen: "UserProfile",
+          params: {
+            username: targetUsername
+          }
+        });
+      }
+    }
+  };
+
   // —— UI 组件 —— //
   const renderOrderCard = (o: Order) => {
     // 🔥 修复：正确判断当前用户是否为卖家
@@ -971,14 +1020,37 @@ export default function ChatScreen() {
     const handleCardPress = async () => {
       console.log("🔍 Order card pressed, navigating to ListingDetail");
       console.log("🔍 Order ID:", o.id);
+      console.log("🔍 Listing ID:", o.listing_id);
       console.log("🔍 Product image:", o.product.image);
       console.log("🔍 Current user is seller:", isSeller);
       
       try {
-        // 🔥 获取完整的listing数据（使用统一的 apiClient 流程）
-        const listingResponse = await listingsService.getListingById(String(o.id));
+        // 🔥 获取正确的 listing ID（从订单或 conversation）
+        let listingId = o.listing_id;
+        if (!listingId && conversation?.listing?.id) {
+          listingId = conversation.listing.id;
+        }
+        
+        if (!listingId) {
+          console.error("❌ No listing ID found");
+          Alert.alert("Error", "Listing information not available");
+          return;
+        }
+        
+        console.log("🔍 Fetching listing with ID:", listingId);
+        
+        // 🔥 获取完整的listing数据（使用正确的 listing ID）
+        const listingResponse = await listingsService.getListingById(String(listingId));
         const listing = (listingResponse as any)?.listing ?? listingResponse;
         const listingMeta = listingResponse as any;
+        
+        // 🔥 检查商品是否已售出
+        if (listing?.sold === true) {
+          console.log("⚠️ Listing is already sold");
+          Alert.alert("Item Sold", "This item has already been sold and is no longer available.");
+          return;
+        }
+        
         console.log("🔍 Fetched listing data:", listing);
         
         // 🔥 转换数据格式以匹配 ListingItem（保留旧的回退逻辑）
@@ -1006,7 +1078,7 @@ export default function ChatScreen() {
         const sellerData = (listing as any)?.seller ?? (listingMeta as any)?.seller ?? {};
 
         const listingItem = {
-          id: listing?.id?.toString() || String(o.id),
+          id: listing?.id?.toString() || String(listingId),
           title: listing?.title || o.product.title,
           price: typeof listing?.price === 'number' ? listing.price : Number(listing?.price) || o.product.price,
           description: listing?.description || `Size: ${o.product.size || 'One Size'}`,
@@ -1033,38 +1105,46 @@ export default function ChatScreen() {
         
         console.log("🔍 Converted listingItem:", listingItem);
         
-        // 🔥 根据是否是自己的listing决定跳转逻辑
-        const rootNavigation = (navigation as any).getParent?.();
-        if (rootNavigation) {
-          // 🔥 判断是否是自己的listing：比较当前用户ID和listing的seller ID
-          const sellerIdFromListing = sellerData?.id;
-          const isOwnListing = user?.id && sellerIdFromListing &&
-                               Number(user.id) === Number(sellerIdFromListing);
-          
-          console.log("🔍 Is own listing:", isOwnListing);
-          console.log("🔍 Current user ID:", user?.id);
-          console.log("🔍 Listing seller ID:", sellerIdFromListing);
-          
-          if (isOwnListing) {
-            // 🔥 自己的listing：跳转到ListingDetail页面但显示卖家视角（没有购买按钮）
-            console.log("🔍 Navigating to own listing detail");
-        rootNavigation.navigate("Buy", {
-              screen: "ListingDetail",
-          params: {
-                item: listingItem,
-                isOwnListing: true // 🔥 传递标记表示这是自己的listing
-              }
-            });
-          } else {
-            // 🔥 别人的listing：跳转到购买页面
-            console.log("🔍 Navigating to purchase listing");
-            rootNavigation.navigate("Buy", {
-              screen: "ListingDetail",
-              params: {
-                item: listingItem
-              }
-            });
-          }
+        // 🔥 判断是否是自己的listing：比较当前用户ID和listing的seller ID
+        const sellerIdFromListing = sellerData?.id;
+        const isOwnListing = user?.id && sellerIdFromListing &&
+                             Number(user.id) === Number(sellerIdFromListing);
+        
+        console.log("🔍 Is own listing:", isOwnListing);
+        console.log("🔍 Current user ID:", user?.id);
+        console.log("🔍 Listing seller ID:", sellerIdFromListing);
+        
+        // 🔥 获取根导航器（支持多层嵌套）
+        let rootNavigation: any = navigation;
+        let currentNav: any = navigation;
+        while (currentNav?.getParent?.()) {
+          const parent = currentNav.getParent();
+          if (!parent) break;
+          currentNav = parent;
+        }
+        rootNavigation = currentNav ?? navigation;
+        
+        console.log("🔍 Root navigation found:", !!rootNavigation);
+        
+        if (isOwnListing) {
+          // 🔥 自己的listing：跳转到ListingDetail页面但显示卖家视角（没有购买按钮）
+          console.log("🔍 Navigating to own listing detail");
+          rootNavigation.navigate("Buy", {
+            screen: "ListingDetail",
+            params: {
+              item: listingItem,
+              isOwnListing: true // 🔥 传递标记表示这是自己的listing
+            }
+          });
+        } else {
+          // 🔥 别人的listing：跳转到购买页面
+          console.log("🔍 Navigating to purchase listing");
+          rootNavigation.navigate("Buy", {
+            screen: "ListingDetail",
+            params: {
+              item: listingItem
+            }
+          });
         }
       } catch (error) {
         console.error("❌ Error fetching listing:", error);
@@ -1397,11 +1477,16 @@ export default function ChatScreen() {
           ]}>
             {/* 🔥 如果不是我的消息，在左侧显示发送者头像 */}
             {!isMine && (
-              <Avatar
-                source={avatarSource}
-                style={[styles.avatar, { marginRight: 6 }]}
-                showBadge={false}
-              />
+              <TouchableOpacity
+                onPress={() => handleAvatarPress(senderInfo?.id, senderInfo?.username)}
+                activeOpacity={0.7}
+              >
+                <Avatar
+                  source={avatarSource}
+                  style={[styles.avatar, { marginRight: 6 }]}
+                  showBadge={false}
+                />
+              </TouchableOpacity>
             )}
             <View style={bubbleStyle}>
               <Text style={styles.userCardTitle}>{title}</Text>
@@ -1410,12 +1495,17 @@ export default function ChatScreen() {
             </View>
             {/* 🔥 如果是我的消息，在右侧显示我的头像 */}
             {isMine && (
-              <Avatar
-                source={avatarSource}
-                style={[styles.avatar, { marginLeft: 6 }]}
-                self
-                showBadge={false}
-              />
+              <TouchableOpacity
+                onPress={() => handleAvatarPress(user?.id, user?.username)}
+                activeOpacity={0.7}
+              >
+                <Avatar
+                  source={avatarSource}
+                  style={[styles.avatar, { marginLeft: 6 }]}
+                  self
+                  showBadge={false}
+                />
+              </TouchableOpacity>
             )}
           </View>
         </>
@@ -1814,17 +1904,22 @@ export default function ChatScreen() {
               <View style={[styles.messageRow, item.sender === "me" && { justifyContent: "flex-end" }]}>
                 {/* 🔥 对方头像：优先使用 senderInfo.avatar，否则使用默认头像 */}
                 {item.sender !== "me" && (
-                  <Avatar
-                    source={
-                      sender === "TOP Support"
-                        ? ASSETS.avatars.top
-                        : item.senderInfo?.avatar 
-                        ? { uri: item.senderInfo.avatar }
-                        : ASSETS.avatars.default
-                    }
-                    style={[styles.avatar, { marginRight: 6 }]}
-                    showBadge={false}
-                  />
+                  <TouchableOpacity
+                    onPress={() => handleAvatarPress(item.senderInfo?.id, item.senderInfo?.username)}
+                    activeOpacity={0.7}
+                  >
+                    <Avatar
+                      source={
+                        sender === "TOP Support"
+                          ? ASSETS.avatars.top
+                          : item.senderInfo?.avatar 
+                          ? { uri: item.senderInfo.avatar }
+                          : ASSETS.avatars.default
+                      }
+                      style={[styles.avatar, { marginRight: 6 }]}
+                      showBadge={false}
+                    />
+                  </TouchableOpacity>
                 )}
                 <View
                   style={[
@@ -1838,16 +1933,21 @@ export default function ChatScreen() {
                 </View>
                 {/* 我的头像 */}
                 {item.sender === "me" && (
-                  <Avatar
-                    source={
-                      item.senderInfo?.avatar
-                        ? { uri: item.senderInfo.avatar }
-                        : ASSETS.avatars.default
-                    }
-                    style={[styles.avatar, { marginLeft: 6 }]}
-                    self
-                    showBadge={false}
-                  />
+                  <TouchableOpacity
+                    onPress={() => handleAvatarPress(user?.id, user?.username)}
+                    activeOpacity={0.7}
+                  >
+                    <Avatar
+                      source={
+                        item.senderInfo?.avatar
+                          ? { uri: item.senderInfo.avatar }
+                          : ASSETS.avatars.default
+                      }
+                      style={[styles.avatar, { marginLeft: 6 }]}
+                      self
+                      showBadge={false}
+                    />
+                  </TouchableOpacity>
                 )}
               </View>
             </View>

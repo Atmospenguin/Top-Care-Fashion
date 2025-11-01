@@ -26,7 +26,8 @@ import Avatar from "../../../components/Avatar";
 import ASSETS from "../../../constants/assetUrls";
 import type { BagItem, ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
-import { likesService, cartService, messagesService, reportsService } from "../../../src/services";
+import { likesService, cartService, messagesService } from "../../../src/services";
+import { reportsService } from "../../../src/services/reportsService";
 import { useAuth } from "../../../contexts/AuthContext";
 import { apiClient } from "../../../src/services/api";
 
@@ -794,6 +795,7 @@ export default function ListingDetailScreen() {
                       fromListing: true,
                       order: {
                         id: safeItem.id || "new-order",
+                        listing_id: Number(safeItem.id), // 🔥 添加 listing_id 用于跳转回商品详情
                         product: {
                           title: safeItem.title || "Item",
                           price: Number(safeItem.price) || 0,
@@ -827,7 +829,7 @@ export default function ListingDetailScreen() {
                       rootNavigation.navigate("ChatStandalone", chatParams);
                       console.log("✅ Navigation via root ChatStandalone screen");
                     } else {
-                      navigation.navigate("ChatStandalone", chatParams);
+                      (navigation as any).navigate("ChatStandalone", chatParams);
                       console.log("✅ Navigation via local ChatStandalone fallback");
                     }
                   } catch (error) {
