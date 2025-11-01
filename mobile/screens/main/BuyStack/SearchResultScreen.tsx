@@ -24,7 +24,7 @@ type SearchResultRoute = RouteProp<BuyStackParamList, "SearchResult">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
 
 const SIZES = ["All", "My Size", "XS", "S", "M", "L", "XL", "XXL"] as const;
-const CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
+const CONDITIONS = ["All", "Brand New", "Like New", "Good", "Fair"] as const;
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
 const GENDER_OPTIONS = ["All", "Men", "Women", "Unisex"] as const;
 
@@ -274,7 +274,15 @@ export default function SearchResultScreen() {
     }
 
     if (selectedCondition !== "All") {
-      results = results.filter((item) => item.condition === selectedCondition);
+      results = results.filter((item) => {
+        const itemCondition = (item.condition ?? "").toString().trim();
+        // 🔥 处理 "Like New" 和 "Like new" 的映射
+        if (selectedCondition === "Like New") {
+          return itemCondition === "Like New" || itemCondition === "Like new" || itemCondition === "LIKE_NEW";
+        }
+        // 其他条件直接匹配
+        return itemCondition === selectedCondition;
+      });
       console.log('🔍 SearchResult: After condition filter:', results.length);
     }
 

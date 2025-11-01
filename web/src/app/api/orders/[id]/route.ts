@@ -514,6 +514,11 @@ export async function PATCH(
           if (systemMessage) {
             // 🔥 Use postSystemMessageOnce to prevent duplicates
             const actorName = currentUser.username;
+            // 🔥 对于 RECEIVED 和 COMPLETED，统一使用 'COMPLETED' 作为 messageType，防止重复
+            const normalizedMessageType = (status === 'RECEIVED' || status === 'COMPLETED') 
+              ? 'COMPLETED' 
+              : status;
+            
             await postSystemMessageOnce({
               conversationId: conversation.id,
               senderId: currentUser.id,
@@ -521,9 +526,9 @@ export async function PATCH(
               content: systemMessage,
               actorName: actorName,
               orderId: orderId, // 🔥 传入订单 ID
-              messageType: status // 🔥 使用订单状态作为消息类型
+              messageType: normalizedMessageType // 🔥 使用标准化后的消息类型
             });
-            console.log(`📨 System message created in conversation ${conversation.id}: ${systemMessage}`);
+            console.log(`📨 System message created in conversation ${conversation.id}: ${systemMessage} (messageType: ${normalizedMessageType})`);
           }
         } catch (messageError) {
           console.error('❌ Error creating system message:', messageError);
