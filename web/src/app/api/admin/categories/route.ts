@@ -1,40 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getConnection } from "@/lib/db";
+import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 
-function mapCategory(row: any) {
+function mapCategory(category: {
+  id: number;
+  name: string;
+  description: string | null;
+  created_at: Date;
+}) {
   return {
-    ...row,
-    id: String(row.id),
-    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+    id: String(category.id),
+    name: category.name,
+    description: category.description,
+    createdAt: category.created_at.toISOString(),
   };
 }
 
 export async function GET() {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const conn = await getConnection();
-  const [rows]: any = await conn.execute(
-    "SELECT id, name, description, created_at AS \"createdAt\" FROM listing_categories ORDER BY id"
-  );
-  await conn.end();
-  const categories = (rows as any[]).map(mapCategory);
-  return NextResponse.json({ categories });
+
+  const categories = await prisma.listing_categories.findMany({
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      created_at: true,
+    },
+    orderBy: {
+      id: "asc",
+    },
+  });
+
+  return NextResponse.json({ categories: categories.map(mapCategory) });
 }
 
 export async function POST(req: NextRequest) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   const body = await req.json();
-  const conn = await getConnection();
-  const [res]: any = await conn.execute(
-    "INSERT INTO listing_categories (name, description) VALUES (?, ?)",
-    [body.name, body.description ?? null]
-  );
-  const [rows]: any = await conn.execute(
-    "SELECT id, name, description, created_at AS \"createdAt\" FROM listing_categories WHERE id = ?",
-    [res.insertId]
-  );
-  await conn.end();
-  return NextResponse.json(mapCategory(rows[0]), { status: 201 });
+
+  const category = await prisma.listing_categories.create({
+    data: {
+      name: body.name,
+      description: body.description ?? null,
+    },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      created_at: true,
+    },
+  });
+
+  return NextResponse.json(mapCategory(category), { status: 201 });
 }
