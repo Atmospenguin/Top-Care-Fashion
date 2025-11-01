@@ -136,6 +136,26 @@ export default function PurchasesTab() {
     }
   }
 
+  function normalizeStatus(status?: string | null): string | null {
+    if (!status) return null;
+    return status.toUpperCase();
+  }
+
+  function getOverlayText(status?: string | null): string {
+    const normalized = normalizeStatus(status);
+    switch (normalized) {
+      case "CANCELLED": return "CANCELLED";
+      case "IN_PROGRESS": return "PENDING";
+      case "TO_SHIP": return "TO SHIP";
+      case "SHIPPED": return "SHIPPED";
+      case "DELIVERED": return "DELIVERED";
+      case "RECEIVED": return "RECEIVED";
+      case "COMPLETED": return "COMPLETED";
+      case "REVIEWED": return "COMPLETED";
+      default: return normalized ?? "UNKNOWN";
+    }
+  }
+
   // Handle cancel order
   const handleCancel = async (orderId: number) => {
     try {
@@ -300,12 +320,7 @@ export default function PurchasesTab() {
                 {/* Status overlay */}
                 <View style={styles.overlay}>
                   <Text style={styles.overlayText}>
-                    {item.status === "CANCELLED" ? "CANCELLED" : 
-                     item.status === "IN_PROGRESS" ? "PENDING" :
-                     item.status === "DELIVERED" ? "DELIVERED" :
-                     item.status === "COMPLETED" ? "COMPLETED" :
-                     item.status === "REVIEWED" ? "COMPLETED" :
-                     item.status}
+                    {getOverlayText(item.status)}
                   </Text>
                 </View>
               </TouchableOpacity>
