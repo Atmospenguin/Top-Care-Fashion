@@ -82,9 +82,11 @@ export default function MyPreferenceScreen() {
     setSelectedGender(option);
     setGenderSaving(true);
     try {
+      const apiGender =
+        option === "Male" ? "Male" : option === "Female" ? "Female" : null;
       const updatedUser = await userService.updateProfile({
-        // 非 Male/Female 映射为 null（或 undefined），以匹配后端/类型定义
-        gender: option === "Male" ? "Male" : option === "Female" ? "Female" : null,
+        // Map to API-compatible values
+        gender: apiGender,
       });
       updateUser(updatedUser);
     } catch (error) {

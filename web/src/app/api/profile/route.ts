@@ -173,13 +173,13 @@ export async function PATCH(req: NextRequest) {
     if (data.dob !== undefined && data.dob !== null) {
       updateData.dob = new Date(data.dob);
     }
-    if (data.gender !== undefined && data.gender !== null) {
-      if (data.gender === "Male") {
+    if (Object.prototype.hasOwnProperty.call(data, "gender")) {
+      if (data.gender === null || data.gender === undefined) {
+        updateData.gender = null;
+      } else if (data.gender === "Male") {
         updateData.gender = "Men";
       } else if (data.gender === "Female") {
         updateData.gender = "Women";
-      } else if (data.gender === "Unisex") {
-        updateData.gender = "Unisex";
       } else {
         updateData.gender = null;
       }
