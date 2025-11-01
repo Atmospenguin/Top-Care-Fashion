@@ -81,8 +81,28 @@ export default function BoostedListingScreen() {
     }
   }, [fetchBoostedListings]);
 
+  const activeBoosts = useMemo(
+    () => boosted.filter((item) => item.status === "ACTIVE"),
+    [boosted]
+  );
+
+  const scheduledBoosts = useMemo(
+    () => boosted.filter((item) => item.status === "SCHEDULED"),
+    [boosted]
+  );
+
+  const expiredBoosts = useMemo(
+    () => boosted.filter((item) => item.status === "EXPIRED"),
+    [boosted]
+  );
+
+  const visibleBoosts = useMemo(
+    () => [...activeBoosts, ...scheduledBoosts],
+    [activeBoosts, scheduledBoosts]
+  );
+
   const statsCard = useMemo(() => {
-    const activeCount = boosted.filter((item) => item.status === "ACTIVE").length;
+    const activeCount = activeBoosts.length;
     if (loading) {
       return "Fetching boost stats...";
     }
@@ -92,7 +112,7 @@ export default function BoostedListingScreen() {
     }
 
     return `${activeCount} active boost${activeCount > 1 ? "s" : ""} running. Keep an eye on performance below.`;
-  }, [boosted, loading]);
+  }, [activeBoosts, loading]);
 
   const renderEmpty = useCallback(() => {
     if (loading) {
@@ -118,7 +138,7 @@ export default function BoostedListingScreen() {
     return (
       <View style={styles.emptyState}>
         <Text style={styles.emptyText}>
-          You have no boosted listings yet. Boost a listing to see performance here.
+          You have no active boosts right now. Boost a listing to see performance here.
         </Text>
       </View>
     );
@@ -152,6 +172,19 @@ export default function BoostedListingScreen() {
     return `+${percent}% from boosting`;
   };
 
+  const buildStatusSubtitle = (item: BoostedListingSummary, isExpiredSection?: boolean) => {
+    if (item.status === "SCHEDULED") {
+      return `Scheduled to start ${formatRelative(item.startedAt)}`;
+    }
+
+    if (item.status === "EXPIRED" || isExpiredSection) {
+      const endedReference = item.endsAt ?? item.startedAt;
+      return `Ended ${formatRelative(endedReference)}`;
+    }
+
+    return `Boosted ${formatRelative(item.startedAt)}`;
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header title="Boosted listings" showBack />
@@ -170,13 +203,42 @@ export default function BoostedListingScreen() {
       </View>
 
       <FlatList
-        data={boosted}
+        data={visibleBoosts}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#111" />
         }
         ListEmptyComponent={renderEmpty}
+        ListFooterComponent={
+          expiredBoosts.length
+            ? (
+                <View style={styles.expiredSection}>
+                  <Text style={styles.sectionHeader}>Expired boosts</Text>
+                  {expiredBoosts.map((item) => (
+                    <View key={item.id} style={[styles.boostRow, styles.expiredRow]}>
+                      {item.primaryImage ? (
+                        <Image source={{ uri: item.primaryImage }} style={styles.thumb} />
+                      ) : (
+                        <View style={[styles.thumb, styles.thumbPlaceholder]}>
+                          <Icon name="image-outline" size={22} color="#999" />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.rowTitle} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                        <Text style={styles.rowMeta}>
+                          {(item.size || "One size")} • ${item.price.toFixed(2)}
+                        </Text>
+                        <Text style={[styles.rowSub, styles.expiredSub]}>{buildStatusSubtitle(item, true)}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )
+            : null
+        }
         renderItem={({ item }) => (
           <View style={styles.boostRow}>
             {item.primaryImage ? (
@@ -193,7 +255,7 @@ export default function BoostedListingScreen() {
               <Text style={styles.rowMeta}>
                 {(item.size || "One size")} • ${item.price.toFixed(2)}
               </Text>
-              <Text style={styles.rowSub}>Boosted {formatRelative(item.startedAt)}</Text>
+              <Text style={styles.rowSub}>{buildStatusSubtitle(item)}</Text>
 
               {/* 统计 */}
               <View style={styles.metricRow}>
@@ -245,6 +307,16 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
 
+  sectionHeader: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#444",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 8,
+    marginLeft: 16,
+  },
+
   boostRow: {
     flexDirection: "row",
     paddingHorizontal: 16,
@@ -252,6 +324,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#eee",
     gap: 12,
+  },
+  expiredRow: {
+    borderBottomColor: "#f0f0f0",
+    backgroundColor: "#fafafa",
   },
   thumb: { width: 66, height: 66, borderRadius: 10, backgroundColor: "#eee" },
   thumbPlaceholder: {
@@ -261,6 +337,7 @@ const styles = StyleSheet.create({
   rowTitle: { fontWeight: "700", color: "#111" },
   rowMeta: { color: "#111", marginTop: 2 },
   rowSub: { color: "#666", marginTop: 2, fontSize: 12 },
+  expiredSub: { color: "#999" },
   metricRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -289,6 +366,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   upliftText: { color: "#1f7a1f", fontWeight: "700", fontSize: 12 },
+  expiredSection: {
+    paddingTop: 24,
+    paddingBottom: 12,
+  },
   emptyState: {
     flex: 1,
     alignItems: "center",
