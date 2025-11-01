@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 type FollowListType = "followers" | "following";
 
@@ -30,13 +31,44 @@ export async function GET(
   const type = parseType(searchParams.get("type"));
 
   try {
-    const user = await prisma.users.findUnique({
-      where: { username },
-      select: { id: true },
-    });
+    const [sessionUser, user] = await Promise.all([
+      getSessionUser(req),
+      prisma.users.findUnique({
+        where: { username },
+        select: {
+          id: true,
+          follows_visibility: true,
+        },
+      }),
+    ]);
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const viewerIsOwner = sessionUser?.id === user.id;
+    const visibility = user.follows_visibility;
+
+    if (!viewerIsOwner) {
+      if (visibility === "PRIVATE") {
+        return NextResponse.json({ error: "Follow lists are private." }, { status: 403 });
+      }
+      if (visibility === "FOLLOWERS_ONLY") {
+        if (!sessionUser) {
+          return NextResponse.json({ error: "Follow lists are visible to followers only." }, { status: 403 });
+        }
+        const relation = await prisma.user_follows.findUnique({
+          where: {
+            follower_id_following_id: {
+              follower_id: sessionUser.id,
+              following_id: user.id,
+            },
+          },
+        });
+        if (!relation) {
+          return NextResponse.json({ error: "Follow lists are visible to followers only." }, { status: 403 });
+        }
+      }
     }
 
     let list;
@@ -95,7 +127,7 @@ export async function GET(
         .filter((item): item is NonNullable<typeof item> => Boolean(item));
     }
 
-    return NextResponse.json({ success: true, data: list });
+    return NextResponse.json({ success: true, data: list, visibility });
   } catch (error) {
     console.error("❌ Failed to fetch follow list for user", username, error);
     return NextResponse.json(

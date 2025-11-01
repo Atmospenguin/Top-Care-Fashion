@@ -171,6 +171,8 @@ if (normalizedPassword.length < 6) {
           premium_until: true,
           dob: true,
           gender: true,
+          likes_visibility: true,
+          follows_visibility: true,
         },
       })
       .catch((error: unknown) => {
@@ -191,6 +193,8 @@ if (normalizedPassword.length < 6) {
       premiumUntil: createdUser.premium_until ?? null,
       dob: createdUser.dob ? createdUser.dob.toISOString().slice(0, 10) : null,
       gender: mapGenderOut(createdUser.gender),
+      likesVisibility: createdUser.likes_visibility ?? "PUBLIC",
+      followsVisibility: createdUser.follows_visibility ?? "PUBLIC",
     };
 
     return NextResponse.json({ user, requiresConfirmation: !supaUser.email_confirmed_at });

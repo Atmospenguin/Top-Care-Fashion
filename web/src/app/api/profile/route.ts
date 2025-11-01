@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { isVisibilitySetting, VisibilitySetting } from "@/types/privacy";
 
 type FollowInfo = { id: number };
 
@@ -22,6 +23,8 @@ type UserProfile = {
   total_reviews: number | null;
   followers: FollowInfo[];
   following: FollowInfo[];
+  likes_visibility: VisibilitySetting;
+  follows_visibility: VisibilitySetting;
 };
 
 const normalizePreferredStyles = (value: unknown): unknown[] => {
@@ -90,6 +93,8 @@ const formatUserResponse = (user: UserProfile) => ({
   preferred_size_bottom: user.preferred_size_bottom,
   preferred_size_shoe: user.preferred_size_shoe,
   preferred_brands: normalizePreferredBrands(user.preferred_brands),
+  likesVisibility: user.likes_visibility,
+  followsVisibility: user.follows_visibility,
 });
 
 // 统一使用 getSessionUser，避免路由内重复鉴权
@@ -120,6 +125,8 @@ const selectUserProfile = {
       id: true,
     },
   },
+  likes_visibility: true,
+  follows_visibility: true,
 } satisfies Record<string, unknown>;
 
 /**
@@ -186,6 +193,24 @@ export async function PATCH(req: NextRequest) {
     }
     if (data.avatar_url !== undefined && data.avatar_url !== null) {
       updateData.avatar_url = data.avatar_url;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "likesVisibility")) {
+      if (!isVisibilitySetting(data.likesVisibility)) {
+        return NextResponse.json(
+          { error: "Invalid likes visibility value" },
+          { status: 400 },
+        );
+      }
+      updateData.likes_visibility = data.likesVisibility;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "followsVisibility")) {
+      if (!isVisibilitySetting(data.followsVisibility)) {
+        return NextResponse.json(
+          { error: "Invalid follows visibility value" },
+          { status: 400 },
+        );
+      }
+      updateData.follows_visibility = data.followsVisibility;
     }
 
     if (data.preferredStyles !== undefined) {

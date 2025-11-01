@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import { verifyLegacyToken } from "@/lib/jwt";
 import { createSupabaseServer } from "@/lib/supabase";
+import { VisibilitySetting, isVisibilitySetting } from "@/types/privacy";
 
 export type SessionUser = {
   id: number;
@@ -13,6 +14,8 @@ export type SessionUser = {
   dob?: string | null;
   gender?: "Male" | "Female" | null;
   avatar_url?: string | null;
+  likesVisibility: VisibilitySetting;
+  followsVisibility: VisibilitySetting;
 };
 
 function mapRole(value: unknown): "User" | "Admin" {
@@ -39,6 +42,13 @@ function mapGender(value: unknown): "Male" | "Female" | null {
   if (normalized === "FEMALE") return "Female";
 
   return null;
+}
+
+function mapVisibility(value: unknown): VisibilitySetting {
+  if (isVisibilitySetting(value)) return value;
+  const normalized = String(value ?? "").toUpperCase();
+  if (isVisibilitySetting(normalized)) return normalized;
+  return "PUBLIC";
 }
 
 export async function getSessionUser(req?: Request): Promise<SessionUser | null> {
@@ -71,6 +81,8 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
                 dob: true,
                 gender: true,
                 avatar_url: true,
+                likes_visibility: true,
+                follows_visibility: true,
               },
             });
             if (user) {
@@ -84,6 +96,8 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
                 dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
                 gender: mapGender(user.gender),
                 avatar_url: user.avatar_url ?? null,
+                likesVisibility: mapVisibility(user.likes_visibility),
+                followsVisibility: mapVisibility(user.follows_visibility),
               };
               return sessionUser;
             }
@@ -129,6 +143,8 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
             dob: true,
             gender: true,
             avatar_url: true,
+            likes_visibility: true,
+            follows_visibility: true,
           },
         });
         
@@ -143,6 +159,8 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
             dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
             gender: mapGender(user.gender),
             avatar_url: user.avatar_url ?? null,
+            likesVisibility: mapVisibility(user.likes_visibility),
+            followsVisibility: mapVisibility(user.follows_visibility),
           };
           return sessionUser;
         }
@@ -171,6 +189,8 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
         dob: true,
         gender: true,
         avatar_url: true,
+        likes_visibility: true,
+        follows_visibility: true,
       },
     });
     
@@ -185,6 +205,8 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
         dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
         gender: mapGender(user.gender),
         avatar_url: user.avatar_url ?? null,
+        likesVisibility: mapVisibility(user.likes_visibility),
+        followsVisibility: mapVisibility(user.follows_visibility),
       };
       return sessionUser;
     }
@@ -209,6 +231,8 @@ async function findUserBySupabaseId(supabaseUserId: string): Promise<SessionUser
         dob: true,
         gender: true,
         avatar_url: true,
+        likes_visibility: true,
+        follows_visibility: true,
       },
     });
 
@@ -223,6 +247,8 @@ async function findUserBySupabaseId(supabaseUserId: string): Promise<SessionUser
         dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
         gender: mapGender(user.gender),
         avatar_url: user.avatar_url ?? null,
+        likesVisibility: mapVisibility(user.likes_visibility),
+        followsVisibility: mapVisibility(user.follows_visibility),
       };
       return sessionUser;
     }

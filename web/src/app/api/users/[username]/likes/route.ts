@@ -20,11 +20,37 @@ export async function GET(
     // 首先找到目标用户
     const targetUser = await prisma.users.findUnique({
       where: { username },
-      select: { id: true, username: true }
+      select: {
+        id: true,
+        username: true,
+        likes_visibility: true,
+      },
     });
 
     if (!targetUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const viewerIsOwner = currentUser.id === targetUser.id;
+    const visibility = targetUser.likes_visibility;
+
+    if (!viewerIsOwner) {
+      if (visibility === "PRIVATE") {
+        return NextResponse.json({ error: "Likes are private." }, { status: 403 });
+      }
+      if (visibility === "FOLLOWERS_ONLY") {
+        const relation = await prisma.user_follows.findUnique({
+          where: {
+            follower_id_following_id: {
+              follower_id: currentUser.id,
+              following_id: targetUser.id,
+            },
+          },
+        });
+        if (!relation) {
+          return NextResponse.json({ error: "Likes are visible to followers only." }, { status: 403 });
+        }
+      }
     }
 
     // 获取目标用户的喜欢商品
@@ -130,7 +156,7 @@ export async function GET(
       };
     });
 
-    return NextResponse.json({ items: formattedItems });
+    return NextResponse.json({ items: formattedItems, visibility });
 
   } catch (error) {
     console.error('Error getting public liked listings:', error);

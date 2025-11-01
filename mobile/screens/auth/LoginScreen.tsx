@@ -68,7 +68,6 @@ export default function LoginScreen({ navigation }: Props) {
         // 严格检查：要求所有偏好字段都已填写
         hasCompletePreferences = Boolean(
           u &&
-          u.gender &&
           Array.isArray(u.preferred_styles) && u.preferred_styles.length > 0 &&
           u.preferred_size_shoe &&
           u.preferred_size_top &&
