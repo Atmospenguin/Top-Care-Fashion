@@ -72,7 +72,7 @@ const SHOP_ACCESSORY_SIZES = [
   "Medium",
   "Large",
 ] as const;
-const SHOP_CONDITIONS = ["All", "New", "Like New", "Good", "Fair", "Poor"] as const;
+const SHOP_CONDITIONS = ["All", "Brand New", "Like New", "Good", "Fair", "Poor"] as const;
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
 const GENDER_OPTIONS = ["All", "Men", "Women", "Unisex"] as const;
 
@@ -696,7 +696,15 @@ export default function UserProfileScreen() {
     }
 
     if (shopCondition !== "All") {
-      results = results.filter((item) => item.condition === shopCondition);
+      results = results.filter((item) => {
+        const itemCondition = (item.condition ?? "").toString().trim();
+        // 🔥 处理 "Like New" 和 "Like new" 的映射
+        if (shopCondition === "Like New") {
+          return itemCondition === "Like New" || itemCondition === "Like new" || itemCondition === "LIKE_NEW";
+        }
+        // 其他条件直接匹配
+        return itemCondition === shopCondition;
+      });
     }
 
     if (shopGender !== "All") {

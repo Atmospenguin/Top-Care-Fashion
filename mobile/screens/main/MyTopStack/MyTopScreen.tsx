@@ -27,7 +27,7 @@ import type { ListingItem } from "../../../types/shop";
 import type { UserListingsQueryParams } from "../../../src/services/listingsService";
 
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
-const SHOP_CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
+const SHOP_CONDITIONS = ["All", "Brand New", "Like New", "Good", "Fair"] as const;
 const GENDER_OPTIONS = ["All", "Men", "Women", "Unisex"] as const;
 
 const mapGenderOptionToApiParam = (
