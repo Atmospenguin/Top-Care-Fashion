@@ -32,6 +32,12 @@ export async function GET() {
     featured: feedback.featured,
     createdAt: feedback.created_at.toISOString(),
     associatedUserName: feedback.user?.username,
+    isPublic: feedback.is_public ?? true,
+    type: feedback.type ?? "general",
+    title: feedback.title,
+    priority: feedback.priority ?? "medium",
+    status: feedback.status ?? "open",
+    updatedAt: feedback.updated_at?.toISOString(),
   }));
 
   return NextResponse.json({ feedbacks });
@@ -43,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { userId, userEmail, userName, message, rating, tags, featured } = body ?? {};
+    const { userId, userEmail, userName, message, rating, tags, featured, isPublic, type, title, priority, status } = body ?? {};
 
     if (!message) {
       return NextResponse.json({ error: "message is required" }, { status: 400 });
@@ -62,6 +68,11 @@ export async function POST(req: NextRequest) {
         rating: rating !== undefined && rating !== null ? Number(rating) : null,
         tags: tags ? JSON.stringify(tags) : undefined,
         featured: Boolean(featured),
+        is_public: isPublic !== undefined ? Boolean(isPublic) : true,
+        type: type || "general",
+        title: title || null,
+        priority: priority || "medium",
+        status: status || "open",
       },
     });
 
