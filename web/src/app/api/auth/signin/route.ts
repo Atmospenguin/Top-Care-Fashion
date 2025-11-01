@@ -13,8 +13,10 @@ function mapStatus(value: UserStatus | null | undefined): "active" | "suspended"
 }
 
 function mapGender(value: Gender | null | undefined): "Male" | "Female" | null {
-  if (value === Gender.MALE) return "Male";
-  if (value === Gender.FEMALE) return "Female";
+  if (!value) return null;
+  const raw = (value as unknown as string).toLowerCase();
+  if (raw === "men" || raw === "male") return "Male";
+  if (raw === "women" || raw === "female") return "Female";
   return null;
 }
 

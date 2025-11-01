@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
-import { Prisma } from "@prisma/client";
+import { Prisma, Gender } from "@prisma/client";
 
 type ConditionEnum = "NEW" | "LIKE_NEW" | "GOOD" | "FAIR" | "POOR";
 
@@ -67,7 +67,13 @@ export async function POST(req: NextRequest) {
     const resolvedSize = sanitizeOptionalString(size);
     const resolvedCondition = mapConditionToEnum(condition);
     const resolvedMaterial = sanitizeOptionalString(material);
-    const resolvedGender = sanitizeOptionalString(gender)?.toLowerCase() ?? "unisex";
+    const resolvedGender: Gender = (() => {
+      const normalized = sanitizeOptionalString(gender)?.toLowerCase();
+      if (normalized === "men" || normalized === "male") return "Men";
+      if (normalized === "women" || normalized === "female") return "Women";
+      if (normalized === "unisex") return "Unisex";
+      return "Unisex";
+    })();
     const resolvedTags = Array.isArray(tags)
       ? tags.filter((tag): tag is string => typeof tag === "string" && !!tag.trim())
       : [];
