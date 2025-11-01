@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
+import { VisibilitySetting } from "@/types/privacy";
 
 /**
  * 根据用户名获取用户信息
@@ -29,11 +31,15 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
       listings_as_seller: Array<{ id: number; listed: boolean; sold: boolean }>;
       followers: Array<{ id: number }>;
       following: Array<{ id: number }>;
+      likes_visibility: VisibilitySetting;
+      follows_visibility: VisibilitySetting;
     };
 
-    const user = (await prisma.users.findUnique({
-      where: { username },
-      select: {
+    const [sessionUser, user] = await Promise.all([
+      getSessionUser(req),
+      prisma.users.findUnique({
+        where: { username },
+        select: {
         id: true,
         username: true,
         email: true,
@@ -48,6 +54,8 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
         is_premium: true,
         premium_until: true,
         last_sign_in_at: true,
+        likes_visibility: true,
+        follows_visibility: true,
         listings_as_seller: {
           select: {
             id: true,
@@ -66,7 +74,8 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
           },
         },
       } as any,
-    })) as UserProfileQueryResult | null;
+      }),
+    ]);
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -78,8 +87,41 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
     const soldListings = user.listings_as_seller.filter(l => l.sold).length;
     
     // 计算follow统计
-    const followersCount = user.followers.length;
-    const followingCount = user.following.length;
+    const likesVisibility = user.likes_visibility;
+    const followsVisibility = user.follows_visibility;
+
+    const viewerIsOwner = sessionUser?.id === user.id;
+
+    let viewerIsFollower = false;
+
+    if (
+      !viewerIsOwner &&
+      sessionUser &&
+      (likesVisibility === "FOLLOWERS_ONLY" || followsVisibility === "FOLLOWERS_ONLY")
+    ) {
+      const relation = await prisma.user_follows.findUnique({
+        where: {
+          follower_id_following_id: {
+            follower_id: sessionUser.id,
+            following_id: user.id,
+          },
+        },
+      });
+      viewerIsFollower = Boolean(relation);
+    }
+
+    const canViewLikes =
+      viewerIsOwner ||
+      likesVisibility === "PUBLIC" ||
+      (likesVisibility === "FOLLOWERS_ONLY" && viewerIsFollower);
+
+    const canViewFollowLists =
+      viewerIsOwner ||
+      followsVisibility === "PUBLIC" ||
+      (followsVisibility === "FOLLOWERS_ONLY" && viewerIsFollower);
+
+    const followersCount = canViewFollowLists ? user.followers.length : null;
+    const followingCount = canViewFollowLists ? user.following.length : null;
 
     const isFollowing = false;
 
@@ -99,6 +141,10 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
       soldListings,
       followersCount,
       followingCount,
+      likesVisibility,
+      followsVisibility,
+      canViewLikes,
+      canViewFollowLists,
       memberSince: user.created_at.toISOString().slice(0, 10),
       isFollowing,
       isPremium: Boolean(user.is_premium),

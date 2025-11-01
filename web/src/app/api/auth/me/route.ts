@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { createSupabaseServer } from "@/lib/supabase";
-import { Gender, UserRole, UserStatus } from "@prisma/client";
+import { Gender, UserRole, UserStatus, VisibilitySetting } from "@prisma/client";
 
 function mapRole(value: UserRole | null | undefined): "User" | "Admin" {
   return value === UserRole.ADMIN ? "Admin" : "User";
@@ -31,6 +31,8 @@ function toUserResponse(user: {
   dob: Date | null;
   gender: Gender | null;
   avatar_url?: string | null; // ✅ 添加头像字段
+  likes_visibility: VisibilitySetting;
+  follows_visibility: VisibilitySetting;
 }) {
   return {
     id: user.id,
@@ -43,6 +45,8 @@ function toUserResponse(user: {
     dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
     gender: mapGender(user.gender),
     avatar: user.avatar_url ?? null, // ✅ 统一成前端使用的 avatar
+    likesVisibility: user.likes_visibility,
+    followsVisibility: user.follows_visibility,
   };
 }
 
@@ -75,6 +79,8 @@ export async function GET() {
         dob: true,
         gender: true,
         avatar_url: true, // ✅ 添加头像字段
+        likes_visibility: true,
+        follows_visibility: true,
       },
     });
 
@@ -98,14 +104,16 @@ export async function GET() {
           username: true,
           email: true,
           role: true,
-          status: true,
-          is_premium: true,
-          premium_until: true,
-          dob: true,
-          gender: true,
-          avatar_url: true, // ✅ 添加头像字段
-        },
-      });
+        status: true,
+        is_premium: true,
+        premium_until: true,
+        dob: true,
+        gender: true,
+        avatar_url: true, // ✅ 添加头像字段
+        likes_visibility: true,
+        follows_visibility: true,
+      },
+    });
 
       //mitigation measures and checks against potential cookies errors/bugs
       if (user) {

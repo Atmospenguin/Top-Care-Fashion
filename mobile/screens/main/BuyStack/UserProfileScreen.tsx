@@ -26,13 +26,14 @@ import FilterModal from "../../../components/FilterModal";
 import { MOCK_LISTINGS } from "../../../mocks/shop";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
-import { userService, type UserProfile } from "../../../src/services/userService";
+import { userService, type UserProfile, type VisibilitySetting } from "../../../src/services/userService";
 import { premiumService } from "../../../src/services";
 import { likesService, messagesService, type LikedListing } from "../../../src/services";
 import { authService } from "../../../src/services/authService";
 import { reportsService } from "../../../src/services/reportsService";
 import { listingsService } from "../../../src/services/listingsService";
 import { sortCategories } from "../../../utils/categoryHelpers";
+import { ApiError } from "../../../src/config/api";
 
 type UserProfileParam = RouteProp<BuyStackParamList, "UserProfile">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
@@ -169,6 +170,15 @@ export default function UserProfileScreen() {
     if (!username) {
       return;
     }
+
+    if (!canViewFollowLists && !isOwnProfile) {
+      const message = followsVisibility === "FOLLOWERS_ONLY"
+        ? "Follow this user to view their followers and following."
+        : "This user keeps their follow lists private.";
+      Alert.alert("Unavailable", message);
+      return;
+    }
+
     navigation.navigate("FollowList", { type, username });
   };
   const { username: usernameParam, userId, avatar, rating, sales } = route.params || {};
@@ -182,6 +192,7 @@ export default function UserProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [listingsLoading, setListingsLoading] = useState(false);
   const [likesLoading, setLikesLoading] = useState(false);
+  const [likesAccessError, setLikesAccessError] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
@@ -198,6 +209,11 @@ export default function UserProfileScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [reportDetails, setReportDetails] = useState("");
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  const likesVisibility: VisibilitySetting = userProfile?.likesVisibility ?? "PUBLIC";
+  const followsVisibility: VisibilitySetting = userProfile?.followsVisibility ?? "PUBLIC";
+  const canViewLikes = isOwnProfile || userProfile?.canViewLikes !== false;
+  const canViewFollowLists = isOwnProfile || userProfile?.canViewFollowLists !== false;
 
   // Shop Filter States (Applied filters)
   const [shopCategory, setShopCategory] = useState<string>("All");
@@ -356,9 +372,20 @@ export default function UserProfileScreen() {
       
       try {
         setLikesLoading(true);
+        setLikesAccessError(null);
         console.log("❤️ Loading liked listings for user:", userProfile.username);
         
         let liked: LikedListing[] = [];
+        if (!isOwnProfile && userProfile.canViewLikes === false) {
+          const message = likesVisibility === "FOLLOWERS_ONLY"
+            ? "Follow this user to see their liked items."
+            : "This user keeps their likes private.";
+          setLikesAccessError(message);
+          setLikedListings([]);
+          setLikesLoading(false);
+          return;
+        }
+
         if (isOwnProfile) {
           // 查看自己的profile，加载自己的喜欢商品
           liked = await likesService.getLikedListings();
@@ -371,6 +398,15 @@ export default function UserProfileScreen() {
         console.log(`✅ Loaded ${liked.length} liked listings`);
       } catch (error) {
         console.error('Error loading liked listings:', error);
+        if (error instanceof ApiError && error.status === 403) {
+          const message =
+            likesVisibility === "FOLLOWERS_ONLY"
+              ? "Follow this user to see their liked items."
+              : "This user keeps their likes private.";
+          setLikesAccessError(error.response?.error ?? message);
+        } else {
+          setLikesAccessError("We couldn't load liked items right now. Please try again later.");
+        }
         setLikedListings([]); // 出错时设置为空数组
       } finally {
         setLikesLoading(false);
@@ -378,7 +414,7 @@ export default function UserProfileScreen() {
     };
 
     loadLikedListings();
-  }, [userProfile, username, isOwnProfile]);
+  }, [userProfile, username, isOwnProfile, likesVisibility]);
 
   // 检查follow状态
   useEffect(() => {
@@ -452,8 +488,22 @@ export default function UserProfileScreen() {
   }, [userProfile]);
 
   // 使用真实的follow统计数据
-  const followers = userProfile?.followersCount || 0;
-  const following = userProfile?.followingCount || 0;
+  const formatStatCount = (value: number | null | undefined): string => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value.toString();
+    }
+    return "0";
+  };
+
+  const hiddenFollowLabel = followsVisibility === "FOLLOWERS_ONLY" ? "Followers only" : "Private";
+
+  const followerCountLabel = canViewFollowLists
+    ? formatStatCount(userProfile?.followersCount)
+    : hiddenFollowLabel;
+
+  const followingCountLabel = canViewFollowLists
+    ? formatStatCount(userProfile?.followingCount)
+    : hiddenFollowLabel;
   const reviewsCount = reviews.length || userProfile?.reviewsCount || mockReviews.length;
   const ratingValueRaw = userProfile?.rating ?? parsedRouteRating;
   const ratingValue = Number.isFinite(ratingValueRaw)
@@ -467,10 +517,10 @@ export default function UserProfileScreen() {
   const tabCounts = useMemo<Record<"Shop" | "Likes" | "Reviews", number>>(
     () => ({
       Shop: userListings.length,
-      Likes: likedListings.length,
+      Likes: canViewLikes ? likedListings.length : 0,
       Reviews: reviewsCount,
     }),
-    [userListings.length, likedListings.length, reviewsCount]
+    [userListings.length, likedListings.length, reviewsCount, canViewLikes]
   );
 
   const locationLabel = useMemo(() => {
@@ -1065,19 +1115,19 @@ export default function UserProfileScreen() {
             <TouchableOpacity
               style={styles.statBlock}
               onPress={() => openFollowList("followers")}
-              disabled={!userProfile?.username}
+              disabled={!userProfile?.username || (!canViewFollowLists && !isOwnProfile)}
               activeOpacity={0.7}
             >
-              <Text style={styles.statNumber}>{followers}</Text>
+              <Text style={styles.statNumber}>{followerCountLabel}</Text>
               <Text style={styles.statLabel}>followers</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.statBlock}
               onPress={() => openFollowList("following")}
-              disabled={!userProfile?.username}
+              disabled={!userProfile?.username || (!canViewFollowLists && !isOwnProfile)}
               activeOpacity={0.7}
             >
-              <Text style={styles.statNumber}>{following}</Text>
+              <Text style={styles.statNumber}>{followingCountLabel}</Text>
               <Text style={styles.statLabel}>following</Text>
             </TouchableOpacity>
 
@@ -1199,10 +1249,26 @@ export default function UserProfileScreen() {
         ) : null}
 
         {activeTab === "Likes" ? (
-          likesLoading ? (
+          !canViewLikes ? (
+            <View style={styles.emptyState}>
+              <Icon name="lock-closed-outline" size={48} color="#bbb" />
+              <Text style={styles.emptyTitle}>Likes are hidden</Text>
+              <Text style={styles.emptySubtitle}>
+                {likesVisibility === "FOLLOWERS_ONLY"
+                  ? "Follow this user to see what they like."
+                  : "This user keeps their liked items private."}
+              </Text>
+            </View>
+          ) : likesLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#007AFF" />
               <Text style={styles.loadingText}>Loading liked items...</Text>
+            </View>
+          ) : likesAccessError ? (
+            <View style={styles.emptyState}>
+              <Icon name="alert-circle-outline" size={48} color="#bbb" />
+              <Text style={styles.emptyTitle}>Unable to load likes</Text>
+              <Text style={styles.emptySubtitle}>{likesAccessError}</Text>
             </View>
           ) : likedListings.length === 0 ? (
             <View style={styles.emptyState}>
@@ -1211,11 +1277,9 @@ export default function UserProfileScreen() {
                 {isOwnProfile ? "No liked items yet" : "No public liked items"}
               </Text>
               <Text style={styles.emptySubtitle}>
-                {isOwnProfile 
-                  ? "Items you like will appear here" 
-                  : "This user hasn't liked any items yet"
-                }
-                    applyButtonLabel={`Apply Filters (${tempShopActiveFiltersCount})`}
+                {isOwnProfile
+                  ? "Items you like will appear here"
+                  : "This user hasn't liked any items yet"}
               </Text>
             </View>
           ) : (

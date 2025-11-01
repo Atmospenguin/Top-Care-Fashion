@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { createSupabaseServer } from "@/lib/supabase";
-import { Gender, UserRole, UserStatus } from "@prisma/client";
+import { Gender, UserRole, UserStatus, VisibilitySetting } from "@prisma/client";
 import { signLegacyToken } from "@/lib/jwt";
 
 function mapRole(value: UserRole | null | undefined): "User" | "Admin" {
@@ -126,6 +126,8 @@ export async function POST(req: NextRequest) {
         bio: true,
         phone_number: true,
         location: true,
+        likes_visibility: true,
+        follows_visibility: true,
       },
     });
 
@@ -160,6 +162,8 @@ export async function POST(req: NextRequest) {
       bio: user.bio,
       phone: user.phone_number,
       location: user.location,
+      likesVisibility: user.likes_visibility as VisibilitySetting,
+      followsVisibility: user.follows_visibility as VisibilitySetting,
     };
 
     const legacyAccessToken = signLegacyToken({ uid: user.id, kind: "legacy" }, { expiresIn: 60 * 60 * 24 * 7 });

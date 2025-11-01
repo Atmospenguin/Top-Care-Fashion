@@ -23,6 +23,8 @@ export interface User {
   preferred_size_top?: string | null;
   preferred_size_bottom?: string | null;
   preferred_size_shoe?: string | null;
+  likesVisibility?: "PUBLIC" | "FOLLOWERS_ONLY" | "PRIVATE";
+  followsVisibility?: "PUBLIC" | "FOLLOWERS_ONLY" | "PRIVATE";
 }
 
 // 登录请求

@@ -1,4 +1,4 @@
-import { API_CONFIG } from '../config/api';
+import { API_CONFIG, ApiError } from '../config/api';
 import { apiClient } from './api';
 import { resolvePremiumFlag } from './utils/premium';
 
@@ -286,6 +286,9 @@ class LikesService {
       return items.map(normalizePublicLike);
     } catch (error) {
       console.error('Error fetching public liked listings:', error);
+      if (error instanceof ApiError) {
+        throw error;
+      }
       throw error;
     }
   }
