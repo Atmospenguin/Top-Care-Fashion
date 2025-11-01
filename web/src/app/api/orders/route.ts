@@ -487,7 +487,9 @@ export async function POST(request: NextRequest) {
         senderId: currentUser.id,
         receiverId: sellerId,
         content: "@Buyer has paid for the order.\nPlease pack the item and ship to the address provided on TOP.",
-        actorName: currentUser.username
+        actorName: currentUser.username,
+        orderId: order.id, // 🔥 传入订单 ID
+        messageType: 'PAID' // 🔥 消息类型
       });
       console.log(`✅ PAID system message created for order ${order.id} in conversation ${conversation.id}`);
     } catch (msgError) {

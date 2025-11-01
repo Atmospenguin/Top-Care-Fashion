@@ -28,8 +28,9 @@ import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
 import { userService, type UserProfile } from "../../../src/services/userService";
 import { premiumService } from "../../../src/services";
-import { likesService, messagesService, reportsService, type LikedListing } from "../../../src/services";
+import { likesService, messagesService, type LikedListing } from "../../../src/services";
 import { authService } from "../../../src/services/authService";
+import { reportsService } from "../../../src/services/reportsService";
 
 type UserProfileParam = RouteProp<BuyStackParamList, "UserProfile">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
@@ -98,6 +99,10 @@ const mockReviews = [
     time: "2 days ago",
     date: "2024-01-15",
     type: "buyer" as const,
+    images: [
+      "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=640&q=80",
+      "https://images.unsplash.com/photo-1529720317453-c8da503f2051?auto=format&fit=crop&w=640&q=80"
+    ],
     hasPhoto: true,
   },
   {
@@ -110,6 +115,7 @@ const mockReviews = [
     time: "Last week",
     date: "2024-01-10",
     type: "buyer" as const,
+    images: [],
     hasPhoto: false,
   },
   {
@@ -122,6 +128,7 @@ const mockReviews = [
     time: "3 days ago",
     date: "2024-01-14",
     type: "seller" as const,
+    images: [],
     hasPhoto: false,
   },
   {
@@ -134,6 +141,9 @@ const mockReviews = [
     time: "1 week ago",
     date: "2024-01-08",
     type: "buyer" as const,
+    images: [
+      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop"
+    ],
     hasPhoto: true,
   },
 ];
@@ -388,6 +398,7 @@ export default function UserProfileScreen() {
             time: review.time,
             date: review.date,
             type: review.type as "buyer" | "seller",
+            images: review.images || [], // 🔥 添加 images 字段
             hasPhoto: review.hasPhoto || false,
             isPremium: Boolean(
               (reviewer as any).isPremium ?? (reviewer as any).is_premium ?? false,
@@ -1361,6 +1372,23 @@ export default function UserProfileScreen() {
                     </View>
                     <Text style={styles.reviewTime}>{item.time}</Text>
                     <Text style={styles.reviewComment}>{item.comment}</Text>
+                    {/* 🔥 显示 review 照片 */}
+                    {item.images && item.images.length > 0 && (
+                      <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.reviewImagesContainer}
+                      >
+                        {item.images.map((imageUri: string, idx: number) => (
+                          <Image
+                            key={`${item.id}-img-${idx}`}
+                            source={{ uri: imageUri }}
+                            style={styles.reviewImage}
+                            resizeMode="cover"
+                          />
+                        ))}
+                      </ScrollView>
+                    )}
                   </View>
                 </View>
               )}
@@ -1819,6 +1847,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: "#333",
+  },
+  reviewImagesContainer: {
+    marginTop: 12,
+    flexDirection: "row",
+  },
+  reviewImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 8,
+    backgroundColor: "#f0f0f0",
   },
   // Filter Bar Styles
   filterBar: {

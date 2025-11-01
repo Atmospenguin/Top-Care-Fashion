@@ -1580,14 +1580,11 @@ export default function ChatScreen() {
   // 🔥 守则 #2: 固定位置渲染 Review CTA（ListFooterComponent）
   const renderReviewCtaFooter = () => {
     try {
-      console.log("🔍 renderReviewCtaFooter called");
       // 找到 orderCard
       const orderCard = items.find(item => item.type === "orderCard");
       if (!orderCard || orderCard.type !== "orderCard") {
-        console.log("🔍 No order card found");
         return null;
       }
-      console.log("🔍 Order card found:", orderCard.order.id);
 
     const order = orderCard.order;
     // ✅ 使用 resolveOrderId 规范化 orderId，确保格式一致
@@ -1771,11 +1768,8 @@ export default function ChatScreen() {
         ListFooterComponent={renderReviewCtaFooter}
         renderItem={({ item, index }) => {
           try {
-            console.log("🔍 Rendering item", index, "type:", (item as any)?.type);
-            
             // 兜底：如果运行时拿到的是裸字符串/数字，包一层 <Text>
             if (typeof (item as any) === "string" || typeof (item as any) === "number") {
-              console.log("🔍 Item is primitive, type:", typeof item);
               return <View style={{ marginBottom: 12 }}><Text style={styles.textLeft}>{String(item)}</Text></View>;
             }
 
