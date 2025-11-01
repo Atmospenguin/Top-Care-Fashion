@@ -520,6 +520,8 @@ export async function PATCH(
               receiverId: targetUserId,
               content: systemMessage,
               actorName: actorName,
+              orderId: orderId, // 🔥 传入订单 ID
+              messageType: status // 🔥 使用订单状态作为消息类型
             });
             console.log(`📨 System message created in conversation ${conversation.id}: ${systemMessage}`);
           }
