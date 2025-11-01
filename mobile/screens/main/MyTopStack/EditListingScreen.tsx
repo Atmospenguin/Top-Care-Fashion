@@ -272,45 +272,44 @@ export default function EditListingScreen() {
   }, [route.params?.listingId, navigation]);
 
   // ✅ 保存更改
-  const handleSave = async () => {
-    if (!listing) return;
-
+  // 🔥 提取验证逻辑为共享函数
+  const validateAndBuildPayload = () => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       Alert.alert("Missing Information", "Please add a title");
-      return;
+      return null;
     }
 
     const trimmedDescription = description.trim();
     if (!trimmedDescription) {
       Alert.alert("Missing Information", "Please add a description");
-      return;
+      return null;
     }
 
     if (!category || category === "Select") {
       Alert.alert("Missing Information", "Please select a category");
-      return;
+      return null;
     }
 
     if (!condition || condition === "Select") {
       Alert.alert("Missing Information", "Please select a condition");
-      return;
+      return null;
     }
 
     if (!price.trim()) {
       Alert.alert("Missing Information", "Please enter a price");
-      return;
+      return null;
     }
 
     const parsedPrice = parseFloat(price);
     if (Number.isNaN(parsedPrice) || parsedPrice <= 0) {
       Alert.alert("Invalid Price", "Please enter a valid price");
-      return;
+      return null;
     }
 
     if (!shippingOption || shippingOption === "Select") {
       Alert.alert("Missing Information", "Please select a shipping option");
-      return;
+      return null;
     }
 
     let resolvedSize: string | null = null;
@@ -318,7 +317,7 @@ export default function EditListingScreen() {
       const trimmedCustomSize = customSize.trim();
       if (!trimmedCustomSize) {
         Alert.alert("Missing Information", "Please enter a custom size");
-        return;
+        return null;
       }
       resolvedSize = trimmedCustomSize;
     } else if (size && size !== "Select") {
@@ -330,7 +329,7 @@ export default function EditListingScreen() {
       const trimmedCustomMaterial = customMaterial.trim();
       if (!trimmedCustomMaterial) {
         Alert.alert("Missing Information", "Please enter a custom material");
-        return;
+        return null;
       }
       resolvedMaterial = trimmedCustomMaterial;
     } else if (material && material !== "Select") {
@@ -344,12 +343,12 @@ export default function EditListingScreen() {
     if (shippingOption === "Buyer pays – fixed fee") {
       if (!shippingFee.trim()) {
         Alert.alert("Missing Information", "Please enter a shipping fee");
-        return;
+        return null;
       }
       resolvedShippingFee = parseFloat(shippingFee);
       if (Number.isNaN(resolvedShippingFee) || resolvedShippingFee < 0) {
         Alert.alert("Invalid Shipping Fee", "Please enter a valid shipping fee");
-        return;
+        return null;
       }
     } else if (shippingFee.trim()) {
       const parsedFee = parseFloat(shippingFee);
@@ -361,7 +360,7 @@ export default function EditListingScreen() {
     const trimmedLocation = location.trim();
     if (shippingOption === "Meet-up" && !trimmedLocation) {
       Alert.alert("Missing Information", "Please enter a meet-up location");
-      return;
+      return null;
     }
 
     const updateData = {
@@ -381,41 +380,99 @@ export default function EditListingScreen() {
       location: shippingOption === "Meet-up" ? trimmedLocation : undefined,
     };
 
+    // Calculate shipping fee from preset options
+    let calculatedShippingFee: number | undefined;
+    try {
+      if (typeof shippingOption === "string" && shippingOption.includes("$3")) {
+        calculatedShippingFee = 3;
+      } else if (typeof shippingOption === "string" && shippingOption.includes("$5")) {
+        calculatedShippingFee = 5;
+      } else if (shippingOption === "Buyer pays – fixed fee" && shippingFee) {
+        const parsed = parseFloat(shippingFee);
+        if (!Number.isNaN(parsed)) calculatedShippingFee = parsed;
+      } else if (shippingOption === "Free shipping" || shippingOption === "Meet-up") {
+        calculatedShippingFee = 0;
+      }
+    } catch (e) {
+      console.warn("Failed to calculate preset shipping fee", e);
+    }
+
+    return {
+      ...updateData,
+      shippingFee: calculatedShippingFee !== undefined ? calculatedShippingFee : updateData.shippingFee,
+      title: trimmedTitle,
+      description: trimmedDescription,
+      price: parsedPrice,
+      brand: trimmedBrand,
+      gender: resolvedGender,
+      location: shippingOption === "Meet-up" ? trimmedLocation : undefined,
+    };
+  };
+
+  // 🔥 保存为草稿（unlisted）
+  const handleSaveDraft = async () => {
+    if (!listing) return;
+    const payload = validateAndBuildPayload();
+    if (!payload) return;
+
+    try {
+      setSaving(true);
+      console.log("📝 Saving as draft (unlisted):", listing.id);
+      
+      const updatedListing = await listingsService.updateListing(listing.id, {
+        ...payload,
+        listed: false, // 保持 unlisted 状态
+      });
+      
+      console.log("✅ Draft saved successfully:", updatedListing.id);
+      Alert.alert("Success", "Draft saved successfully!", [
+        { text: "OK", onPress: () => navigation.goBack() }
+      ]);
+    } catch (error) {
+      console.error("❌ Error saving draft:", error);
+      Alert.alert("Error", "Failed to save draft. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 🔥 发布商品（posted listing）
+  const handlePostListing = async () => {
+    if (!listing) return;
+    const payload = validateAndBuildPayload();
+    if (!payload) return;
+
+    try {
+      setSaving(true);
+      console.log("📝 Posting listing (listed):", listing.id);
+      
+      const updatedListing = await listingsService.updateListing(listing.id, {
+        ...payload,
+        listed: true, // 设置为 listed
+      });
+      
+      console.log("✅ Listing posted successfully:", updatedListing.id);
+      Alert.alert("Success", "Listing posted successfully!", [
+        { text: "OK", onPress: () => navigation.goBack() }
+      ]);
+    } catch (error) {
+      console.error("❌ Error posting listing:", error);
+      Alert.alert("Error", "Failed to post listing. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 🔥 保存已发布商品的修改（保持 listed 状态）
+  const handleSave = async () => {
+    if (!listing) return;
+    const payload = validateAndBuildPayload();
+    if (!payload) return;
+
     try {
       setSaving(true);
       console.log("📝 Saving listing changes:", listing.id);
-      // If shipping option is one of the predefined presets, derive a numeric fee.
-      let calculatedShippingFee: number | undefined;
-      try {
-        if (typeof shippingOption === "string" && shippingOption.includes("$3")) {
-          calculatedShippingFee = 3;
-        } else if (typeof shippingOption === "string" && shippingOption.includes("$5")) {
-          calculatedShippingFee = 5;
-        } else if (shippingOption === "Buyer pays – fixed fee" && shippingFee) {
-          const parsed = parseFloat(shippingFee);
-          if (!Number.isNaN(parsed)) calculatedShippingFee = parsed;
-        } else if (shippingOption === "Free shipping" || shippingOption === "Meet-up") {
-          calculatedShippingFee = 0;
-        }
-      } catch (e) {
-        // conservative fallback: leave calculatedShippingFee undefined and rely on previously resolved value
-        console.warn("Failed to calculate preset shipping fee", e);
-      }
-
-      // Merge the previously validated updateData with any calculated preset fee.
-      const payload = {
-        ...updateData,
-        // prefer explicit calculated preset fee when available, otherwise keep resolvedShippingFee
-        shippingFee: calculatedShippingFee !== undefined ? calculatedShippingFee : updateData.shippingFee,
-        // ensure trimmed/parsed fields are the same as the validated ones above
-        title: trimmedTitle,
-        description: trimmedDescription,
-        price: parsedPrice,
-        brand: trimmedBrand,
-        gender: resolvedGender,
-        location: shippingOption === "Meet-up" ? trimmedLocation : undefined,
-      };
-
+      
       const updatedListing = await listingsService.updateListing(listing.id, payload);
       console.log("✅ Listing updated successfully:", updatedListing.id);
 
@@ -868,20 +925,47 @@ export default function EditListingScreen() {
             </View>
           )}
 
-          {/* Footer */}
+          {/* Footer - 🔥 根据 listed 状态显示不同按钮 */}
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.draftBtn} onPress={() => navigation.goBack()}>
-              <Text style={styles.draftText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.postBtn, saving && styles.postBtnDisabled]} 
-              onPress={handleSave}
-              disabled={saving}
-            >
-              <Text style={styles.postText}>
-                {saving ? "Saving..." : "Save Changes"}
-              </Text>
-            </TouchableOpacity>
+            {listing?.listed === false ? (
+              <>
+                {/* 草稿状态：Save to Draft + Post Listing */}
+                <TouchableOpacity 
+                  style={[styles.draftBtn, saving && styles.draftBtnDisabled]} 
+                  onPress={handleSaveDraft}
+                  disabled={saving}
+                >
+                  <Text style={styles.draftText}>
+                    {saving ? "Saving..." : "Save to Draft"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.postBtn, saving && styles.postBtnDisabled]} 
+                  onPress={handlePostListing}
+                  disabled={saving}
+                >
+                  <Text style={styles.postText}>
+                    {saving ? "Posting..." : "Post Listing"}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                {/* 已发布状态：Cancel + Save Changes */}
+                <TouchableOpacity style={styles.draftBtn} onPress={() => navigation.goBack()}>
+                  <Text style={styles.draftText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.postBtn, saving && styles.postBtnDisabled]} 
+                  onPress={handleSave}
+                  disabled={saving}
+                >
+                  <Text style={styles.postText}>
+                    {saving ? "Saving..." : "Save Changes"}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -1256,6 +1340,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
     marginRight: 8,
+  },
+  draftBtnDisabled: {
+    borderColor: "#999",
+    opacity: 0.6,
   },
   draftText: { fontWeight: "600", fontSize: 16 },
   postBtn: {

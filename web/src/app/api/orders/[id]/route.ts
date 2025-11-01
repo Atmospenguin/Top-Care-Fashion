@@ -374,6 +374,18 @@ export async function PATCH(
       console.log(`✅ Listing ${existingOrder.listing_id} restored to available after order ${orderId} cancellation`);
     }
 
+    // 🔥 如果订单完成（买家确认收货），标记商品为已售出
+    if ((status === 'RECEIVED' || status === 'COMPLETED') && existingOrder.listing_id) {
+      await prisma.listings.update({
+        where: { id: existingOrder.listing_id },
+        data: {
+          sold: true,
+          sold_at: new Date()
+        }
+      });
+      console.log(`✅ Listing ${existingOrder.listing_id} marked as sold after order ${orderId} completion`);
+    }
+
     // 🔔 创建订单状态变化notification
     try {
   const isSeller = currentUser.id === existingOrder.seller_id;

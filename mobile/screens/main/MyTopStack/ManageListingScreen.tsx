@@ -429,10 +429,13 @@ export default function ManageListingScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.rowItem} onPress={handleMarkAsSold}>
-            <Text style={styles.rowText}>Mark as Sold</Text>
-            <Icon name="chevron-forward" size={18} color="#999" />
-          </TouchableOpacity>
+          {/* 🔥 只在商品已发布时显示 "Mark as Sold" */}
+          {listing?.listed === true && (
+            <TouchableOpacity style={styles.rowItem} onPress={handleMarkAsSold}>
+              <Text style={styles.rowText}>Mark as Sold</Text>
+              <Icon name="chevron-forward" size={18} color="#999" />
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
 
