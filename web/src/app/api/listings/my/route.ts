@@ -40,12 +40,17 @@ export async function GET(req: NextRequest) {
 
     if (status === "active") {
       where.listed = true;
+      where.sold = false; // 🔥 排除已售出的商品
     } else if (status === "sold") {
       where.sold = true;
     } else if (status === "unlisted") {
       where.listed = false;
+      where.sold = false; // 🔥 排除已售出的草稿
+    } else if (status === "all") {
+      // 🔥 'all' 表示 active + unlisted（不包括已售出的）
+      where.sold = false;
     }
-    // 如果status是'all'或者没有指定，则获取所有listings
+    // 如果status没有指定，则获取所有listings（包括已售出的）
 
     // 添加filter条件
     if (category && category !== "All") {
