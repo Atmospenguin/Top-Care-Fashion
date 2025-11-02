@@ -362,8 +362,33 @@ class MessagesService {
         kind: "order",
         unread: false,
         lastFrom: "seller",
-        isPremium: participantSummary.isPremium,
-        order: orderSummary,
+        order: newConversation.listing ? {
+          id: newConversation.listing.id.toString(),
+          product: {
+            title: newConversation.listing.name,
+            price: Number(newConversation.listing.price),
+            size: newConversation.listing.size,
+            image: newConversation.listing.image_url || (newConversation.listing.image_urls as any)?.[0] || null
+          },
+          seller: { 
+            name: otherUser.username,
+            avatar: otherUser.avatar_url 
+          },
+          status: "Inquiry"
+        } : {
+          id: listingId?.toString() || "unknown",
+          product: {
+            title: "Item",
+            price: 0,
+            size: "Unknown",
+            image: null
+          },
+          seller: { 
+            name: otherUser.username,
+            avatar: otherUser.avatar_url 
+          },
+          status: "Inquiry"
+        }
       };
     } catch (error) {
       console.error('Error getting or creating seller conversation:', error);

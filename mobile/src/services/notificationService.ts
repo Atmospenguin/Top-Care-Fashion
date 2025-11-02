@@ -25,22 +25,9 @@ export interface NotificationParams {
   image?: string;
   orderId?: string;
   listingId?: string;
+  userId?: string;
   username?: string;
   isPremiumUser?: boolean;
-  /**
-   * ID of the user who should receive this notification.
-   * Falls back to `userId` for backward compatibility when not provided.
-   */
-  targetUserId?: string;
-  /**
-   * ID of the user who triggered the notification (actor).
-   * Falls back to `userId` for backward compatibility when not provided.
-   */
-  relatedUserId?: string;
-  /**
-   * @deprecated Use `targetUserId` and `relatedUserId` instead.
-   */
-  userId?: string;
 }
 
 class NotificationService {
@@ -233,9 +220,6 @@ class NotificationService {
     try {
       console.log("🔔 Creating notification:", params);
       
-      const targetUserId = params.targetUserId ?? params.userId;
-      const relatedUserId = params.relatedUserId ?? params.userId;
-
       const response = await apiClient.post<{
         success: boolean;
         notification: Notification;
@@ -246,8 +230,8 @@ class NotificationService {
         image_url: params.image,
         order_id: params.orderId,
         listing_id: params.listingId,
-        userId: targetUserId,
-        related_user_id: relatedUserId,
+        userId: params.userId, // 目标用户ID
+        related_user_id: params.userId // 相关用户ID（用于显示头像等）
       });
       
       if (response.data?.success) {
@@ -276,7 +260,6 @@ class NotificationService {
             message: "Please ship your item soon.",
             image: orderData.buyer?.avatar,
             orderId: orderId,
-            relatedUserId: orderData.buyer?.id?.toString(),
             userId: orderData.buyer?.id?.toString(),
             username: orderData.buyer?.name
           };
@@ -285,11 +268,7 @@ class NotificationService {
             type: "order",
             title: "Payment confirmed",
             message: "Your payment has been processed.",
-            orderId: orderId,
-            relatedUserId: orderData.seller?.id?.toString(),
-            userId: orderData.seller?.id?.toString(),
-            image: orderData.seller?.avatar,
-            username: orderData.seller?.name
+            orderId: orderId
           };
         }
         
@@ -299,22 +278,14 @@ class NotificationService {
             type: "order",
             title: "Order confirmed",
             message: "Please prepare the package and ship soon.",
-            orderId: orderId,
-            relatedUserId: orderData.buyer?.id?.toString(),
-            userId: orderData.buyer?.id?.toString(),
-            image: orderData.buyer?.avatar,
-            username: orderData.buyer?.name
+            orderId: orderId
           };
         } else {
           return {
             type: "order",
             title: "Order confirmed",
             message: "Seller is preparing to ship.",
-            orderId: orderId,
-            relatedUserId: orderData.seller?.id?.toString(),
-            userId: orderData.seller?.id?.toString(),
-            image: orderData.seller?.avatar,
-            username: orderData.seller?.name
+            orderId: orderId
           };
         }
         
@@ -324,11 +295,7 @@ class NotificationService {
             type: "order",
             title: "Parcel shipped",
             message: "You have shipped the parcel.",
-            orderId: orderId,
-            relatedUserId: orderData.buyer?.id?.toString(),
-            userId: orderData.buyer?.id?.toString(),
-            image: orderData.buyer?.avatar,
-            username: orderData.buyer?.name
+            orderId: orderId
           };
         } else {
           return {
@@ -337,7 +304,6 @@ class NotificationService {
             message: "Your order is on the way!",
             image: orderData.seller?.avatar,
             orderId: orderId,
-            relatedUserId: orderData.seller?.id?.toString(),
             userId: orderData.seller?.id?.toString(),
             username: orderData.seller?.name
           };
@@ -350,22 +316,14 @@ class NotificationService {
             type: "order",
             title: "Order arrived",
             message: "Parcel delivered. Waiting for buyer to confirm received.",
-            orderId: orderId,
-            relatedUserId: orderData.buyer?.id?.toString(),
-            userId: orderData.buyer?.id?.toString(),
-            image: orderData.buyer?.avatar,
-            username: orderData.buyer?.name
+            orderId: orderId
           };
         } else {
           return {
             type: "order",
             title: "Order arrived",
             message: "Parcel arrived. Please confirm you have received the item.",
-            orderId: orderId,
-            relatedUserId: orderData.seller?.id?.toString(),
-            userId: orderData.seller?.id?.toString(),
-            image: orderData.seller?.avatar,
-            username: orderData.seller?.name
+            orderId: orderId
           };
         }
         
@@ -378,7 +336,6 @@ class NotificationService {
             message: `Buyer @${orderData.buyer?.name || 'Buyer'} confirmed received. Transaction completed.`,
             image: orderData.buyer?.avatar,
             orderId: orderId,
-            relatedUserId: orderData.buyer?.id?.toString(),
             userId: orderData.buyer?.id?.toString(),
             username: orderData.buyer?.name
           };
@@ -387,11 +344,7 @@ class NotificationService {
             type: "order",
             title: "Order completed",
             message: "You confirmed received. Transaction completed successfully.",
-            orderId: orderId,
-            relatedUserId: orderData.seller?.id?.toString(),
-            userId: orderData.seller?.id?.toString(),
-            image: orderData.seller?.avatar,
-            username: orderData.seller?.name
+            orderId: orderId
           };
         }
         
@@ -400,11 +353,7 @@ class NotificationService {
           type: "order",
           title: "Order completed",
           message: "How was your experience? Leave a review to help others.",
-          orderId: orderId,
-          relatedUserId: orderData.seller?.id?.toString() ?? orderData.buyer?.id?.toString(),
-          userId: orderData.seller?.id?.toString() ?? orderData.buyer?.id?.toString(),
-          image: orderData.seller?.avatar ?? orderData.buyer?.avatar,
-          username: orderData.seller?.name ?? orderData.buyer?.name
+          orderId: orderId
         };
         
       case "CANCELLED":
@@ -416,7 +365,6 @@ class NotificationService {
             message: `Order with @${orderData.buyer?.name || 'Buyer'} has been cancelled.`,
             image: orderData.buyer?.avatar,
             orderId: orderId,
-            relatedUserId: orderData.buyer?.id?.toString(),
             userId: orderData.buyer?.id?.toString(),
             username: orderData.buyer?.name
           };
@@ -427,7 +375,6 @@ class NotificationService {
             message: `Order with @${orderData.seller?.name || 'Seller'} has been cancelled.`,
             image: orderData.seller?.avatar,
             orderId: orderId,
-            relatedUserId: orderData.seller?.id?.toString(),
             userId: orderData.seller?.id?.toString(),
             username: orderData.seller?.name
           };
@@ -445,7 +392,6 @@ class NotificationService {
       title: `@${likerName} liked your listing`,
       message: listingTitle,
       image: likerAvatar,
-      relatedUserId: likerId,
       userId: likerId,
       username: likerName
     };
@@ -458,7 +404,6 @@ class NotificationService {
       title: `@${followerName} started following you`,
       message: "You have a new follower!",
       image: followerAvatar,
-      relatedUserId: followerId,
       userId: followerId,
       username: followerName
     };
@@ -471,7 +416,6 @@ class NotificationService {
       title: `@${reviewerName} gave your listing a ${rating}-star review`,
       message: listingTitle,
       image: reviewerAvatar,
-      relatedUserId: reviewerId,
       userId: reviewerId,
       username: reviewerName
     };

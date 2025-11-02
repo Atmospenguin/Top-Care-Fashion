@@ -1677,8 +1677,7 @@ export default function ChatScreen() {
       }
 
     const order = orderCard.order;
-    // ✅ 使用 resolveOrderId 规范化 orderId，确保格式一致
-    const orderId = resolveOrderId(order);
+    const orderId = order.id;
 
     // 守则 #5: 只在 COMPLETED/RECEIVED/REVIEWED 状态显示
     if (order.status !== "COMPLETED" && order.status !== "RECEIVED" && order.status !== "REVIEWED") {
@@ -1693,40 +1692,8 @@ export default function ChatScreen() {
     
     // 如果还未加载状态，触发加载
     if (!status) {
-      console.log("⏳ Review status not loaded yet, checking for order:", orderId);
       checkOrderReviewStatus(orderId);
-      // ✅ 即使状态未加载，也显示一个基本的 "Leave Review" CTA，避免完全空白
-      // 这样用户至少可以看到 CTA，即使 API 调用延迟或失败
-      return (
-        <View key={`cta-review-loading-${orderId}`} style={{ marginBottom: 12, paddingHorizontal: 12 }}>
-          <View style={styles.reviewBox}>
-            <Text style={styles.reviewHint}>How was your experience? Leave a review to help others discover great items.</Text>
-            <TouchableOpacity 
-              style={styles.reviewBtnCenter}
-              onPress={async () => {
-                console.log("⭐ Leave Review button pressed (loading state) for order:", orderId);
-                const rootNavigation = (navigation as any).getParent?.();
-                const isBuyer = user?.username === order.buyer?.name;
-                const reviewType = isBuyer ? "buyer" : "seller";
-                if (rootNavigation) {
-                  rootNavigation.navigate("Review", { 
-                    orderId: orderId,
-                    reviewType: reviewType
-                  });
-                } else {
-                  (navigation as any).navigate("Review", { 
-                    orderId: orderId,
-                    reviewType: reviewType
-                  });
-                }
-                await refreshReviewStatus(orderId);
-              }}
-            >
-              <Text style={styles.reviewBtnText}>Leave Review</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      );
+      return null; // 等待下次渲染
     }
 
     // 判断用户角色
@@ -1759,7 +1726,7 @@ export default function ChatScreen() {
 
     return (
       <View key={`cta-review-${orderId}`} style={{ marginBottom: 12, paddingHorizontal: 12 }}>
-        {reviewNode}
+        {renderReviewCTA(orderId, ctaText, reviewType)}
       </View>
     );
     } catch (error) {
