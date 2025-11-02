@@ -62,14 +62,38 @@ export async function GET(req: NextRequest) {
     }
 
     if (condition && condition !== "All") {
-      // 转换condition到数据库格式
-      let conditionType = condition.toUpperCase().replace(" ", "_");
-      if (conditionType === "NEW") conditionType = "NEW";
-      else if (conditionType === "LIKE_NEW") conditionType = "LIKE_NEW";
-      else if (conditionType === "GOOD") conditionType = "GOOD";
-      else if (conditionType === "FAIR") conditionType = "FAIR";
-      
-      where.condition_type = conditionType;
+      const normalizeCondition = (value: string): "NEW" | "LIKE_NEW" | "GOOD" | "FAIR" | "POOR" | null => {
+        const normalized = value.trim().toLowerCase();
+        switch (normalized) {
+          case "brand new":
+          case "new":
+          case "new-in-box":
+          case "new in box":
+            return "NEW";
+          case "like new":
+          case "nearly new":
+            return "LIKE_NEW";
+          case "good":
+            return "GOOD";
+          case "fair":
+            return "FAIR";
+          case "poor":
+            return "POOR";
+          default:
+            if (normalized.replace(/[_\s-]+/g, "") === "brandnew") {
+              return "NEW";
+            }
+            if (normalized.replace(/[_\s-]+/g, "") === "likenew") {
+              return "LIKE_NEW";
+            }
+            return null;
+        }
+      };
+
+      const conditionType = normalizeCondition(condition);
+      if (conditionType) {
+        where.condition_type = conditionType;
+      }
     }
 
     if (genderParam) {
