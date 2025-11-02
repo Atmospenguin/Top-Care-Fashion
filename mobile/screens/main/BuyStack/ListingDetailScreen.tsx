@@ -352,6 +352,24 @@ export default function ListingDetailScreen() {
     
     setIsAddingToCart(true);
     try {
+      // 🔥 先检查商品是否已经在购物车中
+      const cartItems = await cartService.getCartItems();
+      const itemAlreadyInCart = cartItems.some(
+        cartItem => cartItem.item.id === safeItem.id.toString() || 
+                     cartItem.item.listing_id?.toString() === safeItem.id.toString()
+      );
+      
+      if (itemAlreadyInCart) {
+        // 🔥 商品已经在购物车中，显示提示信息
+        Alert.alert(
+          'Already in Cart', 
+          'This item is already in your cart.',
+          [{ text: 'OK', style: 'default' }]
+        );
+        return;
+      }
+      
+      // 🔥 商品不在购物车中，添加到购物车
       await cartService.addToCart(safeItem.id.toString(), 1);
       Alert.alert('Success', 'Item added to cart successfully!');
     } catch (error) {
