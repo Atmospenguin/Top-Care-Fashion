@@ -7,6 +7,7 @@ import {
   StyleSheet,
   FlatList,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
@@ -68,6 +69,14 @@ export default function MyTopScreen() {
   const [shopListings, setShopListings] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // ✅ 分页状态
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [activeTotalCount, setActiveTotalCount] = useState(0);
+  const [inactiveTotalCount, setInactiveTotalCount] = useState(0);
+  const PAGE_SIZE = 20;
 
   // ✅ 添加follow统计状态
   const [followStats, setFollowStats] = useState({
@@ -152,32 +161,76 @@ export default function MyTopScreen() {
     }
   };
 
-  // ✅ 获取用户listings
+  // ✅ 获取用户listings（支持分页）
   const fetchUserListings = async (
     status: 'active' | 'sold' | 'all' | 'unlisted' = 'all',
-    filters?: Partial<UserListingsQueryParams>
+    filters?: Partial<UserListingsQueryParams>,
+    isLoadMore?: boolean
   ) => {
     try {
-      console.log("📖 Fetching user listings with status:", status, "filters:", filters);
-      
+      console.log("📖 Fetching user listings with status:", status, "filters:", filters, "isLoadMore:", isLoadMore);
+
+      const currentOffset = isLoadMore ? offset : 0;
+
       const params: UserListingsQueryParams = {
         status,
+        limit: PAGE_SIZE,
+        offset: currentOffset,
         ...filters,
       };
-      
+
       console.log("📖 Final API params:", params);
-      
-      const listings = await listingsService.getUserListings(params);
-      
+
+      const { listings, total } = await listingsService.getUserListings(params);
+
       if (status === 'all' || status === 'active' || status === 'unlisted') {
-        setShopListings(listings);
+        if (isLoadMore) {
+          // Append new items
+          setShopListings(prev => [...prev, ...listings]);
+        } else {
+          // Replace with new items
+          setShopListings(listings);
+        }
+
+        // Update pagination state
+        // Note: When status='all', total includes both active and inactive
+        // We'll fetch separate counts for display
+        setHasMore(listings.length === PAGE_SIZE);
+        setOffset(isLoadMore ? currentOffset + PAGE_SIZE : PAGE_SIZE);
       }
-      
-      console.log(`✅ Loaded ${listings.length} ${status} listings`);
+
+      console.log(`✅ Loaded ${listings.length} ${status} listings, total: ${total}`);
       console.log("📖 Sample listing:", listings[0]);
     } catch (error) {
       console.error("❌ Error fetching user listings:", error);
       Alert.alert("Error", "Failed to load listings. Please try again.");
+    }
+  };
+
+  // ✅ 获取 active 和 inactive 的总数
+  const fetchListingCounts = async (filters?: Partial<UserListingsQueryParams>) => {
+    try {
+      // Fetch active count (use PAGE_SIZE to get correct total from backend)
+      const activeResult = await listingsService.getUserListings({
+        status: 'active',
+        limit: PAGE_SIZE,
+        offset: 0,
+        ...filters,
+      });
+      setActiveTotalCount(activeResult.total);
+
+      // Fetch inactive count (use PAGE_SIZE to get correct total from backend)
+      const inactiveResult = await listingsService.getUserListings({
+        status: 'unlisted',
+        limit: PAGE_SIZE,
+        offset: 0,
+        ...filters,
+      });
+      setInactiveTotalCount(inactiveResult.total);
+
+      console.log(`✅ Counts: ${activeResult.total} active, ${inactiveResult.total} inactive`);
+    } catch (error) {
+      console.error("❌ Error fetching listing counts:", error);
     }
   };
 
@@ -226,9 +279,16 @@ export default function MyTopScreen() {
       }
       
       console.log("🔍 Applying filters with values:", filters);
-      
-      // 重新获取active listings
-      await fetchUserListings('all', filters);
+
+      // Reset pagination
+      setOffset(0);
+      setHasMore(true);
+
+      // 重新获取active listings 和 counts
+      await Promise.all([
+        fetchUserListings('all', filters),
+        fetchListingCounts(filters),
+      ]);
     } finally {
       setLoading(false);
     }
@@ -272,13 +332,71 @@ export default function MyTopScreen() {
       }
       
       console.log("🔍 Applying filters:", filters);
-      
-      // 重新获取active listings
-      await fetchUserListings('all', filters);
+
+      // Reset pagination
+      setOffset(0);
+      setHasMore(true);
+
+      // 重新获取active listings 和 counts
+      await Promise.all([
+        fetchUserListings('all', filters),
+        fetchListingCounts(filters),
+      ]);
     } finally {
       setLoading(false);
     }
   };
+
+  // ✅ 加载更多listings（无限滚动）
+  const loadMore = useCallback(async () => {
+    if (!hasMore || isLoadingMore || loading || refreshing) {
+      console.log('🔍 MyTopScreen: Skip load more', { hasMore, isLoadingMore, loading, refreshing });
+      return;
+    }
+
+    try {
+      setIsLoadingMore(true);
+      console.log('🔍 MyTopScreen: Loading more listings at offset:', offset);
+
+      // 构建当前的 filter 参数
+      const filters: Partial<UserListingsQueryParams> = {};
+
+      if (selectedCategory !== "All") {
+        filters.category = selectedCategory;
+      }
+
+      if (selectedCondition !== "All") {
+        filters.condition = selectedCondition;
+      }
+
+      const apiGender = mapGenderOptionToApiParam(selectedGender);
+      if (apiGender) {
+        filters.gender = apiGender;
+      }
+
+      if (minPrice) {
+        filters.minPrice = parseFloat(minPrice);
+      }
+
+      if (maxPrice) {
+        filters.maxPrice = parseFloat(maxPrice);
+      }
+
+      if (sortBy === "Latest") {
+        filters.sortBy = "latest";
+      } else if (sortBy === "Price Low to High") {
+        filters.sortBy = "price_low_to_high";
+      } else if (sortBy === "Price High to Low") {
+        filters.sortBy = "price_high_to_low";
+      }
+
+      await fetchUserListings('all', filters, true);
+    } catch (error) {
+      console.error('Error loading more listings:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [hasMore, isLoadingMore, loading, refreshing, offset, selectedCategory, selectedCondition, selectedGender, minPrice, maxPrice, sortBy]);
 
   // ✅ 统一的刷新逻辑；支持静默刷新避免触发下拉形态
   const refreshAll = useCallback(
@@ -288,11 +406,16 @@ export default function MyTopScreen() {
       isRefreshingRef.current = true;
       if (useSpinner) setRefreshing(true); else setLoading(true);
       try {
+        // Reset pagination state
+        setOffset(0);
+        setHasMore(true);
+
         await Promise.all([
           refreshCurrentUser(), // ✅ 同步最新用户资料（头像/简介等）
           fetchUserListings('all'),
           fetchFollowStats(),
           fetchUserCategories(),
+          fetchListingCounts(), // ✅ 获取总数
         ]);
       } finally {
         if (useSpinner) setRefreshing(false);
@@ -404,7 +527,8 @@ export default function MyTopScreen() {
     [shopListings]
   );
 
-  const listedCount = activeListings.length;
+  // Use backend total count instead of loaded count
+  const listedCount = activeTotalCount > 0 ? activeTotalCount : activeListings.length;
 
   const displayUser = {
     username: user?.username || "User",
@@ -480,6 +604,8 @@ export default function MyTopScreen() {
               listOffsetRef.current = e.nativeEvent.contentOffset.y;
             }}
             scrollEventThrottle={16}
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.5}
             ListHeaderComponent={
               <View style={styles.headerContent}>
                 {/* Profile 区 */}
@@ -586,41 +712,59 @@ export default function MyTopScreen() {
               );
             }}
             ListFooterComponent={
-              inactiveListings.length > 0 ? (
-                <View style={styles.inactiveSection}>
-                  <Text style={styles.inactiveTitle}>
-                    Inactive ({inactiveListings.length})
-                  </Text>
-                  <FlatList
-                    data={formatData(inactiveListings, 3)}
-                    keyExtractor={(item) => String(item.id)}
-                    numColumns={3}
-                    scrollEnabled={false}
-                    contentContainerStyle={styles.inactiveListContent}
-                    renderItem={({ item: footerItem }) => {
-                      if ((footerItem as any).empty) {
-                        return <View style={[styles.itemBox, styles.itemInvisible]} />;
-                      }
-                      const listing = footerItem as ListingItem;
-                      const imageUri = listing.images && listing.images.length > 0
-                        ? listing.images[0]
-                        : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
-                      return (
-                        <TouchableOpacity
-                          style={styles.itemBox}
-                          onPress={() => handleListingPress(listing)}
-                          activeOpacity={0.85}
-                        >
-                          <Image source={{ uri: imageUri }} style={styles.itemImage} />
-                          <View style={styles.unlistedOverlay}>
-                            <Text style={styles.unlistedOverlayText}>UNLISTED</Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    }}
-                  />
-                </View>
-              ) : null
+              <>
+                {inactiveListings.length > 0 && (
+                  <View style={styles.inactiveSection}>
+                    <Text style={styles.inactiveTitle}>
+                      Inactive ({inactiveTotalCount > 0 ? inactiveTotalCount : inactiveListings.length})
+                    </Text>
+                    <FlatList
+                      data={formatData(inactiveListings, 3)}
+                      keyExtractor={(item) => String(item.id)}
+                      numColumns={3}
+                      scrollEnabled={false}
+                      contentContainerStyle={styles.inactiveListContent}
+                      renderItem={({ item: footerItem }) => {
+                        if ((footerItem as any).empty) {
+                          return <View style={[styles.itemBox, styles.itemInvisible]} />;
+                        }
+                        const listing = footerItem as ListingItem;
+                        const imageUri = listing.images && listing.images.length > 0
+                          ? listing.images[0]
+                          : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
+                        return (
+                          <TouchableOpacity
+                            style={styles.itemBox}
+                            onPress={() => handleListingPress(listing)}
+                            activeOpacity={0.85}
+                          >
+                            <Image source={{ uri: imageUri }} style={styles.itemImage} />
+                            <View style={styles.unlistedOverlay}>
+                              <Text style={styles.unlistedOverlayText}>UNLISTED</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      }}
+                    />
+                  </View>
+                )}
+                {isLoadingMore && (
+                  <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color="#111" />
+                  </View>
+                )}
+                {!hasMore && !isLoadingMore && listedCount > 0 && (
+                  <View style={styles.footerContainer}>
+                    <View style={styles.footerDivider} />
+                    <Text style={styles.footerText}>
+                      You've reached the end • {listedCount} {listedCount === 1 ? 'item' : 'items'} found
+                    </Text>
+                    <Text style={styles.footerSubtext}>
+                      All your active listings are shown above
+                    </Text>
+                  </View>
+                )}
+              </>
             }
             ListEmptyComponent={
               loading ? (
@@ -897,5 +1041,31 @@ const styles = StyleSheet.create({
   },
   itemInvisible: {
     backgroundColor: "transparent",
+  },
+  // Footer styles
+  footerContainer: {
+    alignItems: "center",
+    paddingVertical: 40,
+    paddingHorizontal: 32,
+    rowGap: 8,
+  },
+  footerDivider: {
+    width: 60,
+    height: 3,
+    backgroundColor: "#e5e5e5",
+    borderRadius: 999,
+    marginBottom: 16,
+  },
+  footerText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#666",
+    textAlign: "center",
+  },
+  footerSubtext: {
+    fontSize: 13,
+    color: "#999",
+    textAlign: "center",
+    marginTop: 4,
   },
 });

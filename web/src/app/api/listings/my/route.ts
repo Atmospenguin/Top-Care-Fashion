@@ -132,6 +132,9 @@ export async function GET(req: NextRequest) {
     console.log("📖 Final where clause:", JSON.stringify(where, null, 2));
     console.log("📖 Order by:", orderBy);
 
+    // Get total count of listings matching the where clause
+    const total = await prisma.listings.count({ where });
+
     const listings = await prisma.listings.findMany({
       where,
       include: {
@@ -283,11 +286,11 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    console.log(`✅ Found ${formattedListings.length} listings for user ${user.id}`);
+    console.log(`✅ Found ${formattedListings.length} listings for user ${user.id}, total: ${total}`);
 
     return NextResponse.json({
       listings: formattedListings,
-      total: formattedListings.length,
+      total: total,
     });
 
   } catch (error) {

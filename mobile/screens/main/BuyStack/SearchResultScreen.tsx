@@ -94,6 +94,7 @@ export default function SearchResultScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
   const PAGE_SIZE = 20;
 
   useEffect(() => {
@@ -156,11 +157,13 @@ export default function SearchResultScreen() {
 
       console.log('🔍 SearchResult: Received items:', result.items.length);
       console.log('🔍 SearchResult: Has more:', result.hasMore);
+      console.log('🔍 SearchResult: Total:', result.total);
       console.log('🔍 SearchResult: First item:', JSON.stringify(result.items[0], null, 2));
 
       // ✅ Use items directly from API - no error-prone mapping!
       setApiListings(result.items);
       setHasMore(result.hasMore);
+      setTotalCount(result.total);
       setOffset(PAGE_SIZE);
     } catch (error) {
       console.error('🔍 SearchResult: Error loading listings:', error);
@@ -435,7 +438,7 @@ export default function SearchResultScreen() {
               </View>
             )}
           </TouchableOpacity>
-          <Text style={styles.resultCount}>{filteredListings.length} results</Text>
+          <Text style={styles.resultCount}>{totalCount > 0 ? totalCount : filteredListings.length} results</Text>
         </View>
       </Animated.View>
 
@@ -494,11 +497,12 @@ export default function SearchResultScreen() {
           }
 
           if (!hasMore && filteredListings.length > 0) {
+            const displayCount = totalCount > 0 ? totalCount : filteredListings.length;
             return (
               <View style={styles.footerContainer}>
                 <View style={styles.footerDivider} />
                 <Text style={styles.footerText}>
-                  You've reached the end • {filteredListings.length} {filteredListings.length === 1 ? 'item' : 'items'} found
+                  You've reached the end • {displayCount} {displayCount === 1 ? 'item' : 'items'} found
                 </Text>
                 <Text style={styles.footerSubtext}>
                   Try adjusting your filters to see more results
