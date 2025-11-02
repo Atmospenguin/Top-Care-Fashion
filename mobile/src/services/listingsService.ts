@@ -121,17 +121,23 @@ const VALID_LISTING_CATEGORIES: ListingCategory[] = [
 
 const PLACEHOLDER_STRING_TOKENS = new Set([
   "",
-  "n",
-  "na",
   "notavailable",
   "notapplicable",
   "none",
   "null",
   "undefined",
+  "select",
+  "selecta",
+  "selectcategory",
+  "selectacategory",
+  "choose",
+  "choosecategory",
 ]);
 
 const normalizeToken = (value: string) =>
-  value.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  value
+    .toLowerCase()
+    .replace(/[\s'"`~!@#$%^&*()_+\-={}\[\]\\|:;.,<>\/?]/g, "");
 
 const sanitizeStringValue = (value?: string | null): string | null => {
   if (value === null || value === undefined) {
