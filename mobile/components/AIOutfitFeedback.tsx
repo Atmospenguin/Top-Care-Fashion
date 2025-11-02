@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from './Icon';
+import { API_BASE_URL } from '../src/config/api';
 
 interface OutfitItem {
   type: 'top' | 'bottom' | 'shoes' | 'accessory';
@@ -41,8 +42,6 @@ interface Props {
   onAnalysisComplete?: (analysis: AIAnalysis) => void;
 }
 
-const API_URL = 'http://192.168.31.188:3000';
-
 export default function AIOutfitFeedback({ items, onStyleNameSelected, autoAnalyze = false, onAnalysisComplete }: Props) {
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
@@ -70,7 +69,7 @@ export default function AIOutfitFeedback({ items, onStyleNameSelected, autoAnaly
 
       console.log('🤖 Analyzing outfit with AI...');
 
-      const response = await fetch(`${API_URL}/api/outfits/analyze`, {
+      const response = await fetch(`${API_BASE_URL}/api/outfits/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

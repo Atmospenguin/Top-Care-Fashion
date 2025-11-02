@@ -186,30 +186,6 @@ export default function BagScreen() {
     };
   }, [displayItems]);
 
-  // 更新商品数量
-  const updateQuantity = async (cartItemId: number | undefined, newQuantity: number) => {
-    if (isReadOnly || cartItemId === undefined) {
-      return;
-    }
-    if (newQuantity < 1) {
-      await removeItem(cartItemId);
-      return;
-    }
-
-    try {
-      await cartService.updateCartItem(cartItemId, newQuantity);
-      // 更新本地状态
-      setCartItems(prev => prev.map(item => 
-        item.id === cartItemId 
-          ? { ...item, quantity: newQuantity }
-          : item
-      ));
-    } catch (err) {
-      console.error('Error updating quantity:', err);
-      Alert.alert('Error', 'Failed to update quantity');
-    }
-  };
-
   // 删除商品
   const removeItem = async (cartItemId: number | undefined) => {
     if (isReadOnly || cartItemId === undefined) {
@@ -308,22 +284,8 @@ export default function BagScreen() {
                     </Text>
                     <Text style={styles.itemPrice}>${typeof listing.price === 'number' ? listing.price.toFixed(2) : parseFloat(listing.price || '0').toFixed(2)}</Text>
                   </View>
-                  <View style={styles.quantityControls}>
-                    <TouchableOpacity
-                      style={styles.quantityBtn}
-                      disabled={!canModify}
-                      onPress={() => updateQuantity(cartId, quantity - 1)}
-                    >
-                      <Icon name="remove" size={16} color={canModify ? "#666" : "#ccc"} />
-                    </TouchableOpacity>
-                    <Text style={styles.quantityText}>{quantity}</Text>
-                    <TouchableOpacity
-                      style={styles.quantityBtn}
-                      disabled={!canModify}
-                      onPress={() => updateQuantity(cartId, quantity + 1)}
-                    >
-                      <Icon name="add" size={16} color={canModify ? "#666" : "#ccc"} />
-                    </TouchableOpacity>
+                  <View style={styles.itemActions}>
+                    <Text style={styles.quantityStatic}>Qty {quantity}</Text>
                     <TouchableOpacity
                       style={styles.removeBtn}
                       disabled={!canModify}
@@ -431,19 +393,15 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "#f1f1f1",
   },
-  quantityText: { fontSize: 13, fontWeight: "600" },
-  quantityControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    columnGap: 8,
+  quantityStatic: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#555",
   },
-  quantityBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#f1f1f1',
-    alignItems: 'center',
-    justifyContent: 'center',
+  itemActions: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+    rowGap: 8,
   },
   removeBtn: {
     width: 28,

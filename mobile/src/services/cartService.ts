@@ -72,7 +72,7 @@ class CartService {
 
   async updateCartItem(cartItemId: number, quantity: number): Promise<CartItem> {
     try {
-      const { data } = await apiClient.patch<CartItem>(`${this.basePath}/${cartItemId}`, { quantity });
+      const { data } = await apiClient.put<CartItem>(`${this.basePath}/${cartItemId}`, { quantity });
       if (!data) throw new Error('Empty response');
       return data;
     } catch (error) {
