@@ -371,8 +371,8 @@ class MessagesService {
             image: newConversation.listing.image_url || (newConversation.listing.image_urls as any)?.[0] || null
           },
           seller: { 
-            name: otherUser.username,
-            avatar: otherUser.avatar_url 
+            name: participantSummary.username,
+            avatar: participantSummary.avatar 
           },
           status: "Inquiry"
         } : {
@@ -384,8 +384,8 @@ class MessagesService {
             image: null
           },
           seller: { 
-            name: otherUser.username,
-            avatar: otherUser.avatar_url 
+            name: participantSummary.username,
+            avatar: participantSummary.avatar 
           },
           status: "Inquiry"
         }

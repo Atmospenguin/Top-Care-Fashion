@@ -14,6 +14,7 @@ export { notificationService } from './notificationService';
 export { premiumService, PremiumServiceType } from './premiumService';
 export { benefitsService, BenefitsServiceType } from './benefitsService';
 export { paymentMethodsService } from './paymentMethodsService';
+export { addressService } from './addressService';
 export { NotificationHelper } from './notificationHelper';
 
 // 导出类型
@@ -67,4 +68,9 @@ export type {
   CreatePaymentMethodRequest,
   UpdatePaymentMethodRequest
 } from './paymentMethodsService';
+export type {
+  ShippingAddress,
+  CreateAddressRequest,
+  UpdateAddressRequest
+} from './addressService';
 

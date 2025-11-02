@@ -12,7 +12,14 @@ import {
   DEFAULT_PAYMENT_METHOD,
   DEFAULT_SHIPPING_ADDRESS,
 } from "../../../mocks/shop";
-import { ordersService, paymentMethodsService, type PaymentMethod } from "../../../src/services";
+import { 
+  ordersService, 
+  paymentMethodsService, 
+  addressService,
+  type PaymentMethod,
+  type ShippingAddress,
+  type CreateAddressRequest,
+} from "../../../src/services";
 import { messagesService } from "../../../src/services/messagesService";
 import { useAuth } from "../../../contexts/AuthContext";
 
@@ -40,6 +47,21 @@ export default function CheckoutScreen() {
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(null);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   
+  // 🔥 地址管理状态
+  const [defaultAddress, setDefaultAddress] = useState<ShippingAddress | null>(null);
+  const [showAddAddressForm, setShowAddAddressForm] = useState(false);
+  const [addressForm, setAddressForm] = useState<CreateAddressRequest>({
+    name: '',
+    phone: '',
+    line1: '',
+    line2: '',
+    city: '',
+    state: '',
+    country: '',
+    postalCode: '',
+    isDefault: false,
+  });
+  
   // 🔥 编辑状态管理
   const [editingField, setEditingField] = useState<'personal' | 'payment' | null>(null);
   const [editForm, setEditForm] = useState({
@@ -56,27 +78,46 @@ export default function CheckoutScreen() {
   const total = useMemo(() => subtotal + shipping, [subtotal, shipping]);
   const deliveryEstimate = useMemo(() => getDeliveryEstimate(), []);
 
-  // 🔥 从后端加载用户默认支付方式（如果存在）
+  // 🔥 从后端加载用户默认支付方式和地址
   useEffect(() => {
     let mounted = true;
-    const loadDefaultPayment = async () => {
+    
+    const loadDefaults = async () => {
       try {
-        const def = await paymentMethodsService.getDefaultPaymentMethod();
+        // 加载默认支付方式
+        const defPayment = await paymentMethodsService.getDefaultPaymentMethod();
         if (!mounted) return;
-        if (def) {
-          setSelectedPaymentMethodId(def.id);
+        if (defPayment) {
+          setSelectedPaymentMethodId(defPayment.id);
           setPaymentMethod({
-            label: def.label,
-            brand: def.brand || 'Card',
-            last4: def.last4 || '0000',
+            label: defPayment.label,
+            brand: defPayment.brand || 'Card',
+            last4: defPayment.last4 || '0000',
+          });
+        }
+        
+        // 加载默认地址
+        const defAddress = await addressService.getDefaultAddress();
+        if (!mounted) return;
+        if (defAddress) {
+          setDefaultAddress(defAddress);
+          setShippingAddress({
+            name: defAddress.name,
+            phone: defAddress.phone,
+            line1: defAddress.line1,
+            line2: defAddress.line2 || '',
+            city: defAddress.city,
+            state: defAddress.state,
+            postalCode: defAddress.postalCode,
+            country: defAddress.country,
           });
         }
       } catch (err) {
-        console.warn('Failed to load default payment method', err);
+        console.warn('Failed to load defaults', err);
       }
     };
 
-    loadDefaultPayment();
+    loadDefaults();
     return () => { mounted = false; };
   }, []);
 
@@ -126,6 +167,61 @@ export default function CheckoutScreen() {
 
   const handleCancelEdit = () => {
     setEditingField(null);
+  };
+
+  // 🔥 处理添加地址
+  const handleAddAddress = () => {
+    setAddressForm({
+      name: '',
+      phone: '',
+      line1: '',
+      line2: '',
+      city: '',
+      state: '',
+      country: '',
+      postalCode: '',
+      isDefault: false,
+    });
+    setShowAddAddressForm(true);
+  };
+
+  const handleSaveNewAddress = async () => {
+    // 验证必填字段
+    if (!addressForm.name || !addressForm.phone || !addressForm.line1 || 
+        !addressForm.city || !addressForm.state || !addressForm.country || 
+        !addressForm.postalCode) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    try {
+      const newAddress = await addressService.createAddress(addressForm);
+      
+      // 如果这是第一个地址或设置为默认，使用它
+      if (!defaultAddress || addressForm.isDefault) {
+        setDefaultAddress(newAddress);
+        setShippingAddress({
+          name: newAddress.name,
+          phone: newAddress.phone,
+          line1: newAddress.line1,
+          line2: newAddress.line2 || '',
+          city: newAddress.city,
+          state: newAddress.state,
+          postalCode: newAddress.postalCode,
+          country: newAddress.country,
+        });
+      }
+      
+      setShowAddAddressForm(false);
+      Alert.alert('Success', 'Address added successfully');
+    } catch (error) {
+      console.error('Failed to save address:', error);
+      Alert.alert('Error', 'Failed to save address');
+    }
+  };
+
+  const handleCancelAddAddress = () => {
+    setShowAddAddressForm(false);
   };
 
   // 🔥 创建真实订单
@@ -293,20 +389,48 @@ export default function CheckoutScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Personal Information</Text>
-            <TouchableOpacity accessibilityRole="button" onPress={() => handleEditField('personal')}>
-              <Text style={styles.sectionAction}>Change</Text>
-            </TouchableOpacity>
+            <Text style={styles.sectionTitle}>Shipping Address</Text>
+            {defaultAddress && (
+              <TouchableOpacity accessibilityRole="button" onPress={() => handleEditField('personal')}>
+                <Text style={styles.sectionAction}>Change</Text>
+              </TouchableOpacity>
+            )}
           </View>
           
-          {/* 显示姓名 */}
-          <Text style={styles.addressName}>{shippingAddress.name}</Text>
-          
-          {/* 显示电话 */}
-          <Text style={styles.addressPhone}>{shippingAddress.phone}</Text>
-          
-          {/* 显示地址 */}
-          <Text style={styles.addressBody}>{formatCurrentAddress()}</Text>
+          {defaultAddress ? (
+            <>
+              {/* 显示默认地址 */}
+              <View style={styles.defaultAddressCard}>
+                <Text style={styles.addressName}>{shippingAddress.name}</Text>
+                <Text style={styles.addressPhone}>{shippingAddress.phone}</Text>
+                <Text style={styles.addressBody}>{formatCurrentAddress()}</Text>
+                <View style={styles.defaultBadge}>
+                  <Text style={styles.defaultBadgeText}>Default</Text>
+                </View>
+              </View>
+              
+              {/* Add Address 按钮 */}
+              <TouchableOpacity 
+                style={styles.addAddressButton}
+                onPress={handleAddAddress}
+              >
+                <Icon name="add-circle-outline" size={20} color="#0066FF" />
+                <Text style={styles.addAddressText}>Add new address</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              {/* 没有默认地址时显示提示和按钮 */}
+              <Text style={styles.noAddressText}>No shipping address saved</Text>
+              <TouchableOpacity 
+                style={styles.addAddressButtonPrimary}
+                onPress={handleAddAddress}
+              >
+                <Icon name="add-circle" size={20} color="#fff" />
+                <Text style={styles.addAddressTextPrimary}>Add shipping address</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         <View style={styles.sectionCard}>
@@ -467,6 +591,107 @@ export default function CheckoutScreen() {
                 }}
               />
             )}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* 🔥 添加新地址模态框 */}
+      <Modal
+        visible={showAddAddressForm}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={handleCancelAddAddress}>
+              <Text style={styles.modalCancel}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Add Address</Text>
+            <TouchableOpacity onPress={handleSaveNewAddress}>
+              <Text style={styles.modalSave}>Save</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Name</Text>
+              <TextInput
+                style={styles.textInput}
+                value={addressForm.name}
+                onChangeText={(text) => setAddressForm({ ...addressForm, name: text })}
+                placeholder="Enter your full name"
+              />
+
+              <Text style={styles.inputLabel}>Phone Number</Text>
+              <TextInput
+                style={styles.textInput}
+                value={addressForm.phone}
+                onChangeText={(text) => setAddressForm({ ...addressForm, phone: text })}
+                placeholder="+1 (555) 123-4567"
+                keyboardType="phone-pad"
+              />
+
+              <Text style={styles.inputLabel}>Street Address</Text>
+              <TextInput
+                style={styles.textInput}
+                value={addressForm.line1}
+                onChangeText={(text) => setAddressForm({ ...addressForm, line1: text })}
+                placeholder="Street Address"
+              />
+
+              <Text style={styles.inputLabel}>Apartment, suite, etc. (Optional)</Text>
+              <TextInput
+                style={styles.textInput}
+                value={addressForm.line2}
+                onChangeText={(text) => setAddressForm({ ...addressForm, line2: text })}
+                placeholder="Apt/Suite"
+              />
+
+              <Text style={styles.inputLabel}>City</Text>
+              <TextInput
+                style={styles.textInput}
+                value={addressForm.city}
+                onChangeText={(text) => setAddressForm({ ...addressForm, city: text })}
+                placeholder="City"
+              />
+
+              <Text style={styles.inputLabel}>State/Province</Text>
+              <TextInput
+                style={styles.textInput}
+                value={addressForm.state}
+                onChangeText={(text) => setAddressForm({ ...addressForm, state: text })}
+                placeholder="State"
+              />
+
+              <Text style={styles.inputLabel}>Postal Code</Text>
+              <TextInput
+                style={styles.textInput}
+                value={addressForm.postalCode}
+                onChangeText={(text) => setAddressForm({ ...addressForm, postalCode: text })}
+                placeholder="12345"
+                keyboardType="numeric"
+              />
+
+              <Text style={styles.inputLabel}>Country</Text>
+              <TextInput
+                style={styles.textInput}
+                value={addressForm.country}
+                onChangeText={(text) => setAddressForm({ ...addressForm, country: text })}
+                placeholder="Country"
+              />
+
+              <View style={styles.checkboxRow}>
+                <Text style={styles.checkboxLabel}>Make this my default address</Text>
+                <TouchableOpacity
+                  style={[styles.checkbox, addressForm.isDefault && styles.checkboxActive]}
+                  onPress={() => setAddressForm({ ...addressForm, isDefault: !addressForm.isDefault })}
+                >
+                  {addressForm.isDefault && (
+                    <Icon name="checkmark" size={18} color="#fff" />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
           </ScrollView>
         </View>
       </Modal>
@@ -670,5 +895,87 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#856404",
     lineHeight: 16,
+  },
+  // 🔥 新增地址相关样式
+  defaultAddressCard: {
+    position: 'relative',
+    paddingTop: 8,
+  },
+  defaultBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 0,
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  defaultBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  addAddressButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    marginTop: 8,
+    gap: 8,
+  },
+  addAddressText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0066FF',
+  },
+  addAddressButtonPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    backgroundColor: '#0066FF',
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 8,
+  },
+  addAddressTextPrimary: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  noAddressText: {
+    fontSize: 14,
+    color: '#888',
+    fontStyle: 'italic',
+    marginVertical: 8,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  checkboxLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+    marginRight: 12,
+  },
+  checkbox: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    backgroundColor: '#f5f5f5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxActive: {
+    backgroundColor: '#0066FF',
+    borderColor: '#0066FF',
   },
 });
