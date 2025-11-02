@@ -61,7 +61,7 @@ export type {
   SubmitReportResponse,
   UserReportSummary
 } from './reportsService';
-export type { UserBenefitsPayload } from './benefitsService';
+export type { UserBenefitsPayload, MixMatchUsageResult } from './benefitsService';
 export type {
   PaymentMethod,
   CreatePaymentMethodRequest,
