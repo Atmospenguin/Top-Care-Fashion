@@ -1,74 +1,7 @@
-import { apiClient as newApiClient } from './src/services/api';
+// Legacy API exports - This file is deprecated. Please use ./src/services/api directly.
+// Keeping this file for backward compatibility only.
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
-
-// 基础 API 客户端
-class ApiClient {
-  private baseURL: string;
-
-  constructor() {
-    this.baseURL = API_URL || 'https://top-care-fashion.vercel.app';
-  }
-
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${this.baseURL}${endpoint}`;
-    
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-        ...options,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error(`API Error for ${endpoint}:`, error);
-      throw error;
-    }
-  }
-
-  async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
-    let url = endpoint;
-    if (params) {
-      const searchParams = new URLSearchParams();
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          searchParams.append(key, String(value));
-        }
-      });
-      url += `?${searchParams.toString()}`;
-    }
-    return this.request<T>(url);
-  }
-
-  async post<T>(endpoint: string, data?: any): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
-    });
-  }
-
-  async put<T>(endpoint: string, data?: any): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: 'PUT',
-      body: data ? JSON.stringify(data) : undefined,
-    });
-  }
-
-  async delete<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: 'DELETE',
-    });
-  }
-}
-
-const apiClient = new ApiClient();
+import { apiClient } from './src/services/api';
 
 // 商品相关 API
 export async function fetchListings(params?: {
@@ -82,7 +15,7 @@ export async function fetchListings(params?: {
 }) {
   try {
     console.log('🔍 fetchListings: Making API request with params:', params);
-    const response = await newApiClient.get<{ success: boolean; data: { items: any[] } }>('/api/listings', params);
+    const response = await apiClient.get<{ success: boolean; data: { items: any[] } }>('/api/listings', params);
     console.log('🔍 fetchListings: API response:', response);
     const items = response.data?.data?.items || [];
     console.log('🔍 fetchListings: Extracted items:', items.length);
@@ -95,7 +28,7 @@ export async function fetchListings(params?: {
 
 export async function fetchListingById(id: string) {
   try {
-    const data = await newApiClient.get<any>(`/api/listings/${id}`);
+    const data = await apiClient.get<any>(`/api/listings/${id}`);
     return data;
   } catch (error) {
     console.error("Error fetching listing by ID:", error);
@@ -107,17 +40,17 @@ export async function fetchListingById(id: string) {
 export async function signIn(email: string, password: string) {
   try {
     console.log("🔍 Starting login via Web API...");
-    const data = await newApiClient.post<{ user: any; source?: string; fallback?: boolean; access_token?: string; refresh_token?: string }>(
+    const data = await apiClient.post<{ user: any; source?: string; fallback?: boolean; access_token?: string; refresh_token?: string }>(
       '/api/auth/signin',
       { email, password }
     );
 
     if (data.data?.user) {
       if (data.data.access_token) {
-        newApiClient.setAuthToken(data.data.access_token, data.data.refresh_token ?? null);
+        apiClient.setAuthToken(data.data.access_token, data.data.refresh_token ?? null);
       }
       try {
-        const profileResponse = await newApiClient.get<{ ok: boolean; user: any }>('/api/profile');
+        const profileResponse = await apiClient.get<{ ok: boolean; user: any }>('/api/profile');
         if (profileResponse.data?.user) {
           data.data.user = profileResponse.data.user;
         }
@@ -134,7 +67,7 @@ export async function signIn(email: string, password: string) {
 export async function signUp(username: string, email: string, password: string) {
   try {
     console.log("🔍 Starting registration via Web API...");
-    const data = await newApiClient.post<{ user: any; requiresConfirmation?: boolean }>(
+    const data = await apiClient.post<{ user: any; requiresConfirmation?: boolean }>(
       '/api/auth/register',
       { username, email, password }
     );
@@ -148,7 +81,7 @@ export async function signUp(username: string, email: string, password: string) 
 export async function getCurrentUser() {
   try {
     // 对移动端使用需要 Bearer 的接口
-    const data = await newApiClient.get<{ ok: boolean; user: any }>('/api/profile');
+    const data = await apiClient.get<{ ok: boolean; user: any }>('/api/profile');
     return data;
   } catch (error) {
     console.error("Error getting current user:", error);
@@ -159,8 +92,8 @@ export async function getCurrentUser() {
 export async function signOut() {
   try {
     console.log("🔍 Starting Web API sign out...");
-    newApiClient.clearAuthToken();
-    await newApiClient.post('/api/auth/signout');
+    apiClient.clearAuthToken();
+    await apiClient.post('/api/auth/signout');
     console.log('🔍 Web API sign out successful');
     return true;
   } catch (error) {
@@ -218,7 +151,7 @@ export async function updateUserProfile(profileData: any) {
 // 反馈 API
 export async function getFeedbacks() {
   try {
-    const response = await newApiClient.get<{
+    const response = await apiClient.get<{
       feedbacks?: any[];
       testimonials?: any[];
     }>('/api/feedback');
@@ -241,7 +174,7 @@ export async function createFeedback(feedbackData: {
   rating?: number;
 }) {
   try {
-    const response = await newApiClient.post<any>('/api/feedback', feedbackData);
+    const response = await apiClient.post<any>('/api/feedback', feedbackData);
     return response.data;
   } catch (error) {
     console.error("Error creating feedback:", error);
@@ -252,8 +185,8 @@ export async function createFeedback(feedbackData: {
 // 购物车 API
 export async function getCartItems() {
   try {
-    const data = await apiClient.get<{ items: any[] }>('/api/cart');
-    return data.items || [];
+    const response = await apiClient.get<{ items: any[] }>('/api/cart');
+    return response.data?.items || [];
   } catch (error) {
     console.error("Error fetching cart items:", error);
     return [];
@@ -302,9 +235,9 @@ export async function getOrders(type?: 'buy' | 'sell', status?: string) {
     const params: any = {};
     if (type) params.type = type;
     if (status) params.status = status;
-    
-    // 使用带有 Bearer Token 的新客户端
-    const response = await newApiClient.get<{ orders: any[] }>('/api/orders', params);
+
+    // 使用带有 Bearer Token 的客户端
+    const response = await apiClient.get<{ orders: any[] }>('/api/orders', params);
     return response.data?.orders || [];
   } catch (error) {
     console.error("Error fetching orders:", error);
@@ -331,8 +264,8 @@ export async function createOrder(orderData: {
 // 地址 API
 export async function getAddresses() {
   try {
-    const data = await apiClient.get<{ addresses: any[] }>('/api/addresses');
-    return data.addresses || [];
+    const response = await apiClient.get<{ addresses: any[] }>('/api/addresses');
+    return response.data?.addresses || [];
   } catch (error) {
     console.error("Error fetching addresses:", error);
     return [];
@@ -386,8 +319,8 @@ export async function deleteAddress(addressId: number) {
 // 支付方式 API
 export async function getPaymentMethods() {
   try {
-    const data = await apiClient.get<{ paymentMethods: any[] }>('/api/payment-methods');
-    return data.paymentMethods || [];
+    const response = await apiClient.get<{ paymentMethods: any[] }>('/api/payment-methods');
+    return response.data?.paymentMethods || [];
   } catch (error) {
     console.error("Error fetching payment methods:", error);
     return [];
