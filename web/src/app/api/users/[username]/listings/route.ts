@@ -102,6 +102,9 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
     }
     // 如果 status === 'all'，不添加额外条件
 
+    // Get total count of listings matching the where clause
+    const total = await prisma.listings.count({ where: whereCondition });
+
     const listings = await prisma.listings.findMany({
       where: whereCondition,
       include: {
@@ -197,10 +200,12 @@ export async function GET(req: NextRequest, context: { params: Promise<{ usernam
       };
     });
 
+    console.log(`✅ Found ${formattedListings.length} listings for user ${username}, total: ${total}`);
+
     return NextResponse.json({
       success: true,
       listings: formattedListings,
-      total: formattedListings.length,
+      total: total,
     });
 
   } catch (error) {

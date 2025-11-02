@@ -620,10 +620,10 @@ export class ListingsService {
   }
 
   // 获取用户自己的listings
-  async getUserListings(params?: UserListingsQueryParams): Promise<ListingItem[]> {
+  async getUserListings(params?: UserListingsQueryParams): Promise<{ listings: ListingItem[]; total: number }> {
     try {
       console.log("📖 Fetching user listings with params:", params);
-      
+
       // 构建查询参数，过滤掉undefined值
       const queryParams: any = {};
       if (params?.status) queryParams.status = params.status;
@@ -635,21 +635,27 @@ export class ListingsService {
       if (params?.sortBy) queryParams.sortBy = params.sortBy;
       if (params?.limit) queryParams.limit = params.limit;
       if (params?.offset) queryParams.offset = params.offset;
-      
-      const response = await apiClient.get<{ listings: ListingItem[] }>(
+
+      const response = await apiClient.get<{ listings: ListingItem[]; total?: number }>(
         '/api/listings/my',
         queryParams
       );
-      
+
       console.log("📖 User listings response:", response);
-      
+
       if (response.data?.listings) {
+        const total = response.data.total ?? response.data.listings.length;
         console.log(`✅ Found ${response.data.listings.length} user listings`);
-        return response.data.listings.map((item) =>
-          this.sanitizeListingItem(item)
-        );
+        console.log(`📊 Backend total: ${response.data.total} | Fallback total: ${total}`);
+        if (!response.data.total) {
+          console.warn('⚠️ Backend did not return total field! Using listings.length as fallback');
+        }
+        return {
+          listings: response.data.listings.map((item) => this.sanitizeListingItem(item)),
+          total,
+        };
       }
-      
+
       throw new Error('No listings data received');
     } catch (error) {
       console.error('Error fetching user listings:', error);
