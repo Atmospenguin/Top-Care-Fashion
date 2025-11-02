@@ -374,6 +374,18 @@ export async function PATCH(
       console.log(`✅ Listing ${existingOrder.listing_id} restored to available after order ${orderId} cancellation`);
     }
 
+    // 🔥 如果订单完成（买家确认收货），标记商品为已售出
+    if ((status === 'RECEIVED' || status === 'COMPLETED') && existingOrder.listing_id) {
+      await prisma.listings.update({
+        where: { id: existingOrder.listing_id },
+        data: {
+          sold: true,
+          sold_at: new Date()
+        }
+      });
+      console.log(`✅ Listing ${existingOrder.listing_id} marked as sold after order ${orderId} completion`);
+    }
+
     // 🔔 创建订单状态变化notification
     try {
       const isSeller = currentUser.id === existingOrder.seller_id;
@@ -500,14 +512,21 @@ export async function PATCH(
           if (systemMessage) {
             // 🔥 Use postSystemMessageOnce to prevent duplicates
             const actorName = currentUser.username;
+            // 🔥 对于 RECEIVED 和 COMPLETED，统一使用 'COMPLETED' 作为 messageType，防止重复
+            const normalizedMessageType = (status === 'RECEIVED' || status === 'COMPLETED') 
+              ? 'COMPLETED' 
+              : status;
+            
             await postSystemMessageOnce({
               conversationId: conversation.id,
               senderId: currentUser.id,
               receiverId: targetUserId,
               content: systemMessage,
               actorName: actorName,
+              orderId: orderId, // 🔥 传入订单 ID
+              messageType: normalizedMessageType // 🔥 使用标准化后的消息类型
             });
-            console.log(`📨 System message created in conversation ${conversation.id}: ${systemMessage}`);
+            console.log(`📨 System message created in conversation ${conversation.id}: ${systemMessage} (messageType: ${normalizedMessageType})`);
           }
         } catch (messageError) {
           console.error('❌ Error creating system message:', messageError);

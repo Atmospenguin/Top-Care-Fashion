@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
     const minPrice = searchParams.get("minPrice");
     const maxPrice = searchParams.get("maxPrice");
     const sortBy = searchParams.get("sortBy") || "latest";
+    const genderParam = searchParams.get("gender");
 
     console.log("📖 Loading user listings for user:", user.id);
     console.log("📖 Filter params:", { status, category, condition, minPrice, maxPrice, sortBy });
@@ -40,12 +41,17 @@ export async function GET(req: NextRequest) {
 
     if (status === "active") {
       where.listed = true;
+      where.sold = false; // 🔥 排除已售出的商品
     } else if (status === "sold") {
       where.sold = true;
     } else if (status === "unlisted") {
       where.listed = false;
+      where.sold = false; // 🔥 排除已售出的草稿
+    } else if (status === "all") {
+      // 🔥 'all' 表示 active + unlisted（不包括已售出的）
+      where.sold = false;
     }
-    // 如果status是'all'或者没有指定，则获取所有listings
+    // 如果status没有指定，则获取所有listings（包括已售出的）
 
     // 添加filter条件
     if (category && category !== "All") {
@@ -64,6 +70,21 @@ export async function GET(req: NextRequest) {
       else if (conditionType === "FAIR") conditionType = "FAIR";
       
       where.condition_type = conditionType;
+    }
+
+    if (genderParam) {
+      const normalizeGender = (value: string): "Men" | "Women" | "Unisex" | undefined => {
+        const lower = value.toLowerCase();
+        if (lower === "men" || lower === "male") return "Men";
+        if (lower === "women" || lower === "female") return "Women";
+        if (lower === "unisex" || lower === "all") return "Unisex";
+        return undefined;
+      };
+
+      const normalizedGender = normalizeGender(genderParam);
+      if (normalizedGender) {
+        where.gender = normalizedGender;
+      }
     }
 
     if (minPrice) {
@@ -128,7 +149,7 @@ export async function GET(req: NextRequest) {
 
     // 🔥 为每个sold商品获取conversationId
     const listingsWithConversations = await Promise.all(
-      listings.map(async (listing) => {
+      listings.map(async (listing: any) => {
         let conversationId = null;
         if (status === "sold" && listing.orders?.[0]) {
           const latestOrder = listing.orders[0];
@@ -189,7 +210,7 @@ export async function GET(req: NextRequest) {
       return [];
     };
 
-    const formattedListings = listingsWithConversations.map((listing) => {
+  const formattedListings = listingsWithConversations.map((listing: any) => {
       const images = (() => {
         const parsed = parseJsonArray(listing.image_urls);
         if (parsed.length > 0) {

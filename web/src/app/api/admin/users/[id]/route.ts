@@ -1,48 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getConnection, toBoolean, toNumber } from "@/lib/db";
+import { prisma, toNumber } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
+import { Gender, UserRole, UserStatus } from "@prisma/client";
 
-type DbUser = {
-  id: number | string;
+type UserResponse = {
+  id: string;
   username: string;
   email: string;
-  status: string;
-  role: string;
-  is_premium: boolean | number | null;
-  premium_until: Date | string | null;
-  dob: Date | string | null;
-  gender: string | null;
-  average_rating: unknown;
-  total_reviews: unknown;
-  createdAt: Date | string;
-  avatar_url?: string | null;
+  status: "active" | "suspended";
+  role: "User" | "Admin";
+  is_premium: boolean;
+  premium_until: string | null;
+  dob: string | null;
+  gender: "Male" | "Female" | null;
+  average_rating: number | null;
+  total_reviews: number;
+  createdAt: string;
+  avatar_url: string | null;
 };
 
-function mapRoleOut(value: unknown): "User" | "Admin" {
-  return String(value ?? "").toUpperCase() === "ADMIN" ? "Admin" : "User";
+function mapRoleOut(value: UserRole): "User" | "Admin" {
+  return value === UserRole.ADMIN ? "Admin" : "User";
 }
 
-function mapStatusOut(value: unknown): "active" | "suspended" {
-  return String(value ?? "").toUpperCase() === "SUSPENDED" ? "suspended" : "active";
+function mapStatusOut(value: UserStatus): "active" | "suspended" {
+  return value === UserStatus.SUSPENDED ? "suspended" : "active";
 }
 
-function mapGenderOut(value: unknown): "Male" | "Female" | null {
-  const normalized = String(value ?? "").toUpperCase();
-  if (normalized === "MALE") return "Male";
-  if (normalized === "FEMALE") return "Female";
+function mapGenderOut(value: Gender | null): "Male" | "Female" | null {
+  if (!value) return null;
+
+  // Handle new enum values
+  if (value === "Men" as Gender) return "Male";
+  if (value === "Women" as Gender) return "Female";
+  if (value === "Unisex" as Gender) return null;
+
+  // Backward compatibility with old enum
+  if (value === "MALE" as Gender) return "Male";
+  if (value === "FEMALE" as Gender) return "Female";
+
   return null;
 }
 
-function normalizeStatusIn(value: unknown): "ACTIVE" | "SUSPENDED" {
+function normalizeStatusIn(value: unknown): UserStatus {
   const normalized = String(value ?? "").trim().toUpperCase();
-  if (normalized === "SUSPENDED") return "SUSPENDED";
-  return "ACTIVE";
+  if (normalized === "SUSPENDED") return UserStatus.SUSPENDED;
+  return UserStatus.ACTIVE;
 }
 
-function normalizeRoleIn(value: unknown): "USER" | "ADMIN" {
+function normalizeRoleIn(value: unknown): UserRole {
   const normalized = String(value ?? "").trim().toUpperCase();
-  if (normalized === "ADMIN") return "ADMIN";
-  return "USER";
+  if (normalized === "ADMIN") return UserRole.ADMIN;
+  return UserRole.USER;
 }
 
 function normalizePremium(value: unknown): boolean {
@@ -55,42 +64,61 @@ function normalizePremium(value: unknown): boolean {
   return false;
 }
 
-function normalizeGenderIn(value: unknown): "MALE" | "FEMALE" | null {
+function normalizeGenderIn(value: unknown): Gender | null {
   const normalized = String(value ?? "").trim();
   if (!normalized) return null;
-  if (normalized === "Male" || normalized.toUpperCase() === "MALE") return "MALE";
-  if (normalized === "Female" || normalized.toUpperCase() === "FEMALE") return "FEMALE";
+
+  // Handle new API format (Male, Female, Unisex)
+  if (normalized === "Male") return "Men" as Gender;
+  if (normalized === "Female") return "Women" as Gender;
+  if (normalized === "Unisex") return "Unisex" as Gender;
+
+  // Backward compatibility with uppercase old enum
+  if (normalized.toUpperCase() === "MALE" || normalized.toUpperCase() === "MEN") return "Men" as Gender;
+  if (normalized.toUpperCase() === "FEMALE" || normalized.toUpperCase() === "WOMEN") return "Women" as Gender;
+
   return null;
 }
 
-function toIso(value: Date | string | null): string | null {
+function toIso(value: Date | null): string | null {
   if (!value) return null;
-  if (value instanceof Date) return value.toISOString();
-  const asDate = new Date(value);
-  return Number.isNaN(asDate.getTime()) ? String(value) : asDate.toISOString();
+  return value.toISOString();
 }
 
-function toDateOnly(value: Date | string | null): string | null {
+function toDateOnly(value: Date | null): string | null {
   if (!value) return null;
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
-  return String(value);
+  return value.toISOString().slice(0, 10);
 }
 
-function formatUser(row: DbUser) {
+function formatUser(user: {
+  id: number;
+  username: string;
+  email: string;
+  status: UserStatus;
+  role: UserRole;
+  is_premium: boolean;
+  premium_until: Date | null;
+  dob: Date | null;
+  gender: Gender | null;
+  average_rating: any;
+  total_reviews: number;
+  created_at: Date;
+  avatar_url: string | null;
+}): UserResponse {
   return {
-    id: String(row.id),
-    username: row.username,
-    email: row.email,
-    status: mapStatusOut(row.status),
-    role: mapRoleOut(row.role),
-    is_premium: toBoolean(row.is_premium),
-    premium_until: toIso(row.premium_until),
-    dob: toDateOnly(row.dob),
-    gender: mapGenderOut(row.gender),
-    average_rating: toNumber(row.average_rating),
-    total_reviews: toNumber(row.total_reviews) ?? 0,
-    createdAt: toIso(row.createdAt) ?? new Date().toISOString(),
-    avatar_url: row.avatar_url ?? null,
+    id: String(user.id),
+    username: user.username,
+    email: user.email,
+    status: mapStatusOut(user.status),
+    role: mapRoleOut(user.role),
+    is_premium: user.is_premium,
+    premium_until: toIso(user.premium_until),
+    dob: toDateOnly(user.dob),
+    gender: mapGenderOut(user.gender),
+    average_rating: toNumber(user.average_rating),
+    total_reviews: user.total_reviews ?? 0,
+    createdAt: toIso(user.created_at) ?? new Date().toISOString(),
+    avatar_url: user.avatar_url ?? null,
   };
 }
 
@@ -98,14 +126,28 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
   const params = await context.params;
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const conn = await getConnection();
-  const [rows]: any = await conn.execute(
-    "SELECT id, username, email, status, role, is_premium, premium_until, dob, gender, average_rating, total_reviews, avatar_url, created_at AS \"createdAt\" FROM users WHERE id = ?",
-    [Number(params.id)]
-  );
-  await conn.end();
-  if (!rows.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(formatUser(rows[0]));
+
+  const user = await prisma.users.findUnique({
+    where: { id: Number(params.id) },
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      status: true,
+      role: true,
+      is_premium: true,
+      premium_until: true,
+      dob: true,
+      gender: true,
+      average_rating: true,
+      total_reviews: true,
+      avatar_url: true,
+      created_at: true,
+    },
+  });
+
+  if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(formatUser(user));
 }
 
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -118,66 +160,60 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const { username, email, role, status, is_premium, gender } = body ?? {};
     const userId = Number(params.id);
 
-    if (status && Object.keys(body).length === 1) {
-      const normalized = String(status).trim().toUpperCase();
-      if (normalized !== "ACTIVE" && normalized !== "SUSPENDED") {
-        return NextResponse.json({ error: "Invalid status" }, { status: 400 });
-      }
-      const conn = await getConnection();
-      await conn.execute("UPDATE users SET status = ? WHERE id = ?", [normalized, userId]);
-      const [rows]: any = await conn.execute(
-        "SELECT id, username, email, status, role, is_premium, premium_until, dob, gender, average_rating, total_reviews, avatar_url, created_at AS \"createdAt\" FROM users WHERE id = ?",
-        [userId]
-      );
-      await conn.end();
-      if (!rows.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
-      return NextResponse.json(formatUser(rows[0]));
-    }
-
-    const updates: string[] = [];
-    const values: Array<string | number | boolean | null> = [];
+    // Build update data object with only defined fields
+    const updateData: {
+      username?: string;
+      email?: string;
+      role?: UserRole;
+      status?: UserStatus;
+      is_premium?: boolean;
+      gender?: Gender | null;
+    } = {};
 
     if (username !== undefined) {
-      updates.push("username = ?");
-      values.push(username);
+      updateData.username = username;
     }
     if (email !== undefined) {
-      updates.push("email = ?");
-      values.push(email);
+      updateData.email = email;
     }
     if (role !== undefined) {
-      updates.push("role = ?");
-      values.push(normalizeRoleIn(role));
+      updateData.role = normalizeRoleIn(role);
     }
     if (status !== undefined) {
-      updates.push("status = ?");
-      values.push(normalizeStatusIn(status));
+      updateData.status = normalizeStatusIn(status);
     }
     if (is_premium !== undefined) {
-      updates.push("is_premium = ?");
-      values.push(normalizePremium(is_premium));
+      updateData.is_premium = normalizePremium(is_premium);
     }
     if (gender !== undefined) {
-      updates.push("gender = ?");
-      values.push(normalizeGenderIn(gender));
+      updateData.gender = normalizeGenderIn(gender);
     }
 
-    if (updates.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 });
     }
 
-    values.push(userId);
-    const conn = await getConnection();
-    await conn.execute(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, values);
+    const user = await prisma.users.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        status: true,
+        role: true,
+        is_premium: true,
+        premium_until: true,
+        dob: true,
+        gender: true,
+        average_rating: true,
+        total_reviews: true,
+        avatar_url: true,
+        created_at: true,
+      },
+    });
 
-    const [rows]: any = await conn.execute(
-      "SELECT id, username, email, status, role, is_premium, premium_until, dob, gender, average_rating, total_reviews, avatar_url, created_at AS \"createdAt\" FROM users WHERE id = ?",
-      [userId]
-    );
-    await conn.end();
-
-    if (!rows.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json(formatUser(rows[0]));
+    return NextResponse.json(formatUser(user));
   } catch (error) {
     console.error("Error updating user:", error);
     return NextResponse.json({ error: "Failed to update user" }, { status: 500 });

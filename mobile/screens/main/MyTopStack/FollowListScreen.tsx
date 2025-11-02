@@ -16,6 +16,7 @@ import type { RouteProp } from "@react-navigation/native";
 import Header from "../../../components/Header";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 import { userService, type FollowListEntry } from "../../../src/services/userService";
+import { ApiError } from "../../../src/config/api";
 
 type FollowListRouteParams = {
   FollowList: { type: "followers" | "following"; username?: string };
@@ -52,7 +53,16 @@ export default function FollowListScreen() {
         setEntries(data);
       } catch (err) {
         console.error("❌ Failed to load follow list", err);
-        setError("Unable to load list. Please try again.");
+        if (err instanceof ApiError && err.status === 403) {
+          const message = targetUsername
+            ? listType === "followers"
+              ? "Only followers can view this list."
+              : "Only followers can view who this user follows."
+            : "Your privacy settings prevent displaying this list.";
+          setError(err.response?.error ?? message);
+        } else {
+          setError("Unable to load list. Please try again.");
+        }
       } finally {
         if (mode === "initial") {
           setLoading(false);

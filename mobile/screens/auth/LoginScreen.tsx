@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, BackHandler } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, BackHandler } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../App";
 import { LOGO_FULL_COLOR } from "../../constants/assetUrls";
@@ -12,7 +12,8 @@ export default function LoginScreen({ navigation }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login, error, clearError, user } = useAuth();
+  const [localError, setLocalError] = useState<string | null>(null);
+  const { login, error, clearError } = useAuth();
 
   // Disable back button
   useEffect(() => {
@@ -31,31 +32,80 @@ export default function LoginScreen({ navigation }: Props) {
   }, [navigation]);
 
   const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert("Error", "Please fill in all fields");
+    // Clear previous errors
+    setLocalError(null);
+    clearError();
+
+    // Validation
+    if (!email.trim() && !password.trim()) {
+      setLocalError("Please enter your email and password");
+      return;
+    }
+    if (!email.trim()) {
+      setLocalError("Please enter your email address");
+      return;
+    }
+    if (!password.trim()) {
+      setLocalError("Please enter your password");
+      return;
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setLocalError("Please enter a valid email address");
       return;
     }
 
     try {
       setLoading(true);
-      clearError();
       await login(email.trim(), password);
       // 登录成功后，拉取一次用户资料以判定是否已有偏好
-      let hasPreference = false;
+      let hasCompletePreferences = false;
       try {
         const me = await getCurrentUser();
         const u = (me as any)?.data?.user || null;
-        hasPreference = Boolean(
-          u && (
-            u.gender ||
-            (Array.isArray(u.preferred_styles) && u.preferred_styles.length > 0) ||
-            u.preferred_size_top || u.preferred_size_bottom || u.preferred_size_shoe
-          )
+        // 严格检查：要求所有偏好字段都已填写
+        hasCompletePreferences = Boolean(
+          u &&
+          Array.isArray(u.preferred_styles) && u.preferred_styles.length > 0 &&
+          u.preferred_size_shoe &&
+          u.preferred_size_top &&
+          u.preferred_size_bottom
         );
       } catch {}
-      navigation.replace(hasPreference ? "Main" : "OnboardingPreference");
+      navigation.replace(hasCompletePreferences ? "Main" : "OnboardingPreference");
     } catch (error: any) {
-      Alert.alert("Login Failed", error.message || "Please check your credentials and try again");
+      // Handle different error types based on HTTP status code and message
+      const errorMessage = error.message || "An unexpected error occurred";
+      const statusCode = error.status || error.statusCode;
+
+      // Handle errors based on HTTP status code first
+      if (statusCode === 401) {
+        setLocalError("Invalid email or password. Please check your credentials and try again.");
+      } else if (statusCode === 403) {
+        setLocalError("Your account has been suspended. Please contact support.");
+      } else if (statusCode === 404) {
+        setLocalError("Account not found. Please check your email or sign up.");
+      } else if (statusCode === 429) {
+        setLocalError("Too many login attempts. Please try again later.");
+      } else if (statusCode >= 500) {
+        setLocalError("Server error. Please try again later.");
+      } else if (statusCode === 0 || errorMessage.toLowerCase().includes("network") ||
+                 errorMessage.toLowerCase().includes("connection") ||
+                 errorMessage.toLowerCase().includes("timeout")) {
+        setLocalError("Network error. Please check your connection and try again.");
+      } else if (errorMessage.toLowerCase().includes("invalid") ||
+                 errorMessage.toLowerCase().includes("credentials") ||
+                 errorMessage.toLowerCase().includes("password")) {
+        setLocalError("Invalid email or password. Please try again.");
+      } else if (errorMessage.toLowerCase().includes("not found") ||
+                 errorMessage.toLowerCase().includes("user")) {
+        setLocalError("Account not found. Please check your email or sign up.");
+      } else {
+        // Show the server's error message if available, otherwise show generic error
+        setLocalError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -103,8 +153,11 @@ export default function LoginScreen({ navigation }: Props) {
       </TouchableOpacity>
 
       {/* 错误信息 */}
-      {error && (
-        <Text style={styles.errorText}>{error}</Text>
+      {(localError || error) && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.errorText}>{localError || error}</Text>
+        </View>
       )}
 
       {/* 登录按钮 */}
@@ -182,17 +235,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 8,
-   
+
   },
   loginText: { color: "#fff", fontSize: 18, fontWeight: "700" },
   loginBtnDisabled: { opacity: 0.6 },
 
-  errorText: {
-    color: "#F54B3D",
-    fontSize: 14,
-    textAlign: "center",
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEE2E2",
+    borderRadius: 12,
+    padding: 12,
     marginBottom: 16,
-    paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  errorIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  errorText: {
+    flex: 1,
+    color: "#DC2626",
+    fontSize: 14,
+    lineHeight: 20,
   },
 });
 

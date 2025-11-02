@@ -41,22 +41,14 @@ export default function HelpSupportScreen() {
       conversationId: "support-1",
     };
 
-    const tabNavigation = navigation.getParent?.();
-    if (tabNavigation?.navigate) {
-      tabNavigation.navigate("Inbox", {
-        screen: "Chat",
-        params: chatParams,
-      });
-      return;
+    // Navigate via the root stack so the user returns to HelpSupport when backing out of chat
+    let rootNavigation: any = navigation;
+    while (rootNavigation?.getParent?.()) {
+      rootNavigation = rootNavigation.getParent();
     }
 
-    let currentNav: any = navigation;
-    while (currentNav?.getParent?.()) {
-      currentNav = currentNav.getParent();
-    }
-
-    if (currentNav?.navigate) {
-      currentNav.navigate("ChatStandalone", chatParams);
+    if (rootNavigation?.navigate) {
+      rootNavigation.navigate("ChatStandalone", chatParams);
       return;
     }
 

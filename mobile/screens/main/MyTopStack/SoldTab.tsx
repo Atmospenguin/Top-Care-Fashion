@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -33,8 +33,10 @@ function formatData(data: any[], numColumns: number) {
   return newData;
 }
 
+type SoldFilter = "All" | "ToShip" | "InTransit" | "Completed" | "Cancelled";
+
 export default function SoldTab() {
-  const [filter, setFilter] = useState<"All" | "ToShip" | "InTransit" | "Completed" | "Cancelled">("All");
+  const [filter, setFilter] = useState<SoldFilter>("All");
   const [modalVisible, setModalVisible] = useState(false);
   const [soldListings, setSoldListings] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,31 +77,57 @@ export default function SoldTab() {
     loadSoldListings();
   }, []);
 
+  const normalizeOrderStatus = (status?: string | null) => {
+    if (!status) return null;
+    return status.toUpperCase();
+  };
+
+  const filterStatusMap: Record<Exclude<SoldFilter, "All">, string[]> = useMemo(() => ({
+    ToShip: ["IN_PROGRESS", "TO_SHIP"],
+    InTransit: ["SHIPPED", "IN_TRANSIT"],
+    Completed: ["COMPLETED", "REVIEWED", "DELIVERED", "RECEIVED"],
+    Cancelled: ["CANCELLED"],
+  }), []);
+
+  const getOverlayText = (status?: string | null) => {
+    const normalized = normalizeOrderStatus(status);
+    switch (normalized) {
+      case "IN_PROGRESS":
+      case "TO_SHIP":
+        return "TO SHIP";
+      case "SHIPPED":
+      case "IN_TRANSIT":
+        return "IN TRANSIT";
+      case "DELIVERED":
+        return "DELIVERED";
+      case "RECEIVED":
+        return "RECEIVED";
+      case "COMPLETED":
+        return "COMPLETED";
+      case "REVIEWED":
+        return "REVIEWED";
+      case "CANCELLED":
+        return "CANCELLED";
+      default:
+        return "SOLD";
+    }
+  };
+
   // Filter data based on order status
   const filtered = soldListings.filter((listing) => {
+    const status = normalizeOrderStatus(listing.orderStatus);
+
     if (filter === "All") {
-      // 🔥 "All" 不包含被取消的订单，只显示有效的销售记录
-      return listing.orderStatus !== "CANCELLED";
+      // "All" 不包含被取消的订单，只显示有效的销售记录
+      return status !== "CANCELLED";
     }
-    
-    // 🔥 完整的订单管理状态过滤
-    if (filter === "ToShip") {
-      return listing.orderStatus === "IN_PROGRESS"; // 🔥 卖家视角：IN_PROGRESS = To Ship
+
+    if (!status) {
+      return false;
     }
-    
-    if (filter === "InTransit") {
-      return listing.orderStatus === "SHIPPED";
-    }
-    
-    if (filter === "Completed") {
-      return listing.orderStatus === "COMPLETED" || listing.orderStatus === "REVIEWED";
-    }
-    
-    if (filter === "Cancelled") {
-      return listing.orderStatus === "CANCELLED";
-    }
-    
-    return true;
+
+    const allowedStatuses = filterStatusMap[filter] ?? [];
+    return allowedStatuses.includes(status);
   });
 
   return (
@@ -206,7 +234,7 @@ export default function SoldTab() {
                 />
                 <View style={styles.overlay}>
                   <Text style={styles.overlayText}>
-                    {item.orderStatus === "CANCELLED" ? "CANCELLED" : "SOLD"}
+                    {getOverlayText(item.orderStatus)}
                   </Text>
                 </View>
               </TouchableOpacity>

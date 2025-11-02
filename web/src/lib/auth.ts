@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import { verifyLegacyToken } from "@/lib/jwt";
 import { createSupabaseServer } from "@/lib/supabase";
+import { VisibilitySetting, isVisibilitySetting } from "@/types/privacy";
 
 export type SessionUser = {
   id: number;
@@ -13,6 +14,8 @@ export type SessionUser = {
   dob?: string | null;
   gender?: "Male" | "Female" | null;
   avatar_url?: string | null;
+  likesVisibility: VisibilitySetting;
+  followsVisibility: VisibilitySetting;
 };
 
 function mapRole(value: unknown): "User" | "Admin" {
@@ -28,18 +31,33 @@ function mapStatus(value: unknown): "active" | "suspended" {
 function mapGender(value: unknown): "Male" | "Female" | null {
   const normalized = String(value ?? "").toUpperCase();
   if (!normalized) return null;
+
+  // Handle new enum values (Men, Women, Unisex)
+  if (normalized === "MEN") return "Male";
+  if (normalized === "WOMEN") return "Female";
+  if (normalized === "UNISEX") return null;
+
+  // Backward compatibility with old enum (MALE, FEMALE)
   if (normalized === "MALE") return "Male";
   if (normalized === "FEMALE") return "Female";
+
   return null;
+}
+
+function mapVisibility(value: unknown): VisibilitySetting {
+  if (isVisibilitySetting(value)) return value;
+  const normalized = String(value ?? "").toUpperCase();
+  if (isVisibilitySetting(normalized)) return normalized;
+  return "PUBLIC";
 }
 
 export async function getSessionUser(req?: Request): Promise<SessionUser | null> {
   const store = await cookies();
-  
+
   // 首先尝试 Supabase 认证
   try {
     const supabase = await createSupabaseServer();
-    
+
     // 如果有 Request 对象，尝试从 Authorization header 获取 token
     if (req) {
       const authHeader = req.headers.get('authorization');
@@ -63,6 +81,8 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
                 dob: true,
                 gender: true,
                 avatar_url: true,
+                likes_visibility: true,
+                follows_visibility: true,
               },
             });
             if (user) {
@@ -76,6 +96,8 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
                 dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
                 gender: mapGender(user.gender),
                 avatar_url: user.avatar_url ?? null,
+                likesVisibility: mapVisibility(user.likes_visibility),
+                followsVisibility: mapVisibility(user.follows_visibility),
               };
               return sessionUser;
             }
@@ -95,6 +117,11 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
         } catch (error) {
           console.log("❌ Bearer token auth failed:", error);
         }
+
+        // 如果提供了 Authorization header 但验证失败，不要 fallback 到 cookie
+        // 直接返回 null，让 API 返回 401
+        console.log("🔍 Bearer token provided but invalid, skipping cookie fallback");
+        return null;
       }
     }
     
@@ -116,6 +143,8 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
             dob: true,
             gender: true,
             avatar_url: true,
+            likes_visibility: true,
+            follows_visibility: true,
           },
         });
         
@@ -130,6 +159,8 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
             dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
             gender: mapGender(user.gender),
             avatar_url: user.avatar_url ?? null,
+            likesVisibility: mapVisibility(user.likes_visibility),
+            followsVisibility: mapVisibility(user.follows_visibility),
           };
           return sessionUser;
         }
@@ -158,6 +189,8 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
         dob: true,
         gender: true,
         avatar_url: true,
+        likes_visibility: true,
+        follows_visibility: true,
       },
     });
     
@@ -172,6 +205,8 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
         dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
         gender: mapGender(user.gender),
         avatar_url: user.avatar_url ?? null,
+        likesVisibility: mapVisibility(user.likes_visibility),
+        followsVisibility: mapVisibility(user.follows_visibility),
       };
       return sessionUser;
     }
@@ -196,6 +231,8 @@ async function findUserBySupabaseId(supabaseUserId: string): Promise<SessionUser
         dob: true,
         gender: true,
         avatar_url: true,
+        likes_visibility: true,
+        follows_visibility: true,
       },
     });
 
@@ -210,6 +247,8 @@ async function findUserBySupabaseId(supabaseUserId: string): Promise<SessionUser
         dob: user.dob ? user.dob.toISOString().slice(0, 10) : null,
         gender: mapGender(user.gender),
         avatar_url: user.avatar_url ?? null,
+        likesVisibility: mapVisibility(user.likes_visibility),
+        followsVisibility: mapVisibility(user.follows_visibility),
       };
       return sessionUser;
     }

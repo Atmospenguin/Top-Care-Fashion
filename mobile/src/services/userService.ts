@@ -4,6 +4,36 @@ import { apiClient } from "./api";
 import { API_CONFIG } from "../config/api";
 import type { User } from "./authService";
 import { resolvePremiumFlag } from "./utils/premium";
+import { ApiError } from "../config/api";
+
+export type VisibilitySetting = "PUBLIC" | "FOLLOWERS_ONLY" | "PRIVATE";
+
+const VISIBILITY_OPTIONS: VisibilitySetting[] = [
+  "PUBLIC",
+  "FOLLOWERS_ONLY",
+  "PRIVATE",
+];
+
+const normalizeVisibilitySetting = (value: unknown): VisibilitySetting => {
+  if (typeof value === "string") {
+    const upper = value.trim().toUpperCase();
+    if (VISIBILITY_OPTIONS.includes(upper as VisibilitySetting)) {
+      return upper as VisibilitySetting;
+    }
+  }
+  return "PUBLIC";
+};
+
+const parseNullableNumber = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim().length) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
 
 export interface UserProfile {
   id: string;
@@ -22,9 +52,13 @@ export interface UserProfile {
   totalListings: number;
   activeListings: number;
   soldListings: number;
-  followersCount: number;
-  followingCount: number;
+  followersCount: number | null;
+  followingCount: number | null;
   memberSince: string;
+  likesVisibility?: VisibilitySetting;
+  followsVisibility?: VisibilitySetting;
+  canViewLikes?: boolean;
+  canViewFollowLists?: boolean;
 }
 
 export interface FollowListEntry {
@@ -50,6 +84,8 @@ export interface UpdateProfileRequest {
   preferredStyles?: string[] | null;
   preferredSizes?: { top?: string | null; bottom?: string | null; shoe?: string | null } | null;
   preferredBrands?: string[] | null;
+  likesVisibility?: VisibilitySetting;
+  followsVisibility?: VisibilitySetting;
 }
 
 const normalizeAvatar = (primary?: string | null, secondary?: string | null): string | null => {
@@ -71,6 +107,8 @@ const normalizeUser = (user: any): User => {
     avatar_url: avatarUrl,
     isPremium: resolvePremiumFlag(user),
     premiumUntil: user.premiumUntil ?? user.premium_until ?? null,
+    likesVisibility: normalizeVisibilitySetting((user as any)?.likesVisibility ?? (user as any)?.likes_visibility),
+    followsVisibility: normalizeVisibilitySetting((user as any)?.followsVisibility ?? (user as any)?.follows_visibility),
   } as User;
 };
 
@@ -82,12 +120,24 @@ const normalizeUserProfile = (profile: any): UserProfile => {
   const avatarUrl =
     normalizeAvatar(profile.avatar_url, normalizeAvatar(profile.avatar, profile.avatar_path)) ?? undefined;
 
+  const likesVisibility = normalizeVisibilitySetting((profile as any)?.likesVisibility ?? (profile as any)?.likes_visibility);
+  const followsVisibility = normalizeVisibilitySetting((profile as any)?.followsVisibility ?? (profile as any)?.follows_visibility);
+  const canViewLikesRaw = (profile as any)?.canViewLikes ?? (profile as any)?.can_view_likes;
+  const canViewFollowListsRaw = (profile as any)?.canViewFollowLists ?? (profile as any)?.can_view_follow_lists;
+
   return {
     ...profile,
     avatar_url: avatarUrl,
     isPremium: resolvePremiumFlag(profile),
     premiumUntil: profile.premiumUntil ?? profile.premium_until ?? null,
     lastSignInAt: profile.lastSignInAt ?? profile.last_sign_in_at ?? null,
+    followersCount: parseNullableNumber((profile as any)?.followersCount ?? (profile as any)?.followers_count),
+    followingCount: parseNullableNumber((profile as any)?.followingCount ?? (profile as any)?.following_count),
+    likesVisibility,
+    followsVisibility,
+    canViewLikes: typeof canViewLikesRaw === "boolean" ? canViewLikesRaw : undefined,
+    canViewFollowLists:
+      typeof canViewFollowListsRaw === "boolean" ? canViewFollowListsRaw : undefined,
   } as UserProfile;
 };
 
@@ -381,8 +431,8 @@ export class UserService {
       if (response.data?.success && response.data.user) {
         console.log(`✅ My follow stats: ${response.data.user.followersCount} followers, ${response.data.user.followingCount} following`);
         return {
-          followersCount: response.data.user.followersCount,
-          followingCount: response.data.user.followingCount,
+          followersCount: response.data.user.followersCount ?? 0,
+          followingCount: response.data.user.followingCount ?? 0,
           reviewsCount: response.data.user.reviewsCount ?? 0,
         };
       }
@@ -422,7 +472,7 @@ export class UserService {
     try {
       console.log("👥 Fetching follow list for user", username, type);
 
-      const response = await apiClient.get<{ success?: boolean; data?: FollowListEntry[] }>(
+      const response = await apiClient.get<{ success?: boolean; data?: FollowListEntry[]; visibility?: VisibilitySetting }>(
         `/api/users/${encodeURIComponent(username)}/follows`,
         { type },
       );
@@ -435,6 +485,9 @@ export class UserService {
       return [];
     } catch (error) {
       console.error(`❌ Error fetching follow list for ${username} (${type}):`, error);
+      if (error instanceof ApiError) {
+        throw error;
+      }
       throw error;
     }
   }

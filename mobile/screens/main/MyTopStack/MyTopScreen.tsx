@@ -27,7 +27,18 @@ import type { ListingItem } from "../../../types/shop";
 import type { UserListingsQueryParams } from "../../../src/services/listingsService";
 
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
-const SHOP_CONDITIONS = ["All", "New", "Like New", "Good", "Fair"] as const;
+const SHOP_CONDITIONS = ["All", "Brand New", "Like New", "Good", "Fair"] as const;
+const GENDER_OPTIONS = ["All", "Men", "Women", "Unisex"] as const;
+
+const mapGenderOptionToApiParam = (
+  value: string,
+): "Men" | "Women" | "Unisex" | undefined => {
+  const lower = value.toLowerCase();
+  if (lower === "men") return "Men";
+  if (lower === "women") return "Women";
+  if (lower === "unisex") return "Unisex";
+  return undefined;
+};
 
 // --- 保证 3 列对齐 ---
 function formatData(data: any[], numColumns: number) {
@@ -82,6 +93,8 @@ export default function MyTopScreen() {
   const [selectedCondition, setSelectedCondition] = useState<string>("All");
   const [tempCategory, setTempCategory] = useState<string>("All");
   const [tempCondition, setTempCondition] = useState<string>("All");
+  const [selectedGender, setSelectedGender] = useState<string>("All");
+  const [tempGender, setTempGender] = useState<string>("All");
 
   // ✅ 获取用户分类
   const fetchUserCategories = async () => {
@@ -172,12 +185,13 @@ export default function MyTopScreen() {
   const applyFiltersWithValues = async (
     category: string,
     condition: string,
+    genderValue: string,
     minPriceValue: string,
     maxPriceValue: string,
     sortByValue: string
   ) => {
     setLoading(true);
-    
+
     try {
       const filters: Partial<UserListingsQueryParams> = {};
       
@@ -188,11 +202,16 @@ export default function MyTopScreen() {
       if (condition !== "All") {
         filters.condition = condition;
       }
-      
+
+      const apiGender = mapGenderOptionToApiParam(genderValue);
+      if (apiGender) {
+        filters.gender = apiGender;
+      }
+
       if (minPriceValue) {
         filters.minPrice = parseFloat(minPriceValue);
       }
-      
+
       if (maxPriceValue) {
         filters.maxPrice = parseFloat(maxPriceValue);
       }
@@ -229,11 +248,16 @@ export default function MyTopScreen() {
       if (selectedCondition !== "All") {
         filters.condition = selectedCondition;
       }
-      
+
+      const apiGender = mapGenderOptionToApiParam(selectedGender);
+      if (apiGender) {
+        filters.gender = apiGender;
+      }
+
       if (minPrice) {
         filters.minPrice = parseFloat(minPrice);
       }
-      
+
       if (maxPrice) {
         filters.maxPrice = parseFloat(maxPrice);
       }
@@ -371,17 +395,16 @@ export default function MyTopScreen() {
   );
 
   // ✅ 使用真实用户数据，提供默认值以防用户数据为空
-  const sortedListings = useMemo(() => {
-    const listed = shopListings.filter((listing) => listing.listed !== false);
-    const unlisted = shopListings.filter((listing) => listing.listed === false);
-    return [...listed, ...unlisted];
-  }, [shopListings]);
-
-  const listedCount = useMemo(
-    () => sortedListings.filter((listing) => listing.listed !== false).length,
-    [sortedListings]
+  const activeListings = useMemo(
+    () => shopListings.filter((listing) => listing.listed !== false),
+    [shopListings]
   );
-  const unlistedCount = sortedListings.length - listedCount;
+  const inactiveListings = useMemo(
+    () => shopListings.filter((listing) => listing.listed === false),
+    [shopListings]
+  );
+
+  const listedCount = activeListings.length;
 
   const displayUser = {
     username: user?.username || "User",
@@ -390,7 +413,7 @@ export default function MyTopScreen() {
     reviews: followStats.reviewsCount,
     bio: user?.bio || "Welcome to my profile!",
     avatar: user?.avatar_url || DEFAULT_AVATAR,
-    activeListings: sortedListings, // ✅ 使用真实的listings，并将未上架的放在末尾
+    activeListings, // ✅ 使用真实的listings
   };
 
   // ✅ 处理listing点击
@@ -507,17 +530,30 @@ export default function MyTopScreen() {
                 {/* Active Title */}
                 <View style={styles.activeRow}>
                   <Text style={styles.activeTitle}>
-                    Active ({listedCount} listed{unlistedCount > 0 ? ` · ${unlistedCount} unlisted` : ""})
+                    Active ({listedCount})
                   </Text>
                   <TouchableOpacity 
-                    onPress={() => setFilterModalVisible(true)}
+                    onPress={() => {
+                      setTempCategory(selectedCategory);
+                      setTempCondition(selectedCondition);
+                      setTempGender(selectedGender);
+                      setTempMinPrice(minPrice);
+                      setTempMaxPrice(maxPrice);
+                      setTempSortBy(sortBy);
+                      setFilterModalVisible(true);
+                    }}
                     style={styles.filterButtonContainer}
                   >
                     <Icon name="filter" size={24} color="#111" />
-                    {(selectedCategory !== "All" || selectedCondition !== "All" || minPrice || maxPrice || sortBy !== "Latest") && (
+                    {(selectedCategory !== "All" || selectedCondition !== "All" || selectedGender !== "All" || minPrice || maxPrice || sortBy !== "Latest") && (
                       <View style={styles.filterBadge}>
                         <Text style={styles.filterBadgeText}>
-                          {(selectedCategory !== "All" ? 1 : 0) + (selectedCondition !== "All" ? 1 : 0) + (minPrice ? 1 : 0) + (maxPrice ? 1 : 0) + (sortBy !== "Latest" ? 1 : 0)}
+                          {(selectedCategory !== "All" ? 1 : 0) +
+                            (selectedCondition !== "All" ? 1 : 0) +
+                            (selectedGender !== "All" ? 1 : 0) +
+                            (minPrice ? 1 : 0) +
+                            (maxPrice ? 1 : 0) +
+                            (sortBy !== "Latest" ? 1 : 0)}
                         </Text>
                       </View>
                     )}
@@ -538,7 +574,6 @@ export default function MyTopScreen() {
               const imageUri = listing.images && listing.images.length > 0
                 ? listing.images[0]
                 : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
-              const isUnlisted = listing.listed === false;
 
               return (
                 <TouchableOpacity
@@ -547,14 +582,46 @@ export default function MyTopScreen() {
                   activeOpacity={0.85}
                 >
                   <Image source={{ uri: imageUri }} style={styles.itemImage} />
-                  {isUnlisted && (
-                    <View style={styles.unlistedOverlay}>
-                      <Text style={styles.unlistedOverlayText}>Unlisted</Text>
-                    </View>
-                  )}
                 </TouchableOpacity>
               );
             }}
+            ListFooterComponent={
+              inactiveListings.length > 0 ? (
+                <View style={styles.inactiveSection}>
+                  <Text style={styles.inactiveTitle}>
+                    Inactive ({inactiveListings.length})
+                  </Text>
+                  <FlatList
+                    data={formatData(inactiveListings, 3)}
+                    keyExtractor={(item) => String(item.id)}
+                    numColumns={3}
+                    scrollEnabled={false}
+                    contentContainerStyle={styles.inactiveListContent}
+                    renderItem={({ item: footerItem }) => {
+                      if ((footerItem as any).empty) {
+                        return <View style={[styles.itemBox, styles.itemInvisible]} />;
+                      }
+                      const listing = footerItem as ListingItem;
+                      const imageUri = listing.images && listing.images.length > 0
+                        ? listing.images[0]
+                        : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
+                      return (
+                        <TouchableOpacity
+                          style={styles.itemBox}
+                          onPress={() => handleListingPress(listing)}
+                          activeOpacity={0.85}
+                        >
+                          <Image source={{ uri: imageUri }} style={styles.itemImage} />
+                          <View style={styles.unlistedOverlay}>
+                            <Text style={styles.unlistedOverlayText}>UNLISTED</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    }}
+                  />
+                </View>
+              ) : null
+            }
             ListEmptyComponent={
               loading ? (
                 <View style={[styles.emptyBox]}>
@@ -604,6 +671,16 @@ export default function MyTopScreen() {
             onSelect: (value) => setTempCondition(String(value)),
           },
           {
+            key: "gender",
+            title: "Gender",
+            options: GENDER_OPTIONS.map((gender) => ({
+              label: gender,
+              value: gender,
+            })),
+            selectedValue: tempGender,
+            onSelect: (value) => setTempGender(String(value)),
+          },
+          {
             key: "priceRange",
             title: "Price Range",
             type: "range",
@@ -629,28 +706,31 @@ export default function MyTopScreen() {
         onApply={() => {
           setSelectedCategory(tempCategory);
           setSelectedCondition(tempCondition);
+          setSelectedGender(tempGender);
           setMinPrice(tempMinPrice);
           setMaxPrice(tempMaxPrice);
           setSortBy(tempSortBy);
           setFilterModalVisible(false);
-          
+
           // 立即应用filter，使用临时值
-          applyFiltersWithValues(tempCategory, tempCondition, tempMinPrice, tempMaxPrice, tempSortBy);
+          applyFiltersWithValues(tempCategory, tempCondition, tempGender, tempMinPrice, tempMaxPrice, tempSortBy);
         }}
         onClear={() => {
           setTempCategory("All");
           setTempCondition("All");
+          setTempGender("All");
           setTempMinPrice("");
           setTempMaxPrice("");
           setTempSortBy("Latest");
-          
+
           // 立即清除filter
           setSelectedCategory("All");
           setSelectedCondition("All");
+          setSelectedGender("All");
           setMinPrice("");
           setMaxPrice("");
           setSortBy("Latest");
-          applyFiltersWithValues("All", "All", "", "", "Latest");
+          applyFiltersWithValues("All", "All", "All", "", "", "Latest");
         }}
         applyButtonLabel="Apply Filters"
       />
@@ -786,6 +866,18 @@ const styles = StyleSheet.create({
     height: "100%",
     resizeMode: "cover",
   },
+  inactiveSection: {
+    marginTop: 16,
+    paddingHorizontal: 12,
+  },
+  inactiveTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  inactiveListContent: {
+    paddingBottom: 16,
+  },
   unlistedOverlay: {
     position: "absolute",
     top: 0,
@@ -800,6 +892,8 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     letterSpacing: 0.5,
+    fontSize: 16,
+    textTransform: "uppercase",
   },
   itemInvisible: {
     backgroundColor: "transparent",

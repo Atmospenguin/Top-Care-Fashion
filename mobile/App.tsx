@@ -1,14 +1,20 @@
 // App.tsx
 import 'react-native-gesture-handler';
 import { enableScreens } from 'react-native-screens';
-import React, { useRef } from 'react';
-import { Text } from 'react-native';
+import React from 'react';
+import { Text, LogBox } from 'react-native';
 import { NavigationContainer, getFocusedRouteNameFromRoute, type NavigatorScreenParams } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+// 🔥 临时忽略 LogBox 渲染错误（由于日志包含特殊字符导致）
+LogBox.ignoreLogs([
+  'Text strings must be rendered within a <Text> component',
+]);
+
 import { AuthProvider } from './contexts/AuthContext'; // <-- make sure this path is correct
+import { navigationRef } from './src/services/navigationService';
 
 // Auth / entry screens
 import SplashScreen from './screens/auth/SplashScreen';
@@ -52,6 +58,14 @@ export type RootStackParamList = {
   ViewReview: { orderId: string };
   Notification: undefined;
   MutualReview: { orderId: string };
+  // Standalone chat screen (opened outside the Inbox tab). Params are optional.
+  ChatStandalone?: {
+    sender?: string;
+    kind?: string;
+    order?: any;
+    conversationId?: string | null;
+    autoSendPaidMessage?: boolean;
+  } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -59,7 +73,6 @@ const Tab = createBottomTabNavigator();
 
 function MainTabs() {
   const HIDDEN_TAB_SCREENS: string[] = [];
-  const lastTabPressRef = useRef<Record<string, number>>({});
 
   return (
     <Tab.Navigator
@@ -105,18 +118,29 @@ function MainTabs() {
         listeners={({ navigation, route }) => ({
           tabPress: (e) => {
             const now = Date.now();
-            // 只有当当前 Home tab 已经聚焦时（再次点击）才触发 Home 内部的刷新/回顶逻辑。
-            // 这样从其他 tab 切回 Home 时，不会把用户强制导航到 HomeMain，仍保留原有的堆栈页面。
-            try {
-              if (typeof navigation.isFocused === 'function' && navigation.isFocused()) {
+            if (navigation.isFocused && navigation.isFocused()) {
+              const currentRoute = getFocusedRouteNameFromRoute(route);
+              const state = (route as any).state;
+              const stackRoutes = state?.routes || [];
+
+              // 如果在子页面（stack 中有多个路由）
+              if (currentRoute && currentRoute !== "HomeMain" && stackRoutes.length > 1) {
+                // 阻止默认的 tab 切换
+                e.preventDefault();
+
+                // 弹出到栈顶（HomeMain）
+                const target = state.key;
+                navigation.dispatch({
+                  type: 'POP_TO_TOP',
+                  target,
+                });
+              } else {
+                // 在 HomeMain 时，传递 tabPressTS 交给屏幕判断是刷新还是滚动
                 navigation.navigate("Home", {
                   screen: "HomeMain",
                   params: { tabPressTS: now },
                 });
               }
-            } catch (err) {
-              // 保守处理：如果 navigation.isFocused 调用失败，不做任何额外导航
-              console.warn('tabPress Home listener error', err);
             }
           },
         })}
@@ -135,22 +159,32 @@ function MainTabs() {
         name="My TOP"
         component={MyTopStackNavigator}
         listeners={({ navigation, route }) => ({
-          tabPress: () => {
+          tabPress: (e) => {
             const now = Date.now();
-            const last = lastTabPressRef.current[route.name] || 0;
-            lastTabPressRef.current[route.name] = now;
-
-            // 如果当前 My TOP tab 已经聚焦（用户在 My TOP 内），导航到 MyTopMain
-            // 这样可以实现：
-            // 1. 从子页面返回到主页面
-            // 2. 在主页面时触发刷新/滚动
             if (navigation.isFocused && navigation.isFocused()) {
-              navigation.navigate("My TOP", {
-                screen: "MyTopMain",
-                params: { tabPressTS: now },
-              });
+              const currentRoute = getFocusedRouteNameFromRoute(route);
+              const state = (route as any).state;
+              const stackRoutes = state?.routes || [];
+
+              // 如果在子页面（stack 中有多个路由）
+              if (currentRoute && currentRoute !== "MyTopMain" && stackRoutes.length > 1) {
+                // 阻止默认的 tab 切换
+                e.preventDefault();
+
+                // 弹出到栈顶（MyTopMain）
+                const target = state.key;
+                navigation.dispatch({
+                  type: 'POP_TO_TOP',
+                  target,
+                });
+              } else {
+                // 在 MyTopMain 时，传递 tabPressTS
+                navigation.navigate("My TOP", {
+                  screen: "MyTopMain",
+                  params: { tabPressTS: now },
+                });
+              }
             }
-            // 否则，让默认的 tab 切换行为生效
           },
         })}
         options={({ route }) => {
@@ -169,7 +203,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Splash" component={SplashScreen} />
             <Stack.Screen name="Landing" component={LandingScreen} />

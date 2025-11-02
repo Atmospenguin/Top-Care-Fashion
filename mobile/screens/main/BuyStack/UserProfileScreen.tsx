@@ -26,10 +26,14 @@ import FilterModal from "../../../components/FilterModal";
 import { MOCK_LISTINGS } from "../../../mocks/shop";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
-import { userService, type UserProfile } from "../../../src/services/userService";
+import { userService, type UserProfile, type VisibilitySetting } from "../../../src/services/userService";
 import { premiumService } from "../../../src/services";
-import { likesService, messagesService, reportsService, type LikedListing } from "../../../src/services";
+import { likesService, messagesService, type LikedListing } from "../../../src/services";
 import { authService } from "../../../src/services/authService";
+import { reportsService } from "../../../src/services/reportsService";
+import { listingsService } from "../../../src/services/listingsService";
+import { sortCategories } from "../../../utils/categoryHelpers";
+import { ApiError } from "../../../src/config/api";
 
 type UserProfileParam = RouteProp<BuyStackParamList, "UserProfile">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
@@ -44,8 +48,6 @@ const REPORT_CATEGORIES = [
   { id: "outside_payment", label: "Out of app payment or activity" },
   { id: "other", label: "Something else" },
 ];
-
-const SHOP_CATEGORIES = ["All", "Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"] as const;
 const SHOP_APPAREL_SIZES = [
   "All",
   "My Size",
@@ -70,8 +72,9 @@ const SHOP_ACCESSORY_SIZES = [
   "Medium",
   "Large",
 ] as const;
-const SHOP_CONDITIONS = ["All", "New", "Like New", "Good", "Fair", "Poor"] as const;
+const SHOP_CONDITIONS = ["All", "Brand New", "Like New", "Good", "Fair", "Poor"] as const;
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
+const GENDER_OPTIONS = ["All", "Men", "Women", "Unisex"] as const;
 
 const REVIEW_FILTERS = {
   ROLE: ["All", "From Buyer", "From Seller"] as const,
@@ -98,6 +101,10 @@ const mockReviews = [
     time: "2 days ago",
     date: "2024-01-15",
     type: "buyer" as const,
+    images: [
+      "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=640&q=80",
+      "https://images.unsplash.com/photo-1529720317453-c8da503f2051?auto=format&fit=crop&w=640&q=80"
+    ],
     hasPhoto: true,
   },
   {
@@ -110,6 +117,7 @@ const mockReviews = [
     time: "Last week",
     date: "2024-01-10",
     type: "buyer" as const,
+    images: [],
     hasPhoto: false,
   },
   {
@@ -122,6 +130,7 @@ const mockReviews = [
     time: "3 days ago",
     date: "2024-01-14",
     type: "seller" as const,
+    images: [],
     hasPhoto: false,
   },
   {
@@ -134,6 +143,9 @@ const mockReviews = [
     time: "1 week ago",
     date: "2024-01-08",
     type: "buyer" as const,
+    images: [
+      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop"
+    ],
     hasPhoto: true,
   },
 ];
@@ -158,6 +170,15 @@ export default function UserProfileScreen() {
     if (!username) {
       return;
     }
+
+    if (!canViewFollowLists && !isOwnProfile) {
+      const message = followsVisibility === "FOLLOWERS_ONLY"
+        ? "Follow this user to view their followers and following."
+        : "This user keeps their follow lists private.";
+      Alert.alert("Unavailable", message);
+      return;
+    }
+
     navigation.navigate("FollowList", { type, username });
   };
   const { username: usernameParam, userId, avatar, rating, sales } = route.params || {};
@@ -171,10 +192,15 @@ export default function UserProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [listingsLoading, setListingsLoading] = useState(false);
   const [likesLoading, setLikesLoading] = useState(false);
+  const [likesAccessError, setLikesAccessError] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
   const [username, setUsername] = useState<string>(usernameParam || "");
+
+  // Dynamic categories loaded from database
+  const [shopCategories, setShopCategories] = useState<string[]>(["All"]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState<"Shop" | "Likes" | "Reviews">(
     "Shop"
@@ -184,10 +210,16 @@ export default function UserProfileScreen() {
   const [reportDetails, setReportDetails] = useState("");
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
+  const likesVisibility: VisibilitySetting = userProfile?.likesVisibility ?? "PUBLIC";
+  const followsVisibility: VisibilitySetting = userProfile?.followsVisibility ?? "PUBLIC";
+  const canViewLikes = isOwnProfile || userProfile?.canViewLikes !== false;
+  const canViewFollowLists = isOwnProfile || userProfile?.canViewFollowLists !== false;
+
   // Shop Filter States (Applied filters)
   const [shopCategory, setShopCategory] = useState<string>("All");
   const [shopSize, setShopSize] = useState<string>("All");
   const [shopCondition, setShopCondition] = useState<string>("All");
+  const [shopGender, setShopGender] = useState<string>("All");
   const [shopSortBy, setShopSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
 
   // Shop Filter Modal States
@@ -195,6 +227,7 @@ export default function UserProfileScreen() {
   const [tempShopCategory, setTempShopCategory] = useState<string>("All");
   const [tempShopSize, setTempShopSize] = useState<string>("All");
   const [tempShopCondition, setTempShopCondition] = useState<string>("All");
+  const [tempShopGender, setTempShopGender] = useState<string>("All");
   const [tempShopSortBy, setTempShopSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
   const tempShopSizeOptions = useMemo(() => {
     const cat = tempShopCategory.toLowerCase();
@@ -233,6 +266,30 @@ export default function UserProfileScreen() {
     };
 
     loadCurrentUser();
+  }, []);
+
+  // Load categories from database
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const data = await listingsService.getCategories();
+        const allCategories = new Set<string>();
+        Object.values(data).forEach((genderData) => {
+          Object.keys(genderData).forEach((cat) => {
+            allCategories.add(cat);
+          });
+        });
+        const sorted = sortCategories(Array.from(allCategories));
+        setShopCategories(["All", ...sorted]);
+      } catch (error) {
+        console.error("Failed to load categories:", error);
+        setShopCategories(["All"]);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+    loadCategories();
   }, []);
 
   // Sync premium status on focus, same as MyPremiumScreen
@@ -315,9 +372,20 @@ export default function UserProfileScreen() {
       
       try {
         setLikesLoading(true);
+        setLikesAccessError(null);
         console.log("❤️ Loading liked listings for user:", userProfile.username);
         
         let liked: LikedListing[] = [];
+        if (!isOwnProfile && userProfile.canViewLikes === false) {
+          const message = likesVisibility === "FOLLOWERS_ONLY"
+            ? "Follow this user to see their liked items."
+            : "This user keeps their likes private.";
+          setLikesAccessError(message);
+          setLikedListings([]);
+          setLikesLoading(false);
+          return;
+        }
+
         if (isOwnProfile) {
           // 查看自己的profile，加载自己的喜欢商品
           liked = await likesService.getLikedListings();
@@ -330,6 +398,15 @@ export default function UserProfileScreen() {
         console.log(`✅ Loaded ${liked.length} liked listings`);
       } catch (error) {
         console.error('Error loading liked listings:', error);
+        if (error instanceof ApiError && error.status === 403) {
+          const message =
+            likesVisibility === "FOLLOWERS_ONLY"
+              ? "Follow this user to see their liked items."
+              : "This user keeps their likes private.";
+          setLikesAccessError(error.response?.error ?? message);
+        } else {
+          setLikesAccessError("We couldn't load liked items right now. Please try again later.");
+        }
         setLikedListings([]); // 出错时设置为空数组
       } finally {
         setLikesLoading(false);
@@ -337,7 +414,7 @@ export default function UserProfileScreen() {
     };
 
     loadLikedListings();
-  }, [userProfile, username, isOwnProfile]);
+  }, [userProfile, username, isOwnProfile, likesVisibility]);
 
   // 检查follow状态
   useEffect(() => {
@@ -388,6 +465,7 @@ export default function UserProfileScreen() {
             time: review.time,
             date: review.date,
             type: review.type as "buyer" | "seller",
+            images: review.images || [], // 🔥 添加 images 字段
             hasPhoto: review.hasPhoto || false,
             isPremium: Boolean(
               (reviewer as any).isPremium ?? (reviewer as any).is_premium ?? false,
@@ -410,8 +488,22 @@ export default function UserProfileScreen() {
   }, [userProfile]);
 
   // 使用真实的follow统计数据
-  const followers = userProfile?.followersCount || 0;
-  const following = userProfile?.followingCount || 0;
+  const formatStatCount = (value: number | null | undefined): string => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value.toString();
+    }
+    return "0";
+  };
+
+  const hiddenFollowLabel = followsVisibility === "FOLLOWERS_ONLY" ? "Followers only" : "Private";
+
+  const followerCountLabel = canViewFollowLists
+    ? formatStatCount(userProfile?.followersCount)
+    : hiddenFollowLabel;
+
+  const followingCountLabel = canViewFollowLists
+    ? formatStatCount(userProfile?.followingCount)
+    : hiddenFollowLabel;
   const reviewsCount = reviews.length || userProfile?.reviewsCount || mockReviews.length;
   const ratingValueRaw = userProfile?.rating ?? parsedRouteRating;
   const ratingValue = Number.isFinite(ratingValueRaw)
@@ -425,10 +517,10 @@ export default function UserProfileScreen() {
   const tabCounts = useMemo<Record<"Shop" | "Likes" | "Reviews", number>>(
     () => ({
       Shop: userListings.length,
-      Likes: likedListings.length,
+      Likes: canViewLikes ? likedListings.length : 0,
       Reviews: reviewsCount,
     }),
-    [userListings.length, likedListings.length, reviewsCount]
+    [userListings.length, likedListings.length, reviewsCount, canViewLikes]
   );
 
   const locationLabel = useMemo(() => {
@@ -604,7 +696,30 @@ export default function UserProfileScreen() {
     }
 
     if (shopCondition !== "All") {
-      results = results.filter((item) => item.condition === shopCondition);
+      results = results.filter((item) => {
+        const itemCondition = (item.condition ?? "").toString().trim();
+        // 🔥 处理 "Like New" 和 "Like new" 的映射
+        if (shopCondition === "Like New") {
+          return itemCondition === "Like New" || itemCondition === "Like new" || itemCondition === "LIKE_NEW";
+        }
+        // 其他条件直接匹配
+        return itemCondition === shopCondition;
+      });
+    }
+
+    if (shopGender !== "All") {
+      const genderNeedle = shopGender.toLowerCase();
+      results = results.filter((item) => {
+        const itemGender = (item.gender ?? "").toString().toLowerCase();
+        if (!itemGender) return false;
+        if (genderNeedle === "men") {
+          return itemGender === "men" || itemGender === "male";
+        }
+        if (genderNeedle === "women") {
+          return itemGender === "women" || itemGender === "female";
+        }
+        return itemGender === "unisex";
+      });
     }
 
     if (shopSortBy === "Price Low to High") {
@@ -614,7 +729,7 @@ export default function UserProfileScreen() {
     }
 
     return results;
-  }, [userListings, shopCategory, shopSize, mySizes, shopCondition, shopSortBy]);
+  }, [userListings, shopCategory, shopSize, mySizes, shopCondition, shopGender, shopSortBy]);
 
   const listingsData = useMemo(
     () => formatData(filteredListings, 3),
@@ -715,6 +830,7 @@ export default function UserProfileScreen() {
     setTempShopCategory(shopCategory);
     setTempShopSize(shopSize);
     setTempShopCondition(shopCondition);
+    setTempShopGender(shopGender);
     setTempShopSortBy(shopSortBy);
     setShopFilterVisible(true);
   };
@@ -724,6 +840,7 @@ export default function UserProfileScreen() {
     setShopCategory(tempShopCategory);
     setShopSize(tempShopSize);
     setShopCondition(tempShopCondition);
+    setShopGender(tempShopGender);
     setShopSortBy(tempShopSortBy);
     setShopFilterVisible(false);
   };
@@ -732,6 +849,7 @@ export default function UserProfileScreen() {
     setTempShopCategory("All");
     setTempShopSize("All");
     setTempShopCondition("All");
+    setTempShopGender("All");
     setTempShopSortBy("Latest");
   };
 
@@ -852,18 +970,20 @@ export default function UserProfileScreen() {
     if (shopCategory !== "All") count++;
     if (shopSize !== "All") count++;
     if (shopCondition !== "All") count++;
+    if (shopGender !== "All") count++;
     if (shopSortBy !== "Latest") count++;
     return count;
-  }, [shopCategory, shopSize, shopCondition, shopSortBy]);
+  }, [shopCategory, shopSize, shopCondition, shopGender, shopSortBy]);
 
   const tempShopActiveFiltersCount = useMemo(() => {
     let count = 0;
     if (tempShopCategory !== "All") count++;
     if (tempShopSize !== "All") count++;
     if (tempShopCondition !== "All") count++;
+    if (tempShopGender !== "All") count++;
     if (tempShopSortBy !== "Latest") count++;
     return count;
-  }, [tempShopCategory, tempShopSize, tempShopCondition, tempShopSortBy]);
+  }, [tempShopCategory, tempShopSize, tempShopCondition, tempShopGender, tempShopSortBy]);
 
   const reviewActiveFiltersCount = useMemo(() => {
     let count = 0;
@@ -1003,19 +1123,19 @@ export default function UserProfileScreen() {
             <TouchableOpacity
               style={styles.statBlock}
               onPress={() => openFollowList("followers")}
-              disabled={!userProfile?.username}
+              disabled={!userProfile?.username || (!canViewFollowLists && !isOwnProfile)}
               activeOpacity={0.7}
             >
-              <Text style={styles.statNumber}>{followers}</Text>
+              <Text style={styles.statNumber}>{followerCountLabel}</Text>
               <Text style={styles.statLabel}>followers</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.statBlock}
               onPress={() => openFollowList("following")}
-              disabled={!userProfile?.username}
+              disabled={!userProfile?.username || (!canViewFollowLists && !isOwnProfile)}
               activeOpacity={0.7}
             >
-              <Text style={styles.statNumber}>{following}</Text>
+              <Text style={styles.statNumber}>{followingCountLabel}</Text>
               <Text style={styles.statLabel}>following</Text>
             </TouchableOpacity>
 
@@ -1111,7 +1231,7 @@ export default function UserProfileScreen() {
                     <TouchableOpacity
                       style={styles.gridItem}
                       onPress={() =>
-                        navigation.navigate("ListingDetail", { item: item as ListingItem })
+                        navigation.navigate("ListingDetail", { listingId: (item as ListingItem).id })
                       }
                     >
                       <Image
@@ -1137,10 +1257,26 @@ export default function UserProfileScreen() {
         ) : null}
 
         {activeTab === "Likes" ? (
-          likesLoading ? (
+          !canViewLikes ? (
+            <View style={styles.emptyState}>
+              <Icon name="lock-closed-outline" size={48} color="#bbb" />
+              <Text style={styles.emptyTitle}>Likes are hidden</Text>
+              <Text style={styles.emptySubtitle}>
+                {likesVisibility === "FOLLOWERS_ONLY"
+                  ? "Follow this user to see what they like."
+                  : "This user keeps their liked items private."}
+              </Text>
+            </View>
+          ) : likesLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#007AFF" />
               <Text style={styles.loadingText}>Loading liked items...</Text>
+            </View>
+          ) : likesAccessError ? (
+            <View style={styles.emptyState}>
+              <Icon name="alert-circle-outline" size={48} color="#bbb" />
+              <Text style={styles.emptyTitle}>Unable to load likes</Text>
+              <Text style={styles.emptySubtitle}>{likesAccessError}</Text>
             </View>
           ) : likedListings.length === 0 ? (
             <View style={styles.emptyState}>
@@ -1149,11 +1285,9 @@ export default function UserProfileScreen() {
                 {isOwnProfile ? "No liked items yet" : "No public liked items"}
               </Text>
               <Text style={styles.emptySubtitle}>
-                {isOwnProfile 
-                  ? "Items you like will appear here" 
-                  : "This user hasn't liked any items yet"
-                }
-                    applyButtonLabel={`Apply Filters (${tempShopActiveFiltersCount})`}
+                {isOwnProfile
+                  ? "Items you like will appear here"
+                  : "This user hasn't liked any items yet"}
               </Text>
             </View>
           ) : (
@@ -1234,7 +1368,7 @@ export default function UserProfileScreen() {
                       return (
                         <TouchableOpacity
                           style={styles.gridItem}
-                          onPress={() => navigation.navigate("ListingDetail", { item: listingData })}
+                          onPress={() => navigation.navigate("ListingDetail", { listingId: listingData.id })}
                         >
                           <Image
                             source={{
@@ -1361,6 +1495,23 @@ export default function UserProfileScreen() {
                     </View>
                     <Text style={styles.reviewTime}>{item.time}</Text>
                     <Text style={styles.reviewComment}>{item.comment}</Text>
+                    {/* 🔥 显示 review 照片 */}
+                    {item.images && item.images.length > 0 && (
+                      <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.reviewImagesContainer}
+                      >
+                        {item.images.map((imageUri: string, idx: number) => (
+                          <Image
+                            key={`${item.id}-img-${idx}`}
+                            source={{ uri: imageUri }}
+                            style={styles.reviewImage}
+                            resizeMode="cover"
+                          />
+                        ))}
+                      </ScrollView>
+                    )}
                   </View>
                 </View>
               )}
@@ -1472,7 +1623,7 @@ export default function UserProfileScreen() {
           {
             key: "category",
             title: "Category",
-            options: SHOP_CATEGORIES.map((category) => ({
+            options: shopCategories.map((category) => ({
               label: category,
               value: category,
             })),
@@ -1498,6 +1649,16 @@ export default function UserProfileScreen() {
             })),
             selectedValue: tempShopCondition,
             onSelect: (value) => setTempShopCondition(String(value)),
+          },
+          {
+            key: "gender",
+            title: "Gender",
+            options: GENDER_OPTIONS.map((gender) => ({
+              label: gender,
+              value: gender,
+            })),
+            selectedValue: tempShopGender,
+            onSelect: (value) => setTempShopGender(String(value)),
           },
           {
             key: "sort",
@@ -1819,6 +1980,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: "#333",
+  },
+  reviewImagesContainer: {
+    marginTop: 12,
+    flexDirection: "row",
+  },
+  reviewImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 8,
+    backgroundColor: "#f0f0f0",
   },
   // Filter Bar Styles
   filterBar: {

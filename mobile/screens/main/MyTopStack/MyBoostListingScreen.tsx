@@ -94,7 +94,10 @@ export default function BoostListingScreen() {
       }
 
       if (boostedResult.status === "fulfilled") {
-        setBoostedCount(boostedResult.value.length);
+        const activeCount = boostedResult.value.filter(
+          (item) => item.status === "ACTIVE"
+        ).length;
+        setBoostedCount(activeCount);
       } else {
         console.warn(
           "Failed to load boosted listings for boost screen",

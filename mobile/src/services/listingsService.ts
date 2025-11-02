@@ -13,6 +13,7 @@ export interface UserListingsQueryParams {
   status?: 'active' | 'sold' | 'all' | 'unlisted';
   category?: string;
   condition?: string;
+  gender?: "Men" | "Women" | "Unisex";
   minPrice?: number;
   maxPrice?: number;
   sortBy?: 'latest' | 'price_low_to_high' | 'price_high_to_low';
@@ -28,6 +29,13 @@ export interface ListingsQueryParams {
   limit?: number;
   offset?: number;
   gender?: string;
+}
+
+// 分页响应类型
+export interface ListingsResponse {
+  items: ListingItem[];
+  hasMore: boolean;
+  total: number;
 }
 
 export interface BoostedListingSummary {
@@ -77,6 +85,23 @@ export interface CreateListingRequest {
   location?: string;
   listed?: boolean;
   sold?: boolean;
+}
+
+export interface DraftListingRequest {
+  title?: string;
+  description?: string;
+  price?: number;
+  brand?: string | null;
+  size?: string | null;
+  condition?: string | null;
+  material?: string | null;
+  tags?: string[];
+  category?: string | null;
+  gender?: string | null;
+  images?: string[];
+  shippingOption?: string | null;
+  shippingFee?: number | null;
+  location?: string | null;
 }
 
 // 分类数据结构
@@ -195,6 +220,84 @@ export class ListingsService {
     return segments.length ? segments[segments.length - 1] : `listing-${Date.now()}.jpg`;
   }
 
+  private buildDraftPayload(payload: DraftListingRequest): Partial<CreateListingRequest> {
+    const draftData: Partial<CreateListingRequest> = {};
+
+    if (payload.title !== undefined) {
+      draftData.title = (payload.title ?? "").trim();
+    }
+
+    if (payload.description !== undefined) {
+      draftData.description = payload.description ?? "";
+    }
+
+    if (payload.price !== undefined && payload.price !== null) {
+      const numericPrice = Number(payload.price);
+      if (!Number.isNaN(numericPrice)) {
+        draftData.price = numericPrice;
+      }
+    }
+
+    if (payload.brand !== undefined) {
+      const cleanedBrand = sanitizeStringValue(payload.brand ?? null);
+      draftData.brand = cleanedBrand ?? "";
+    }
+
+    if (payload.size !== undefined) {
+      draftData.size = sanitizeStringValue(payload.size ?? null);
+    }
+
+    if (payload.condition !== undefined && payload.condition !== null) {
+      draftData.condition = payload.condition;
+    }
+
+    if (payload.material !== undefined) {
+      draftData.material = sanitizeStringValue(payload.material ?? null) ?? undefined;
+    }
+
+    if (payload.tags !== undefined) {
+      draftData.tags = Array.isArray(payload.tags)
+        ? payload.tags.filter((tag): tag is string => typeof tag === "string" && !!tag.trim())
+        : undefined;
+    }
+
+    if (payload.category !== undefined && payload.category !== null) {
+      draftData.category = payload.category;
+    }
+
+    if (payload.gender !== undefined && payload.gender !== null) {
+      draftData.gender = payload.gender;
+    }
+
+    if (payload.images !== undefined) {
+      draftData.images = Array.isArray(payload.images)
+        ? payload.images.filter((uri): uri is string => typeof uri === "string" && !!uri.trim())
+        : [];
+    }
+
+    if (payload.shippingOption !== undefined) {
+      draftData.shippingOption = payload.shippingOption ?? undefined;
+    }
+
+    if (payload.shippingFee !== undefined) {
+      if (payload.shippingFee === null) {
+        draftData.shippingFee = undefined;
+      } else {
+        const numericFee = Number(payload.shippingFee);
+        if (!Number.isNaN(numericFee)) {
+          draftData.shippingFee = numericFee;
+        }
+      }
+    }
+
+    if (payload.location !== undefined) {
+      const cleanedLocation = sanitizeStringValue(payload.location ?? null);
+      draftData.location = cleanedLocation ?? undefined;
+    }
+
+    return draftData;
+  }
+
   private sanitizeListingItem(listing: ListingItem): ListingItem {
     const sanitized: ListingItem = {
       ...listing,
@@ -202,7 +305,7 @@ export class ListingsService {
       size: sanitizeStringValue(listing.size),
       condition: sanitizeStringValue(listing.condition),
       material: sanitizeStringValue(listing.material),
-      gender: sanitizeStringValue(listing.gender),
+      gender: listing.gender, // Gender is already typed correctly from API
       shippingOption: sanitizeStringValue(listing.shippingOption),
       location: sanitizeStringValue(listing.location),
       description:
@@ -347,20 +450,31 @@ export class ListingsService {
     }
   }
 
-  // 获取商品列表
-  async getListings(params?: ListingsQueryParams): Promise<ListingItem[]> {
+  // 获取商品列表（支持分页）
+  async getListings(params?: ListingsQueryParams): Promise<ListingsResponse> {
     try {
-      const response = await apiClient.get<{ success: boolean; data: { items: ListingItem[] } }>(
+      const response = await apiClient.get<{
+        success: boolean;
+        data: {
+          items: ListingItem[];
+          hasMore: boolean;
+          total: number;
+        }
+      }>(
         API_CONFIG.ENDPOINTS.LISTINGS,
         params
       );
-      
-      if (response.data?.success && response.data.data?.items) {
-        return response.data.data.items.map((item) =>
-          this.sanitizeListingItem(item)
-        );
+
+      if (response.data?.success && response.data.data) {
+        return {
+          items: response.data.data.items.map((item) =>
+            this.sanitizeListingItem(item)
+          ),
+          hasMore: response.data.data.hasMore,
+          total: response.data.data.total,
+        };
       }
-      
+
       throw new Error('No listings data received');
     } catch (error) {
       console.error('Error fetching listings:', error);
@@ -393,17 +507,17 @@ export class ListingsService {
   }
 
   // 搜索商品
-  async searchListings(query: string, params?: Omit<ListingsQueryParams, 'search'>): Promise<ListingItem[]> {
+  async searchListings(query: string, params?: Omit<ListingsQueryParams, 'search'>): Promise<ListingsResponse> {
     return this.getListings({ ...params, search: query });
   }
 
   // 按分类获取商品
-  async getListingsByCategory(category: string, params?: Omit<ListingsQueryParams, 'category'>): Promise<ListingItem[]> {
+  async getListingsByCategory(category: string, params?: Omit<ListingsQueryParams, 'category'>): Promise<ListingsResponse> {
     return this.getListings({ ...params, category });
   }
 
   // 按价格范围获取商品
-  async getListingsByPriceRange(minPrice: number, maxPrice: number, params?: Omit<ListingsQueryParams, 'minPrice' | 'maxPrice'>): Promise<ListingItem[]> {
+  async getListingsByPriceRange(minPrice: number, maxPrice: number, params?: Omit<ListingsQueryParams, 'minPrice' | 'maxPrice'>): Promise<ListingsResponse> {
     return this.getListings({ ...params, minPrice, maxPrice });
   }
 
@@ -515,6 +629,7 @@ export class ListingsService {
       if (params?.status) queryParams.status = params.status;
       if (params?.category) queryParams.category = params.category;
       if (params?.condition) queryParams.condition = params.condition;
+      if (params?.gender) queryParams.gender = params.gender;
       if (params?.minPrice !== undefined) queryParams.minPrice = params.minPrice;
       if (params?.maxPrice !== undefined) queryParams.maxPrice = params.maxPrice;
       if (params?.sortBy) queryParams.sortBy = params.sortBy;
@@ -595,6 +710,58 @@ export class ListingsService {
       console.error('Error deleting listing:', error);
       throw error;
     }
+  }
+
+  async getDrafts(): Promise<ListingItem[]> {
+    try {
+      console.log("📖 Fetching draft listings");
+
+      const response = await apiClient.get<{ drafts?: ListingItem[] }>(
+        '/api/listings/draft'
+      );
+
+      const drafts = response.data?.drafts ?? [];
+      return drafts.map((draft) => this.sanitizeListingItem(draft));
+    } catch (error) {
+      console.error('Error fetching draft listings:', error);
+      throw error;
+    }
+  }
+
+  async createDraft(payload: DraftListingRequest): Promise<ListingItem> {
+    try {
+      const requestPayload = {
+        ...this.buildDraftPayload(payload),
+        listed: false,
+        sold: false,
+      };
+
+      console.log("📝 Creating draft with data:", JSON.stringify(requestPayload, null, 2));
+
+      const response = await apiClient.post<{ draft?: ListingItem }>(
+        '/api/listings/draft',
+        requestPayload
+      );
+
+      if (response.data?.draft) {
+        console.log("✅ Draft listing created:", response.data.draft.id);
+        return this.sanitizeListingItem(response.data.draft);
+      }
+
+      throw new Error('No draft data received');
+    } catch (error) {
+      console.error('Error creating draft listing:', error);
+      throw error;
+    }
+  }
+
+  async updateDraft(id: string, payload: DraftListingRequest): Promise<ListingItem> {
+    const updatePayload = {
+      ...this.buildDraftPayload(payload),
+      listed: false,
+      sold: false,
+    };
+    return this.updateListing(id, updatePayload);
   }
 }
 

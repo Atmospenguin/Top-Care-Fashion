@@ -26,7 +26,8 @@ import Avatar from "../../../components/Avatar";
 import ASSETS from "../../../constants/assetUrls";
 import type { BagItem, ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
-import { likesService, cartService, messagesService, reportsService } from "../../../src/services";
+import { likesService, cartService, messagesService } from "../../../src/services";
+import { reportsService } from "../../../src/services/reportsService";
 import { useAuth } from "../../../contexts/AuthContext";
 import { apiClient } from "../../../src/services/api";
 
@@ -46,11 +47,27 @@ const REPORT_CATEGORIES = [
 
 const formatGenderLabel = (value?: string | null) => {
   if (!value) return "Unisex";
+
+  // Handle enum values directly (Men, Women, Unisex)
+  if (value === "Men" || value === "Women" || value === "Unisex") {
+    return value;
+  }
+
+  // Handle legacy lowercase values
   const lower = value.toLowerCase();
   if (lower === "men" || lower === "male") return "Men";
   if (lower === "women" || lower === "female") return "Women";
   if (lower === "unisex") return "Unisex";
-  return lower.charAt(0).toUpperCase() + lower.slice(1);
+
+  // Fallback: capitalize first letter
+  return value.charAt(0).toUpperCase() + value.slice(1);
+};
+
+const formatSizeLabel = (value?: string | null) => {
+  if (!value || value === "Select" || value === "null") return "Not specified";
+
+  // Return as-is for valid sizes
+  return value;
 };
 
 const formatDateString = (value?: string | null) => {
@@ -210,6 +227,8 @@ export default function ListingDetailScreen() {
     );
   }, [safeItem?.images]);
 
+  const sizeLabel = useMemo(() => formatSizeLabel(safeItem?.size), [safeItem?.size]);
+
   const detailMetaCards = useMemo(() => {
     if (!safeItem) return [];
 
@@ -220,7 +239,7 @@ export default function ListingDetailScreen() {
       {
         id: "size",
         label: "Size",
-        value: safeItem.size ? safeItem.size : "Not specified",
+        value: sizeLabel,
       },
       {
         id: "condition",
@@ -263,7 +282,7 @@ export default function ListingDetailScreen() {
     }
 
     return cards;
-  }, [safeItem, genderLabel]);
+  }, [safeItem, genderLabel, sizeLabel]);
 
   // 检查是否是自己的商品
   const isOwnListingFinalComputed = useMemo(() => {
@@ -794,6 +813,7 @@ export default function ListingDetailScreen() {
                       fromListing: true,
                       order: {
                         id: safeItem.id || "new-order",
+                        listing_id: Number(safeItem.id), // 🔥 添加 listing_id 用于跳转回商品详情
                         product: {
                           title: safeItem.title || "Item",
                           price: Number(safeItem.price) || 0,
@@ -827,7 +847,7 @@ export default function ListingDetailScreen() {
                       rootNavigation.navigate("ChatStandalone", chatParams);
                       console.log("✅ Navigation via root ChatStandalone screen");
                     } else {
-                      navigation.navigate("ChatStandalone", chatParams);
+                      (navigation as any).navigate("ChatStandalone", chatParams);
                       console.log("✅ Navigation via local ChatStandalone fallback");
                     }
                   } catch (error) {

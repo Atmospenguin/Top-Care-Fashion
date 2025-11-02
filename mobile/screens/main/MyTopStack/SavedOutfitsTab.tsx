@@ -11,6 +11,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from '../../../components/Icon';
 import { outfitService } from '../../../src/services/outfitService';
 import { listingsService } from '../../../src/services/listingsService';
@@ -26,6 +27,7 @@ type OutfitWithItems = SavedOutfit & {
 };
 
 export default function SavedOutfitsTab() {
+  const insets = useSafeAreaInsets();
   const [outfits, setOutfits] = useState<OutfitWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOutfit, setSelectedOutfit] = useState<OutfitWithItems | null>(null);
@@ -183,8 +185,9 @@ export default function SavedOutfitsTab() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={styles.emptyContainer}>
         <ActivityIndicator size="large" color="#000" />
+        <Text style={[styles.emptySubtext, { marginTop: 12 }]}>Loading your outfits...</Text>
       </View>
     );
   }
@@ -268,9 +271,13 @@ export default function SavedOutfitsTab() {
       <Modal
         visible={modalVisible}
         animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          setModalVisible(false);
+          setSelectedOutfit(null);
+        }}
       >
-        <View style={styles.modalContainer}>
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
           <View style={styles.modalHeader}>
             <View style={styles.modalTitleContainer}>
               <Text style={styles.modalTitle}>
@@ -284,7 +291,10 @@ export default function SavedOutfitsTab() {
                 </View>
               )}
             </View>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
+            <TouchableOpacity onPress={() => {
+              setModalVisible(false);
+              setSelectedOutfit(null);
+            }}>
               <Icon name="close" size={24} color="#000" />
             </TouchableOpacity>
           </View>

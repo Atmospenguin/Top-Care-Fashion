@@ -33,7 +33,7 @@ export const ListingsScreen: React.FC<ListingsScreenProps> = ({
       }
 
       const data = await listingsService.getListings(params);
-      setListings(data);
+      setListings(data.items);
     } catch (err) {
       console.error('Error fetching listings:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch listings');

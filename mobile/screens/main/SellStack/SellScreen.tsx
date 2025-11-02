@@ -23,19 +23,30 @@ import * as ImageManipulator from "expo-image-manipulator";
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import type { SellStackParamList } from "./SellStackNavigator";
-import { listingsService, type CreateListingRequest } from "../../../src/services/listingsService";
+import {
+  listingsService,
+  type CreateListingRequest,
+  type DraftListingRequest,
+} from "../../../src/services/listingsService";
 import { benefitsService, type UserBenefitsPayload } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useAutoClassify } from "../../../src/hooks/useAutoClassify";
 import { ClassifyResponse, checkImagesSFW, describeProduct } from "../../../src/services/aiService";
+import type { ListingItem } from "../../../types/shop";
+import { sortCategories } from "../../../utils/categoryHelpers";
 
-/** --- Options (7 categories, plural where appropriate for UI) --- */
-export const CATEGORY_OPTIONS = [
-  "Accessories", "Bottoms", "Footwear", "Outerwear", "Tops", "Bags", "Dresses",
-] as const;
-type UICategory = typeof CATEGORY_OPTIONS[number];
+/** --- Options (categories loaded dynamically from database) --- */
+type UICategory =
+  | "Accessories"
+  | "Bottoms"
+  | "Footwear"
+  | "Outerwear"
+  | "Tops"
+  | "Bags"
+  | "Dresses";
 
 type CanonicalCategory =
   | "Top"
@@ -79,7 +90,6 @@ const MATERIAL_OPTIONS = [
 ];
 const SHIPPING_OPTIONS = [
   "Free shipping",
-  "Buyer pays – $3 (within 10km)",
   "Buyer pays – $5 (island-wide)",
   "Buyer pays – fixed fee",
   "Meet-up",
@@ -181,7 +191,12 @@ export default function SellScreen({
 }: {
   navigation: NativeStackNavigationProp<SellStackParamList, "SellMain">;
 }) {
+  const route = useRoute<RouteProp<SellStackParamList, "SellMain">>();
   const { user } = useAuth();
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(route.params?.draftId ?? null);
+  const [loadedDraft, setLoadedDraft] = useState<ListingItem | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [initializingDraft, setInitializingDraft] = useState(false);
   const [benefits, setBenefits] = useState<UserBenefitsPayload["benefits"] | null>(null);
   const [loadingBenefits, setLoadingBenefits] = useState(false);
   const [title, setTitle] = useState("");
@@ -189,6 +204,10 @@ export default function SellScreen({
   const [loading, setLoading] = useState(false);
   const [aiDesc, setAiDesc] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Dynamic categories loaded from database
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   // Gender
   const [gender, setGender] = useState("Select");
@@ -215,6 +234,31 @@ export default function SellScreen({
   const shouldFocusSizeInput = useRef(false);
   const shouldFocusMaterialInput = useRef(false);
   const shouldFocusBrandInput = useRef(false);
+
+  // Load categories from database
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const data = await listingsService.getCategories();
+        const allCategories = new Set<string>();
+        Object.values(data).forEach((genderData) => {
+          Object.keys(genderData).forEach((cat) => {
+            allCategories.add(cat);
+          });
+        });
+        const sorted = sortCategories(Array.from(allCategories));
+        setCategoryOptions(sorted);
+      } catch (error) {
+        console.error("Failed to load categories:", error);
+        // Fallback to empty array - user will need to manually select
+        setCategoryOptions([]);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+    loadCategories();
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -279,6 +323,7 @@ export default function SellScreen({
   const [showGuide, setShowGuide] = useState(false);
 
   const [moderationChecking, setModerationChecking] = useState(false);
+  const isEditingDraft = Boolean(editingDraftId);
 
   // Reset all input states back to initial values
   const resetForm = useCallback(() => {
@@ -312,6 +357,11 @@ export default function SellScreen({
     setShowTagPicker(false);
     setShowGuide(false);
     setModerationChecking(false);
+    setSaving(false);
+    setSavingDraft(false);
+    setEditingDraftId(null);
+    setLoadedDraft(null);
+    setInitializingDraft(false);
   }, []);
 
   // When leaving this screen (e.g., to ConfirmSell/Checkout), clear the form so it's fresh on return
@@ -355,6 +405,170 @@ export default function SellScreen({
     return undefined;
   }, [brand]);
 
+  const hydrateDraftFromListing = useCallback((listing: ListingItem) => {
+    setTitle(listing.title ?? "");
+    setDescription(listing.description ?? "");
+    setAiDesc(null);
+
+    const normalizedGender = listing.gender ? listing.gender.toLowerCase() : "";
+    const mappedGender =
+      GENDER_OPTIONS.find((opt) => opt.toLowerCase() === normalizedGender) ?? "Select";
+    setGender(mappedGender);
+
+    let resolvedCategory: UICategory | "Select" = "Select";
+    if (listing.category && categoryOptions.includes(listing.category)) {
+      resolvedCategory = listing.category as UICategory;
+    } else if (listing.category) {
+      const mapped = mapToUICategory(listing.category);
+      if (mapped && categoryOptions.includes(mapped)) {
+        resolvedCategory = mapped;
+      }
+    }
+    setCategory(resolvedCategory);
+    setUserPickedCategory(resolvedCategory !== "Select");
+
+    const normalizedCondition = listing.condition ?? "Select";
+    setCondition(
+      CONDITION_OPTIONS.includes(normalizedCondition) ? normalizedCondition : "Select"
+    );
+
+    const allSizeOptions = [
+      ...SIZE_OPTIONS_CLOTHES,
+      ...SIZE_OPTIONS_SHOES,
+      ...SIZE_OPTIONS_ACCESSORIES,
+    ];
+    if (listing.size) {
+      if (allSizeOptions.includes(listing.size)) {
+        setSize(listing.size);
+        setCustomSize("");
+      } else {
+        setSize("Other");
+        setCustomSize(listing.size);
+      }
+    } else {
+      setSize("Select");
+      setCustomSize("");
+    }
+
+    if (listing.material) {
+      if (MATERIAL_OPTIONS.includes(listing.material)) {
+        setMaterial(listing.material);
+        setCustomMaterial("");
+      } else {
+        setMaterial("Other");
+        setCustomMaterial(listing.material);
+      }
+    } else {
+      setMaterial("Select");
+      setCustomMaterial("");
+    }
+
+    if (listing.brand) {
+      if (BRAND_OPTIONS.includes(listing.brand)) {
+        setBrand(listing.brand);
+        setBrandCustom("");
+      } else {
+        setBrand("Others");
+        setBrandCustom(listing.brand);
+      }
+    } else {
+      setBrand("Select");
+      setBrandCustom("");
+    }
+
+    setPrice(listing.price != null ? String(listing.price) : "");
+    setTags(listing.tags ?? []);
+
+    const remoteImages = Array.isArray(listing.images)
+      ? listing.images.filter((uri) => typeof uri === "string" && uri.trim().length > 0)
+      : [];
+    setPhotos(
+      remoteImages.map((uri, index) => ({
+        id: `${listing.id}-${index}`,
+        localUri: uri,
+        remoteUrl: uri,
+        uploading: false,
+      }))
+    );
+    setPreviewIndex(null);
+
+    const shippingOptionValue = listing.shippingOption ?? "Select";
+    setShippingOption(shippingOptionValue);
+    if (listing.shippingFee != null && !Number.isNaN(Number(listing.shippingFee))) {
+      setShippingFee(String(Number(listing.shippingFee)));
+    } else {
+      setShippingFee("");
+    }
+    if (shippingOptionValue === "Meet-up") {
+      setLocation(listing.location ?? "");
+    } else {
+      setLocation("");
+    }
+
+    setSavingDraft(false);
+    setSaving(false);
+  }, []);
+
+  useEffect(() => {
+    const incomingId = route.params?.draftId ?? null;
+
+    if (!incomingId) {
+      if (editingDraftId !== null) {
+        // 从编辑草稿返回到新建状态，清空所有表单
+        resetForm();
+      }
+      return;
+    }
+
+    if (incomingId === editingDraftId && loadedDraft) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadDraft = async () => {
+      try {
+        setInitializingDraft(true);
+        const listing = await listingsService.getListingById(incomingId);
+        if (cancelled) return;
+        if (listing) {
+          hydrateDraftFromListing(listing);
+          setLoadedDraft(listing);
+          setEditingDraftId(listing.id);
+        } else {
+          throw new Error("Draft not found");
+        }
+      } catch (error) {
+        if (cancelled) return;
+        console.error("Failed to load draft:", error);
+        Alert.alert(
+          "Draft unavailable",
+          "We couldn't load that draft. It may have been removed.",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                navigation.setParams({});
+              },
+            },
+          ]
+        );
+        setEditingDraftId(null);
+        setLoadedDraft(null);
+      } finally {
+        if (!cancelled) {
+          setInitializingDraft(false);
+        }
+      }
+    };
+
+    loadDraft();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [route.params?.draftId, editingDraftId, loadedDraft, hydrateDraftFromListing, navigation, resetForm]);
+
   /** ---------- 🧠 AI hook integration ---------- */
   const aiUris = React.useMemo(() => photos.map(p => p.localUri), [photos]);
   const {
@@ -393,7 +607,7 @@ export default function SellScreen({
     if (!candidates.length) return;
     const best = candidates.reduce((a, b) => ((b.confidence ?? 0) > (a.confidence ?? 0) ? b : a));
     const mapped = mapToUICategory(best.category);
-    if (mapped && CATEGORY_OPTIONS.includes(mapped) && mapped !== category) {
+    if (mapped && categoryOptions.includes(mapped) && mapped !== category) {
       setCategory(mapped);
     }
   }, [aiItems, userPickedCategory, category]);
@@ -589,6 +803,156 @@ export default function SellScreen({
     setTimeout(() => aiStart(), 0);
   };
 
+  const handleSaveDraft = async () => {
+    if (savingDraft || initializingDraft) {
+      return;
+    }
+
+    if (photos.some((photo) => photo.uploading)) {
+      Alert.alert("Uploading", "Please wait for all photos to finish uploading before saving.");
+      return;
+    }
+
+    const hasPendingImage = photos.some((photo) => !photo.remoteUrl);
+    if (hasPendingImage) {
+      Alert.alert("Processing images", "Images are still processing. Please try again in a moment.");
+      return;
+    }
+
+    const payload: DraftListingRequest = {};
+
+    const trimmedTitle = title.trim();
+    payload.title = trimmedTitle;
+
+    payload.description = description.trim();
+
+    if (price.trim()) {
+      const numericPrice = Number(price.trim());
+      if (!Number.isNaN(numericPrice)) {
+        payload.price = numericPrice;
+      }
+    }
+
+    if (brand === "Others") {
+      payload.brand = brandCustom.trim();
+    } else if (brand !== "Select") {
+      payload.brand = brand;
+    } else {
+      payload.brand = "";
+    }
+
+    const resolvedSize =
+      size === "Other"
+        ? customSize.trim()
+        : size !== "Select"
+        ? size
+        : null;
+    payload.size = resolvedSize;
+
+    if (condition !== "Select") {
+      payload.condition = condition;
+    }
+
+    const resolvedMaterial =
+      material === "Other"
+        ? customMaterial.trim()
+        : material !== "Select"
+        ? material
+        : null;
+    payload.material = resolvedMaterial;
+
+    payload.tags = tags;
+
+    payload.category = category !== "Select" ? category : null;
+
+    payload.gender = gender !== "Select" ? gender.toLowerCase() : null;
+
+    const remoteImages = photos
+      .map((photo) => photo.remoteUrl)
+      .filter((uri): uri is string => typeof uri === "string" && uri.trim().length > 0);
+    payload.images = remoteImages;
+
+    if (shippingOption !== "Select") {
+      payload.shippingOption = shippingOption;
+      let derivedFee: number | null = null;
+      try {
+        if (shippingOption.includes("$3")) {
+          derivedFee = 3;
+        } else if (shippingOption.includes("$5")) {
+          derivedFee = 5;
+        } else if (shippingOption === "Free shipping" || shippingOption === "Meet-up") {
+          derivedFee = 0;
+        } else if (shippingOption === "Buyer pays – fixed fee") {
+          const customFee = Number(shippingFee.trim());
+          if (!Number.isNaN(customFee)) {
+            derivedFee = customFee;
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to derive shipping fee for draft", error);
+      }
+
+      if (derivedFee !== null) {
+        payload.shippingFee = derivedFee;
+      } else if (shippingFee.trim()) {
+        const fallbackFee = Number(shippingFee.trim());
+        if (!Number.isNaN(fallbackFee)) {
+          payload.shippingFee = fallbackFee;
+        }
+      }
+    } else {
+      payload.shippingOption = null;
+      payload.shippingFee = undefined;
+    }
+
+    if (shippingOption === "Meet-up") {
+      payload.location = location.trim();
+    } else if (location.trim()) {
+      payload.location = location.trim();
+    } else {
+      payload.location = null;
+    }
+
+    try {
+      setSavingDraft(true);
+      let result: ListingItem;
+      if (editingDraftId) {
+        result = await listingsService.updateDraft(editingDraftId, payload);
+        setLoadedDraft(result);
+        hydrateDraftFromListing(result);
+        Alert.alert("Draft updated", "Your changes are saved to drafts.", [
+          { text: "Keep editing", style: "cancel" },
+          {
+            text: "View drafts",
+            onPress: () => navigation.navigate("Drafts"),
+          },
+        ]);
+      } else {
+        result = await listingsService.createDraft(payload);
+        setEditingDraftId(result.id);
+        setLoadedDraft(result);
+        hydrateDraftFromListing(result);
+        navigation.setParams({ draftId: result.id });
+        Alert.alert("Draft saved", "We saved this listing to your drafts.", [
+          { text: "Keep editing", style: "cancel" },
+          {
+            text: "View drafts",
+            onPress: () => navigation.navigate("Drafts"),
+          },
+        ]);
+      }
+    } catch (error) {
+      console.error("Error saving draft:", error);
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to save draft. Please try again.";
+      Alert.alert("Error", message);
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
   // 保存 listing
   const handlePostListing = async () => {
     if (listingLimitReached) {
@@ -764,14 +1128,28 @@ export default function SellScreen({
       };
 
       const rootNavigator = navigation.getParent();
-      (rootNavigator as any)?.navigate("My TOP", {
-        screen: "ConfirmSell",
-        params: {
-          mode: "create",
-          draft: listingData,
-          benefitsSnapshot: benefits,
-        },
-      });
+      const confirmParams = isEditingDraft
+        ? {
+            mode: "update" as const,
+            listingId: editingDraftId!,
+            draft: { ...listingData, listed: true, sold: false },
+            listingSnapshot: loadedDraft ?? undefined,
+            benefitsSnapshot: benefits,
+          }
+        : {
+            mode: "create" as const,
+            draft: listingData,
+            benefitsSnapshot: benefits,
+          };
+
+      if ((rootNavigator as any)?.navigate) {
+        (rootNavigator as any).navigate("My TOP", {
+          screen: "ConfirmSell",
+          params: confirmParams,
+        });
+      } else {
+        (navigation as any)?.navigate?.("ConfirmSell", confirmParams);
+      }
     } catch (error) {
       console.error("Error preparing listing draft:", error);
       Alert.alert("Error", "Failed to prepare your listing. Please try again.");
@@ -792,11 +1170,18 @@ export default function SellScreen({
   const uiBestCategory = bestAI ? (mapToUICategory(bestAI.category) ?? bestAI.category) : null;
   const topLabels = bestAI?.labels?.slice(0, 6) ?? [];
   const bestConfPct = bestAI?.confidence != null ? Math.round(bestAI.confidence * 100) : null;
+  const headerTitle = isEditingDraft ? "Edit draft" : "Sell an item";
+  const postButtonLabel = isEditingDraft ? "Post draft" : "Post listing";
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header
-        title="Sell an item"
+        title={headerTitle}
+        showBack={isEditingDraft}
+        onBackPress={() => {
+          // 从编辑草稿返回到 Drafts 页面
+          navigation.navigate("Drafts");
+        }}
         rightAction={
           <TouchableOpacity onPress={() => navigation.navigate("Drafts")} style={{ paddingRight: 4 }}>
             <Icon name="file-tray-outline" size={22} color="#111" />
@@ -804,12 +1189,18 @@ export default function SellScreen({
         }
       />
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-      >
-        <ScrollView
+      {initializingDraft ? (
+        <View style={styles.draftLoadingContainer}>
+          <ActivityIndicator size="small" color="#111" />
+          <Text style={styles.draftLoadingText}>Loading draft…</Text>
+        </View>
+      ) : (
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        >
+          <ScrollView
           style={styles.container}
           contentContainerStyle={{ paddingBottom: 20 }}
           showsVerticalScrollIndicator={false}
@@ -1165,19 +1556,32 @@ export default function SellScreen({
 
           {/* Footer */}
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.draftBtn}>
-              <Text style={styles.draftText}>Save to drafts</Text>
+            <TouchableOpacity
+              style={[styles.draftBtn, (savingDraft || initializingDraft) && styles.draftBtnDisabled]}
+              onPress={handleSaveDraft}
+              disabled={savingDraft || initializingDraft}
+            >
+              {savingDraft ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <Text style={styles.draftText}>Save to drafts</Text>
+              )}
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.postBtn, saving && styles.postBtnDisabled]}
+              style={[styles.postBtn, (saving || initializingDraft) && styles.postBtnDisabled]}
               onPress={handlePostListing}
-              disabled={saving}
+              disabled={saving || initializingDraft}
             >
-              {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.postText}>Post listing</Text>}
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.postText}>{postButtonLabel}</Text>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      )}
 
       {/* Pickers */}
       <OptionPicker
@@ -1191,7 +1595,7 @@ export default function SellScreen({
       <OptionPicker
         title="Select category"
         visible={showCat}
-        options={[...CATEGORY_OPTIONS]}
+        options={categoryOptions}
         value={category}
         onClose={() => setShowCat(false)}
         onSelect={(val) => {
@@ -1456,6 +1860,17 @@ function TagPickerModal({
 /** --- Styles --- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", padding: 16 },
+  draftLoadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingBottom: 80,
+  },
+  draftLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: "#666",
+  },
 
   photoRow: {
     paddingVertical: 4,
@@ -1605,6 +2020,7 @@ const styles = StyleSheet.create({
 
   footer: { flexDirection: "row", justifyContent: "space-between", marginTop: 20 },
   draftBtn: { flex: 1, borderWidth: 1, borderColor: "#000", borderRadius: 25, paddingVertical: 12, alignItems: "center", marginRight: 8 },
+  draftBtnDisabled: { opacity: 0.6 },
   draftText: { fontWeight: "600", fontSize: 16 },
   postBtn: { flex: 1, backgroundColor: "#000", borderRadius: 25, paddingVertical: 12, alignItems: "center", marginLeft: 8 },
   postText: { color: "#fff", fontWeight: "600", fontSize: 16 },

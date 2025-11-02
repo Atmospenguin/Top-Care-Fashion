@@ -17,6 +17,11 @@ interface NewFeedback {
   rating?: number;
   tags: string[];
   featured: boolean;
+  isPublic?: boolean;
+  type?: string;
+  title?: string;
+  priority?: string;
+  status?: string;
 }
 
 export default function FeedbackPage() {
@@ -30,7 +35,11 @@ export default function FeedbackPage() {
   const [newFeedback, setNewFeedback] = useState<NewFeedback>({
     message: '',
     tags: [],
-    featured: false
+    featured: false,
+    isPublic: true,
+    type: 'general',
+    priority: 'medium',
+    status: 'open'
   });
   const [saving, setSaving] = useState(false);
 
@@ -98,7 +107,11 @@ export default function FeedbackPage() {
         setNewFeedback({
           message: '',
           tags: [],
-          featured: false
+          featured: false,
+          isPublic: true,
+          type: 'general',
+          priority: 'medium',
+          status: 'open'
         });
         setShowAddForm(false);
         load();
@@ -224,6 +237,78 @@ export default function FeedbackPage() {
           
           <div className="space-y-4">
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Title (Optional)</label>
+              <input
+                type="text"
+                value={newFeedback.title || ''}
+                onChange={(e) => setNewFeedback({...newFeedback, title: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Brief title for the feedback"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <select
+                  title="Feedback type"
+                  value={newFeedback.type || 'general'}
+                  onChange={(e) => setNewFeedback({...newFeedback, type: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="general">General</option>
+                  <option value="bug">Bug Report</option>
+                  <option value="feature">Feature Request</option>
+                  <option value="complaint">Complaint</option>
+                  <option value="praise">Praise</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                <select
+                  title="Priority level"
+                  value={newFeedback.priority || 'medium'}
+                  onChange={(e) => setNewFeedback({...newFeedback, priority: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  title="Feedback status"
+                  value={newFeedback.status || 'open'}
+                  onChange={(e) => setNewFeedback({...newFeedback, status: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="open">Open</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="flex items-center pt-8">
+                  <input
+                    type="checkbox"
+                    checked={newFeedback.isPublic ?? true}
+                    onChange={(e) => setNewFeedback({...newFeedback, isPublic: e.target.checked})}
+                    className="mr-2"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Public (visible to users)</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">User ID (Optional)</label>
               <input
                 type="text"
@@ -335,13 +420,39 @@ export default function FeedbackPage() {
             <div className="space-y-4">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
+                  <div className="flex items-center space-x-3 mb-2 flex-wrap">
                     <h3 className="text-lg font-medium">
-                      Feedback #{feedback.id}
+                      {feedback.title ? `${feedback.title}` : `Feedback #${feedback.id}`}
                     </h3>
                     {feedback.featured && (
                       <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
                         Featured
+                      </span>
+                    )}
+                    {feedback.status && (
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        feedback.status === 'open' ? 'bg-blue-100 text-blue-800' :
+                        feedback.status === 'in_progress' ? 'bg-purple-100 text-purple-800' :
+                        feedback.status === 'resolved' ? 'bg-green-100 text-green-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {feedback.status === 'in_progress' ? 'In Progress' : feedback.status.charAt(0).toUpperCase() + feedback.status.slice(1)}
+                      </span>
+                    )}
+                    {feedback.priority && (
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        feedback.priority === 'high' ? 'bg-red-100 text-red-800' :
+                        feedback.priority === 'medium' ? 'bg-orange-100 text-orange-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        Priority: {feedback.priority.charAt(0).toUpperCase() + feedback.priority.slice(1)}
+                      </span>
+                    )}
+                    {feedback.type && (
+                      <span className="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800">
+                        {feedback.type === 'bug' ? 'Bug Report' :
+                         feedback.type === 'feature' ? 'Feature Request' :
+                         feedback.type.charAt(0).toUpperCase() + feedback.type.slice(1)}
                       </span>
                     )}
                     {feedback.rating && (
@@ -369,12 +480,17 @@ export default function FeedbackPage() {
                       </span>
                     )}
                     <span className={`px-2 py-1 text-xs rounded-full ${
-                      feedback.userEmail 
-                        ? 'bg-green-100 text-green-800' 
+                      feedback.userEmail
+                        ? 'bg-green-100 text-green-800'
                         : 'bg-gray-100 text-gray-800'
                     }`}>
                       {feedback.userEmail ? 'Registered' : 'Anonymous'}
                     </span>
+                    {feedback.isPublic === false && (
+                      <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">
+                        Private
+                      </span>
+                    )}
                   </div>
                   
                   <div className="mb-3 space-y-1">
@@ -417,7 +533,7 @@ export default function FeedbackPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
                   <span className="text-gray-500">ID:</span>
                   <div className="font-medium">{feedback.id}</div>
@@ -428,10 +544,18 @@ export default function FeedbackPage() {
                     {formatDate(feedback.createdAt)}
                   </div>
                 </div>
+                {feedback.updatedAt && (
+                  <div>
+                    <span className="text-gray-500">Updated:</span>
+                    <div className="font-medium">
+                      {formatDate(feedback.updatedAt)}
+                    </div>
+                  </div>
+                )}
                 <div>
-                  <span className="text-gray-500">Type:</span>
+                  <span className="text-gray-500">Visibility:</span>
                   <div className="font-medium">
-                    {feedback.featured ? 'Featured' : 'Regular'}
+                    {feedback.isPublic === false ? 'Private' : 'Public'}
                   </div>
                 </div>
               </div>
@@ -499,14 +623,37 @@ export default function FeedbackPage() {
               </button>
             </div>
             <div className="space-y-4">
+              {selectedFeedback.title && (
+                <div>
+                  <span className="font-medium text-gray-700">Title:</span>
+                  <div className="text-lg font-semibold mt-1">{selectedFeedback.title}</div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="font-medium text-gray-700">ID:</span>
                   <div>{selectedFeedback.id}</div>
                 </div>
                 <div>
+                  <span className="font-medium text-gray-700">Status:</span>
+                  <div className="capitalize">{selectedFeedback.status?.replace('_', ' ') || 'N/A'}</div>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Type:</span>
+                  <div className="capitalize">{selectedFeedback.type || 'General'}</div>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Priority:</span>
+                  <div className="capitalize">{selectedFeedback.priority || 'Medium'}</div>
+                </div>
+                <div>
                   <span className="font-medium text-gray-700">Featured:</span>
                   <div>{selectedFeedback.featured ? 'Yes' : 'No'}</div>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Visibility:</span>
+                  <div>{selectedFeedback.isPublic === false ? 'Private' : 'Public'}</div>
                 </div>
                 <div>
                   <span className="font-medium text-gray-700">Email:</span>
@@ -541,6 +688,12 @@ export default function FeedbackPage() {
                   <span className="font-medium text-gray-700">Created:</span>
                   <div>{formatDate(selectedFeedback.createdAt)}</div>
                 </div>
+                {selectedFeedback.updatedAt && (
+                  <div>
+                    <span className="font-medium text-gray-700">Updated:</span>
+                    <div>{formatDate(selectedFeedback.updatedAt)}</div>
+                  </div>
+                )}
               </div>
               
               {selectedFeedback.tags && selectedFeedback.tags.length > 0 && (

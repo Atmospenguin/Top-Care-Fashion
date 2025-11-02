@@ -147,12 +147,12 @@ export default function OnboardingPreferenceScreen() {
 
   const handleFinish = async () => {
     // 将 Onboarding 偏好保存到后端（当前后端仅支持 gender 字段；size/style 可在后续扩展）
-    const genderValue =
+    const genderValue: "Female" | "Male" | null =
       selectedGender === "Female"
         ? "Female"
         : selectedGender === "Male"
         ? "Male"
-        : "OTHER";
+        : null;
     try {
       console.log("Saving preferences:", {
         gender: selectedGender,
@@ -160,7 +160,7 @@ export default function OnboardingPreferenceScreen() {
         styles: selectedStyles,
       });
       await userService.updateProfile({
-        gender: (genderValue as any) ?? null,
+  gender: genderValue,
         preferredStyles: selectedStyles.length ? selectedStyles : [],
         preferredSizes: {
           shoe: shoeSize ?? null,
@@ -190,7 +190,8 @@ export default function OnboardingPreferenceScreen() {
       case 1:
         return selectedStyles.length > 0;
       case 2:
-        return shoeSize !== null || topSize !== null || bottomSize !== null;
+        // All three sizes must be filled
+        return shoeSize !== null && topSize !== null && bottomSize !== null;
       default:
         return false;
     }
@@ -340,7 +341,7 @@ export default function OnboardingPreferenceScreen() {
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>What are your sizes?</Text>
       <Text style={styles.stepSubtitle}>
-        This helps us recommend items that fit you (optional)
+        Please provide all three sizes to help us recommend items that fit you
       </Text>
 
       <View style={styles.sizesContainer}>
