@@ -319,20 +319,36 @@ export class UserService {
   }
 
   // 获取用户的 listings
-  async getUserListings(username: string, status: 'active' | 'sold' | 'all' = 'active'): Promise<any[]> {
+  async getUserListings(
+    username: string,
+    status: 'active' | 'sold' | 'all' = 'active',
+    params?: { limit?: number; offset?: number }
+  ): Promise<{ listings: any[]; total: number }> {
     try {
-      console.log("📖 Fetching listings for user:", username, "status:", status);
-      
-      const response = await apiClient.get<{ success: boolean; listings: any[] }>(
+      console.log("📖 Fetching listings for user:", username, "status:", status, "params:", params);
+
+      const queryParams: any = { status };
+      if (params?.limit) queryParams.limit = params.limit;
+      if (params?.offset) queryParams.offset = params.offset;
+
+      const response = await apiClient.get<{ success: boolean; listings: any[]; total?: number }>(
         `/api/users/${username}/listings`,
-        { status }
+        queryParams
       );
-      
+
       console.log("📖 User listings response:", response);
-      
+
       if (response.data?.success && response.data.listings) {
+        const total = response.data.total ?? response.data.listings.length;
         console.log(`✅ Found ${response.data.listings.length} listings for user`);
-        return response.data.listings;
+        console.log(`📊 Backend total: ${response.data.total} | Fallback total: ${total}`);
+        if (!response.data.total) {
+          console.warn('⚠️ Backend did not return total field! Using listings.length as fallback');
+        }
+        return {
+          listings: response.data.listings,
+          total,
+        };
       }
       
       throw new Error('No listings data received');

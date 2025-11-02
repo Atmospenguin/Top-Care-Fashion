@@ -198,6 +198,13 @@ export default function UserProfileScreen() {
   const [isOwnProfile, setIsOwnProfile] = useState(false);
   const [username, setUsername] = useState<string>(usernameParam || "");
 
+  // ✅ 分页状态
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [listingsTotalCount, setListingsTotalCount] = useState(0);
+  const PAGE_SIZE = 20;
+
   // Dynamic categories loaded from database
   const [shopCategories, setShopCategories] = useState<string[]>(["All"]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
@@ -338,18 +345,25 @@ export default function UserProfileScreen() {
     loadUserProfile();
   }, [username, navigation, currentUser]);
 
-  // 加载用户 listings
+  // 加载用户 listings（支持分页）
   useEffect(() => {
     const loadUserListings = async () => {
       if (!userProfile) return;
-      
+
       try {
         setListingsLoading(true);
         console.log("📖 Loading listings for user:", userProfile.username);
-        
-        const listings = await userService.getUserListings(userProfile.username, 'active');
+
+        const { listings, total } = await userService.getUserListings(
+          userProfile.username,
+          'active',
+          { limit: PAGE_SIZE, offset: 0 }
+        );
         setUserListings(listings);
-        console.log(`✅ Loaded ${listings.length} listings`);
+        setListingsTotalCount(total);
+        setHasMore(listings.length === PAGE_SIZE);
+        setOffset(PAGE_SIZE);
+        console.log(`✅ Loaded ${listings.length} listings, total: ${total}`);
       } catch (error) {
         console.error("❌ Error loading user listings:", error);
         // 使用 mock 数据作为 fallback
@@ -357,6 +371,7 @@ export default function UserProfileScreen() {
           (listing) => listing.seller.name.toLowerCase() === username.toLowerCase()
         );
         setUserListings(mockListings);
+        setListingsTotalCount(mockListings.length);
       } finally {
         setListingsLoading(false);
       }
@@ -860,6 +875,35 @@ export default function UserProfileScreen() {
     setReviewRating("All");
   };
 
+  // ✅ 加载更多 listings
+  const loadMoreListings = async () => {
+    if (!hasMore || isLoadingMore || listingsLoading || !userProfile) {
+      console.log('🔍 UserProfile: Skip load more', { hasMore, isLoadingMore, listingsLoading });
+      return;
+    }
+
+    try {
+      setIsLoadingMore(true);
+      console.log('🔍 UserProfile: Loading more listings at offset:', offset);
+
+      const { listings } = await userService.getUserListings(
+        userProfile.username,
+        'active',
+        { limit: PAGE_SIZE, offset }
+      );
+
+      console.log('🔍 UserProfile: Loaded', listings.length, 'more items');
+
+      setUserListings(prev => [...prev, ...listings]);
+      setHasMore(listings.length === PAGE_SIZE);
+      setOffset(prev => prev + PAGE_SIZE);
+    } catch (error) {
+      console.error('Error loading more listings:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
   // Follow/Unfollow 处理函数
   const handleFollowToggle = async () => {
     if (!userProfile) return;
@@ -1053,7 +1097,13 @@ export default function UserProfileScreen() {
           />
           <View style={styles.nameCol}>
             <View style={styles.nameRow}>
-              <Text style={styles.shopName} numberOfLines={1} ellipsizeMode="tail">
+              <Text
+                style={styles.shopName}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                adjustsFontSizeToFit={true}
+                minimumFontScale={0.5}
+              >
                 {userProfile.username}
               </Text>
             </View>
@@ -1139,10 +1189,13 @@ export default function UserProfileScreen() {
               <Text style={styles.statLabel}>following</Text>
             </TouchableOpacity>
 
-            {/* Follow和Message按钮 - 始终显示，但自己的profile时禁用 */}
+            {/* Spacer to push buttons to the right */}
+            <View style={{ flex: 1 }} />
+
+            {/* Follow和Message按钮 - 右对齐 */}
             <TouchableOpacity
               style={[
-                styles.followBtn, 
+                styles.followBtn,
                 isFollowing && styles.followBtnActive,
                 isOwnProfile && styles.disabledBtn
               ]}
@@ -1150,7 +1203,7 @@ export default function UserProfileScreen() {
               disabled={isOwnProfile}
             >
               <Text style={[
-                styles.followBtnText, 
+                styles.followBtnText,
                 isFollowing && styles.followBtnTextActive,
                 isOwnProfile && styles.disabledBtnText
               ]}>
@@ -1158,15 +1211,15 @@ export default function UserProfileScreen() {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.msgBtn, isOwnProfile && styles.disabledBtn]} 
+            <TouchableOpacity
+              style={[styles.msgBtn, isOwnProfile && styles.disabledBtn]}
               onPress={isOwnProfile ? undefined : handleMessageUser}
               disabled={isOwnProfile}
             >
-              <Icon 
-                name="mail-outline" 
-                size={24} 
-                color={isOwnProfile ? "#999" : "#F54B3D"} 
+              <Icon
+                name="mail-outline"
+                size={24}
+                color={isOwnProfile ? "#999" : "#F54B3D"}
               />
             </TouchableOpacity>
           </View>
@@ -1208,7 +1261,7 @@ export default function UserProfileScreen() {
                 )}
               </TouchableOpacity>
               <Text style={styles.resultCount}>
-                {listingsLoading ? "Loading..." : `${filteredListings.length} items`}
+                {listingsLoading ? "Loading..." : `${listingsTotalCount > 0 ? listingsTotalCount : filteredListings.length} items`}
               </Text>
             </View>
             {listingsLoading ? (
@@ -1224,6 +1277,37 @@ export default function UserProfileScreen() {
                 }
                 numColumns={3}
                 contentContainerStyle={styles.gridContent}
+                onEndReached={loadMoreListings}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={() => {
+                  if (isLoadingMore) {
+                    return (
+                      <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                        <ActivityIndicator size="small" color="#F54B3D" />
+                        <Text style={{ marginTop: 8, color: '#666', fontSize: 14 }}>
+                          Loading more...
+                        </Text>
+                      </View>
+                    );
+                  }
+
+                  if (!hasMore && filteredListings.length > 0) {
+                    const displayCount = listingsTotalCount > 0 ? listingsTotalCount : filteredListings.length;
+                    return (
+                      <View style={styles.footerContainer}>
+                        <View style={styles.footerDivider} />
+                        <Text style={styles.footerText}>
+                          You've reached the end • {displayCount} {displayCount === 1 ? 'item' : 'items'} found
+                        </Text>
+                        <Text style={styles.footerSubtext}>
+                          Try adjusting your filters to see more results
+                        </Text>
+                      </View>
+                    );
+                  }
+
+                  return null;
+                }}
                 renderItem={({ item }) =>
                   item.empty ? (
                     <View style={[styles.gridItem, styles.gridItemInvisible]} />
@@ -1235,7 +1319,7 @@ export default function UserProfileScreen() {
                       }
                     >
                       <Image
-                        source={{ 
+                        source={{
                           uri: (item as ListingItem).images?.[0] || "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image"
                         }}
                         style={styles.gridImage}
@@ -1716,10 +1800,10 @@ const styles = StyleSheet.create({
     columnGap: 0,
     flexWrap: "wrap",
     flexShrink: 1,
-    marginBottom: -4,
+    marginBottom: 4,
   },
   shopName: {
-    fontSize: 40,
+    fontSize: 36,
     fontWeight: "700",
     color: "#111",
     maxWidth: "100%",
@@ -2217,6 +2301,32 @@ const styles = StyleSheet.create({
     color: "#666",
     marginTop: 12,
     textAlign: "center",
+  },
+  // Footer styles
+  footerContainer: {
+    alignItems: "center",
+    paddingVertical: 40,
+    paddingHorizontal: 32,
+    rowGap: 8,
+  },
+  footerDivider: {
+    width: 60,
+    height: 3,
+    backgroundColor: "#e5e5e5",
+    borderRadius: 999,
+    marginBottom: 16,
+  },
+  footerText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#666",
+    textAlign: "center",
+  },
+  footerSubtext: {
+    fontSize: 13,
+    color: "#999",
+    textAlign: "center",
+    marginTop: 4,
   },
 
 });
