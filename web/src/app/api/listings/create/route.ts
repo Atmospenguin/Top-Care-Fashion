@@ -126,34 +126,52 @@ export async function POST(req: Request) {
       return result || "GOOD";
     };
 
+    const numericPrice = Number(price);
+    if (Number.isNaN(numericPrice)) {
+      return NextResponse.json(
+        { error: "Invalid price provided" },
+        { status: 400 }
+      );
+    }
+
+    const categoryId = await getCategoryId(category);
+
     console.log("📝 Creating listing with mapped data:", {
       name: title,
       condition_type: mapConditionToEnum(condition),
-      category_id: await getCategoryId(category),
+      category_id: categoryId,
       seller_id: sessionUser.id
     });
-
-    const categoryId = await getCategoryId(category);
+    const numericShippingFee =
+      shippingFee != null && shippingFee !== ""
+        ? Number(shippingFee)
+        : null;
+    if (numericShippingFee != null && Number.isNaN(numericShippingFee)) {
+      return NextResponse.json(
+        { error: "Invalid shipping fee provided" },
+        { status: 400 }
+      );
+    }
 
     // 创建 listing
     const listing = await prisma.listings.create({
       data: {
         name: title,
         description,
-        price: parseFloat(price),
+        price: numericPrice,
         brand: brand || "",
         size: size ?? null,
         condition_type: mapConditionToEnum(condition),
         material: material || null,
         tags: tags ? JSON.stringify(tags) : Prisma.JsonNull,
-        category_id: categoryId,
-        gender: gender ? gender.toLowerCase() : "unisex",
+    category_id: categoryId,
+    gender: resolveGender(gender),
         seller_id: sessionUser.id,
         image_urls: images ? JSON.stringify(images) : Prisma.JsonNull,
         listed: true,
         sold: false,
         shipping_option: shippingOption || null,
-        shipping_fee: shippingFee != null ? parseFloat(String(shippingFee)) : null,
+        shipping_fee: numericShippingFee,
         location: location || null,
       } as any,
       include: {
@@ -268,53 +286,157 @@ export async function POST(req: Request) {
 }
 
 // 辅助函数：根据分类名称获取分类ID
-const BASE_CATEGORY_NAMES = ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"] as const;
+const CATEGORY_CANONICALS = [
+  "Accessories",
+  "Activewear",
+  "Bottoms",
+  "Designer",
+  "Dresses",
+  "Formal Wear",
+  "Outerwear",
+  "Shoes",
+  "Tops",
+  "Vintage",
+] as const;
+
+function resolveGender(input: unknown): "Men" | "Women" | "Unisex" {
+  if (typeof input !== "string") {
+    return "Unisex";
+  }
+
+  const normalized = input.trim().toLowerCase();
+  switch (normalized) {
+    case "men":
+    case "male":
+      return "Men";
+    case "women":
+    case "female":
+      return "Women";
+    case "unisex":
+    case "uni":
+    case "all":
+      return "Unisex";
+    default:
+      return "Unisex";
+  }
+}
 
 async function getCategoryId(categoryName: string): Promise<number> {
-  const name = (categoryName || "").trim().toLowerCase();
+  const normalized = (categoryName || "").trim().toLowerCase();
 
-  const synonymMap: Record<string, typeof BASE_CATEGORY_NAMES[number]> = {
+  if (
+    !normalized ||
+    normalized === "select" ||
+    normalized === "none" ||
+    normalized.startsWith("select ") ||
+    normalized.includes("selecta") ||
+    normalized.startsWith("choose")
+  ) {
+    throw new Error("Category name is empty");
+  }
+
+  const synonymMap: Record<string, (typeof CATEGORY_CANONICALS)[number]> = {
     accessories: "Accessories",
     accessory: "Accessories",
+    jewelry: "Accessories",
+    jewellery: "Accessories",
+    bag: "Accessories",
     bags: "Accessories",
+    handbag: "Accessories",
+    belt: "Accessories",
     belts: "Accessories",
+    scarf: "Accessories",
+    scarves: "Accessories",
+    hat: "Accessories",
+    hats: "Accessories",
+    beanie: "Accessories",
+    sunglasses: "Accessories",
+    eyewear: "Accessories",
+    watch: "Accessories",
+    watches: "Accessories",
+    activewear: "Activewear",
+    sportswear: "Activewear",
+    sport: "Activewear",
+    gym: "Activewear",
+    workout: "Activewear",
+    athleisure: "Activewear",
     bottoms: "Bottoms",
+    bottom: "Bottoms",
     pants: "Bottoms",
+    trouser: "Bottoms",
     trousers: "Bottoms",
+    jeans: "Bottoms",
     shorts: "Bottoms",
+    skirt: "Bottoms",
     skirts: "Bottoms",
     leggings: "Bottoms",
     joggers: "Bottoms",
-    footwear: "Footwear",
-    shoes: "Footwear",
-    shoe: "Footwear",
-    boots: "Footwear",
-    sneakers: "Footwear",
+    designer: "Designer",
+    luxury: "Designer",
+    couture: "Designer",
+    dresses: "Dresses",
+    dress: "Dresses",
+    gown: "Dresses",
+    gowns: "Dresses",
+    formal: "Formal Wear",
+    "formal wear": "Formal Wear",
+    suit: "Formal Wear",
+    suits: "Formal Wear",
+    tuxedo: "Formal Wear",
+    tuxedos: "Formal Wear",
+    blazer: "Formal Wear",
+    blazers: "Formal Wear",
+    evening: "Formal Wear",
     outerwear: "Outerwear",
+    coat: "Outerwear",
     coats: "Outerwear",
+    jacket: "Outerwear",
     jackets: "Outerwear",
-    blazers: "Outerwear",
+    parka: "Outerwear",
+    trench: "Outerwear",
+    shoes: "Shoes",
+    shoe: "Shoes",
+    footwear: "Shoes",
+    sneaker: "Shoes",
+    sneakers: "Shoes",
+    heel: "Shoes",
+    heels: "Shoes",
+    boot: "Shoes",
+    boots: "Shoes",
+    sandal: "Shoes",
+    sandals: "Shoes",
     tops: "Tops",
     top: "Tops",
-    shirts: "Tops",
     shirt: "Tops",
+    shirts: "Tops",
+    blouse: "Tops",
+    blouses: "Tops",
+    tee: "Tops",
+    tees: "Tops",
+    tshirt: "Tops",
+    "t-shirt": "Tops",
+    hoodie: "Tops",
     hoodies: "Tops",
+    sweater: "Tops",
     sweaters: "Tops",
-    dress: "Tops",
-    dresses: "Tops",
-    activewear: "Tops",
-    others: "Accessories",
-    other: "Accessories",
+    cardigan: "Tops",
+    cardigans: "Tops",
+    vintage: "Vintage",
+    retro: "Vintage",
+    "retro wear": "Vintage",
   };
 
-  const mappedName = synonymMap[name] ?? BASE_CATEGORY_NAMES.find((cat) => cat.toLowerCase() === name) ?? "Tops";
+  const mapped =
+    synonymMap[normalized] ??
+    CATEGORY_CANONICALS.find((cat) => cat.toLowerCase() === normalized) ??
+    "Tops";
 
   const category = await prisma.listing_categories.findFirst({
-    where: { name: mappedName },
+    where: { name: mapped },
   });
 
   if (!category) {
-    throw new Error(`Base category '${mappedName}' is missing from the database.`);
+    throw new Error(`Category '${mapped}' is missing from the database.`);
   }
 
   return category.id;

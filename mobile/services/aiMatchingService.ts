@@ -1,7 +1,9 @@
 // mobile/services/aiMatchingService.ts
 // AI-powered outfit matching using Hugging Face
 
-const API_URL = 'http://192.168.31.188:3000';
+import { API_BASE_URL } from '../src/config/api';
+
+const API_URL = API_BASE_URL.replace(/\/+$/, ''); // 移除末尾的斜杠
 
 export interface ListingItem {
   id: string;

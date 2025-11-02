@@ -26,6 +26,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import { API_BASE_URL } from "../../../src/config/api";
 import type {
   ListingItem,
   BagItem,
@@ -229,8 +230,9 @@ export default function MixMatchScreen() {
         const token = await AsyncStorage.getItem('authToken');
         console.log('🔍 Fetching all listings for Mix & Match...');
         
+        const apiBaseUrl = API_BASE_URL.replace(/\/+$/, ''); // 移除末尾的斜杠
         const response = await fetch(
-          `http://192.168.31.188:3000/api/listings?limit=100`,
+          `${apiBaseUrl}/api/listings?limit=100`,
           {
             headers: {
               'Authorization': token ? `Bearer ${token}` : '',

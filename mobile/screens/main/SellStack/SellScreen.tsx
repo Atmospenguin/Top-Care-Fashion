@@ -77,7 +77,19 @@ const CANONICAL_TO_UI: Record<CanonicalCategory, UICategory> = {
   Outerwear: "Outerwear",
 };
 
-const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "Others"];
+const BRAND_OPTIONS = [
+  "Nike",
+  "Adidas",
+  "Converse",
+  "New Balance",
+  "Zara",
+  "Uniqlo",
+  "H&M",
+  "Puma",
+  "Levi's",
+  "N/A",
+  "Others",
+];
 const CONDITION_OPTIONS = ["Brand New", "Like new", "Good", "Fair", "Poor"];
 const GENDER_OPTIONS = ["Men", "Women", "Unisex"];
 const SIZE_OPTIONS_CLOTHES = ["XXS","XS","S","M","L","XL","XXL","XXXL","Free Size","Other"];
@@ -464,7 +476,10 @@ export default function SellScreen({
     }
 
     if (listing.brand) {
-      if (BRAND_OPTIONS.includes(listing.brand)) {
+      if (listing.brand === "N/A") {
+        setBrand("N/A");
+        setBrandCustom("N/A");
+      } else if (BRAND_OPTIONS.includes(listing.brand)) {
         setBrand(listing.brand);
         setBrandCustom("");
       } else {
@@ -507,7 +522,7 @@ export default function SellScreen({
 
     setSavingDraft(false);
     setSaving(false);
-  }, []);
+  }, [categoryOptions]);
 
   useEffect(() => {
     const incomingId = route.params?.draftId ?? null;
@@ -763,7 +778,11 @@ export default function SellScreen({
       shouldFocusBrandInput.current = true;
     } else {
       shouldFocusBrandInput.current = false;
-      setBrandCustom("");
+      if (selected === "N/A") {
+        setBrandCustom("N/A");
+      } else {
+        setBrandCustom("");
+      }
     }
   };
 
@@ -833,7 +852,9 @@ export default function SellScreen({
       }
     }
 
-    if (brand === "Others") {
+    if (brand === "N/A") {
+      payload.brand = "N/A";
+    } else if (brand === "Others") {
       payload.brand = brandCustom.trim();
     } else if (brand !== "Select") {
       payload.brand = brand;
@@ -1085,7 +1106,13 @@ export default function SellScreen({
         ? material
         : "Polyester";
     const resolvedBrand =
-      brand !== "Select" ? (brand === "Others" ? customBrandValue : brand) : "";
+      brand === "N/A"
+        ? "N/A"
+        : brand !== "Select"
+        ? brand === "Others"
+          ? customBrandValue
+          : brand
+        : "";
     const resolvedGender = gender !== "Select" ? gender.toLowerCase() : "unisex";
 
     setSaving(true);
