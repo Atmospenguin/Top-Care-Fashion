@@ -973,11 +973,9 @@ export default function ListingDetailScreen() {
                   />
                 </TouchableOpacity>
               </View>
-              {safeItem.availableQuantity !== undefined && (
+              {safeItem.availableQuantity !== undefined && safeItem.availableQuantity > 0 && (
                 <Text style={styles.stockInfo}>
-                  {safeItem.availableQuantity > 0 
-                    ? `${safeItem.availableQuantity} available` 
-                    : 'Out of stock'}
+                  {safeItem.availableQuantity} available
                 </Text>
               )}
             </View>
