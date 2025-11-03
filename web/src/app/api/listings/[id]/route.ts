@@ -195,6 +195,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       createdAt: listing.created_at.toISOString(),
       listed: listing.listed,
       sold: listing.sold,
+      availableQuantity: Number((listing as any).inventory_count ?? 1), // 🔥 当前库存数量（stock）
     };
 
     return NextResponse.json({ listing: formattedListing });
@@ -302,6 +303,17 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (body.location !== undefined) updateData.location = body.location;
     if (body.listed !== undefined) updateData.listed = body.listed;
     if (body.sold !== undefined) updateData.sold = body.sold;
+    
+    // 🔥 处理库存数量
+    if (body.quantity !== undefined) {
+      const numericQuantity = Number(body.quantity);
+      if (!Number.isNaN(numericQuantity) && numericQuantity >= 1) {
+        updateData.inventory_count = numericQuantity;
+        console.log("✅ Updating inventory_count to:", numericQuantity);
+      } else {
+        console.warn("⚠️ Invalid quantity value:", body.quantity);
+      }
+    }
 
     // 🔥 处理 category（通过 name 查找 category_id）
     if (body.category !== undefined && typeof body.category === "string" && body.category.trim().length > 0) {
@@ -369,6 +381,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       },
       listed: updatedListing.listed,
       sold: updatedListing.sold,
+      availableQuantity: Number((updatedListing as any).inventory_count ?? 1), // 🔥 当前库存数量（stock）
       createdAt: updatedListing.created_at.toISOString(),
       updatedAt: updatedListing.updated_at?.toISOString() || null,
     };

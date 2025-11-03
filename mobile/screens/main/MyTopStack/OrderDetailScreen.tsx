@@ -398,7 +398,11 @@ export default function OrderDetailScreen() {
               {order.listing.name}
             </Text>
             <Text style={styles.productPrice}>${order.listing.price}</Text>
-            <Text style={styles.productMeta}>Size: {order.listing.size}</Text>
+            <Text style={styles.productMeta}>
+              Size: {order.listing.size}
+              {/* 🔥 显示购买数量 */}
+              {order.quantity && order.quantity > 1 && ` • Qty: ${order.quantity}`}
+            </Text>
 
             {/* 显示买家/卖家 */}
             {isPurchase ? (

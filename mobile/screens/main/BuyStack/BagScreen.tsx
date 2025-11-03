@@ -285,7 +285,21 @@ export default function BagScreen() {
                     <Text style={styles.itemPrice}>${typeof listing.price === 'number' ? listing.price.toFixed(2) : parseFloat(listing.price || '0').toFixed(2)}</Text>
                   </View>
                   <View style={styles.itemActions}>
-                    <Text style={styles.quantityStatic}>Qty {quantity}</Text>
+                    <View>
+                      <Text style={styles.quantityStatic}>Qty {quantity}</Text>
+                      {/* 🔥 库存警告 */}
+                      {listing.availableQuantity !== undefined && (
+                        <>
+                          {listing.availableQuantity <= 0 ? (
+                            <Text style={styles.stockWarning}>Out of stock</Text>
+                          ) : listing.availableQuantity < quantity ? (
+                            <Text style={styles.stockWarning}>
+                              Only {listing.availableQuantity} left
+                            </Text>
+                          ) : null}
+                        </>
+                      )}
+                    </View>
                     <TouchableOpacity
                       style={styles.removeBtn}
                       disabled={!canModify}
@@ -339,13 +353,44 @@ export default function BagScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() =>
+            onPress={() => {
+              // 🔥 验证库存
+              const outOfStockItems = displayItems.filter(
+                bagItem => bagItem.item.availableQuantity !== undefined && 
+                           bagItem.item.availableQuantity <= 0
+              );
+              
+              const insufficientStockItems = displayItems.filter(
+                bagItem => bagItem.item.availableQuantity !== undefined &&
+                           bagItem.item.availableQuantity > 0 &&
+                           bagItem.item.availableQuantity < bagItem.quantity
+              );
+              
+              if (outOfStockItems.length > 0) {
+                Alert.alert(
+                  'Out of Stock',
+                  'Some items in your cart are out of stock. Please remove them before proceeding.',
+                  [{ text: 'OK' }]
+                );
+                return;
+              }
+              
+              if (insufficientStockItems.length > 0) {
+                const itemNames = insufficientStockItems.map(b => b.item.title).join(', ');
+                Alert.alert(
+                  'Insufficient Stock',
+                  `The following items have insufficient stock: ${itemNames}. Please update quantities.`,
+                  [{ text: 'OK' }]
+                );
+                return;
+              }
+              
               navigation.navigate("Checkout", {
                 items: displayItems,
                 subtotal,
                 shipping,
-              })
-            }
+              });
+            }}
           >
             <Text style={styles.primaryText}>Proceed to checkout</Text>
           </TouchableOpacity>
@@ -397,6 +442,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "#555",
+  },
+  // 🔥 库存警告样式
+  stockWarning: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#F54B3D",
+    marginTop: 2,
   },
   itemActions: {
     alignItems: "flex-end",

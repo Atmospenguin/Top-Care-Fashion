@@ -263,6 +263,7 @@ export async function POST(request: NextRequest) {
     console.log("🔍 Orders API - Request body:", JSON.stringify(body, null, 2));
     const { 
       listing_id, 
+      quantity, // 🔥 购买数量
       buyer_name, 
       buyer_phone, 
       shipping_address, 
@@ -285,6 +286,16 @@ export async function POST(request: NextRequest) {
       console.log("❌ Orders API - Invalid listing_id format:", listing_id);
       return NextResponse.json(
         { error: 'Invalid listing ID format' },
+        { status: 400 }
+      );
+    }
+
+    // 🔥 解析和验证购买数量
+    const orderQuantity = quantity != null ? Number(quantity) : 1;
+    if (isNaN(orderQuantity) || orderQuantity < 1) {
+      console.log("❌ Orders API - Invalid quantity:", quantity);
+      return NextResponse.json(
+        { error: 'Invalid quantity. Must be at least 1.' },
         { status: 400 }
       );
     }
@@ -336,6 +347,23 @@ export async function POST(request: NextRequest) {
       console.log("❌ Orders API - Listing listed status:", listing.listed);
       return NextResponse.json(
         { error: 'Listing is not available' },
+        { status: 400 }
+      );
+    }
+
+    // 🔥 检查库存是否足够
+    const currentStock = (listing as any).inventory_count ?? 0;
+    console.log("🔍 Orders API - Checking stock. Current:", currentStock, "Requested:", orderQuantity);
+    
+    if (currentStock < orderQuantity) {
+      console.log("❌ Orders API - Insufficient stock");
+      return NextResponse.json(
+        { 
+          error: 'Insufficient stock', 
+          message: `Only ${currentStock} item(s) available.`,
+          available: currentStock,
+          requested: orderQuantity
+        },
         { status: 400 }
       );
     }
@@ -403,6 +431,7 @@ export async function POST(request: NextRequest) {
         order_number: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         status: 'IN_PROGRESS',
         total_amount: orderAmount,
+        // quantity: orderQuantity, // 🔥 TODO: 需要先运行数据库迁移
         commission_rate: commissionRate, // 🔥 记录佣金率
         commission_amount: commissionAmount, // 🔥 记录佣金金额
         // 保存买家结账信息
@@ -443,14 +472,24 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Mark the listing as sold
+    // 🔥 扣除库存
+    const newStock = currentStock - orderQuantity;
+    console.log("🔍 Orders API - Updating stock. Old:", currentStock, "New:", newStock);
+    
     await prisma.listings.update({
       where: { id: listing.id },
       data: {
-        sold: true,
-        sold_at: new Date()
+        inventory_count: newStock,
+        // 🔥 如果库存为0，自动下架并标记为售出
+        ...(newStock <= 0 ? {
+          sold: true,
+          listed: false,
+          sold_at: new Date()
+        } : {})
       }
     });
+    
+    console.log("✅ Orders API - Stock updated successfully. Listing " + (newStock <= 0 ? "sold out and unlisted" : "still available"));
 
     // 🔥 创建或查找对话，并发送 PAID 系统消息
     try {

@@ -24,6 +24,7 @@ export type ListingItem = {
   updatedAt?: string;
   listed?: boolean;
   sold?: boolean;
+  availableQuantity?: number; // 🔥 当前库存数量（stock/quantity）
   seller: {
     id?: number;
     name: string;
@@ -35,6 +36,7 @@ export type ListingItem = {
   // 🔥 添加订单相关字段（仅对sold商品）
   orderStatus?: string | null;
   orderId?: number | null;
+  orderQuantity?: number | null; // 🔥 订单购买数量
   buyerId?: number | null;
   sellerId?: number | null;
   conversationId?: string | null;

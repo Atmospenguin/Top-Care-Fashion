@@ -29,7 +29,7 @@ import type { ListingItem } from "../../../types/shop";
 import { sortCategories } from "../../../utils/categoryHelpers";
 
 /** --- Options --- */
-const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "Others"];
+const BRAND_OPTIONS = ["Nike", "Adidas", "Converse", "New Balance", "Zara", "Uniqlo", "H&M", "Puma", "Levi's", "N/A", "Others"];
 const CONDITION_OPTIONS = ["Brand New", "Like new", "Good", "Fair", "Poor"];
 const SIZE_OPTIONS_CLOTHES = [
   "XXS",
@@ -183,6 +183,7 @@ export default function EditListingScreen() {
   const [material, setMaterial] = useState("Select");
   const [customMaterial, setCustomMaterial] = useState("");
   const [price, setPrice] = useState("");
+  const [quantity, setQuantity] = useState("1"); // 🔥 库存数量，默认为1
   const [shippingOption, setShippingOption] = useState("Select");
   const [shippingFee, setShippingFee] = useState("");
   const [location, setLocation] = useState("");
@@ -271,6 +272,7 @@ export default function EditListingScreen() {
           }
 
           setPrice(listingData.price != null ? listingData.price.toString() : "");
+          setQuantity(listingData.quantity != null ? listingData.quantity.toString() : "1"); // 🔥 加载库存数量
           const normalizedGender = listingData.gender ? listingData.gender.toLowerCase() : "";
           const matchedGender = GENDER_OPTIONS.find(
             (opt) => opt.toLowerCase() === normalizedGender
@@ -334,6 +336,13 @@ export default function EditListingScreen() {
       return null;
     }
 
+    // 🔥 验证库存数量
+    const parsedQuantity = parseInt(quantity || "1", 10);
+    if (isNaN(parsedQuantity) || parsedQuantity < 1) {
+      Alert.alert("Invalid Quantity", "Stock quantity must be at least 1");
+      return null;
+    }
+
     if (!shippingOption || shippingOption === "Select") {
       Alert.alert("Missing Information", "Please select a shipping option");
       return null;
@@ -394,6 +403,7 @@ export default function EditListingScreen() {
       title: trimmedTitle,
       description: trimmedDescription,
       price: parsedPrice,
+      quantity: parsedQuantity, // 🔥 库存数量
       brand: trimmedBrand,
       size: resolvedSize,
       condition,
@@ -805,6 +815,19 @@ export default function EditListingScreen() {
             keyboardType="numeric"
             placeholder="Enter price (e.g. 25.00)"
           />
+
+          {/* 🔥 Quantity / Stock - 必填 */}
+          <Text style={styles.sectionTitle}>Stock Quantity <Text style={styles.requiredMark}>*</Text></Text>
+          <TextInput
+            style={styles.input}
+            value={quantity}
+            onChangeText={setQuantity}
+            keyboardType="numeric"
+            placeholder="Enter stock quantity (e.g. 1)"
+          />
+          <Text style={styles.helperText}>
+            How many items are available for sale? (Minimum: 1)
+          </Text>
 
           {/* Shipping - 必填 */}
           <Text style={styles.sectionTitle}>Shipping <Text style={styles.requiredMark}>*</Text></Text>
@@ -1348,6 +1371,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     backgroundColor: "#fafafa",
   },
+  helperText: { 
+    fontSize: 12, 
+    color: "#666", 
+    marginTop: -8, 
+    marginBottom: 12 
+  }, // 🔥 Helper text style
   selectBtn: {
     borderWidth: 1,
     borderColor: "#ddd",

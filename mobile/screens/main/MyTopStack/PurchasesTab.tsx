@@ -317,6 +317,12 @@ export default function PurchasesTab() {
                   }} 
                   style={styles.image} 
                 />
+                {/* 🔥 数量徽章 */}
+                {item.quantity && item.quantity > 1 && (
+                  <View style={styles.quantityBadge}>
+                    <Text style={styles.quantityBadgeText}>×{item.quantity}</Text>
+                  </View>
+                )}
                 {/* Status overlay */}
                 <View style={styles.overlay}>
                   <Text style={styles.overlayText}>
@@ -410,6 +416,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderRadius: 6,
+  },
+  quantityBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "#000",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    zIndex: 10,
+  },
+  quantityBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
   },
   overlayText: {
     color: "#fff",

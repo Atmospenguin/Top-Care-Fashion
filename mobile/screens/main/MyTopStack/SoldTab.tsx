@@ -230,6 +230,12 @@ export default function SoldTab() {
                   source={{ uri: item.images?.[0] || "https://via.placeholder.com/100x100" }} 
                   style={styles.image} 
                 />
+                {/* 🔥 数量徽章 */}
+                {item.orderQuantity && item.orderQuantity > 1 && (
+                  <View style={styles.quantityBadge}>
+                    <Text style={styles.quantityBadgeText}>×{item.orderQuantity}</Text>
+                  </View>
+                )}
                 <View style={styles.overlay}>
                   <Text style={styles.overlayText}>
                     {getOverlayText(item.orderStatus)}
@@ -317,6 +323,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderRadius: 6,
+  },
+  quantityBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "#000",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    zIndex: 10,
+  },
+  quantityBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
   },
   overlayText: {
     color: "#fff",

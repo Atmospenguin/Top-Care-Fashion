@@ -160,6 +160,7 @@ export async function GET(req: NextRequest) {
           select: {
             id: true,
             status: true,
+            // quantity: true, // 🔥 TODO: 需要先运行数据库迁移
             created_at: true,
             updated_at: true,
             buyer_id: true,
@@ -276,10 +277,12 @@ export async function GET(req: NextRequest) {
         },
         listed: listing.listed,
         sold: listing.sold,
+        availableQuantity: Number(listing.inventory_count ?? 1), // 🔥 当前库存数量（stock）
         createdAt: listing.created_at.toISOString(),
         updatedAt: listing.updated_at?.toISOString() || null,
         orderStatus: latestOrder ? latestOrder.status : null,
         orderId: latestOrder ? latestOrder.id : null,
+        orderQuantity: null, // 🔥 TODO: 需要先运行数据库迁移才能获取订单数量
         buyerId: latestOrder ? latestOrder.buyer_id : null,
         sellerId: latestOrder ? latestOrder.seller_id : null,
         conversationId: listing.conversationId,

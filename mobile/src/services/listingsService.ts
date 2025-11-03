@@ -85,6 +85,7 @@ export interface CreateListingRequest {
   location?: string;
   listed?: boolean;
   sold?: boolean;
+  quantity?: number; // 🔥 库存数量，默认为1
 }
 
 export interface DraftListingRequest {
@@ -102,6 +103,7 @@ export interface DraftListingRequest {
   shippingOption?: string | null;
   shippingFee?: number | null;
   location?: string | null;
+  quantity?: number; // 🔥 库存数量
 }
 
 // 分类数据结构

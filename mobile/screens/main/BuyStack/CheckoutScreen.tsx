@@ -274,6 +274,7 @@ export default function CheckoutScreen() {
 
         const newOrder = await ordersService.createOrder({
           listing_id: Number(listingId),
+          quantity: bagItem.quantity || 1, // 🔥 购买数量
           buyer_name: shippingAddress.name,
           buyer_phone: shippingAddress.phone,
           shipping_address: `${shippingAddress.line1}, ${shippingAddress.city}, ${shippingAddress.state} ${shippingAddress.postalCode}`,

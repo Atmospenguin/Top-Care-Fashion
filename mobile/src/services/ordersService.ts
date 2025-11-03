@@ -12,6 +12,7 @@ export interface Order {
   // 订单金额和编号
   total_amount?: number;
   order_number?: string;
+  quantity?: number; // 🔥 购买数量
   // 买家信息字段
   buyer_name?: string;
   buyer_phone?: string;
@@ -112,6 +113,7 @@ export interface OrdersResponse {
 
 export interface CreateOrderRequest {
   listing_id: number;
+  quantity?: number; // 🔥 购买数量，默认为1
   buyer_name?: string;
   buyer_phone?: string;
   shipping_address?: string;
