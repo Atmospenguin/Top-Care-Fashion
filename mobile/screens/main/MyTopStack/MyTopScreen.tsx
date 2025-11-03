@@ -496,6 +496,8 @@ export default function MyTopScreen() {
 
       if (params?.initialTab) {
         setActiveTab(params.initialTab);
+        // 立即清除 initialTab 参数，避免重复触发
+        navigation.setParams({ initialTab: undefined });
       }
 
       let didRefresh = false;
@@ -504,17 +506,16 @@ export default function MyTopScreen() {
         // 显式请求：展示下拉指示器
         refreshAll({ useSpinner: true });
         didRefresh = true;
+        // 清除 refreshTS 参数
+        navigation.setParams({ refreshTS: undefined });
       }
 
-      // 若不是显式请求，则进行一次静默刷新，避免页面进入时自动“下拉”
+      // 若不是显式请求，则进行一次静默刷新，避免页面进入时自动"下拉"
       if (!didRefresh) {
         refreshAll({ useSpinner: false });
       }
-
-      // 统一一次性清理参数，防止参数变化导致的回调重复执行
-      navigation.setParams({ initialTab: undefined, refreshTS: undefined });
       return () => { isActive = false; };
-    }, [navigation, refreshAll])
+    }, [navigation, refreshAll, route.params])
   );
 
   // ✅ 使用真实用户数据，提供默认值以防用户数据为空
