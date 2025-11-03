@@ -119,6 +119,7 @@ export async function GET(
         order_number: true,
         status: true,
         total_amount: true,
+        quantity: true,
         shipping_method: true,
         notes: true,
         // 买家信息字段

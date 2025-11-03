@@ -99,6 +99,8 @@ export async function GET(request: NextRequest) {
           shippingOption: (listing as any).shipping_option || null,
           shippingFee: (listing as any).shipping_fee ? Number((listing as any).shipping_fee) : null,
           location: (listing as any).location || null,
+          // 🔥 库存数量
+          availableQuantity: Number((listing as any).inventory_count ?? 0),
           seller: {
             id: (listing as any).seller.id,
             name: (listing as any).seller.username,

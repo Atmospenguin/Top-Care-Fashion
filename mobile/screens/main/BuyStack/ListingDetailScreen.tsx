@@ -164,8 +164,16 @@ export default function ListingDetailScreen() {
   }, [item]);
 
   const defaultBag = useMemo<BagItem[]>(
-    () => safeItem ? [{ item: safeItem, quantity: 1 }] : [],
-    [safeItem],
+    () =>
+      safeItem
+        ? [
+            {
+              item: safeItem,
+              quantity: purchaseQuantity,
+            },
+          ]
+        : [],
+    [safeItem, purchaseQuantity],
   );
   const subtotal = useMemo(
     () => defaultBag.reduce((sum, current) => {
@@ -945,7 +953,7 @@ export default function ListingDetailScreen() {
                     styles.quantityButtonDisabled
                   ]}
                   onPress={() => {
-                    const maxQty = safeItem.availableQuantity ?? safeItem.quantity ?? 999;
+                    const maxQty = safeItem.availableQuantity ?? 999;
                     setPurchaseQuantity(Math.min(maxQty, purchaseQuantity + 1));
                   }}
                   disabled={

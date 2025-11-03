@@ -66,6 +66,7 @@ const cartItemToListingItem = (item: CartItem["item"]): ListingItem =>
     shippingOption: item.shippingOption ?? null,
     shippingFee: item.shippingFee ?? null,
     location: item.location ?? null,
+    availableQuantity: item.availableQuantity, // 🔥 保留库存数量
     seller: {
       id: item.seller.id,
       name: item.seller.name,
@@ -136,7 +137,13 @@ export default function BagScreen() {
         quantity: bagItem.quantity,
       }));
     }
-    return cartItemsToBagItems(cartItems);
+    const bagItems = cartItemsToBagItems(cartItems);
+    console.log('🛒 displayItems from cartItems:', bagItems.map(item => ({
+      id: item.item.id,
+      title: item.item.title,
+      quantity: item.quantity,
+    })));
+    return bagItems;
   }, [route.params?.items, cartItems]);
 
   // 加载购物车数据
@@ -198,6 +205,32 @@ export default function BagScreen() {
     } catch (err) {
       console.error('Error removing item:', err);
       Alert.alert('Error', 'Failed to remove item');
+    }
+  };
+
+  // 🔥 更新商品数量
+  const updateQuantity = async (cartItemId: number | undefined, newQuantity: number) => {
+    if (isReadOnly || cartItemId === undefined || newQuantity < 1) {
+      return;
+    }
+    try {
+      console.log('🔄 Updating cart item:', { cartItemId, newQuantity });
+      const updatedItem = await cartService.updateCartItem(cartItemId, newQuantity);
+      console.log('✅ Cart item updated:', updatedItem);
+      
+      // 更新本地状态
+      setCartItems(prev => {
+        const updated = prev.map(item => 
+          item.id === cartItemId 
+            ? { ...item, quantity: newQuantity } 
+            : item
+        );
+        console.log('🔄 Updated cartItems:', updated.map(i => ({ id: i.id, quantity: i.quantity })));
+        return updated;
+      });
+    } catch (err) {
+      console.error('Error updating quantity:', err);
+      Alert.alert('Error', 'Failed to update quantity');
     }
   };
 
@@ -269,11 +302,21 @@ export default function BagScreen() {
         <ScrollView contentContainerStyle={styles.container}>
           <View style={styles.itemsCard}>
             {displayItems.map((bagItem, index) => {
-              const linkedCartItem = cartItems[index];
+              const linkedCartItem = cartItems.find(cart => cart.item.id === bagItem.item.id);
               const cartId = linkedCartItem?.id;
               const quantity = linkedCartItem?.quantity ?? bagItem.quantity;
               const listing = bagItem.item;
               const canModify = Boolean(linkedCartItem);
+              
+              console.log('🔍 BagScreen item:', {
+                listingId: listing.id,
+                title: listing.title,
+                bagItemQuantity: bagItem.quantity,
+                linkedCartQuantity: linkedCartItem?.quantity,
+                finalQuantity: quantity,
+                availableQuantity: listing.availableQuantity,
+              });
+              
               return (
                 <View key={`${listing.id}-${index}`} style={styles.itemRow}>
                   <Image source={{ uri: listing.images[0] }} style={styles.itemImage} />
@@ -285,28 +328,53 @@ export default function BagScreen() {
                     <Text style={styles.itemPrice}>${typeof listing.price === 'number' ? listing.price.toFixed(2) : parseFloat(listing.price || '0').toFixed(2)}</Text>
                   </View>
                   <View style={styles.itemActions}>
-                    <View>
-                      <Text style={styles.quantityStatic}>Qty {quantity}</Text>
-                      {/* 🔥 库存警告 */}
-                      {listing.availableQuantity !== undefined && (
-                        <>
-                          {listing.availableQuantity <= 0 ? (
-                            <Text style={styles.stockWarning}>Out of stock</Text>
-                          ) : listing.availableQuantity < quantity ? (
-                            <Text style={styles.stockWarning}>
-                              Only {listing.availableQuantity} left
-                            </Text>
-                          ) : null}
-                        </>
-                      )}
+                    {/* 🔥 库存警告 */}
+                    {listing.availableQuantity !== undefined && (
+                      <>
+                        {listing.availableQuantity <= 0 ? (
+                          <Text style={styles.stockWarning}>Out of stock</Text>
+                        ) : listing.availableQuantity < quantity ? (
+                          <Text style={styles.stockWarning}>
+                            Only {listing.availableQuantity} left
+                          </Text>
+                        ) : null}
+                      </>
+                    )}
+                    
+                    {/* 🔥 数量选择器 + 删除按钮 */}
+                    <View style={styles.actionsRow}>
+                      <View style={styles.quantitySelector}>
+                        <TouchableOpacity
+                          style={[
+                            styles.quantityBtn,
+                            (!canModify || quantity <= 1) && styles.quantityBtnDisabled
+                          ]}
+                          disabled={!canModify || quantity <= 1}
+                          onPress={() => updateQuantity(cartId, quantity - 1)}
+                        >
+                          <Text style={styles.quantityBtnText}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.quantityText}>{quantity}</Text>
+                        <TouchableOpacity
+                          style={[
+                            styles.quantityBtn,
+                            (!canModify || (listing.availableQuantity !== undefined && quantity >= listing.availableQuantity)) && styles.quantityBtnDisabled
+                          ]}
+                          disabled={!canModify || (listing.availableQuantity !== undefined && quantity >= listing.availableQuantity)}
+                          onPress={() => updateQuantity(cartId, quantity + 1)}
+                        >
+                          <Text style={styles.quantityBtnText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                      
+                      <TouchableOpacity
+                        style={styles.removeBtn}
+                        disabled={!canModify}
+                        onPress={() => removeItem(cartId)}
+                      >
+                        <Icon name="trash-outline" size={16} color="#F54B3D" />
+                      </TouchableOpacity>
                     </View>
-                    <TouchableOpacity
-                      style={styles.removeBtn}
-                      disabled={!canModify}
-                      onPress={() => removeItem(cartId)}
-                    >
-                      <Icon name="trash-outline" size={16} color="#F54B3D" />
-                    </TouchableOpacity>
                   </View>
                 </View>
               );
@@ -385,6 +453,17 @@ export default function BagScreen() {
                 return;
               }
               
+              console.log('🔍 BagScreen navigating to Checkout with:', {
+                itemsCount: displayItems.length,
+                items: displayItems.map(item => ({
+                  id: item.item.id,
+                  title: item.item.title,
+                  quantity: item.quantity,
+                })),
+                subtotal,
+                shipping,
+              });
+              
               navigation.navigate("Checkout", {
                 items: displayItems,
                 subtotal,
@@ -431,29 +510,56 @@ const styles = StyleSheet.create({
   itemTitle: { fontSize: 15, fontWeight: "600" },
   itemMeta: { fontSize: 13, color: "#666" },
   itemPrice: { fontSize: 15, fontWeight: "700", marginTop: 4 },
-  quantityBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "#f1f1f1",
-  },
-  quantityStatic: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#555",
-  },
   // 🔥 库存警告样式
   stockWarning: {
     fontSize: 11,
     fontWeight: "600",
     color: "#F54B3D",
-    marginTop: 2,
+    marginBottom: 4,
+    alignSelf: "flex-end",
   },
   itemActions: {
     alignItems: "flex-end",
     justifyContent: "center",
-    rowGap: 8,
+    rowGap: 6,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 8,
+  },
+  quantitySelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
+    borderRadius: 20,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  quantityBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quantityBtnDisabled: {
+    backgroundColor: "#e0e0e0",
+    opacity: 0.5,
+  },
+  quantityBtnText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#333",
+  },
+  quantityText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+    marginHorizontal: 12,
+    minWidth: 20,
+    textAlign: "center",
   },
   removeBtn: {
     width: 28,

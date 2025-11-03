@@ -229,6 +229,20 @@ export default function OrderDetailScreen() {
   console.log("🔍 OrderDetailScreen order status:", order?.status);
   console.log("🔍 OrderDetailScreen should show TO_SHIP buttons:", !isPurchase && order?.status === "TO_SHIP");
 
+  const resolvedQuantity = Number(order.quantity ?? 1);
+  const unitPrice = Number(order.listing?.price ?? 0);
+  const totalAmount = (() => {
+    const rawTotal = (order as any).total_amount;
+    if (rawTotal !== undefined && rawTotal !== null) {
+      const parsed = Number(rawTotal);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    return unitPrice * resolvedQuantity;
+  })();
+  const formattedTotalAmount = totalAmount.toFixed(2);
+
   // 🔥 判断评论状态
   const getReviewStatus = () => {
     if (!order?.reviews || !user?.id) return { 
@@ -399,9 +413,7 @@ export default function OrderDetailScreen() {
             </Text>
             <Text style={styles.productPrice}>${order.listing.price}</Text>
             <Text style={styles.productMeta}>
-              Size: {order.listing.size}
-              {/* 🔥 显示购买数量 */}
-              {order.quantity && order.quantity > 1 && ` • Qty: ${order.quantity}`}
+              Size: {order.listing.size || "N/A"}
             </Text>
 
             {/* 显示买家/卖家 */}
@@ -516,6 +528,8 @@ export default function OrderDetailScreen() {
 
             {/* Seller-side: Real Payment Info */}
             <Text style={[styles.sectionTitle, { marginTop: 10 }]}>Payment Info</Text>
+            <Text style={styles.text}>Quantity: ×{resolvedQuantity}</Text>
+            <Text style={styles.text}>Total Paid: ${formattedTotalAmount}</Text>
             <Text style={styles.text}>Method: {order.payment_method || "N/A"}</Text>
             <Text style={styles.text}>Date: {new Date(order.created_at).toLocaleDateString()}</Text>
             <Text style={styles.text}>Transaction ID: {(order as any).order_number || `TXN-${order.id}`}</Text>
@@ -527,8 +541,9 @@ export default function OrderDetailScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Payment</Text>
             <Text style={styles.text}>
-              Paid ${(order as any).total_amount || order.listing.price} with {order.payment_method || "PayPal"}
+              Paid ${formattedTotalAmount} with {order.payment_method || "PayPal"}
             </Text>
+            <Text style={styles.text}>Quantity: ×{resolvedQuantity}</Text>
             <Text style={styles.text}>Date: {new Date(order.created_at).toLocaleDateString()}</Text>
             <Text style={styles.text}>
               Transaction ID: {(order as any).order_number || `TXN-${order.id}`}

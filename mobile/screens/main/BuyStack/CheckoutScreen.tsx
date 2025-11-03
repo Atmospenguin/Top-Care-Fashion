@@ -75,7 +75,43 @@ export default function CheckoutScreen() {
     country: '',
   });
 
-  const total = useMemo(() => subtotal + shipping, [subtotal, shipping]);
+  const normalizedItems = useMemo(
+    () =>
+      items.map((bagItem) => ({
+        ...bagItem,
+        quantity: Number(bagItem.quantity ?? 1),
+      })),
+    [items]
+  );
+
+  const totalQuantity = useMemo(
+    () => normalizedItems.reduce((sum, item) => sum + (item.quantity ?? 1), 0),
+    [normalizedItems]
+  );
+
+  const computedSubtotal = useMemo(
+    () =>
+      normalizedItems.reduce((sum, bagItem) => {
+        const price =
+          typeof bagItem.item.price === "number"
+            ? bagItem.item.price
+            : parseFloat(bagItem.item.price || "0");
+        const quantity = bagItem.quantity ?? 1;
+        return sum + price * quantity;
+      }, 0),
+    [normalizedItems]
+  );
+
+  const shippingTotal = useMemo(() => {
+    if (typeof shipping === "number") return shipping;
+    const parsed = Number(shipping || 0);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }, [shipping]);
+
+  const total = useMemo(
+    () => computedSubtotal + shippingTotal,
+    [computedSubtotal, shippingTotal]
+  );
   const deliveryEstimate = useMemo(() => getDeliveryEstimate(), []);
 
   // 🔥 从后端加载用户默认支付方式和地址
@@ -251,7 +287,7 @@ export default function CheckoutScreen() {
       
       // 🔥 为每个商品创建订单
       const createdOrders = [];
-      for (const bagItem of items) {
+      for (const bagItem of normalizedItems) {
         console.log("🔍 Creating order for item:", bagItem.item.id);
         console.log("🔍 Item details:", {
           id: bagItem.item.id,
@@ -311,19 +347,20 @@ export default function CheckoutScreen() {
                 if (rootNavigation) {
                   try {
                     // 构造订单数据以便在 ChatScreen 显示
+                    const primaryItem = normalizedItems[0];
                     const orderData = {
                       id: firstOrder.id.toString(),
                       product: {
-                        title: items[0]?.item.title || "Item",
-                        price: items[0]?.item.price || 0,
-                        size: items[0]?.item.size,
-                        image: items[0]?.item.images?.[0] || null,
-                        shippingFee: shipping,
+                        title: primaryItem?.item.title || "Item",
+                        price: primaryItem?.item.price || 0,
+                        size: primaryItem?.item.size,
+                        image: primaryItem?.item.images?.[0] || null,
+                        shippingFee: shippingTotal,
                       },
                       seller: {
-                        id: items[0]?.item.seller?.id,
-                        name: items[0]?.item.seller?.name || "Seller",
-                        avatar: items[0]?.item.seller?.avatar || "",
+                        id: primaryItem?.item.seller?.id,
+                        name: primaryItem?.item.seller?.name || "Seller",
+                        avatar: primaryItem?.item.seller?.avatar || "",
                       },
                       buyer: {
                         id: user?.id,
@@ -331,9 +368,9 @@ export default function CheckoutScreen() {
                         avatar: user?.avatar_url || "",
                       },
                       status: "IN_PROGRESS",
-                      listing_id: items[0]?.item.id,
+                      listing_id: primaryItem?.item.id,
                       buyer_id: user?.id ? Number(user.id) : undefined,
-                      seller_id: items[0]?.item.seller?.id,
+                      seller_id: primaryItem?.item.seller?.id,
                     };
                     
                     console.log("🔍 Navigating to Chat with order data:", orderData);
@@ -452,15 +489,17 @@ export default function CheckoutScreen() {
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Order Summary</Text>
-            <Text style={styles.summaryItems}>{items.length} items</Text>
+            <Text style={styles.summaryItems}>
+              {totalQuantity} item{totalQuantity !== 1 ? "s" : ""} ({normalizedItems.length} listing{normalizedItems.length !== 1 ? "s" : ""})
+            </Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryValue}>${subtotal.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>${computedSubtotal.toFixed(2)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Shipping</Text>
-            <Text style={styles.summaryValue}>${shipping.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>${shippingTotal.toFixed(2)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Estimated Delivery</Text>

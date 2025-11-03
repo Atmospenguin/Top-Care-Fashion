@@ -396,7 +396,7 @@ export async function POST(request: NextRequest) {
     // 🔥 计算佣金
     const sellerIsPremium = isPremiumUser(seller);
     const commissionRate = getCommissionRate(sellerIsPremium);
-    const orderAmount = Number(listing.price);
+    const orderAmount = Number(listing.price) * orderQuantity;
     const commissionAmount = calculateCommission(orderAmount, sellerIsPremium);
 
     console.log("💰 Commission calculation:", {
@@ -431,7 +431,7 @@ export async function POST(request: NextRequest) {
         order_number: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         status: 'IN_PROGRESS',
         total_amount: orderAmount,
-        // quantity: orderQuantity, // 🔥 TODO: 需要先运行数据库迁移
+        quantity: orderQuantity,
         commission_rate: commissionRate, // 🔥 记录佣金率
         commission_amount: commissionAmount, // 🔥 记录佣金金额
         // 保存买家结账信息

@@ -272,7 +272,7 @@ export default function EditListingScreen() {
           }
 
           setPrice(listingData.price != null ? listingData.price.toString() : "");
-          setQuantity(listingData.quantity != null ? listingData.quantity.toString() : "1"); // 🔥 加载库存数量
+          setQuantity(listingData.availableQuantity != null ? listingData.availableQuantity.toString() : "1"); // 🔥 加载库存数量
           const normalizedGender = listingData.gender ? listingData.gender.toLowerCase() : "";
           const matchedGender = GENDER_OPTIONS.find(
             (opt) => opt.toLowerCase() === normalizedGender
@@ -440,6 +440,7 @@ export default function EditListingScreen() {
       title: trimmedTitle,
       description: trimmedDescription,
       price: parsedPrice,
+      quantity: parsedQuantity, // 🔥 确保 quantity 被包含
       brand: trimmedBrand,
       gender: resolvedGender,
       location: shippingOption === "Meet-up" ? trimmedLocation : undefined,
