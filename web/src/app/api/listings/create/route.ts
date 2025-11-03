@@ -84,6 +84,7 @@ export async function POST(req: Request) {
       shippingOption,
       shippingFee,
       location,
+      quantity, // 🔥 库存数量
     } = body;
 
     // 验证必需字段（只验证核心字段）
@@ -134,6 +135,15 @@ export async function POST(req: Request) {
       );
     }
 
+    // 🔥 解析和验证库存数量
+    const numericQuantity = quantity != null ? Number(quantity) : 1;
+    if (Number.isNaN(numericQuantity) || numericQuantity < 1) {
+      return NextResponse.json(
+        { error: "Invalid quantity provided. Must be at least 1." },
+        { status: 400 }
+      );
+    }
+
     const categoryId = await getCategoryId(category);
 
     console.log("📝 Creating listing with mapped data:", {
@@ -173,6 +183,7 @@ export async function POST(req: Request) {
         shipping_option: shippingOption || null,
         shipping_fee: numericShippingFee,
         location: location || null,
+        inventory_count: numericQuantity, // 🔥 设置初始库存（可用数量）
       } as any,
       include: {
         seller: {
@@ -258,6 +269,7 @@ export async function POST(req: Request) {
         shippingFee: (listing as any).shipping_fee ?? null,
         location: (listing as any).location ?? null,
         likesCount: (listing as any).likes_count ?? 0,
+        availableQuantity: (listing as any).inventory_count ?? numericQuantity, // 🔥 当前库存数量（stock）
         gender: (() => {
           const value = (listing as any).gender;
           if (!value || typeof value !== "string") return "Unisex";

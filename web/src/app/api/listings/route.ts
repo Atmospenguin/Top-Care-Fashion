@@ -226,6 +226,7 @@ export async function GET(req: Request) {
         shippingFee: toNumber((listing as any).shipping_fee ?? null),
         location: (listing as any).location ?? null,
         likesCount: toNumber((listing as any).likes_count ?? 0),
+        availableQuantity: toNumber((listing as any).inventory_count ?? 1), // 🔥 当前库存数量（stock）
         gender: (() => {
           const value = (listing as any).gender;
           if (!value || typeof value !== "string") return "Unisex";

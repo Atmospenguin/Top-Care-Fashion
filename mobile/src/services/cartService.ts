@@ -23,6 +23,7 @@ export interface CartItem {
     shippingOption?: string | null;
     shippingFee?: number | null;
     location?: string | null;
+    availableQuantity?: number; // 🔥 库存数量
     seller: {
       id: number;
       name: string;

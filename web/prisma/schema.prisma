@@ -227,6 +227,7 @@ model orders {
   updated_at         DateTime              @default(now())
   order_number       String?               @unique @db.VarChar(50)
   total_amount       Decimal?              @db.Decimal(10, 2)
+  quantity           Int?                  @default(1)
   shipping_method    String?               @db.VarChar(100)
   notes              String?
   buyer_name         String?               @db.VarChar(100)

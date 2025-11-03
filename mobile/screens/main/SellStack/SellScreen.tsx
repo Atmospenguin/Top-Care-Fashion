@@ -239,6 +239,7 @@ export default function SellScreen({
   const [brand, setBrand] = useState("Select");
   const [brandCustom, setBrandCustom] = useState("");
   const [price, setPrice] = useState("");
+  const [quantity, setQuantity] = useState("1"); // 🔥 库存数量，默认为1
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const customSizeInputRef = useRef<RNTextInput | null>(null);
   const customMaterialInputRef = useRef<RNTextInput | null>(null);
@@ -353,6 +354,7 @@ export default function SellScreen({
     setBrand("Select");
     setBrandCustom("");
     setPrice("");
+    setQuantity("1"); // 🔥 重置库存数量
     setPhotos([]);
     setPreviewIndex(null);
     setShippingOption("Select");
@@ -492,6 +494,7 @@ export default function SellScreen({
     }
 
     setPrice(listing.price != null ? String(listing.price) : "");
+    setQuantity(listing.quantity != null ? String(listing.quantity) : "1"); // 🔥 加载库存数量
     setTags(listing.tags ?? []);
 
     const remoteImages = Array.isArray(listing.images)
@@ -852,6 +855,14 @@ export default function SellScreen({
       }
     }
 
+    // 🔥 保存库存数量
+    if (quantity.trim()) {
+      const numericQuantity = Number(quantity.trim());
+      if (!Number.isNaN(numericQuantity) && numericQuantity >= 1) {
+        payload.quantity = numericQuantity;
+      }
+    }
+
     if (brand === "N/A") {
       payload.brand = "N/A";
     } else if (brand === "Others") {
@@ -1134,6 +1145,14 @@ export default function SellScreen({
         console.warn("Failed to calculate preset shipping fee", e);
       }
 
+      // 🔥 解析并验证库存数量
+      const quantityValue = parseInt(quantity || "1", 10);
+      if (isNaN(quantityValue) || quantityValue < 1) {
+        Alert.alert("Invalid quantity", "Stock quantity must be at least 1.");
+        setSaving(false);
+        return;
+      }
+
       const listingData: CreateListingRequest = {
         title: trimmedTitle,
         description: trimmedDescription,
@@ -1152,6 +1171,7 @@ export default function SellScreen({
         location: shippingOption === "Meet-up" ? trimmedLocation : undefined,
         listed: true,
         sold: false,
+        quantity: quantityValue, // 🔥 库存数量
       };
 
       const rootNavigator = navigation.getParent();
@@ -1455,6 +1475,21 @@ export default function SellScreen({
             onChangeText={setPrice}
             keyboardType="numeric"
           />
+
+          {/* 🔥 Quantity / Stock */}
+          <Text style={styles.sectionTitle}>
+            Stock Quantity <Text style={styles.requiredMark}>*</Text>
+          </Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter stock quantity (e.g. 1)"
+            value={quantity}
+            onChangeText={setQuantity}
+            keyboardType="numeric"
+          />
+          <Text style={styles.helperText}>
+            How many items are available for sale? (Minimum: 1)
+          </Text>
 
           {/* Shipping */}
           <Text style={styles.sectionTitle}>
@@ -2035,6 +2070,7 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 14, fontWeight: "500", color: "#333", marginBottom: 6, marginTop: 8 },
   charCount: { fontSize: 12, color: "#999", textAlign: "right", marginTop: -8, marginBottom: 8 },
   input: { borderWidth: 1, borderColor: "#ddd", borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 15, backgroundColor: "#fafafa" },
+  helperText: { fontSize: 12, color: "#666", marginTop: -8, marginBottom: 12 }, // 🔥 Helper text style
 
   aiGenBtn: { alignSelf: "flex-start", paddingVertical: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: "#5B21B6", borderRadius: 20, marginBottom: 12 },
   aiBox: { borderWidth: 1, borderColor: "#ddd", borderRadius: 8, padding: 12, marginBottom: 12, backgroundColor: "#F3E8FF", position: "relative" },
