@@ -14,7 +14,7 @@ import { Picker } from "@react-native-picker/picker";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { MyTopStackParamList } from "./index";
-import { listingsService } from "../../../src/services";
+import { listingsService, ordersService } from "../../../src/services";
 import type { ListingItem } from "../../../types/shop";
 import { SOLD_GRID_ITEMS } from "../../../mocks/shop";
 
@@ -53,18 +53,65 @@ export default function SoldTab() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
 
-  // Load sold listings from API
+  // Load sold orders from API
   const loadSoldListings = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // 🔥 获取所有sold状态的商品（包括被取消的）
-  const { listings } = await listingsService.getUserListings({ status: 'sold' });
-  setSoldListings(Array.isArray(listings) ? listings : []);
+      // 🔥 获取所有作为卖家的订单（而不是已售罄的商品）
+      const { orders } = await ordersService.getSoldOrders();
+      
+      // 🔥 将订单转换为列表项格式
+      const orderListings: ListingItem[] = orders.map(order => {
+        // 🔥 解析 image_urls（可能是 JSON 字符串或数组）
+        let images: string[] = [];
+        if (order.listing?.image_urls) {
+          if (typeof order.listing.image_urls === 'string') {
+            try {
+              images = JSON.parse(order.listing.image_urls);
+            } catch (e) {
+              console.error('Failed to parse image_urls:', e);
+              images = [];
+            }
+          } else if (Array.isArray(order.listing.image_urls)) {
+            images = order.listing.image_urls;
+          }
+        } else if (order.listing?.image_url) {
+          images = [order.listing.image_url];
+        }
+
+        return {
+          id: order.listing?.id?.toString() || order.id.toString(),
+          orderId: order.id, // 保存订单 ID 用于导航
+          title: order.listing?.name || 'Unknown Item',
+          name: order.listing?.name || 'Unknown Item',
+          description: `Order #${order.id}`,
+          price: order.listing?.price || order.total_amount,
+          images: images, // 🔥 使用解析后的图片数组
+          brand: order.listing?.brand || null,
+          size: order.listing?.size || null,
+          condition: order.listing?.condition_type || null,
+          orderStatus: order.status, // 订单状态
+          conversationId: order.conversationId, // 对话 ID
+          sold: true, // 有订单就算已售
+          seller: {
+            id: order.seller?.id,
+            name: order.seller?.username || '',
+            avatar: order.seller?.avatar_url || '',
+            rating: 0,
+            sales: 0,
+            isPremium: false
+          },
+          buyerId: order.buyer?.id || null,
+          sellerId: order.seller?.id || null
+        } as unknown as ListingItem;
+      });
+      
+      setSoldListings(orderListings);
     } catch (err) {
-      console.error("Error loading sold listings:", err);
-      setError(err instanceof Error ? err.message : "Failed to load listings");
+      console.error("Error loading sold orders:", err);
+      setError(err instanceof Error ? err.message : "Failed to load orders");
       
       // Fallback to empty array instead of mock data
       setSoldListings([]);
