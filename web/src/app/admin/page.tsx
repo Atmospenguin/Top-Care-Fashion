@@ -54,6 +54,20 @@ export default function AdminHomePage() {
       stat: stats?.users,
     },
     {
+      title: "Conversations",
+      description: "View all platform conversations",
+      href: "/admin/conversations",
+      icon: "💬",
+      color: "bg-cyan-50 border-cyan-200",
+    },
+    {
+      title: "TOP Support",
+      description: "Manage support conversations",
+      href: "/admin/support",
+      icon: "🎧",
+      color: "bg-orange-50 border-orange-200",
+    },
+    {
       title: "Listings",
       description: "Manage product listings",
       href: "/admin/listings",
@@ -162,7 +176,14 @@ export default function AdminHomePage() {
       {/* Quick Actions */}
       <div className="bg-white border rounded-lg p-6">
         <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Link
+            href="/admin/support?filter=pending"
+            className="p-4 border border-orange-200 bg-orange-50 rounded-lg hover:bg-orange-100 transition"
+          >
+            <div className="font-medium text-gray-900">Pending Support</div>
+            <div className="text-sm text-gray-600 mt-1">Reply to support messages</div>
+          </Link>
           <Link
             href="/admin/listings?filter=unlisted"
             className="p-4 border rounded-lg hover:bg-gray-50 transition"
