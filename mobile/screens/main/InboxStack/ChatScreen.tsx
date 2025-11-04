@@ -254,6 +254,9 @@ export default function ChatScreen() {
     return unsubscribe;
   }, [navigation, route.params, conversationId, order, items]);
 
+  // 🔥 获取正确的对话对象名称（从 conversation 数据中获取，避免使用默认的 "TOP Support"）
+  const displayName = conversation?.conversation?.otherUser?.username || sender;
+
   // 🔥 获取评论状态（通过 API 检查 - 单一数据源）
   const [reviewStatuses, setReviewStatuses] = useState<Record<string, {
     userRole: 'buyer' | 'seller';
@@ -506,6 +509,7 @@ export default function ChatScreen() {
       // 🔥 安全地输出日志，避免包含换行符导致崩溃
       console.log("🔍 API 返回的消息数量:", conversationData.messages?.length || 0);
       console.log("🔍 Conversation ID:", conversationData.conversation?.id);
+      console.log("🔍 Other User (对话对象):", conversationData.conversation?.otherUser?.username);
       
       // 转换 API 数据为 ChatItem 格式
       const apiItems: ChatItem[] = conversationData.messages.map((msg: Message) => {
@@ -1216,31 +1220,61 @@ export default function ChatScreen() {
                 </TouchableOpacity>
               )}
               
-              {/* RECEIVED/COMPLETED状态 - Leave Review按钮 */}
-              {["RECEIVED", "COMPLETED"].includes(o.status) && (
-                <TouchableOpacity 
-                  style={styles.actionButton}
-                  onPress={handleLeaveReview}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.actionButtonText}>Leave Review</Text>
-                </TouchableOpacity>
-              )}
-              
-              {/* REVIEWED状态 - View Mutual Review按钮 */}
-              {o.status === "REVIEWED" && (
-                <TouchableOpacity 
-                  style={[styles.actionButton, { 
-                    backgroundColor: "#fff", 
-                    borderWidth: 1, 
-                    borderColor: "#000" 
-                  }]}
-                  onPress={handleViewMutualReview}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.actionButtonText, { color: "#000" }]}>View Mutual Review</Text>
-                </TouchableOpacity>
-              )}
+              {/* RECEIVED/COMPLETED/REVIEWED状态 - 根据评论状态显示不同按钮 */}
+              {["RECEIVED", "COMPLETED", "REVIEWED"].includes(o.status) && (() => {
+                const reviewStatus = reviewStatuses[o.id];
+                
+                // 双方都评论了 - View Mutual Review
+                if (reviewStatus?.hasUserReviewed && reviewStatus?.hasOtherReviewed) {
+                  return (
+                    <TouchableOpacity 
+                      style={[styles.actionButton, { 
+                        backgroundColor: "#fff", 
+                        borderWidth: 1, 
+                        borderColor: "#000" 
+                      }]}
+                      onPress={handleViewMutualReview}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.actionButtonText, { color: "#000" }]}>View Mutual Review</Text>
+                    </TouchableOpacity>
+                  );
+                }
+                
+                // 只有我评论了 - View Your Review
+                if (reviewStatus?.hasUserReviewed) {
+                  return (
+                    <TouchableOpacity 
+                      style={[styles.actionButton, { 
+                        backgroundColor: "#fff", 
+                        borderWidth: 1, 
+                        borderColor: "#000" 
+                      }]}
+                      onPress={() => {
+                        // ViewYourReview 在同一个 InboxStack 中，直接使用 navigation
+                        navigation.navigate("ViewYourReview" as any, { 
+                          orderId: parseInt(o.id),
+                          reviewId: reviewStatus.userReview?.id 
+                        });
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.actionButtonText, { color: "#000" }]}>View Your Review</Text>
+                    </TouchableOpacity>
+                  );
+                }
+                
+                // 还没评论 - Leave Review
+                return (
+                  <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={handleLeaveReview}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.actionButtonText}>Leave Review</Text>
+                  </TouchableOpacity>
+                );
+              })()}
               
               {/* CANCELLED状态 - Buy Now按钮 */}
               {o.status === "CANCELLED" && (
@@ -1276,31 +1310,61 @@ export default function ChatScreen() {
                 </TouchableOpacity>
               )}
               
-              {/* COMPLETED状态 - Leave Review按钮 */}
-              {o.status === "COMPLETED" && (
-                <TouchableOpacity 
-                  style={styles.actionButton}
-                  onPress={handleLeaveReview}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.actionButtonText}>Leave Review</Text>
-                </TouchableOpacity>
-              )}
-              
-              {/* REVIEWED状态 - View Mutual Review按钮 */}
-              {o.status === "REVIEWED" && (
-                <TouchableOpacity 
-                  style={[styles.actionButton, { 
-                    backgroundColor: "#fff", 
-                    borderWidth: 1, 
-                    borderColor: "#000" 
-                  }]}
-                  onPress={handleViewMutualReview}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.actionButtonText, { color: "#000" }]}>View Mutual Review</Text>
-                </TouchableOpacity>
-              )}
+              {/* COMPLETED/REVIEWED状态 - 根据评论状态显示不同按钮 */}
+              {["COMPLETED", "REVIEWED"].includes(o.status) && (() => {
+                const reviewStatus = reviewStatuses[o.id];
+                
+                // 双方都评论了 - View Mutual Review
+                if (reviewStatus?.hasUserReviewed && reviewStatus?.hasOtherReviewed) {
+                  return (
+                    <TouchableOpacity 
+                      style={[styles.actionButton, { 
+                        backgroundColor: "#fff", 
+                        borderWidth: 1, 
+                        borderColor: "#000" 
+                      }]}
+                      onPress={handleViewMutualReview}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.actionButtonText, { color: "#000" }]}>View Mutual Review</Text>
+                    </TouchableOpacity>
+                  );
+                }
+                
+                // 只有我评论了 - View Your Review
+                if (reviewStatus?.hasUserReviewed) {
+                  return (
+                    <TouchableOpacity 
+                      style={[styles.actionButton, { 
+                        backgroundColor: "#fff", 
+                        borderWidth: 1, 
+                        borderColor: "#000" 
+                      }]}
+                      onPress={() => {
+                        // ViewYourReview 在同一个 InboxStack 中，直接使用 navigation
+                        navigation.navigate("ViewYourReview" as any, { 
+                          orderId: parseInt(o.id),
+                          reviewId: reviewStatus.userReview?.id 
+                        });
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.actionButtonText, { color: "#000" }]}>View Your Review</Text>
+                    </TouchableOpacity>
+                  );
+                }
+                
+                // 还没评论 - Leave Review
+                return (
+                  <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={handleLeaveReview}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.actionButtonText}>Leave Review</Text>
+                  </TouchableOpacity>
+                );
+              })()}
               
               {/* 其他状态 - 显示状态徽章 */}
               {!["IN_PROGRESS", "TO_SHIP", "COMPLETED", "REVIEWED"].includes(o.status) && (
@@ -1459,10 +1523,14 @@ export default function ChatScreen() {
       });
 
       const bubbleStyle = isMine ? styles.userCardBubble : styles.userCardBubbleBuyer;
+      
+      // 🔥 改进头像逻辑：优先使用 senderInfo.avatar，然后是 conversation.otherUser.avatar
       const avatarSource = senderInfo?.avatar 
         ? { uri: senderInfo.avatar }
         : avatar
         ? { uri: avatar }
+        : !isMine && conversation?.conversation?.otherUser?.avatar
+        ? { uri: conversation.conversation.otherUser.avatar }
         : ASSETS.avatars.default;
 
       return (
@@ -1795,7 +1863,7 @@ export default function ChatScreen() {
   return (
     <View style={styles.container}>
       <Header 
-        title={sender} 
+        title={displayName} 
         showBack 
         onBackPress={() => {
           console.log("🔙 Back button pressed in ChatScreen");
@@ -1877,10 +1945,14 @@ export default function ChatScreen() {
                   >
                     <Avatar
                       source={
-                        sender === "TOP Support"
+                        // 🔥 检查实际的用户名而不是 sender 参数
+                        item.senderInfo?.username?.toLowerCase() === "top support" || 
+                        item.senderInfo?.username?.toLowerCase() === "topsupport"
                           ? ASSETS.avatars.top
                           : item.senderInfo?.avatar 
                           ? { uri: item.senderInfo.avatar }
+                          : conversation?.conversation?.otherUser?.avatar
+                          ? { uri: conversation.conversation.otherUser.avatar }
                           : ASSETS.avatars.default
                       }
                       style={[styles.avatar, { marginRight: 6 }]}

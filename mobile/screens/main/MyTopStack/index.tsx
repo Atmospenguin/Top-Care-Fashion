@@ -29,6 +29,7 @@ import type { UserBenefitsPayload } from "../../../src/services";
 import type { CreateListingRequest } from "../../../src/services/listingsService";
 import FollowListScreen from "./FollowListScreen";
 import MyReviewsScreen from "./MyReviewsScreen";
+import ReviewScreen from "./ReviewScreen";
 
 export type PreferenceSizes = {
   shoe?: string;
@@ -161,6 +162,7 @@ export default function MyTopStackNavigator() {
       <Stack.Screen name="ManagePayments" component={ManagePaymentsScreen} />
       <Stack.Screen name="FollowList" component={FollowListScreen} />
       <Stack.Screen name="MyReviews" component={MyReviewsScreen} />
+      <Stack.Screen name="Review" component={ReviewScreen} />
     </Stack.Navigator>
   );
 }
