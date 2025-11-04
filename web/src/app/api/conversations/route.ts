@@ -213,53 +213,62 @@ export async function GET(request: NextRequest) {
         })
     );
 
-    // 查找用户的 TOP Support 对话（双向匹配，避免重复创建）
-    const supportConversation = await prisma.conversations.findFirst({
-      where: {
-        OR: [
-          { initiator_id: dbUser.id, participant_id: SUPPORT_USER_ID },
-          { initiator_id: SUPPORT_USER_ID, participant_id: dbUser.id }
-        ],
-        type: "SUPPORT"
-      },
-      include: {
-        messages: {
-          orderBy: { created_at: "desc" },
-          take: 1
-        }
-      }
-    });
-
-    // 构建 TOP Support 对话显示 - 只显示有消息的对话
+    // 🔥 修复：如果当前用户是 TOP Support，则不需要特殊处理 support 对话
+    // 如果当前用户不是 TOP Support，才显示虚拟的 "support-1" 对话
     let topSupportConversation = null;
-    if (supportConversation && supportConversation.messages.length > 0) {
-      const lastMessage = supportConversation.messages[0];
-      topSupportConversation = {
-        id: "support-1",
-        sender: "TOP Support",
-        message: lastMessage.content.length > 50 
-          ? lastMessage.content.substring(0, 50) + "..." 
-          : lastMessage.content, // 🔥 截断长消息并添加省略号
-        time: formatTime(lastMessage.created_at),
-        avatar: "https://via.placeholder.com/48/FF6B6B/FFFFFF?text=TOP", // TOP Support 头像
-        kind: "support",
-        unread: false,
-        lastFrom: lastMessage.sender_id === dbUser.id ? "me" : "support",
-        order: null
-      };
-    }
-    // 🔥 关键：如果没有消息，不显示 TOP Support 对话
+    let otherConversations = formattedConversations;
+    
+    if (dbUser.id !== SUPPORT_USER_ID) {
+      // 普通用户：查找与 TOP Support 的对话并显示为虚拟对话
+      const supportConversation = await prisma.conversations.findFirst({
+        where: {
+          OR: [
+            { initiator_id: dbUser.id, participant_id: SUPPORT_USER_ID },
+            { initiator_id: SUPPORT_USER_ID, participant_id: dbUser.id }
+          ],
+          type: "SUPPORT"
+        },
+        include: {
+          messages: {
+            orderBy: { created_at: "desc" },
+            take: 1
+          }
+        }
+      });
 
-    // 过滤掉其他对话中的 TOP Support 对话，避免重复
-    const otherConversations = formattedConversations.filter(conv => 
-      !(conv.sender === "TOP Support" || conv.kind === "support")
-    );
+      // 构建 TOP Support 对话显示 - 只显示有消息的对话
+      if (supportConversation && supportConversation.messages.length > 0) {
+        const lastMessage = supportConversation.messages[0];
+        topSupportConversation = {
+          id: "support-1",
+          sender: "TOP Support",
+          message: lastMessage.content.length > 50 
+            ? lastMessage.content.substring(0, 50) + "..." 
+            : lastMessage.content,
+          time: formatTime(lastMessage.created_at),
+          avatar: "https://via.placeholder.com/48/FF6B6B/FFFFFF?text=TOP", // TOP Support 头像
+          kind: "support",
+          unread: false,
+          lastFrom: lastMessage.sender_id === dbUser.id ? "me" : "support",
+          order: null
+        };
+      }
+      
+      // 过滤掉其他对话中的 TOP Support 对话，避免重复
+      otherConversations = formattedConversations.filter(conv => 
+        !(conv.sender === "TOP Support" || conv.kind === "support")
+      );
+    } else {
+      // TOP Support 用户：显示所有对话，包括 SUPPORT 类型的对话
+      // 不需要过滤，所有对话都正常显示
+      otherConversations = formattedConversations;
+    }
     
     // 将Support对话放在最前面（如果有的话）
     const allConversations = [
       ...(topSupportConversation ? [topSupportConversation] : []),
       ...otherConversations
-    ].filter(Boolean); // 🔥 关键：过滤掉 null/undefined 值
+    ].filter(Boolean);
 
     return NextResponse.json({ conversations: allConversations });
 
