@@ -1022,103 +1022,140 @@ export default function ChatScreen() {
     };
 
     const handleCardPress = async () => {
-      console.log("🔍 Order card pressed, navigating to ListingDetail");
+      console.log("🔍 Order card pressed");
       console.log("🔍 Order ID:", o.id);
-      console.log("🔍 Listing ID:", o.listing_id);
-      console.log("🔍 Product image:", o.product.image);
+      console.log("🔍 Order Status:", o.status);
       console.log("🔍 Current user is seller:", isSeller);
       
-      try {
-        // 🔥 获取正确的 listing ID（从订单或 conversation）
-        let listingId = o.listing_id;
-        if (!listingId && conversation?.listing?.id) {
-          listingId = conversation.listing.id;
-        }
+      // 🔥 逻辑：
+      // - Inquiry 状态（只是咨询，没下单）→ ListingDetail（显示商品详情，可购买）
+      // - 其他状态（已下单）→ OrderDetail（显示订单详情）
+      
+      if (o.status === "Inquiry") {
+        // 🔥 咨询状态：跳转到 ListingDetail
+        console.log("🔍 Inquiry status, navigating to ListingDetail");
         
-        if (!listingId) {
-          console.error("❌ No listing ID found");
-          Alert.alert("Error", "Listing information not available");
-          return;
-        }
+        try {
+          // 获取 listing ID
+          let listingId = o.listing_id;
+          if (!listingId && conversation?.listing?.id) {
+            listingId = conversation.listing.id;
+          }
+          
+          if (!listingId) {
+            console.error("❌ No listing ID found");
+            Alert.alert("Error", "Listing information not available");
+            return;
+          }
+          
+          console.log("🔍 Fetching listing with ID:", listingId);
         
-        console.log("🔍 Fetching listing with ID:", listingId);
-        
-        // 🔥 获取完整的listing数据（使用正确的 listing ID）
-        const listingResponse = await listingsService.getListingById(String(listingId));
-        const listing = (listingResponse as any)?.listing ?? listingResponse;
-        const listingMeta = listingResponse as any;
-        
-        // 🔥 检查商品是否已售出
-        if (listing?.sold === true) {
-          console.log("⚠️ Listing is already sold");
-          Alert.alert("Item Sold", "This item has already been sold and is no longer available.");
-          return;
-        }
-        
-        console.log("🔍 Fetched listing data:", listing);
-        
-        // 🔥 转换数据格式以匹配 ListingItem（保留旧的回退逻辑）
-        const rawImages = Array.isArray((listing as any)?.images)
-          ? (listing as any).images
-          : Array.isArray((listingMeta as any)?.images)
-          ? (listingMeta as any).images
-          : null;
-        const primaryImage =
-          typeof (listing as any)?.image === 'string' && (listing as any).image
-            ? (listing as any).image
-            : typeof (listingMeta as any)?.image === 'string' && (listingMeta as any).image
-            ? (listingMeta as any).image
-            : typeof (listingMeta as any)?.image_url === 'string' && (listingMeta as any).image_url
-            ? (listingMeta as any).image_url
+          // 🔥 获取完整的listing数据
+          const listingResponse = await listingsService.getListingById(String(listingId));
+          const listing = (listingResponse as any)?.listing ?? listingResponse;
+          const listingMeta = listingResponse as any;
+          
+          // 🔥 检查商品是否已下架或售罄
+          if (listing?.sold === true || listing?.listed === false) {
+            console.log("⚠️ Listing is sold out or delisted");
+            Alert.alert("Item Sold", "This item has already been sold and is no longer available.");
+            return;
+          }
+          
+          console.log("🔍 Fetched listing data:", listing);
+          
+          // 🔥 转换数据格式以匹配 ListingItem
+          const rawImages = Array.isArray((listing as any)?.images)
+            ? (listing as any).images
+            : Array.isArray((listingMeta as any)?.images)
+            ? (listingMeta as any).images
             : null;
-        const resolvedImages = rawImages && rawImages.length > 0
-          ? rawImages
-          : primaryImage
-          ? [primaryImage]
-          : o.product.image
-          ? [o.product.image]
-          : [];
+          const primaryImage =
+            typeof (listing as any)?.image === 'string' && (listing as any).image
+              ? (listing as any).image
+              : typeof (listingMeta as any)?.image === 'string' && (listingMeta as any).image
+              ? (listingMeta as any).image
+              : typeof (listingMeta as any)?.image_url === 'string' && (listingMeta as any).image_url
+              ? (listingMeta as any).image_url
+              : null;
+          const resolvedImages = rawImages && rawImages.length > 0
+            ? rawImages
+            : primaryImage
+            ? [primaryImage]
+            : o.product.image
+            ? [o.product.image]
+            : [];
 
-        const sellerData = (listing as any)?.seller ?? (listingMeta as any)?.seller ?? {};
+          const sellerData = (listing as any)?.seller ?? (listingMeta as any)?.seller ?? {};
 
-        const listingItem = {
-          id: listing?.id?.toString() || String(listingId),
-          title: listing?.title || o.product.title,
-          price: typeof listing?.price === 'number' ? listing.price : Number(listing?.price) || o.product.price,
-          description: listing?.description || `Size: ${o.product.size || 'One Size'}`,
-          brand: listing?.brand || "Brand",
-          size: listing?.size || o.product.size || "One Size",
-          condition: listing?.condition || "Good",
-          material: listing?.material || "Mixed",
-          gender: listing?.gender || "unisex",
-          tags: Array.isArray(listing?.tags) ? listing.tags : [],
-          images: resolvedImages,
-          category: typeof listing?.category === 'string'
-            ? listing.category.toLowerCase()
-            : typeof listingMeta?.category === 'string'
-            ? listingMeta.category.toLowerCase()
-            : "top",
-          seller: {
-            id: sellerData?.id || 0,
-            name: sellerData?.name || o.seller.name,
-            avatar: sellerData?.avatar || o.seller.avatar || "",
-            rating: sellerData?.rating || 5.0,
-            sales: sellerData?.sales || 0,
-          },
-        };
+          const listingItem = {
+            id: listing?.id?.toString() || String(listingId),
+            title: listing?.title || o.product.title,
+            price: typeof listing?.price === 'number' ? listing.price : Number(listing?.price) || o.product.price,
+            description: listing?.description || `Size: ${o.product.size || 'One Size'}`,
+            brand: listing?.brand || "Brand",
+            size: listing?.size || o.product.size || "One Size",
+            condition: listing?.condition || "Good",
+            material: listing?.material || "Mixed",
+            gender: listing?.gender || "unisex",
+            tags: Array.isArray(listing?.tags) ? listing.tags : [],
+            images: resolvedImages,
+            category: typeof listing?.category === 'string'
+              ? listing.category.toLowerCase()
+              : typeof listingMeta?.category === 'string'
+              ? listingMeta.category.toLowerCase()
+              : "top",
+            // 🔥 添加库存信息（优先使用 availableQuantity，回退到 inventory_count）
+            availableQuantity: typeof (listing as any)?.availableQuantity === 'number' 
+              ? (listing as any).availableQuantity
+              : typeof (listing as any)?.inventory_count === 'number' 
+              ? (listing as any).inventory_count 
+              : undefined,
+            // 🔥 添加其他可能需要的字段
+            shippingFee: listing?.shipping_fee,
+            shippingOption: listing?.shipping_option,
+            location: listing?.location,
+            listedAt: listing?.listed_at,
+            seller: {
+              id: sellerData?.id || 0,
+              name: sellerData?.name || o.seller.name,
+              avatar: sellerData?.avatar || o.seller.avatar || "",
+              rating: sellerData?.rating || 5.0,
+              sales: sellerData?.sales || 0,
+            },
+          };
+          
+          console.log("🔍 Converted listingItem:", listingItem);
+          console.log("🔍 availableQuantity:", listingItem.availableQuantity);
+          console.log("🔍 Raw listing.availableQuantity:", (listing as any)?.availableQuantity);
+          console.log("🔍 Raw listing.inventory_count:", (listing as any)?.inventory_count);
+          
+          // 🔥 获取根导航器
+          let rootNavigation: any = navigation;
+          let currentNav: any = navigation;
+          while (currentNav?.getParent?.()) {
+            const parent = currentNav.getParent();
+            if (!parent) break;
+            currentNav = parent;
+          }
+          rootNavigation = currentNav ?? navigation;
+          
+          console.log("🔍 Navigating to ListingDetail");
+          rootNavigation.navigate("Buy", {
+            screen: "ListingDetail",
+            params: {
+              item: listingItem
+            }
+          });
+        } catch (error) {
+          console.error("❌ Error fetching listing:", error);
+          Alert.alert("Error", "Failed to load listing details");
+        }
+      } else {
+        // 🔥 已下单：跳转到 OrderDetail
+        console.log("🔍 Order placed, navigating to OrderDetail");
         
-        console.log("🔍 Converted listingItem:", listingItem);
-        
-        // 🔥 判断是否是自己的listing：比较当前用户ID和listing的seller ID
-        const sellerIdFromListing = sellerData?.id;
-        const isOwnListing = user?.id && sellerIdFromListing &&
-                             Number(user.id) === Number(sellerIdFromListing);
-        
-        console.log("🔍 Is own listing:", isOwnListing);
-        console.log("🔍 Current user ID:", user?.id);
-        console.log("🔍 Listing seller ID:", sellerIdFromListing);
-        
-        // 🔥 获取根导航器（支持多层嵌套）
+        // 🔥 获取根导航器
         let rootNavigation: any = navigation;
         let currentNav: any = navigation;
         while (currentNav?.getParent?.()) {
@@ -1128,31 +1165,23 @@ export default function ChatScreen() {
         }
         rootNavigation = currentNav ?? navigation;
         
-        console.log("🔍 Root navigation found:", !!rootNavigation);
-        
-        if (isOwnListing) {
-          // 🔥 自己的listing：跳转到ListingDetail页面但显示卖家视角（没有购买按钮）
-          console.log("🔍 Navigating to own listing detail");
-          rootNavigation.navigate("Buy", {
-            screen: "ListingDetail",
+        try {
+          // 🔥 导航路径：Root -> Main (Tabs) -> My TOP (Tab) -> OrderDetail (Screen)
+          rootNavigation.navigate("Main", {
+            screen: "My TOP",
             params: {
-              item: listingItem,
-              isOwnListing: true // 🔥 传递标记表示这是自己的listing
+              screen: "OrderDetail",
+              params: {
+                id: o.id,
+                source: isSeller ? "sold" : "purchase",
+                conversationId: conversation?.conversation?.id?.toString()
+              }
             }
           });
-        } else {
-          // 🔥 别人的listing：跳转到购买页面
-          console.log("🔍 Navigating to purchase listing");
-          rootNavigation.navigate("Buy", {
-            screen: "ListingDetail",
-            params: {
-              item: listingItem
-            }
-          });
+        } catch (error) {
+          console.error("❌ Failed to navigate to OrderDetail:", error);
+          Alert.alert("Error", "Failed to open order details");
         }
-      } catch (error) {
-        console.error("❌ Error fetching listing:", error);
-        Alert.alert("Error", "Failed to load listing details");
       }
     };
 
