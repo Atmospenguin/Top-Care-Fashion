@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 interface User {
@@ -93,11 +94,14 @@ const formatTimeAgo = (dateString: string | null) => {
 };
 
 export default function SupportPage() {
+  const searchParams = useSearchParams();
   const [conversations, setConversations] = useState<SupportConversation[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, answered: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<FilterType>("all");
+  const [filter, setFilter] = useState<FilterType>(
+    (searchParams.get("filter") as FilterType) || "all"
+  );
   const [selectedConversation, setSelectedConversation] = useState<number | null>(null);
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);

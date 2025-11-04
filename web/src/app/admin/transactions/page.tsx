@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { Transaction } from "@/types/admin";
 import Link from "next/link";
 
@@ -14,10 +15,13 @@ interface PaginationInfo {
 }
 
 export default function TransactionsPage() {
+  const searchParams = useSearchParams();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<FilterType>("all");
+  const [filter, setFilter] = useState<FilterType>(
+    (searchParams.get("filter") as FilterType) || "all"
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
