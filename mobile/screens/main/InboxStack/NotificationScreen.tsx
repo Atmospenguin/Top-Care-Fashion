@@ -129,6 +129,28 @@ export default function NotificationScreen() {
     );
   };
 
+  // 一键标记所有通知为已读
+  const handleMarkAllAsRead = async () => {
+    try {
+      const unreadCount = notifications.filter(n => !n.isRead).length;
+      if (unreadCount === 0) {
+        return;
+      }
+
+      console.log("🔔 Marking all notifications as read");
+      await notificationService.markAllAsRead();
+      
+      // 更新本地状态
+      setNotifications((prev) => prev.map(n => ({ ...n, isRead: true })));
+      
+      console.log("✅ All notifications marked as read");
+      Alert.alert("Success", `${unreadCount} notification${unreadCount > 1 ? 's' : ''} marked as read`);
+    } catch (error) {
+      console.error("❌ Error marking all as read:", error);
+      Alert.alert("Error", "Failed to mark notifications as read. Please try again.");
+    }
+  };
+
   const handleNotificationPress = async (notification: Notification) => {
     try {
       // 标记为已读
@@ -336,6 +358,26 @@ export default function NotificationScreen() {
     );
   };
 
+  // 计算未读通知数量
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const hasUnread = unreadCount > 0;
+
+  // 创建"Mark All Read"按钮（始终显示，无未读时变灰）
+  const markAllReadButton = (
+    <TouchableOpacity 
+      onPress={hasUnread ? handleMarkAllAsRead : undefined}
+      style={styles.markAllButton}
+      activeOpacity={hasUnread ? 0.7 : 1}
+      disabled={!hasUnread}
+    >
+      <Icon 
+        name="checkmark-done" 
+        size={24} 
+        color={hasUnread ? "#fff" : "rgba(255, 255, 255, 0.4)"} 
+      />
+    </TouchableOpacity>
+  );
+
   if (isLoading) {
     return (
       <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -350,7 +392,14 @@ export default function NotificationScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
-      <Header title="Notifications" showBack bgColor="#F54B3D" textColor="#fff" iconColor="#fff" />
+      <Header 
+        title="Notifications" 
+        showBack 
+        bgColor="#F54B3D" 
+        textColor="#fff" 
+        iconColor="#fff"
+        rightAction={markAllReadButton}
+      />
       <FlatList
         data={notifications}
         keyExtractor={(item) => item.id}
@@ -376,6 +425,11 @@ export default function NotificationScreen() {
 }
 
 const styles = StyleSheet.create({
+  markAllButton: {
+    padding: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   card: {
     flexDirection: "row",
     alignItems: "center",

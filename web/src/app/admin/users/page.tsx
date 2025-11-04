@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { UserAccount } from "@/types/admin";
 
@@ -33,12 +34,15 @@ const AVATAR_SIZE_CLASSES: Record<number, string> = {
 };
 
 export default function UsersPage() {
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState<ExtendedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<ExtendedUser | null>(null);
-  const [filter, setFilter] = useState<FilterType>("all");
+  const [filter, setFilter] = useState<FilterType>(
+    (searchParams.get("filter") as FilterType) || "all"
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOption, setSortOption] = useState<SortOption>("created-desc");
   const [currentPage, setCurrentPage] = useState(1);
@@ -397,18 +401,6 @@ export default function UsersPage() {
                       <option value="suspended">Suspended</option>
                     </select>
                   </div>
-                </div>
-                
-                <div className="flex items-center space-x-4">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={user.is_premium}
-                      onChange={(e) => updateField(user.id, 'is_premium', e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm font-medium text-gray-700">Premium Member</span>
-                  </label>
                 </div>
 
                 <div className="flex items-center justify-end space-x-3 pt-4 border-t">

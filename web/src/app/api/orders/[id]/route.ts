@@ -363,28 +363,59 @@ export async function PATCH(
       }
     });
 
-    // 🔥 如果订单被取消，恢复商品状态
+    // 🔥 如果订单被取消，恢复商品状态和库存
     if (status === 'CANCELLED' && existingOrder.listing_id) {
-      await prisma.listings.update({
+      // 获取当前商品信息
+      const listing = await prisma.listings.findUnique({
         where: { id: existingOrder.listing_id },
-        data: {
-          sold: false,
-          sold_at: null
-        }
+        select: { inventory_count: true }
       });
-      console.log(`✅ Listing ${existingOrder.listing_id} restored to available after order ${orderId} cancellation`);
+
+      if (listing) {
+        // 恢复库存数量
+        const currentStock = listing.inventory_count ?? 0;
+        const restoredStock = currentStock + (existingOrder.quantity || 1);
+        
+        await prisma.listings.update({
+          where: { id: existingOrder.listing_id },
+          data: {
+            sold: false,
+            sold_at: null,
+            inventory_count: restoredStock,
+            listed: true // 如果之前因为售罄而下架，重新上架
+          }
+        });
+        
+        console.log(`✅ Listing ${existingOrder.listing_id} restored: stock ${currentStock} -> ${restoredStock} after order ${orderId} cancellation`);
+      }
     }
 
-    // 🔥 如果订单完成（买家确认收货），标记商品为已售出
+    // 🔥 如果订单完成（买家确认收货），检查库存并标记商品状态
     if ((status === 'RECEIVED' || status === 'COMPLETED') && existingOrder.listing_id) {
-      await prisma.listings.update({
+      // 获取当前库存
+      const listing = await prisma.listings.findUnique({
         where: { id: existingOrder.listing_id },
-        data: {
-          sold: true,
-          sold_at: new Date()
-        }
+        select: { inventory_count: true }
       });
-      console.log(`✅ Listing ${existingOrder.listing_id} marked as sold after order ${orderId} completion`);
+
+      if (listing) {
+        // 只有库存为 0 时才标记为已售出
+        const currentStock = listing.inventory_count ?? 0;
+        if (currentStock <= 0) {
+          await prisma.listings.update({
+            where: { id: existingOrder.listing_id },
+            data: {
+              sold: true,
+              sold_at: new Date(),
+              listed: false // 售罄时下架
+            }
+          });
+          console.log(`✅ Listing ${existingOrder.listing_id} marked as sold out (inventory = 0) after order ${orderId} completion`);
+        } else {
+          // 库存还有剩余，保持上架状态
+          console.log(`✅ Listing ${existingOrder.listing_id} still has ${currentStock} items in stock after order ${orderId} completion`);
+        }
+      }
     }
 
     // 🔔 创建订单状态变化notification
