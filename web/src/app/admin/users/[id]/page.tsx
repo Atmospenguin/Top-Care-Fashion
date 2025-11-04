@@ -5,6 +5,50 @@ import { useParams } from "next/navigation";
 import type { UserAccount, Transaction, Listing } from "@/types/admin";
 import Link from "next/link";
 
+function toStringArray(value: unknown): string[] {
+  if (!value) return [];
+
+  if (Array.isArray(value)) {
+    return value
+      .filter((entry): entry is string => typeof entry === "string")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .filter((entry): entry is string => typeof entry === "string")
+            .map((entry) => entry.trim())
+            .filter((entry) => entry.length > 0);
+        }
+      } catch {
+        // Fall back to delimiter parsing below when JSON parsing fails.
+      }
+    }
+
+    return trimmed
+      .split(/[;,]/)
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+
+  return [];
+}
+
+const AVATAR_SIZE_CLASSES: Record<number, string> = {
+  48: "h-12 w-12",
+  56: "h-14 w-14",
+  64: "h-16 w-16",
+  72: "h-[72px] w-[72px]",
+};
+
 export default function UserDetailPage() {
   const params = useParams();
   const userId = params.id as string;
@@ -28,13 +72,10 @@ export default function UserDetailPage() {
     url?: string | null;
     size?: number;
   }) => {
-    const dimension = { width: size, height: size };
     const initials = (name || "?").trim().charAt(0).toUpperCase() || "?";
+    const sizeClass = AVATAR_SIZE_CLASSES[size] ?? AVATAR_SIZE_CLASSES[72];
     return (
-      <span
-        style={dimension}
-        className="inline-flex items-center justify-center rounded-full bg-gray-200 text-gray-600 font-semibold border border-gray-200 overflow-hidden"
-      >
+      <span className={`inline-flex items-center justify-center rounded-full bg-gray-200 text-gray-600 font-semibold border border-gray-200 overflow-hidden ${sizeClass}`}>
         {url ? (
           <img
             src={url}
@@ -518,7 +559,7 @@ export default function UserDetailPage() {
               <div>
                 <div className="text-gray-500 mb-2">Preferred Styles:</div>
                 <div className="flex flex-wrap gap-2">
-                  {(JSON.parse((user as any).preferred_styles as string) || []).map((style: string, i: number) => (
+                  {toStringArray((user as any).preferred_styles).map((style, i) => (
                     <span key={i} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
                       {style}
                     </span>
@@ -530,7 +571,7 @@ export default function UserDetailPage() {
               <div>
                 <div className="text-gray-500 mb-2">Preferred Brands:</div>
                 <div className="flex flex-wrap gap-2">
-                  {(JSON.parse((user as any).preferred_brands as string) || []).map((brand: string, i: number) => (
+                  {toStringArray((user as any).preferred_brands).map((brand, i) => (
                     <span key={i} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs">
                       {brand}
                     </span>

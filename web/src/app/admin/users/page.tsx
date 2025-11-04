@@ -18,6 +18,13 @@ type SortOption =
   | "role"
   | "premium";
 
+const AVATAR_SIZE_CLASSES: Record<number, string> = {
+  48: "h-12 w-12",
+  56: "h-14 w-14",
+  64: "h-16 w-16",
+  72: "h-[72px] w-[72px]",
+};
+
 export default function UsersPage() {
   const [users, setUsers] = useState<ExtendedUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,13 +44,10 @@ export default function UsersPage() {
     url?: string | null;
     size?: number;
   }) => {
-    const dimension = { width: size, height: size };
     const initials = (name || "?").trim().charAt(0).toUpperCase() || "?";
+    const sizeClass = AVATAR_SIZE_CLASSES[size] ?? AVATAR_SIZE_CLASSES[48];
     return (
-      <span
-        style={dimension}
-        className="inline-flex items-center justify-center rounded-full bg-gray-200 text-gray-600 font-semibold border border-gray-200 overflow-hidden"
-      >
+      <span className={`inline-flex items-center justify-center rounded-full bg-gray-200 text-gray-600 font-semibold border border-gray-200 overflow-hidden ${sizeClass}`}>
         {url ? (
           <img
             src={url}
