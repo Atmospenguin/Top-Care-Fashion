@@ -402,18 +402,6 @@ export default function UsersPage() {
                     </select>
                   </div>
                 </div>
-                
-                <div className="flex items-center space-x-4">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={user.is_premium}
-                      onChange={(e) => updateField(user.id, 'is_premium', e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm font-medium text-gray-700">Premium Member</span>
-                  </label>
-                </div>
 
                 <div className="flex items-center justify-end space-x-3 pt-4 border-t">
                   <button
