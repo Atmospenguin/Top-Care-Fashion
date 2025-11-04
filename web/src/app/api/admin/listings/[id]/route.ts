@@ -196,19 +196,24 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   if (conditionType !== undefined) data.condition_type = normalizeConditionIn(conditionType);
   if (tags !== undefined) {
     if (Array.isArray(tags)) {
-      data.tags = tags.length ? JSON.stringify(tags) : null;
+      data.tags = tags.length ? tags : null;
     } else if (typeof tags === "string") {
       const trimmed = tags.trim();
       if (!trimmed) {
         data.tags = null;
       } else if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
-        data.tags = trimmed;
+        // Parse JSON string to array
+        try {
+          data.tags = JSON.parse(trimmed);
+        } catch {
+          data.tags = null;
+        }
       } else {
         const pieces = trimmed
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean);
-        data.tags = pieces.length ? JSON.stringify(pieces) : null;
+        data.tags = pieces.length ? pieces : null;
       }
     } else {
       data.tags = tags ?? null;

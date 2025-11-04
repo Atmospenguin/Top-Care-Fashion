@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
         user_name: userName || null,
         message,
         rating: rating !== undefined && rating !== null ? Number(rating) : null,
-        tags: tags ? JSON.stringify(tags) : undefined,
+        tags: tags || undefined,
         featured: Boolean(featured),
         is_public: isPublic !== undefined ? Boolean(isPublic) : true,
         type: type || "general",

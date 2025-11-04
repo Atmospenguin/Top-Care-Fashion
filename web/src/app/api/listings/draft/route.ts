@@ -103,13 +103,13 @@ export async function POST(req: NextRequest) {
         condition_type: resolvedCondition,
         material: resolvedMaterial,
         tags:
-          resolvedTags.length > 0 ? JSON.stringify(resolvedTags) : Prisma.JsonNull,
+          resolvedTags.length > 0 ? resolvedTags : Prisma.JsonNull,
         category_id: categoryId,
         gender: resolvedGender,
         seller_id: sessionUser.id,
         image_urls:
           resolvedImages.length > 0
-            ? JSON.stringify(resolvedImages)
+            ? resolvedImages
             : Prisma.JsonNull,
         listed: false,
         sold: false,
