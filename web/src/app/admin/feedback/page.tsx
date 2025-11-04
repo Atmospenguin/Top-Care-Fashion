@@ -24,6 +24,13 @@ interface NewFeedback {
   status?: string;
 }
 
+interface PaginationInfo {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+}
+
 export default function FeedbackPage() {
   const [feedbacks, setFeedbacks] = useState<ExtendedFeedback[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,14 +49,28 @@ export default function FeedbackPage() {
     status: 'open'
   });
   const [saving, setSaving] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    page: 1,
+    limit: 50,
+    totalCount: 0,
+    totalPages: 0,
+  });
 
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/feedback", { cache: "no-store" });
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: "50",
+      });
+      const res = await fetch(`/api/admin/feedback?${params.toString()}`, { cache: "no-store" });
       const json = await res.json();
       setFeedbacks((json.feedbacks || []).map((f: Feedback) => ({ ...f, selected: false })));
+      if (json.pagination) {
+        setPagination(json.pagination);
+      }
     } catch (e: any) {
       setError(e.message || "Load failed");
     } finally {
@@ -59,7 +80,7 @@ export default function FeedbackPage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [currentPage]);
 
   const deleteFeedback = async (id: string) => {
     if (!confirm("Are you sure you want to delete this item? This action cannot be undone.")) {
@@ -181,7 +202,7 @@ export default function FeedbackPage() {
         <h2 className="text-xl font-semibold">Feedback Management</h2>
         <div className="flex items-center space-x-4">
           <div className="text-sm text-gray-600">
-            {feedbacks.length} total • {feedbacks.filter(f => f.featured).length} featured • {feedbacks.filter(f => f.rating).length} with ratings
+            Showing {feedbacks.length} of {pagination.totalCount} feedback • {feedbacks.filter(f => f.featured).length} featured • {feedbacks.filter(f => f.rating).length} with ratings
           </div>
           <button
             onClick={() => setShowAddForm(true)}
@@ -203,7 +224,10 @@ export default function FeedbackPage() {
         ].map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setFilter(tab.key as any)}
+            onClick={() => {
+              setFilter(tab.key as any);
+              setCurrentPage(1);
+            }}
             className={`px-3 py-2 text-sm rounded-md transition-colors ${
               filter === tab.key
                 ? "bg-white text-gray-900 shadow-sm"
@@ -594,7 +618,7 @@ export default function FeedbackPage() {
 
       {filteredFeedbacks.length === 0 && (
         <div className="text-center py-12 text-gray-500">
-          {filter === "all" 
+          {filter === "all"
             ? "No items found. User feedback will appear here when submitted."
             : filter === "featured"
             ? "No featured feedback found."
@@ -604,6 +628,31 @@ export default function FeedbackPage() {
             ? "No feedback from registered users found."
             : "No anonymous feedback found."
           }
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && pagination.totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white border rounded-lg p-4">
+          <div className="text-sm text-gray-600">
+            Showing page {pagination.page} of {pagination.totalPages} ({pagination.totalCount} total feedback)
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
+              disabled={currentPage === pagination.totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
 

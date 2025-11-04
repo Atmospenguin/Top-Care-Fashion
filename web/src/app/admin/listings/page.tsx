@@ -25,6 +25,13 @@ interface Category {
   createdAt: string;
 }
 
+interface PaginationInfo {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+}
+
 function getPrimaryImage(listing: Listing): string | null {
   if (listing.imageUrl) return listing.imageUrl;
   if (listing.imageUrls && listing.imageUrls.length > 0) {
@@ -74,6 +81,13 @@ export default function ListingManagementPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOption, setSortOption] = useState<SortOption>("date-desc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    page: 1,
+    limit: 50,
+    totalCount: 0,
+    totalPages: 0,
+  });
 
   const isAdmin = user?.actor === "Admin";
 
@@ -99,7 +113,11 @@ export default function ListingManagementPage() {
     try {
       setLoading(true);
       setError(null);
-      const endpoint = isAdmin ? "/api/admin/listings" : "/api/listings";
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: "50",
+      });
+      const endpoint = isAdmin ? `/api/admin/listings?${params.toString()}` : "/api/listings";
       const [listingsRes, categoriesRes] = await Promise.all([
         fetch(endpoint, { cache: "no-store" }),
         fetch("/api/admin/categories", { cache: "no-store" })
@@ -115,6 +133,9 @@ export default function ListingManagementPage() {
 
       const listingsJson = await listingsRes.json();
       setItems((listingsJson.listings || []) as EditingListing[]);
+      if (listingsJson.pagination) {
+        setPagination(listingsJson.pagination);
+      }
 
       if (categoriesRes.ok) {
         const categoriesJson = await categoriesRes.json();
@@ -126,7 +147,7 @@ export default function ListingManagementPage() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin]);
+  }, [isAdmin, currentPage]);
 
   useEffect(() => {
     loadListings();
@@ -265,7 +286,7 @@ export default function ListingManagementPage() {
         <div>
           <h1 className="text-2xl font-semibold">Listing Management</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Showing {sortedItems.length} of {stats.total} listings
+            Showing {sortedItems.length} of {pagination.totalCount} listings
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
@@ -305,14 +326,20 @@ export default function ListingManagementPage() {
             type="text"
             placeholder="Search listings..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full px-3 py-2 border rounded-md"
           />
         </div>
         <div className="flex gap-2 flex-wrap">
           <select
             value={filter}
-            onChange={(e) => setFilter(e.target.value as FilterType)}
+            onChange={(e) => {
+              setFilter(e.target.value as FilterType);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2 border rounded-md"
             title="Filter listings by status"
           >
@@ -323,7 +350,10 @@ export default function ListingManagementPage() {
           </select>
           <select
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2 border rounded-md"
             title="Filter by category"
           >
@@ -336,7 +366,10 @@ export default function ListingManagementPage() {
           </select>
           <select
             value={sortOption}
-            onChange={(e) => setSortOption(e.target.value as SortOption)}
+            onChange={(e) => {
+              setSortOption(e.target.value as SortOption);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2 border rounded-md"
             title="Sort listings"
           >
@@ -376,10 +409,35 @@ export default function ListingManagementPage() {
 
       {sortedItems.length === 0 && (
         <div className="text-center py-12 text-gray-500">
-          {searchTerm || filter !== "all" 
+          {searchTerm || filter !== "all"
             ? "No listings match your search criteria."
             : "No listings found. Create your first listing to get started."
           }
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && pagination.totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white border rounded-lg p-4">
+          <div className="text-sm text-gray-600">
+            Showing page {pagination.page} of {pagination.totalPages} ({pagination.totalCount} total listings)
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
+              disabled={currentPage === pagination.totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
 

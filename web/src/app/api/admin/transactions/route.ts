@@ -1,13 +1,21 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { orderStatusToAdmin, summarizeOrderTotals } from "@/lib/admin-orders";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const orders = await prisma.orders.findMany({
+  const { searchParams } = new URL(request.url);
+  const page = parseInt(searchParams.get("page") || "1");
+  const limit = parseInt(searchParams.get("limit") || "50");
+  const skip = (page - 1) * limit;
+
+  const [orders, totalCount] = await Promise.all([
+    prisma.orders.findMany({
+      skip,
+      take: limit,
     include: {
       buyer: { select: { id: true, username: true, email: true } },
       seller: { select: { id: true, username: true, email: true } },
@@ -35,8 +43,10 @@ export async function GET() {
         },
       },
     },
-    orderBy: { created_at: "desc" },
-  });
+      orderBy: { created_at: "desc" },
+    }),
+    prisma.orders.count(),
+  ]);
 
   const transactions = orders.map((order) => {
     const { quantity, priceEach } = summarizeOrderTotals(order);
@@ -82,5 +92,15 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ transactions });
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return NextResponse.json({
+    transactions,
+    pagination: {
+      page,
+      limit,
+      totalCount,
+      totalPages,
+    },
+  });
 }

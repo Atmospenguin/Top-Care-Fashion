@@ -110,35 +110,55 @@ function mapListingRow(listing: {
   };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const dbListings = await prisma.listings.findMany({
-    include: {
-      seller: {
-        select: {
-          username: true,
+  const { searchParams } = new URL(request.url);
+  const page = parseInt(searchParams.get("page") || "1");
+  const limit = parseInt(searchParams.get("limit") || "50");
+  const skip = (page - 1) * limit;
+
+  const [dbListings, totalCount] = await Promise.all([
+    prisma.listings.findMany({
+      skip,
+      take: limit,
+      include: {
+        seller: {
+          select: {
+            username: true,
+          },
+        },
+        orders: {
+          select: {
+            id: true,
+            status: true,
+          },
+          orderBy: {
+            created_at: "desc",
+          },
+          take: 1,
         },
       },
-      orders: {
-        select: {
-          id: true,
-          status: true,
-        },
-        orderBy: {
-          created_at: "desc",
-        },
-        take: 1,
+      orderBy: {
+        id: "asc",
       },
-    },
-    orderBy: {
-      id: "asc",
-    },
-  });
+    }),
+    prisma.listings.count(),
+  ]);
 
   const listings = dbListings.map(mapListingRow);
-  return NextResponse.json({ listings });
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return NextResponse.json({
+    listings,
+    pagination: {
+      page,
+      limit,
+      totalCount,
+      totalPages,
+    },
+  });
 }
 
 export async function POST(req: NextRequest) {
