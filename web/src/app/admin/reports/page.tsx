@@ -8,20 +8,41 @@ interface ExtendedReport extends Report {
   editing?: boolean;
 }
 
+interface PaginationInfo {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+}
+
 export default function ReportsPage() {
   const [reports, setReports] = useState<ExtendedReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "open" | "resolved" | "dismissed">("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    page: 1,
+    limit: 50,
+    totalCount: 0,
+    totalPages: 0,
+  });
 
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/reports", { cache: "no-store" });
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: "50",
+      });
+      const res = await fetch(`/api/admin/reports?${params.toString()}`, { cache: "no-store" });
       const json = await res.json();
       setReports((json.reports || []).map((r: Report) => ({ ...r, editing: false })));
+      if (json.pagination) {
+        setPagination(json.pagination);
+      }
     } catch (e: any) {
       setError(e.message || "Load failed");
     } finally {
@@ -31,7 +52,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [currentPage]);
 
   const startEdit = (id: string) => {
     setReports(reports.map(report => ({ 
@@ -160,7 +181,7 @@ export default function ReportsPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Reports Management</h2>
         <div className="text-sm text-gray-600">
-          {reports.length} total • {reports.filter(r => r.status === 'open').length} open
+          Showing {reports.length} of {pagination.totalCount} reports • {reports.filter(r => r.status === 'open').length} open
         </div>
       </div>
 
@@ -174,7 +195,10 @@ export default function ReportsPage() {
         ].map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setFilter(tab.key as any)}
+            onClick={() => {
+              setFilter(tab.key as any);
+              setCurrentPage(1);
+            }}
             className={`px-3 py-2 text-sm rounded-md transition-colors ${
               filter === tab.key
                 ? "bg-white text-gray-900 shadow-sm"
@@ -367,10 +391,35 @@ export default function ReportsPage() {
 
       {filteredReports.length === 0 && (
         <div className="text-center py-12 text-gray-500">
-          {filter === "all" 
+          {filter === "all"
             ? "No reports found. User reports will appear here when submitted."
             : `No ${filter} reports found.`
           }
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && pagination.totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white border rounded-lg p-4">
+          <div className="text-sm text-gray-600">
+            Showing page {pagination.page} of {pagination.totalPages} ({pagination.totalCount} total reports)
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
+              disabled={currentPage === pagination.totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
     </div>

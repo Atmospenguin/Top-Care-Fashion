@@ -30,15 +30,25 @@ function normalizeStatusIn(value: unknown): ReportStatus {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const reportList = await prisma.reports.findMany({
-    orderBy: {
-      id: "desc",
-    },
-  });
+  const { searchParams } = new URL(request.url);
+  const page = parseInt(searchParams.get("page") || "1");
+  const limit = parseInt(searchParams.get("limit") || "50");
+  const skip = (page - 1) * limit;
+
+  const [reportList, totalCount] = await Promise.all([
+    prisma.reports.findMany({
+      skip,
+      take: limit,
+      orderBy: {
+        id: "desc",
+      },
+    }),
+    prisma.reports.count(),
+  ]);
 
   // Get reporter user IDs by matching usernames
   const reporterUsernames = [...new Set(reportList.map((r) => r.reporter))];
@@ -69,7 +79,17 @@ export async function GET() {
     resolvedAt: report.resolved_at?.toISOString() ?? null,
   }));
 
-  return NextResponse.json({ reports });
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return NextResponse.json({
+    reports,
+    pagination: {
+      page,
+      limit,
+      totalCount,
+      totalPages,
+    },
+  });
 }
 
 export async function PATCH(req: NextRequest) {

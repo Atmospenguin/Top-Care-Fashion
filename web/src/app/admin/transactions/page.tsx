@@ -6,6 +6,13 @@ import Link from "next/link";
 
 type FilterType = "all" | "pending" | "paid" | "shipped" | "completed" | "cancelled";
 
+interface PaginationInfo {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+}
+
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -14,6 +21,13 @@ export default function TransactionsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    page: 1,
+    limit: 50,
+    totalCount: 0,
+    totalPages: 0,
+  });
 
   const statusOptions: Transaction["status"][] = ["pending", "paid", "shipped", "completed", "cancelled"];
 
@@ -21,10 +35,15 @@ export default function TransactionsPage() {
     const loadTransactions = async () => {
       try {
         setLoading(true);
-        const res = await fetch("/api/admin/transactions", { cache: "no-store" });
+        const params = new URLSearchParams({
+          page: currentPage.toString(),
+          limit: "50",
+        });
+        const res = await fetch(`/api/admin/transactions?${params.toString()}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         setTransactions(data.transactions || []);
+        setPagination(data.pagination);
       } catch (error) {
         console.error('Error loading transactions:', error);
         setError(error instanceof Error ? error.message : "Failed to load transactions");
@@ -34,7 +53,7 @@ export default function TransactionsPage() {
     };
 
     loadTransactions();
-  }, []);
+  }, [currentPage]);
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
@@ -130,7 +149,7 @@ export default function TransactionsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Transaction Management</h1>
           <p className="text-sm text-gray-600 mt-1">
-            {filteredTransactions.length} of {transactions.length} transactions
+            Showing {filteredTransactions.length} of {pagination.totalCount} transactions
           </p>
         </div>
         <div className="text-right">
@@ -159,14 +178,20 @@ export default function TransactionsPage() {
             type="text"
             placeholder="Search by listing, buyer, or seller..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full px-3 py-2 border rounded-md"
           />
         </div>
         <div>
           <select
             value={filter}
-            onChange={(e) => setFilter(e.target.value as FilterType)}
+            onChange={(e) => {
+              setFilter(e.target.value as FilterType);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2 border rounded-md"
             aria-label="Filter transactions by status"
           >
@@ -377,10 +402,35 @@ export default function TransactionsPage() {
         </div>
       ) : (
         <div className="text-center py-12 text-gray-500">
-          {searchTerm || filter !== "all" 
+          {searchTerm || filter !== "all"
             ? "No transactions match your search criteria."
             : "No transactions found."
           }
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && pagination.totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white border rounded-lg p-4">
+          <div className="text-sm text-gray-600">
+            Showing page {pagination.page} of {pagination.totalPages} ({pagination.totalCount} total transactions)
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
+              disabled={currentPage === pagination.totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { Gender, UserRole, UserStatus } from "@prisma/client";
@@ -26,11 +26,19 @@ function mapGender(value: Gender | null): "Male" | "Female" | null {
   return null;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const dbUsers = await prisma.users.findMany({
+  const { searchParams } = new URL(request.url);
+  const page = parseInt(searchParams.get("page") || "1");
+  const limit = parseInt(searchParams.get("limit") || "50");
+  const skip = (page - 1) * limit;
+
+  const [dbUsers, totalCount] = await Promise.all([
+    prisma.users.findMany({
+      skip,
+      take: limit,
     select: {
       id: true,
       username: true,
@@ -44,10 +52,12 @@ export async function GET() {
       avatar_url: true,
       created_at: true,
     },
-    orderBy: {
-      created_at: "desc",
-    },
-  });
+      orderBy: {
+        created_at: "desc",
+      },
+    }),
+    prisma.users.count(),
+  ]);
 
   const users = dbUsers.map((user) => ({
     id: String(user.id),
@@ -63,5 +73,15 @@ export async function GET() {
     avatar_url: user.avatar_url ?? null,
   }));
 
-  return NextResponse.json({ users });
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return NextResponse.json({
+    users,
+    pagination: {
+      page,
+      limit,
+      totalCount,
+      totalPages,
+    },
+  });
 }
