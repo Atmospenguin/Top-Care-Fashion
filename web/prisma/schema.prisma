@@ -227,7 +227,6 @@ model orders {
   updated_at         DateTime              @default(now())
   order_number       String?               @unique @db.VarChar(50)
   total_amount       Decimal?              @db.Decimal(10, 2)
-  quantity           Int?                  @default(1)
   shipping_method    String?               @db.VarChar(100)
   notes              String?
   buyer_name         String?               @db.VarChar(100)
@@ -238,6 +237,7 @@ model orders {
   payment_method_id  Int?
   commission_rate    Decimal?              @db.Decimal(5, 4)
   commission_amount  Decimal?              @db.Decimal(10, 2)
+  quantity           Int?                  @default(1)
   payment_method_ref user_payment_methods? @relation(fields: [payment_method_id], references: [id], onUpdate: NoAction, map: "fk_orders_payment_method")
   buyer              users                 @relation("OrderBuyer", fields: [buyer_id], references: [id])
   listing            listings              @relation(fields: [listing_id], references: [id])
