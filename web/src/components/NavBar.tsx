@@ -60,6 +60,8 @@ export default function NavBar() {
                     <>
                       <div className="py-1 text-xs text-black/50 border-t" />
                       <div className="px-3 py-1 text-xs font-medium text-black/70">Admin</div>
+                      <Link href="/admin" className="block px-3 py-2 text-sm hover:bg-black/5">Admin Home</Link>
+                      <Link href="/admin/dashboard" className="block px-3 py-2 text-sm hover:bg-black/5">Dashboard</Link>
                       <Link href="/admin/users" className="block px-3 py-2 text-sm hover:bg-black/5">Users</Link>
                       <Link href="/admin/categories" className="block px-3 py-2 text-sm hover:bg-black/5">Categories</Link>
                       <Link href="/admin/listings" className="block px-3 py-2 text-sm hover:bg-black/5">Listings</Link>

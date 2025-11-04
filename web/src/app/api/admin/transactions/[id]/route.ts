@@ -27,6 +27,17 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
           price: true,
         },
       },
+      payment_method_ref: {
+        select: {
+          id: true,
+          type: true,
+          label: true,
+          brand: true,
+          last4: true,
+          expiry_month: true,
+          expiry_year: true,
+        },
+      },
     },
   });
 
@@ -45,6 +56,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
     priceEach,
     status: orderStatusToAdmin(order.status),
     createdAt: order.created_at.toISOString(),
+    updatedAt: order.updated_at ? order.updated_at.toISOString() : null,
     buyerName: order.buyer?.username ?? null,
     buyerEmail: order.buyer?.email ?? null,
     sellerName: order.seller?.username ?? null,
@@ -57,6 +69,22 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
     listingCondition: order.listing?.condition_type
       ? order.listing.condition_type.toLowerCase()
       : null,
+    shippingAddress: order.shipping_address ?? null,
+    shippingMethod: order.shipping_method ?? null,
+    paymentMethod: order.payment_method ?? null,
+    paymentMethodId: order.payment_method_id ? String(order.payment_method_id) : null,
+    paymentMethodDetails: order.payment_method_ref ? {
+      id: String(order.payment_method_ref.id),
+      type: order.payment_method_ref.type,
+      label: order.payment_method_ref.label,
+      brand: order.payment_method_ref.brand ?? null,
+      last4: order.payment_method_ref.last4 ?? null,
+      expiryMonth: order.payment_method_ref.expiry_month ?? null,
+      expiryYear: order.payment_method_ref.expiry_year ?? null,
+    } : null,
+    commissionRate: order.commission_rate ? Number(order.commission_rate) : null,
+    commissionAmount: order.commission_amount ? Number(order.commission_amount) : null,
+    notes: order.notes ?? null,
   };
 
   return NextResponse.json(transaction);

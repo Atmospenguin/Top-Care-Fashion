@@ -92,154 +92,187 @@ export default function TransactionDetailPage() {
       </div>
 
       {transaction ? (
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="bg-white border rounded-lg p-6">
-            <h3 className="text-lg font-semibold mb-4">Transaction Information</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <span className="text-sm text-gray-500">Status:</span>
-                <div className="flex items-center">
+        <>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="bg-white border rounded-lg p-6">
+              <h3 className="text-lg font-semibold mb-4">Transaction Information</h3>
+
+              <div className="space-y-3 text-sm">
+                <InfoRow label="Status" value={
                   <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(transaction.status)}`}>
                     {transaction.status}
                   </span>
+                } />
+
+                <InfoRow label="Listing" value={
+                  <div className="mt-1 flex items-start gap-3">
+                    {transaction.listingImageUrl && (
+                      <img
+                        src={transaction.listingImageUrl}
+                        alt={transaction.listingName || "Listing preview"}
+                        className="w-16 h-16 rounded object-cover border"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    )}
+                    <div>
+                      <Link
+                        href={`/admin/listings/${transaction.listingId}`}
+                        className="text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        {transaction.listingName || `Listing ${transaction.listingId}`}
+                      </Link>
+                      <div className="mt-1 text-xs text-gray-500 space-x-2">
+                        {transaction.listingBrand && <span>Brand: {transaction.listingBrand}</span>}
+                        {transaction.listingSize && <span>Size: {transaction.listingSize}</span>}
+                        {transaction.listingCondition && <span>Condition: {transaction.listingCondition}</span>}
+                      </div>
+                      {transaction.listingDescription && (
+                        <p className="mt-2 text-sm text-gray-600 leading-snug">
+                          {transaction.listingDescription}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                } />
+
+                <InfoRow label="Quantity" value={transaction.quantity} />
+                <InfoRow label="Price Each" value={`$${transaction.priceEach?.toFixed(2)}`} />
+                <InfoRow label="Total Amount" value={
+                  <span className="text-lg font-bold text-green-600">
+                    ${((transaction.priceEach || 0) * transaction.quantity).toFixed(2)}
+                  </span>
+                } />
+
+                {((transaction as any).commissionRate || (transaction as any).commissionAmount) && (
+                  <>
+                    <div className="border-t pt-3 mt-3">
+                      <div className="text-xs uppercase text-gray-500 mb-2">Commission</div>
+                      <InfoRow label="Commission Rate" value={(transaction as any).commissionRate ? `${((transaction as any).commissionRate * 100).toFixed(2)}%` : null} />
+                      <InfoRow label="Commission Amount" value={(transaction as any).commissionAmount ? (
+                        <span className="font-bold text-orange-600">
+                          ${(transaction as any).commissionAmount.toFixed(2)}
+                        </span>
+                      ) : null} />
+                      {(transaction as any).commissionAmount && (
+                        <InfoRow label="Seller Receives" value={
+                          <span className="font-bold text-green-600">
+                            ${(((transaction.priceEach || 0) * transaction.quantity) - (transaction as any).commissionAmount).toFixed(2)}
+                          </span>
+                        } />
+                      )}
+                    </div>
+                  </>
+                )}
+
+                <div className="border-t pt-3 mt-3">
+                  <InfoRow label="Created At" value={new Date(transaction.createdAt).toLocaleString()} />
+                  <InfoRow label="Updated At" value={(transaction as any).updatedAt ? new Date((transaction as any).updatedAt).toLocaleString() : null} />
                 </div>
               </div>
-              
-              <div>
-                <span className="text-sm text-gray-500">Listing:</span>
-                <div className="mt-1 flex items-start gap-3">
-                  {transaction.listingImageUrl && (
-                    <img
-                      src={transaction.listingImageUrl}
-                      alt={transaction.listingName || "Listing preview"}
-                      className="w-16 h-16 rounded object-cover border"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                  )}
+            </div>
+
+            <div className="bg-white border rounded-lg p-6">
+              <h3 className="text-lg font-semibold mb-4">Parties & Reviews</h3>
+
+              <div className="space-y-3 text-sm">
+                <InfoRow label="Buyer" value={
                   <div>
                     <Link
-                      href={`/admin/listings/${transaction.listingId}`}
+                      href={`/admin/users/${transaction.buyerId}`}
                       className="text-blue-600 hover:text-blue-800 font-medium"
                     >
-                      {transaction.listingName || `Listing ${transaction.listingId}`}
+                      {transaction.buyerName || `User ${transaction.buyerId}`}
                     </Link>
-                    <div className="mt-1 text-xs text-gray-500 space-x-2">
-                      {transaction.listingBrand && <span>Brand: {transaction.listingBrand}</span>}
-                      {transaction.listingSize && <span>Size: {transaction.listingSize}</span>}
-                      {transaction.listingCondition && <span>Condition: {transaction.listingCondition}</span>}
-                    </div>
-                    {transaction.listingDescription && (
-                      <p className="mt-2 text-sm text-gray-600 leading-snug">
-                        {transaction.listingDescription}
-                      </p>
+                    {transaction.buyerEmail && (
+                      <div className="text-xs text-gray-500">{transaction.buyerEmail}</div>
                     )}
                   </div>
-                </div>
-              </div>
+                } />
 
-              <div>
-                <span className="text-sm text-gray-500">Quantity:</span>
-                <div className="font-medium">{transaction.quantity}</div>
-              </div>
-
-              <div>
-                <span className="text-sm text-gray-500">Price Each:</span>
-                <div className="font-medium">${transaction.priceEach?.toFixed(2)}</div>
-              </div>
-
-              <div>
-                <span className="text-sm text-gray-500">Total Amount:</span>
-                <div className="text-lg font-bold text-green-600">
-                  ${((transaction.priceEach || 0) * transaction.quantity).toFixed(2)}
-                </div>
-              </div>
-
-              <div>
-                <span className="text-sm text-gray-500">Date:</span>
-                <div>{new Date(transaction.createdAt).toLocaleString()}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white border rounded-lg p-6">
-            <h3 className="text-lg font-semibold mb-4">Parties & Reviews</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <span className="text-sm text-gray-500">Buyer:</span>
-                <div>
-                  <Link
-                    href={`/admin/users/${transaction.buyerId}`}
-                    className="text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    {transaction.buyerName || `User ${transaction.buyerId}`}
-                  </Link>
-                </div>
-                {transaction.buyerEmail && (
-                  <div className="text-xs text-gray-500">{transaction.buyerEmail}</div>
-                )}
-              </div>
-
-              <div>
-                <span className="text-sm text-gray-500">Seller:</span>
-                <div>
-                  <Link
-                    href={`/admin/users/${transaction.sellerId}`}
-                    className="text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    {transaction.sellerName || `User ${transaction.sellerId}`}
-                  </Link>
-                </div>
-                {transaction.sellerEmail && (
-                  <div className="text-xs text-gray-500">{transaction.sellerEmail}</div>
-                )}
-              </div>
-
-              <hr className="my-4" />
-
-              <div>
-                <span className="text-sm text-gray-500">Reviews Submitted:</span>
-                <div className="text-lg font-bold text-blue-600">{reviews.length} / 2</div>
-              </div>
-              
-              {reviews.length > 0 && (
-                <div>
-                  <span className="text-sm text-gray-500">Average Rating:</span>
-                  <div className="flex items-center space-x-2">
-                    <div className="text-lg font-bold text-yellow-600">
-                      {(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)}★
-                    </div>
+                <InfoRow label="Seller" value={
+                  <div>
+                    <Link
+                      href={`/admin/users/${transaction.sellerId}`}
+                      className="text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      {transaction.sellerName || `User ${transaction.sellerId}`}
+                    </Link>
+                    {transaction.sellerEmail && (
+                      <div className="text-xs text-gray-500">{transaction.sellerEmail}</div>
+                    )}
                   </div>
-                </div>
-              )}
+                } />
 
-              <div>
-                <span className="text-sm text-gray-500">Buyer Review:</span>
-                <div className="font-medium">
-                  {reviews.find(r => r.reviewerType === 'buyer') ? (
-                    <span className="text-green-600">✓ Completed</span>
-                  ) : (
-                    <span className="text-gray-400">Pending</span>
-                  )}
-                </div>
-              </div>
+                <div className="border-t pt-3 mt-3">
+                  <InfoRow label="Reviews Submitted" value={`${reviews.length} / 2`} />
 
-              <div>
-                <span className="text-sm text-gray-500">Seller Review:</span>
-                <div className="font-medium">
-                  {reviews.find(r => r.reviewerType === 'seller') ? (
-                    <span className="text-green-600">✓ Completed</span>
-                  ) : (
-                    <span className="text-gray-400">Pending</span>
+                  {reviews.length > 0 && (
+                    <InfoRow label="Average Rating" value={
+                      <span className="font-bold text-yellow-600">
+                        {(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)}★
+                      </span>
+                    } />
                   )}
+
+                  <InfoRow label="Buyer Review" value={
+                    reviews.find(r => r.reviewerType === 'buyer') ? (
+                      <span className="text-green-600">✓ Completed</span>
+                    ) : (
+                      <span className="text-gray-400">Pending</span>
+                    )
+                  } />
+
+                  <InfoRow label="Seller Review" value={
+                    reviews.find(r => r.reviewerType === 'seller') ? (
+                      <span className="text-green-600">✓ Completed</span>
+                    ) : (
+                      <span className="text-gray-400">Pending</span>
+                    )
+                  } />
                 </div>
               </div>
             </div>
           </div>
-        </div>
+
+          {/* Shipping & Payment Information */}
+          {((transaction as any).shippingAddress || (transaction as any).shippingMethod || (transaction as any).paymentMethod || (transaction as any).notes) && (
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-white border rounded-lg p-6">
+                <h3 className="text-lg font-semibold mb-4">Shipping Information</h3>
+                <div className="space-y-3 text-sm">
+                  <InfoRow label="Shipping Address" value={(transaction as any).shippingAddress} />
+                  <InfoRow label="Shipping Method" value={(transaction as any).shippingMethod} />
+                </div>
+              </div>
+
+              <div className="bg-white border rounded-lg p-6">
+                <h3 className="text-lg font-semibold mb-4">Payment & Notes</h3>
+                <div className="space-y-3 text-sm">
+                  <InfoRow label="Payment Method" value={(transaction as any).paymentMethod} />
+                  {(transaction as any).paymentMethodDetails && (
+                    <div className="mt-2 pl-4 border-l-2 border-gray-200">
+                      <div className="text-xs text-gray-500 uppercase mb-1">Payment Details</div>
+                      <InfoRow label="Type" value={(transaction as any).paymentMethodDetails.type} />
+                      <InfoRow label="Label" value={(transaction as any).paymentMethodDetails.label} />
+                      {(transaction as any).paymentMethodDetails.brand && (
+                        <InfoRow label="Brand" value={(transaction as any).paymentMethodDetails.brand} />
+                      )}
+                      {(transaction as any).paymentMethodDetails.last4 && (
+                        <InfoRow label="Card Number" value={`**** **** **** ${(transaction as any).paymentMethodDetails.last4}`} />
+                      )}
+                      {(transaction as any).paymentMethodDetails.expiryMonth && (transaction as any).paymentMethodDetails.expiryYear && (
+                        <InfoRow label="Expiry" value={`${String((transaction as any).paymentMethodDetails.expiryMonth).padStart(2, '0')}/${(transaction as any).paymentMethodDetails.expiryYear}`} />
+                      )}
+                    </div>
+                  )}
+                  <InfoRow label="Notes" value={(transaction as any).notes} />
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <div className="bg-white border rounded-lg p-6">
           <div className="text-center text-gray-500">
@@ -324,6 +357,16 @@ export default function TransactionDetailPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  if (!value) return null;
+  return (
+    <div>
+      <span className="text-gray-500">{label}:</span>
+      <div className="font-medium">{value}</div>
     </div>
   );
 }
