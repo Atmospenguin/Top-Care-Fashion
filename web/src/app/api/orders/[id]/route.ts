@@ -373,7 +373,8 @@ export async function PATCH(
 
       if (listing) {
         // 恢复库存数量
-        const restoredStock = listing.inventory_count + (existingOrder.quantity || 1);
+        const currentStock = listing.inventory_count ?? 0;
+        const restoredStock = currentStock + (existingOrder.quantity || 1);
         
         await prisma.listings.update({
           where: { id: existingOrder.listing_id },
@@ -385,7 +386,7 @@ export async function PATCH(
           }
         });
         
-        console.log(`✅ Listing ${existingOrder.listing_id} restored: stock ${listing.inventory_count} -> ${restoredStock} after order ${orderId} cancellation`);
+        console.log(`✅ Listing ${existingOrder.listing_id} restored: stock ${currentStock} -> ${restoredStock} after order ${orderId} cancellation`);
       }
     }
 
@@ -399,7 +400,8 @@ export async function PATCH(
 
       if (listing) {
         // 只有库存为 0 时才标记为已售出
-        if (listing.inventory_count <= 0) {
+        const currentStock = listing.inventory_count ?? 0;
+        if (currentStock <= 0) {
           await prisma.listings.update({
             where: { id: existingOrder.listing_id },
             data: {
@@ -411,7 +413,7 @@ export async function PATCH(
           console.log(`✅ Listing ${existingOrder.listing_id} marked as sold out (inventory = 0) after order ${orderId} completion`);
         } else {
           // 库存还有剩余，保持上架状态
-          console.log(`✅ Listing ${existingOrder.listing_id} still has ${listing.inventory_count} items in stock after order ${orderId} completion`);
+          console.log(`✅ Listing ${existingOrder.listing_id} still has ${currentStock} items in stock after order ${orderId} completion`);
         }
       }
     }
