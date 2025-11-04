@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { UserAccount } from "@/types/admin";
 
@@ -33,12 +34,15 @@ const AVATAR_SIZE_CLASSES: Record<number, string> = {
 };
 
 export default function UsersPage() {
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState<ExtendedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<ExtendedUser | null>(null);
-  const [filter, setFilter] = useState<FilterType>("all");
+  const [filter, setFilter] = useState<FilterType>(
+    (searchParams.get("filter") as FilterType) || "all"
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOption, setSortOption] = useState<SortOption>("created-desc");
   const [currentPage, setCurrentPage] = useState(1);

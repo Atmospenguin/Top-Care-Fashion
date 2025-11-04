@@ -90,13 +90,6 @@ export default function AdminHomePage() {
       icon: "🏷️",
       color: "bg-pink-50 border-pink-200",
     },
-    {
-      title: "Reviews",
-      description: "Monitor user reviews",
-      href: "/admin/reviews",
-      icon: "⭐",
-      color: "bg-indigo-50 border-indigo-200",
-    },
   ];
 
   return (
