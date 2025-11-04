@@ -88,6 +88,39 @@ const mapGenderToEnum = (raw: unknown): "Men" | "Women" | "Unisex" | null => {
 };
 
 /**
+ * Helper to safely parse JSON arrays or comma-separated strings
+ */
+const parseJsonArray = (value: unknown): string[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        : [];
+    } catch (error) {
+      if (/^https?:\/\//i.test(trimmed)) {
+        return [trimmed];
+      }
+      // Handle comma-separated strings (e.g., "adidas,clothing,vintage")
+      if (trimmed.includes(',')) {
+        return trimmed.split(',').map(s => s.trim()).filter(s => s.length > 0);
+      }
+      console.warn("Failed to parse JSON array field for listing", { value: trimmed, error });
+      return [];
+    }
+  }
+  return [];
+};
+
+/**
  * 获取单个listing详情
  */
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -127,32 +160,6 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     if (!listing) {
       return NextResponse.json({ error: "Listing not found" }, { status: 404 });
     }
-
-    const parseJsonArray = (value: unknown): string[] => {
-      if (!value) return [];
-      if (Array.isArray(value)) {
-        return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
-      }
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (!trimmed) {
-          return [];
-        }
-        try {
-          const parsed = JSON.parse(trimmed);
-          return Array.isArray(parsed)
-            ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-            : [];
-        } catch (error) {
-          if (/^https?:\/\//i.test(trimmed)) {
-            return [trimmed];
-          }
-          console.warn("Failed to parse JSON array field for listing", { value: trimmed, error });
-          return [];
-        }
-      }
-      return [];
-    };
 
     const images = (() => {
       const parsed = parseJsonArray(listing.image_urls);
@@ -289,8 +296,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
         updateData.gender = resolvedGender;
       }
     }
-    if (body.tags !== undefined) updateData.tags = JSON.stringify(body.tags);
-    if (body.images !== undefined) updateData.image_urls = JSON.stringify(body.images);
+    // Prisma expects Json type fields as JavaScript arrays/objects, not JSON strings
+    if (body.tags !== undefined) updateData.tags = body.tags;
+    if (body.images !== undefined) updateData.image_urls = body.images;
     if (body.shippingOption !== undefined) updateData.shipping_option = body.shippingOption;
     if (body.shippingFee !== undefined) {
       const numericFee = Number(body.shippingFee);
@@ -355,6 +363,19 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
     console.log("✅ Listing updated successfully:", updatedListing.id);
 
+    const images = (() => {
+      const parsed = parseJsonArray(updatedListing.image_urls);
+      if (parsed.length > 0) {
+        return parsed;
+      }
+      if (typeof updatedListing.image_url === "string" && updatedListing.image_url.trim().length > 0) {
+        return [updatedListing.image_url];
+      }
+      return [];
+    })();
+
+    const tags = parseJsonArray(updatedListing.tags);
+
     const formattedListing = {
       id: updatedListing.id.toString(),
       title: updatedListing.name,
@@ -365,10 +386,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       condition: mapConditionToDisplay(updatedListing.condition_type),
       material: updatedListing.material,
       gender: (updatedListing as any).gender || "unisex",
-      tags: updatedListing.tags ? JSON.parse(updatedListing.tags as string) : [],
+      tags,
       category: updatedListing.category?.name || "Unknown",
-      images: updatedListing.image_urls ? JSON.parse(updatedListing.image_urls as string) : 
-              (updatedListing.image_url ? [updatedListing.image_url] : []),
+      images,
       shippingOption: (updatedListing as any).shipping_option || "Free shipping",
       shippingFee: Number((updatedListing as any).shipping_fee || 0),
       location: (updatedListing as any).location || "",
