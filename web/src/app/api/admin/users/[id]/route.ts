@@ -129,25 +129,43 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
 
   const user = await prisma.users.findUnique({
     where: { id: Number(params.id) },
-    select: {
-      id: true,
-      username: true,
-      email: true,
-      status: true,
-      role: true,
-      is_premium: true,
-      premium_until: true,
-      dob: true,
-      gender: true,
-      average_rating: true,
-      total_reviews: true,
-      avatar_url: true,
-      created_at: true,
-    },
   });
 
   if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(formatUser(user));
+
+  return NextResponse.json({
+    id: String(user.id),
+    username: user.username,
+    email: user.email,
+    status: mapStatusOut(user.status),
+    role: mapRoleOut(user.role),
+    is_premium: user.is_premium,
+    premium_until: toIso(user.premium_until),
+    dob: toDateOnly(user.dob),
+    gender: mapGenderOut(user.gender),
+    average_rating: toNumber(user.average_rating),
+    total_reviews: user.total_reviews ?? 0,
+    createdAt: toIso(user.created_at) ?? new Date().toISOString(),
+    updatedAt: toIso(user.updated_at),
+    avatar_url: user.avatar_url ?? null,
+    phone_number: user.phone_number ?? null,
+    phone: user.phone ?? null,
+    bio: user.bio ?? null,
+    location: user.location ?? null,
+    country: user.country ?? null,
+    preferred_styles: user.preferred_styles ?? null,
+    preferred_size_top: user.preferred_size_top ?? null,
+    preferred_size_bottom: user.preferred_size_bottom ?? null,
+    preferred_size_shoe: user.preferred_size_shoe ?? null,
+    preferred_brands: user.preferred_brands ?? null,
+    mix_match_used_count: user.mix_match_used_count ?? 0,
+    free_promotions_used: user.free_promotions_used ?? 0,
+    free_promotions_reset_at: toIso(user.free_promotions_reset_at),
+    last_sign_in_at: toIso(user.last_sign_in_at),
+    likes_visibility: user.likes_visibility,
+    follows_visibility: user.follows_visibility,
+    supabase_user_id: user.supabase_user_id ?? null,
+  });
 }
 
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -157,7 +175,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { username, email, role, status, is_premium, gender } = body ?? {};
+    const { username, email, role, status, is_premium, premium_until, gender } = body ?? {};
     const userId = Number(params.id);
 
     // Build update data object with only defined fields
@@ -167,6 +185,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       role?: UserRole;
       status?: UserStatus;
       is_premium?: boolean;
+      premium_until?: Date | null;
       gender?: Gender | null;
     } = {};
 
@@ -185,6 +204,13 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (is_premium !== undefined) {
       updateData.is_premium = normalizePremium(is_premium);
     }
+    if (premium_until !== undefined) {
+      if (premium_until === null || premium_until === '') {
+        updateData.premium_until = null;
+      } else {
+        updateData.premium_until = new Date(premium_until);
+      }
+    }
     if (gender !== undefined) {
       updateData.gender = normalizeGenderIn(gender);
     }
@@ -196,24 +222,23 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const user = await prisma.users.update({
       where: { id: userId },
       data: updateData,
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        status: true,
-        role: true,
-        is_premium: true,
-        premium_until: true,
-        dob: true,
-        gender: true,
-        average_rating: true,
-        total_reviews: true,
-        avatar_url: true,
-        created_at: true,
-      },
     });
 
-    return NextResponse.json(formatUser(user));
+    return NextResponse.json({
+      id: String(user.id),
+      username: user.username,
+      email: user.email,
+      status: mapStatusOut(user.status),
+      role: mapRoleOut(user.role),
+      is_premium: user.is_premium,
+      premium_until: toIso(user.premium_until),
+      dob: toDateOnly(user.dob),
+      gender: mapGenderOut(user.gender),
+      average_rating: toNumber(user.average_rating),
+      total_reviews: user.total_reviews ?? 0,
+      createdAt: toIso(user.created_at) ?? new Date().toISOString(),
+      avatar_url: user.avatar_url ?? null,
+    });
   } catch (error) {
     console.error("Error updating user:", error);
     return NextResponse.json({ error: "Failed to update user" }, { status: 500 });

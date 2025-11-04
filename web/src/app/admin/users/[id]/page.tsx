@@ -188,61 +188,28 @@ export default function UserDetailPage() {
         <div className="bg-white border rounded-lg p-6">
           <h3 className="text-lg font-semibold mb-4">User Information</h3>
 
-          <div className="space-y-4">
-            <div>
-              <span className="text-sm text-gray-500">Username:</span>
-              <div className="font-medium">{user.username}</div>
-            </div>
-            
-            <div>
-              <span className="text-sm text-gray-500">Email:</span>
-              <div className="font-medium">{user.email}</div>
-            </div>
-
-            <div>
-              <span className="text-sm text-gray-500">Role:</span>
-              <div className="font-medium">{user.role}</div>
-            </div>
-
-            <div>
-              <span className="text-sm text-gray-500">Status:</span>
-              <div className="flex items-center">
-                <span className={`px-2 py-1 text-xs rounded-full ${
-                  user.status === 'active' 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-red-100 text-red-800'
-                }`}>
-                  {user.status}
-                </span>
-              </div>
-            </div>
-
-            <div>
-              <span className="text-sm text-gray-500">Premium Member:</span>
-              <div className="font-medium">
-                {user.is_premium ? (
-                  <span className="text-green-600">Yes</span>
-                ) : (
-                  <span className="text-gray-600">No</span>
-                )}
-              </div>
-            </div>
-
-            {user.premium_until && (
-              <div>
-                <span className="text-sm text-gray-500">Premium Until:</span>
-                <div className="font-medium">
-                  {new Date(user.premium_until).toLocaleDateString()}
-                </div>
-              </div>
-            )}
-
-            <div>
-              <span className="text-sm text-gray-500">Member Since:</span>
-              <div className="font-medium">
-                {new Date(user.createdAt).toLocaleDateString()}
-              </div>
-            </div>
+          <div className="space-y-3 text-sm">
+            <InfoRow label="Username" value={user.username} />
+            <InfoRow label="Email" value={user.email} />
+            <InfoRow label="Role" value={user.role} />
+            <InfoRow label="Status" value={
+              <span className={`px-2 py-1 text-xs rounded-full ${
+                user.status === 'active'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-red-100 text-red-800'
+              }`}>
+                {user.status}
+              </span>
+            } />
+            <InfoRow label="Date of Birth" value={(user as any).dob ? new Date((user as any).dob).toLocaleDateString() : null} />
+            <InfoRow label="Gender" value={(user as any).gender} />
+            <InfoRow label="Phone" value={(user as any).phone_number || (user as any).phone} />
+            <InfoRow label="Country" value={(user as any).country} />
+            <InfoRow label="Location" value={(user as any).location} />
+            <InfoRow label="Bio" value={(user as any).bio} />
+            <InfoRow label="Supabase User ID" value={(user as any).supabase_user_id} />
+            <InfoRow label="Member Since" value={new Date(user.createdAt).toLocaleDateString()} />
+            <InfoRow label="Last Sign In" value={(user as any).last_sign_in_at ? new Date((user as any).last_sign_in_at).toLocaleString() : null} />
           </div>
         </div>
 
@@ -456,6 +423,134 @@ export default function UserDetailPage() {
         </div>
       )}
 
+      {/* Premium Management */}
+      <div className="bg-white border rounded-lg p-6">
+        <h3 className="text-lg font-semibold mb-4">Premium Management</h3>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-500">Premium Status</div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+                  user.is_premium ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {user.is_premium ? 'Premium Member' : 'Free Member'}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                try {
+                  const newPremiumStatus = !user.is_premium;
+                  let premiumUntil = null;
+
+                  if (newPremiumStatus) {
+                    const months = prompt('Enter premium duration in months:', '12');
+                    if (!months) return;
+                    const date = new Date();
+                    date.setMonth(date.getMonth() + parseInt(months));
+                    premiumUntil = date.toISOString();
+                  }
+
+                  const res = await fetch(`/api/admin/users/${userId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      is_premium: newPremiumStatus,
+                      premium_until: premiumUntil
+                    })
+                  });
+
+                  if (res.ok) {
+                    const updatedUser = await res.json();
+                    setUser(updatedUser);
+                  }
+                } catch (error) {
+                  console.error('Error updating premium status:', error);
+                }
+              }}
+              className={`px-4 py-2 text-sm rounded-md ${
+                user.is_premium
+                  ? 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                  : 'bg-yellow-600 text-white hover:bg-yellow-700'
+              }`}
+            >
+              {user.is_premium ? 'Remove Premium' : 'Grant Premium'}
+            </button>
+          </div>
+
+          {user.premium_until && (
+            <div>
+              <div className="text-sm text-gray-500">Premium Until</div>
+              <div className="font-medium">{new Date(user.premium_until).toLocaleDateString()}</div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+            <div>
+              <div className="text-sm text-gray-500">Mix Match Used</div>
+              <div className="font-semibold">{(user as any).mix_match_used_count || 0}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Free Promotions Used</div>
+              <div className="font-semibold">{(user as any).free_promotions_used || 0}</div>
+            </div>
+          </div>
+
+          {(user as any).free_promotions_reset_at && (
+            <div>
+              <div className="text-sm text-gray-500">Promotions Reset At</div>
+              <div className="font-medium">{new Date((user as any).free_promotions_reset_at).toLocaleDateString()}</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* User Preferences */}
+      {((user as any).preferred_styles || (user as any).preferred_brands || (user as any).preferred_size_top) && (
+        <div className="bg-white border rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-4">User Preferences</h3>
+          <div className="space-y-3 text-sm">
+            <InfoRow label="Preferred Size (Top)" value={(user as any).preferred_size_top} />
+            <InfoRow label="Preferred Size (Bottom)" value={(user as any).preferred_size_bottom} />
+            <InfoRow label="Preferred Size (Shoe)" value={(user as any).preferred_size_shoe} />
+            {(user as any).preferred_styles && (
+              <div>
+                <div className="text-gray-500 mb-2">Preferred Styles:</div>
+                <div className="flex flex-wrap gap-2">
+                  {(JSON.parse((user as any).preferred_styles as string) || []).map((style: string, i: number) => (
+                    <span key={i} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                      {style}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(user as any).preferred_brands && (
+              <div>
+                <div className="text-gray-500 mb-2">Preferred Brands:</div>
+                <div className="flex flex-wrap gap-2">
+                  {(JSON.parse((user as any).preferred_brands as string) || []).map((brand: string, i: number) => (
+                    <span key={i} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                      {brand}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Privacy Settings */}
+      <div className="bg-white border rounded-lg p-6">
+        <h3 className="text-lg font-semibold mb-4">Privacy Settings</h3>
+        <div className="space-y-3 text-sm">
+          <InfoRow label="Likes Visibility" value={(user as any).likes_visibility} />
+          <InfoRow label="Follows Visibility" value={(user as any).follows_visibility} />
+        </div>
+      </div>
+
       {/* User's Listings */}
       {listings.length > 0 && (
         <div className="bg-white border rounded-lg p-6">
@@ -467,8 +562,8 @@ export default function UserDetailPage() {
                   <h4 className="font-medium truncate">{listing.name}</h4>
                   <div className="flex space-x-1">
                     <span className={`px-2 py-1 text-xs rounded-full ${
-                      listing.listed 
-                        ? 'bg-green-100 text-green-800' 
+                      listing.listed
+                        ? 'bg-green-100 text-green-800'
                         : 'bg-gray-100 text-gray-800'
                     }`}>
                       {listing.listed ? 'Listed' : 'Unlisted'}
@@ -509,6 +604,16 @@ export default function UserDetailPage() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  if (!value) return null;
+  return (
+    <div>
+      <span className="text-gray-500">{label}:</span>
+      <div className="font-medium">{value}</div>
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { ListingCategory } from "@/types/admin";
+import Link from "next/link";
 
 interface ExtendedCategory extends ListingCategory {
   editing?: boolean;
@@ -323,6 +324,12 @@ export default function CategoriesPage() {
                     Products using this category will need to be recategorized if deleted
                   </div>
                   <div className="flex items-center space-x-3">
+                    <Link
+                      href={`/admin/listings?category=${category.id}`}
+                      className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700"
+                    >
+                      View Listings
+                    </Link>
                     <button
                       onClick={() => startEdit(category.id)}
                       className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
