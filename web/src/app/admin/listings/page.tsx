@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthContext";
 import type { Listing } from "@/types/admin";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 type EditingListing = Listing;
 
@@ -16,6 +17,13 @@ type SortOption =
   | "price-asc"
   | "name-asc"
   | "name-desc";
+
+interface Category {
+  id: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+}
 
 function getPrimaryImage(listing: Listing): string | null {
   if (listing.imageUrl) return listing.imageUrl;
@@ -56,15 +64,26 @@ function getTxColor(status?: string) {
 
 export default function ListingManagementPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [items, setItems] = useState<EditingListing[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [filter, setFilter] = useState<FilterType>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOption, setSortOption] = useState<SortOption>("date-desc");
 
   const isAdmin = user?.actor === "Admin";
+
+  // Set category filter from URL params
+  useEffect(() => {
+    const categoryParam = searchParams.get("category");
+    if (categoryParam) {
+      setCategoryFilter(categoryParam);
+    }
+  }, [searchParams]);
 
   const stats = useMemo(() => {
     const listedCount = items.filter((item) => item.listed).length;
@@ -81,18 +100,26 @@ export default function ListingManagementPage() {
       setLoading(true);
       setError(null);
       const endpoint = isAdmin ? "/api/admin/listings" : "/api/listings";
-      const res = await fetch(endpoint, { cache: "no-store" });
-      
-      if (!res.ok) {
-        if (res.status === 403) {
+      const [listingsRes, categoriesRes] = await Promise.all([
+        fetch(endpoint, { cache: "no-store" }),
+        fetch("/api/admin/categories", { cache: "no-store" })
+      ]);
+
+      if (!listingsRes.ok) {
+        if (listingsRes.status === 403) {
           setError("Access denied. Admin privileges required.");
           return;
         }
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        throw new Error(`HTTP ${listingsRes.status}: ${listingsRes.statusText}`);
       }
 
-      const json = await res.json();
-      setItems((json.listings || []) as EditingListing[]);
+      const listingsJson = await listingsRes.json();
+      setItems((listingsJson.listings || []) as EditingListing[]);
+
+      if (categoriesRes.ok) {
+        const categoriesJson = await categoriesRes.json();
+        setCategories(categoriesJson.categories || []);
+      }
     } catch (error) {
       console.error('Error loading listings:', error);
       setError(error instanceof Error ? error.message : "Failed to load listings");
@@ -113,6 +140,8 @@ export default function ListingManagementPage() {
       if (filter === "unlisted" && item.listed) return false;
       if (filter === "sold" && !item.sold) return false;
 
+      if (categoryFilter !== "all" && item.categoryId !== categoryFilter) return false;
+
       if (normalized) {
         const matchesFields = [
           item.name,
@@ -131,7 +160,7 @@ export default function ListingManagementPage() {
 
       return true;
     });
-  }, [items, filter, searchTerm]);
+  }, [items, filter, categoryFilter, searchTerm]);
 
   const sortedItems = useMemo(() => {
     const sorted = [...filteredItems];
@@ -280,7 +309,7 @@ export default function ListingManagementPage() {
             className="w-full px-3 py-2 border rounded-md"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as FilterType)}
@@ -291,6 +320,19 @@ export default function ListingManagementPage() {
             <option value="listed">Listed Only</option>
             <option value="unlisted">Unlisted Only</option>
             <option value="sold">Sold</option>
+          </select>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="px-3 py-2 border rounded-md"
+            title="Filter by category"
+          >
+            <option value="all">All Categories</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
           </select>
           <select
             value={sortOption}
