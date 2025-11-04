@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type {
   CompositeNavigationProp,
 } from "@react-navigation/native";
@@ -38,38 +38,42 @@ export default function ManageListingScreen() {
   const [loadingBoostInfo, setLoadingBoostInfo] = useState(true);
   const [updatingListed, setUpdatingListed] = useState(false);
 
-  // ✅ 获取listing数据
-  useEffect(() => {
-    const fetchListing = async () => {
-      try {
-        const listingId = route.params?.listingId;
-        if (!listingId) {
-          Alert.alert("Error", "No listing ID provided");
-          navigation.goBack();
-          return;
-        }
+  // ✅ 获取listing数据 - 使用 useFocusEffect 以便在返回时刷新
+  useFocusEffect(
+    React.useCallback(() => {
+      const fetchListing = async () => {
+        try {
+          const listingId = route.params?.listingId;
+          if (!listingId) {
+            Alert.alert("Error", "No listing ID provided");
+            navigation.goBack();
+            return;
+          }
 
-        console.log("📖 Fetching listing for management:", listingId);
-        const listingData = await listingsService.getListingById(listingId);
-        
-        if (listingData) {
-          setListing(listingData);
-          console.log("✅ Listing loaded for management:", listingData.title);
-        } else {
-          Alert.alert("Error", "Listing not found");
+          setLoading(true);
+          console.log("📖 Fetching listing for management:", listingId);
+          const listingData = await listingsService.getListingById(listingId);
+          
+          if (listingData) {
+            setListing(listingData);
+            console.log("✅ Listing loaded for management:", listingData.title);
+            console.log("📦 Current stock:", listingData.availableQuantity);
+          } else {
+            Alert.alert("Error", "Listing not found");
+            navigation.goBack();
+          }
+        } catch (error) {
+          console.error("❌ Error fetching listing:", error);
+          Alert.alert("Error", "Failed to load listing");
           navigation.goBack();
+        } finally {
+          setLoading(false);
         }
-      } catch (error) {
-        console.error("❌ Error fetching listing:", error);
-        Alert.alert("Error", "Failed to load listing");
-        navigation.goBack();
-      } finally {
-        setLoading(false);
-      }
-    };
+      };
 
-    fetchListing();
-  }, [route.params?.listingId, navigation]);
+      fetchListing();
+    }, [route.params?.listingId, navigation])
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -301,6 +305,12 @@ export default function ManageListingScreen() {
                 />
               )}
             </View>
+            {/* 🔥 显示库存数量 */}
+            {listing.availableQuantity !== undefined && (
+              <Text style={styles.stockText}>
+                Stock: {listing.availableQuantity}
+              </Text>
+            )}
             <Text style={styles.previewText}>Preview listing</Text>
           </View>
         </TouchableOpacity>
@@ -476,6 +486,12 @@ const styles = StyleSheet.create({
   },
   thumb: { width: 56, height: 56, borderRadius: 8, backgroundColor: "#eee" },
   topPrice: { fontSize: 18, fontWeight: "700", color: "#111", marginRight: 6 },
+  stockText: { 
+    marginTop: 4, 
+    fontSize: 13, 
+    color: "#555",
+    fontWeight: "600"
+  }, // 🔥 库存文本样式
   previewText: { marginTop: 4, color: "#6b6b6b" },
   statusRow: {
     marginTop: 6,

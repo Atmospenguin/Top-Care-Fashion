@@ -84,7 +84,7 @@ export default function BoostListingScreen() {
       }
 
       if (listingsResult.status === "fulfilled") {
-        setListings(listingsResult.value);
+        setListings(listingsResult.value.listings);
       } else {
         console.warn(
           "Failed to load listings for boost screen",

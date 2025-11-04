@@ -18,6 +18,20 @@ type SortOption =
   | "role"
   | "premium";
 
+interface PaginationInfo {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+}
+
+const AVATAR_SIZE_CLASSES: Record<number, string> = {
+  48: "h-12 w-12",
+  56: "h-14 w-14",
+  64: "h-16 w-16",
+  72: "h-[72px] w-[72px]",
+};
+
 export default function UsersPage() {
   const [users, setUsers] = useState<ExtendedUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +41,13 @@ export default function UsersPage() {
   const [filter, setFilter] = useState<FilterType>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOption, setSortOption] = useState<SortOption>("created-desc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    page: 1,
+    limit: 50,
+    totalCount: 0,
+    totalPages: 0,
+  });
 
   const AvatarCircle = ({
     name,
@@ -37,13 +58,10 @@ export default function UsersPage() {
     url?: string | null;
     size?: number;
   }) => {
-    const dimension = { width: size, height: size };
     const initials = (name || "?").trim().charAt(0).toUpperCase() || "?";
+    const sizeClass = AVATAR_SIZE_CLASSES[size] ?? AVATAR_SIZE_CLASSES[48];
     return (
-      <span
-        style={dimension}
-        className="inline-flex items-center justify-center rounded-full bg-gray-200 text-gray-600 font-semibold border border-gray-200 overflow-hidden"
-      >
+      <span className={`inline-flex items-center justify-center rounded-full bg-gray-200 text-gray-600 font-semibold border border-gray-200 overflow-hidden ${sizeClass}`}>
         {url ? (
           <img
             src={url}
@@ -68,9 +86,16 @@ export default function UsersPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/users", { cache: "no-store" });
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: "50",
+      });
+      const res = await fetch(`/api/admin/users?${params.toString()}`, { cache: "no-store" });
       const json = await res.json();
       setUsers((json.users || []).map((u: UserAccount) => ({ ...u, editing: false })));
+      if (json.pagination) {
+        setPagination(json.pagination);
+      }
     } catch (e: any) {
       setError(e.message || "Load failed");
     } finally {
@@ -80,7 +105,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [currentPage]);
 
   const filteredUsers = useMemo(() => {
     const normalized = searchTerm.trim().toLowerCase();
@@ -245,7 +270,7 @@ export default function UsersPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">User Management</h2>
         <div className="text-sm text-gray-600">
-          {sortedUsers.length} of {users.length} users • {users.filter(u => u.status === 'active').length} active
+          Showing {sortedUsers.length} of {pagination.totalCount} users • {users.filter(u => u.status === 'active').length} active
         </div>
       </div>
 
@@ -256,14 +281,20 @@ export default function UsersPage() {
             type="text"
             placeholder="Search users by name, email, or role..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div className="flex flex-wrap gap-2">
           <select
             value={filter}
-            onChange={(e) => setFilter(e.target.value as FilterType)}
+            onChange={(e) => {
+              setFilter(e.target.value as FilterType);
+              setCurrentPage(1);
+            }}
             aria-label="Filter users"
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
@@ -275,7 +306,10 @@ export default function UsersPage() {
           </select>
           <select
             value={sortOption}
-            onChange={(e) => setSortOption(e.target.value as SortOption)}
+            onChange={(e) => {
+              setSortOption(e.target.value as SortOption);
+              setCurrentPage(1);
+            }}
             aria-label="Sort users"
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
@@ -292,6 +326,7 @@ export default function UsersPage() {
               onClick={() => {
                 setSearchTerm("");
                 setFilter("all");
+                setCurrentPage(1);
                 setSortOption("created-desc");
               }}
               className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
@@ -489,6 +524,31 @@ export default function UsersPage() {
           {users.length === 0
             ? "No users found. Users will appear here once they register."
             : "No users match the current filters."}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && pagination.totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white border rounded-lg p-4">
+          <div className="text-sm text-gray-600">
+            Showing page {pagination.page} of {pagination.totalPages} ({pagination.totalCount} total users)
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
+              disabled={currentPage === pagination.totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
 

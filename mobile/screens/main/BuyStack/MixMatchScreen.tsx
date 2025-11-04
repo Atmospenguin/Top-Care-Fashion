@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Easing,
@@ -14,7 +16,6 @@ import {
   TouchableOpacity,
   View,
   ViewToken,
-  ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -25,6 +26,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
+import { API_BASE_URL } from "../../../src/config/api";
 import type {
   ListingItem,
   BagItem,
@@ -34,6 +36,7 @@ import { MOCK_LISTINGS } from "../../../mocks/shop";
 import type { BuyStackParamList } from "./index";
 // ✨ NEW: Import AI matching service
 import { getAISuggestions, type SuggestedOutfit } from "../../../services/aiMatchingService";
+import { benefitsService } from "../../../src/services";
 
 const { width } = Dimensions.get("window");
 const GAP = 12; // gap between cards
@@ -111,6 +114,10 @@ export default function MixMatchScreen() {
   const baseItem = route.params.baseItem;
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
+  const usageTrackedRef = useRef(false);
+  const usageAlertShownRef = useRef(false);
+  const [usageStatus, setUsageStatus] = useState<"pending" | "allowed" | "denied">("pending");
+  const [usageMessage, setUsageMessage] = useState<string | null>(null);
 
   // ✅ Fetch real listings from API
   const [realListings, setRealListings] = useState<ListingItem[]>([]);
@@ -144,15 +151,88 @@ export default function MixMatchScreen() {
   const fadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hardHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ✅ Record usage as soon as the screen opens
+  useEffect(() => {
+    let cancelled = false;
+
+    const recordUsage = async () => {
+      try {
+        const result = await benefitsService.useMixMatch();
+        if (cancelled) return;
+
+        if (result.status === "limit") {
+          setUsageStatus("denied");
+          setUsageMessage(result.message);
+          if (!usageAlertShownRef.current) {
+            usageAlertShownRef.current = true;
+            Alert.alert(
+              "Mix & Match limit reached",
+              result.message,
+              [
+                {
+                  text: "OK",
+                  onPress: () => navigation.goBack(),
+                },
+              ],
+              { cancelable: false }
+            );
+          } else {
+            navigation.goBack();
+          }
+        } else {
+          setUsageMessage(null);
+          setUsageStatus("allowed");
+        }
+      } catch (err) {
+        console.error("❌ Failed to record Mix & Match usage:", err);
+        if (cancelled) return;
+
+        const message = "Mix & Match is temporarily unavailable. Please try again later.";
+        setUsageStatus("denied");
+        setUsageMessage(message);
+        if (!usageAlertShownRef.current) {
+          usageAlertShownRef.current = true;
+          Alert.alert(
+            "Mix & Match unavailable",
+            message,
+            [
+              {
+                text: "OK",
+                onPress: () => navigation.goBack(),
+              },
+            ],
+            { cancelable: false }
+          );
+        } else {
+          navigation.goBack();
+        }
+      }
+    };
+
+    if (!usageTrackedRef.current) {
+      usageTrackedRef.current = true;
+      recordUsage();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigation]);
+
   // ✅ Fetch listings from API
   useEffect(() => {
+    if (usageStatus !== "allowed") {
+      return;
+    }
+
     const fetchListings = async () => {
       try {
         const token = await AsyncStorage.getItem('authToken');
         console.log('🔍 Fetching all listings for Mix & Match...');
         
+        const apiBaseUrl = API_BASE_URL.replace(/\/+$/, ''); // 移除末尾的斜杠
         const response = await fetch(
-          `http://192.168.31.188:3000/api/listings?limit=100`,
+          `${apiBaseUrl}/api/listings?limit=100`,
           {
             headers: {
               'Authorization': token ? `Bearer ${token}` : '',
@@ -199,7 +279,7 @@ export default function MixMatchScreen() {
     };
 
     fetchListings();
-  }, []);
+  }, [usageStatus]);
 
   // ✨ NEW: Fetch AI suggestions when baseItem and listings are ready
   const fetchAISuggestions = useCallback(async () => {
@@ -677,6 +757,25 @@ export default function MixMatchScreen() {
     },
     [selectedAccessoryIds, accessoryScores, aiSuggestionsReady, handleAccessoryToggle]
   );
+
+  if (usageStatus !== "allowed") {
+    const message =
+      usageStatus === "pending"
+        ? "Checking Mix & Match availability..."
+        : usageMessage ?? "Mix & Match unavailable.";
+
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <Header title="Mix & Match" showBack />
+        <View style={styles.loadingContainer}>
+          {usageStatus === "pending" && (
+            <ActivityIndicator size="large" color="#000" />
+          )}
+          <Text style={styles.loadingText}>{message}</Text>
+        </View>
+      </View>
+    );
+  }
 
   // ✅ Show loading state while fetching listings
   if (loadingListings) {

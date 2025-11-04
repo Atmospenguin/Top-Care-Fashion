@@ -88,7 +88,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
   if ("tags" in body) {
     const tags = Array.isArray(body.tags) ? body.tags : null;
-    updateData.tags = tags ? JSON.stringify(tags) : undefined;
+    updateData.tags = tags || undefined;
   }
 
   if ("featured" in body) {

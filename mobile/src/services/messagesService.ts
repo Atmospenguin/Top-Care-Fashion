@@ -285,21 +285,16 @@ class MessagesService {
   }
 
   // 获取或创建与卖家的对话（用于商品页面）
-  async getOrCreateSellerConversation(sellerId: number, listingId: number): Promise<Conversation> {
+  async getOrCreateSellerConversation(sellerId: number, listingId?: number): Promise<Conversation> {
     try {
-      if (!Number.isFinite(sellerId) || !Number.isFinite(listingId)) {
-        throw new Error('Invalid seller or listing identifier provided when opening chat');
-      }
-
-      let existingConversation: Conversation | undefined;
-      try {
-        const conversations = await this.getConversations();
-        existingConversation = conversations.find((conv) =>
-          conv.kind === 'order' && conv.order?.id === listingId.toString()
-        );
-      } catch (lookupError) {
-        console.warn('Unable to load conversations prior to creating seller chat:', lookupError);
-      }
+      // 先尝试获取现有对话
+      const conversations = await this.getConversations();
+      const existingConversation = conversations.find(conv => 
+        conv.kind === 'order' && 
+        conv.order?.seller.name && 
+        conv.order.seller.name === sellerId.toString() &&
+        (listingId ? conv.order?.id === listingId.toString() : true)
+      );
 
       if (existingConversation) {
         return existingConversation;
@@ -314,80 +309,86 @@ class MessagesService {
 
       console.log("✅ New conversation created:", newConversation);
 
-      const initiatorSummary = normalizeParticipant(newConversation.initiator);
+      // 🔥 直接使用创建返回的对话数据，构建前端需要的格式
       const participantSummary = normalizeParticipant(newConversation.participant);
-      const sellerSummary =
-        initiatorSummary.id === sellerId ? initiatorSummary : participantSummary;
-      const buyerSummary =
-        sellerSummary.id === initiatorSummary.id ? participantSummary : initiatorSummary;
 
       const avatarSource =
-        toImageSource((newConversation as any).avatar_url) ??
-        toImageSource(sellerSummary.avatar) ??
+        toImageSource(newConversation.avatar_url) ??
+        toImageSource(participantSummary.avatar) ??
         (newConversation.avatar && typeof newConversation.avatar === "object" && "uri" in newConversation.avatar
           ? newConversation.avatar
           : null);
 
-      const listing = newConversation.listing as
-        | {
-            id: number | string;
-            name?: string;
-            price?: number | string;
-            size?: string | null;
-            image_url?: string | null;
-            image_urls?: unknown;
+      const listing = newConversation.listing;
+      const fallbackOrder = listing
+        ? {
+            id: listing.id,
+            status: "Inquiry",
+            seller: {
+              id: participantSummary.id ?? undefined,
+              name: participantSummary.name,
+              avatar: participantSummary.avatar,
+              isPremium: participantSummary.isPremium,
+            },
+            product: {
+              id: listing.id,
+              title: listing.name,
+              price: listing.price,
+              size: listing.size,
+              image:
+                listing.image_url ||
+                (Array.isArray(listing.image_urls) ? listing.image_urls[0] : null),
+            },
           }
-        | undefined;
+        : {
+            id: listingId ?? undefined,
+            status: "Inquiry",
+            seller: {
+              id: participantSummary.id ?? undefined,
+              name: participantSummary.name,
+              avatar: participantSummary.avatar,
+              isPremium: participantSummary.isPremium,
+            },
+          };
 
-      const listingImage = listing?.image_url
-        ?? (Array.isArray(listing?.image_urls) ? (listing?.image_urls as string[])[0] : null);
-
-      const orderSummary = normalizeOrderSummary(
-        newConversation.order ?? {
-          id: listing?.id ?? listingId,
-          status: "Inquiry",
-          seller: {
-            id: sellerSummary.id ?? undefined,
-            username: sellerSummary.username,
-            name: sellerSummary.name,
-            avatar: sellerSummary.avatar,
-            avatar_url: sellerSummary.avatar,
-            isPremium: sellerSummary.isPremium,
-          },
-          buyer: buyerSummary.id
-            ? {
-                id: buyerSummary.id,
-                username: buyerSummary.username,
-                name: buyerSummary.name,
-                avatar: buyerSummary.avatar,
-                avatar_url: buyerSummary.avatar,
-                isPremium: buyerSummary.isPremium,
-              }
-            : undefined,
-          product: {
-            id: listing?.id ?? listingId,
-            title: listing?.name ?? newConversation.order?.product?.title ?? "Item",
-            name: listing?.name ?? newConversation.order?.product?.title ?? "Item",
-            price: listing?.price ?? newConversation.order?.product?.price ?? 0,
-            size: listing?.size ?? newConversation.order?.product?.size,
-            image: listingImage ?? newConversation.order?.product?.image ?? null,
-            image_url: listingImage ?? newConversation.order?.product?.image ?? null,
-          },
-        }
-      );
+      const orderSummary = normalizeOrderSummary(newConversation.order ?? fallbackOrder);
 
       return {
         id: newConversation.id.toString(),
-        sender: sellerSummary.name || sellerSummary.username || "Seller",
+        sender: participantSummary.name ?? participantSummary.username,
         message: "No messages yet",
         time: "Now",
-        last_message_at: newConversation.last_message_at ?? new Date().toISOString(),
         avatar: avatarSource,
         kind: "order",
         unread: false,
         lastFrom: "seller",
-        isPremium: sellerSummary.isPremium || undefined,
-        order: orderSummary,
+        order: newConversation.listing ? {
+          id: newConversation.listing.id.toString(),
+          product: {
+            title: newConversation.listing.name,
+            price: Number(newConversation.listing.price),
+            size: newConversation.listing.size,
+            image: newConversation.listing.image_url || (newConversation.listing.image_urls as any)?.[0] || null
+          },
+          seller: { 
+            name: participantSummary.username,
+            avatar: participantSummary.avatar 
+          },
+          status: "Inquiry"
+        } : {
+          id: listingId?.toString() || "unknown",
+          product: {
+            title: "Item",
+            price: 0,
+            size: "Unknown",
+            image: null
+          },
+          seller: { 
+            name: participantSummary.username,
+            avatar: participantSummary.avatar 
+          },
+          status: "Inquiry"
+        }
       };
     } catch (error) {
       console.error('Error getting or creating seller conversation:', error);

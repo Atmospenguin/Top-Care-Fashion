@@ -1,16 +1,26 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, RefreshControl, FlatList } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation, useRoute, useScrollToTop } from "@react-navigation/native";
+import { useNavigation, useRoute, useScrollToTop, type NavigatorScreenParams } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { RouteProp } from "@react-navigation/native";
 
 import Icon from "../../../components/Icon";
 import type { HomeStackParamList } from "./index";
 import type { RootStackParamList } from "../../../App";
+import type { MyTopStackParamList } from "../MyTopStack";
 import type { ListingItem } from "../../../types/shop";
 import { useAuth } from "../../../contexts/AuthContext";
 import { listingsService } from "../../../src/services/listingsService";
+
+type MainTabParamList = {
+  Home: undefined;
+  Discover: undefined;
+  Sell: undefined;
+  Inbox: undefined;
+  "My TOP": NavigatorScreenParams<MyTopStackParamList> | undefined;
+};
 
 export default function HomeScreen() {
   const navigation =
@@ -184,14 +194,15 @@ export default function HomeScreen() {
               <TouchableOpacity
                 style={{ marginLeft: 12 }}
                 accessibilityRole="button"
-                onPress={() =>
+                onPress={() => {
+                  // 🔥 获取 MainTabs 导航器并导航到 My TOP tab
                   navigation
-                    .getParent()
+                    .getParent<BottomTabNavigationProp<MainTabParamList>>()
                     ?.navigate("My TOP", {
                       screen: "MyTopMain",
                       params: { initialTab: "Likes" },
-                    })
-                }
+                    });
+                }}
               >
                 <Icon name="heart-outline" size={24} color="#111" />
               </TouchableOpacity>

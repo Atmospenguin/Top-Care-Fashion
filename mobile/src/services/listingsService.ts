@@ -85,6 +85,7 @@ export interface CreateListingRequest {
   location?: string;
   listed?: boolean;
   sold?: boolean;
+  quantity?: number; // 🔥 库存数量，默认为1
 }
 
 export interface DraftListingRequest {
@@ -102,6 +103,7 @@ export interface DraftListingRequest {
   shippingOption?: string | null;
   shippingFee?: number | null;
   location?: string | null;
+  quantity?: number; // 🔥 库存数量
 }
 
 // 分类数据结构
@@ -121,17 +123,23 @@ const VALID_LISTING_CATEGORIES: ListingCategory[] = [
 
 const PLACEHOLDER_STRING_TOKENS = new Set([
   "",
-  "n",
-  "na",
   "notavailable",
   "notapplicable",
   "none",
   "null",
   "undefined",
+  "select",
+  "selecta",
+  "selectcategory",
+  "selectacategory",
+  "choose",
+  "choosecategory",
 ]);
 
 const normalizeToken = (value: string) =>
-  value.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  value
+    .toLowerCase()
+    .replace(/[\s'"`~!@#$%^&*()_+\-={}\[\]\\|:;.,<>\/?]/g, "");
 
 const sanitizeStringValue = (value?: string | null): string | null => {
   if (value === null || value === undefined) {

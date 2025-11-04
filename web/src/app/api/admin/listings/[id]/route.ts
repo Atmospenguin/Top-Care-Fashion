@@ -102,23 +102,31 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
   const id = Number(params.id);
   const listing = await prisma.listings.findUnique({
     where: { id },
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      category_id: true,
-      seller_id: true,
-      listed: true,
-      sold: true,
-      price: true,
-      image_url: true,
-      image_urls: true,
-      brand: true,
-      size: true,
-      condition_type: true,
-      tags: true,
-      created_at: true,
-      sold_at: true,
+    include: {
+      category: {
+        select: {
+          id: true,
+          name: true,
+        }
+      },
+      promotions: {
+        select: {
+          id: true,
+          status: true,
+          started_at: true,
+          ends_at: true,
+          views: true,
+          clicks: true,
+          view_uplift_percent: true,
+          click_uplift_percent: true,
+          used_free_credit: true,
+          created_at: true,
+          updated_at: true,
+        },
+        orderBy: {
+          created_at: "desc",
+        },
+      },
     },
   });
   if (!listing) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -137,21 +145,49 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
     name: listing.name,
     description: listing.description,
     categoryId: listing.category_id ? String(listing.category_id) : null,
+    categoryName: listing.category?.name ?? null,
     sellerId: listing.seller_id ? String(listing.seller_id) : null,
+    sellerName: seller?.username ?? null,
     listed: Boolean(listing.listed),
     sold: Boolean(listing.sold),
     price: toNumber(listing.price) ?? 0,
+    originalPrice: listing.original_price ? toNumber(listing.original_price) : null,
     imageUrl: listing.image_url ?? null,
     imageUrls: ensureStringArray(listing.image_urls),
     brand: listing.brand ?? null,
     size: listing.size ?? null,
     conditionType: mapConditionOut(listing.condition_type),
     tags: ensureStringArray(listing.tags),
+    material: listing.material ?? null,
+    weight: listing.weight ? toNumber(listing.weight) : null,
+    dimensions: listing.dimensions ?? null,
+    sku: listing.sku ?? null,
+    inventoryCount: listing.inventory_count ?? 0,
+    viewsCount: listing.views_count ?? 0,
+    likesCount: listing.likes_count ?? 0,
+    clicksCount: listing.clicks_count ?? 0,
+    gender: listing.gender ?? null,
+    shippingOption: listing.shipping_option ?? null,
+    shippingFee: listing.shipping_fee ? toNumber(listing.shipping_fee) : null,
+    location: listing.location ?? null,
     createdAt: listing.created_at.toISOString(),
+    updatedAt: listing.updated_at ? listing.updated_at.toISOString() : null,
     soldAt: listing.sold_at ? listing.sold_at.toISOString() : null,
-    sellerName: seller?.username ?? null,
     txId: tx ? String(tx.id) : null,
     txStatus: mapTxStatus(tx?.status),
+    promotions: listing.promotions.map(promo => ({
+      id: String(promo.id),
+      status: promo.status,
+      startedAt: promo.started_at.toISOString(),
+      endsAt: promo.ends_at ? promo.ends_at.toISOString() : null,
+      views: promo.views,
+      clicks: promo.clicks,
+      viewUpliftPercent: promo.view_uplift_percent,
+      clickUpliftPercent: promo.click_uplift_percent,
+      usedFreeCredit: promo.used_free_credit,
+      createdAt: promo.created_at.toISOString(),
+      updatedAt: promo.updated_at.toISOString(),
+    })),
   });
 }
 
@@ -196,19 +232,24 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   if (conditionType !== undefined) data.condition_type = normalizeConditionIn(conditionType);
   if (tags !== undefined) {
     if (Array.isArray(tags)) {
-      data.tags = tags.length ? JSON.stringify(tags) : null;
+      data.tags = tags.length ? tags : null;
     } else if (typeof tags === "string") {
       const trimmed = tags.trim();
       if (!trimmed) {
         data.tags = null;
       } else if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
-        data.tags = trimmed;
+        // Parse JSON string to array
+        try {
+          data.tags = JSON.parse(trimmed);
+        } catch {
+          data.tags = null;
+        }
       } else {
         const pieces = trimmed
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean);
-        data.tags = pieces.length ? JSON.stringify(pieces) : null;
+        data.tags = pieces.length ? pieces : null;
       }
     } else {
       data.tags = tags ?? null;

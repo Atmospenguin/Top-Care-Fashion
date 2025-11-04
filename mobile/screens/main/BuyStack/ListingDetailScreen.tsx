@@ -95,6 +95,7 @@ export default function ListingDetailScreen() {
   const [isLiked, setIsLiked] = useState(false);
   const [isLoadingLike, setIsLoadingLike] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [purchaseQuantity, setPurchaseQuantity] = useState(1); // 🔥 购买数量
 
   // ✅ 如果只有 listingId，通过 API 加载 listing 数据
   useEffect(() => {
@@ -163,8 +164,16 @@ export default function ListingDetailScreen() {
   }, [item]);
 
   const defaultBag = useMemo<BagItem[]>(
-    () => safeItem ? [{ item: safeItem, quantity: 1 }] : [],
-    [safeItem],
+    () =>
+      safeItem
+        ? [
+            {
+              item: safeItem,
+              quantity: purchaseQuantity,
+            },
+          ]
+        : [],
+    [safeItem, purchaseQuantity],
   );
   const subtotal = useMemo(
     () => defaultBag.reduce((sum, current) => {
@@ -350,10 +359,49 @@ export default function ListingDetailScreen() {
   const handleAddToCart = async () => {
     if (!safeItem?.id || isAddingToCart || isOwnListingFinal) return;
     
+    // 🔥 检查库存是否足够
+    if (safeItem.availableQuantity !== undefined && purchaseQuantity > safeItem.availableQuantity) {
+      Alert.alert(
+        'Insufficient Stock',
+        `Only ${safeItem.availableQuantity} item(s) available.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    // 🔥 检查库存是否为0
+    if (safeItem.availableQuantity !== undefined && safeItem.availableQuantity <= 0) {
+      Alert.alert(
+        'Out of Stock',
+        'This item is currently out of stock.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
     setIsAddingToCart(true);
     try {
-      await cartService.addToCart(safeItem.id.toString(), 1);
-      Alert.alert('Success', 'Item added to cart successfully!');
+      // 🔥 先检查商品是否已经在购物车中
+      const cartItems = await cartService.getCartItems();
+      const itemAlreadyInCart = cartItems.some(
+        cartItem => cartItem.item.id === safeItem.id.toString() || 
+                     cartItem.item.listing_id?.toString() === safeItem.id.toString()
+      );
+      
+      if (itemAlreadyInCart) {
+        // 🔥 商品已经在购物车中，显示提示信息
+        Alert.alert(
+          'Already in Cart', 
+          'This item is already in your cart.',
+          [{ text: 'OK', style: 'default' }]
+        );
+        return;
+      }
+      
+      // 🔥 商品不在购物车中，添加到购物车（使用选择的数量）
+      await cartService.addToCart(safeItem.id.toString(), purchaseQuantity);
+      Alert.alert('Success', `${purchaseQuantity} item(s) added to cart successfully!`);
+      setPurchaseQuantity(1); // 重置数量
     } catch (error) {
       console.error('Error adding to cart:', error);
       Alert.alert('Error', 'Failed to add item to cart. Please try again.');
@@ -878,27 +926,82 @@ export default function ListingDetailScreen() {
       <View style={styles.bottomBar}>
         {!isOwnListingFinal && (
           <>
-            <TouchableOpacity
-              style={[
-                styles.secondaryButton,
-                isAddingToCart ? styles.secondaryButtonDisabled : undefined,
-              ]}
-              onPress={handleAddToCart}
-              disabled={isAddingToCart}
-            >
-              <Icon name="bag-add-outline" size={20} color={isAddingToCart ? "#999" : "#111"} />
-              <Text
+            {/* 🔥 数量选择器 */}
+            <View style={styles.quantityContainer}>
+              <Text style={styles.quantityLabel}>Quantity:</Text>
+              <View style={styles.quantitySelector}>
+                <TouchableOpacity
+                  style={[
+                    styles.quantityButton,
+                    purchaseQuantity <= 1 && styles.quantityButtonDisabled
+                  ]}
+                  onPress={() => setPurchaseQuantity(Math.max(1, purchaseQuantity - 1))}
+                  disabled={purchaseQuantity <= 1}
+                >
+                  <Icon 
+                    name="remove" 
+                    size={20} 
+                    color={purchaseQuantity <= 1 ? "#ccc" : "#111"} 
+                  />
+                </TouchableOpacity>
+                <Text style={styles.quantityValue}>{purchaseQuantity}</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.quantityButton,
+                    (safeItem.availableQuantity !== undefined && 
+                     purchaseQuantity >= safeItem.availableQuantity) && 
+                    styles.quantityButtonDisabled
+                  ]}
+                  onPress={() => {
+                    const maxQty = safeItem.availableQuantity ?? 999;
+                    setPurchaseQuantity(Math.min(maxQty, purchaseQuantity + 1));
+                  }}
+                  disabled={
+                    safeItem.availableQuantity !== undefined && 
+                    purchaseQuantity >= safeItem.availableQuantity
+                  }
+                >
+                  <Icon 
+                    name="add" 
+                    size={20} 
+                    color={
+                      (safeItem.availableQuantity !== undefined && 
+                       purchaseQuantity >= safeItem.availableQuantity) 
+                        ? "#ccc" 
+                        : "#111"
+                    } 
+                  />
+                </TouchableOpacity>
+              </View>
+              {safeItem.availableQuantity !== undefined && safeItem.availableQuantity > 0 && (
+                <Text style={styles.stockInfo}>
+                  {safeItem.availableQuantity} available
+                </Text>
+              )}
+            </View>
+            {/* 🔥 按钮行 */}
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
                 style={[
-                  styles.secondaryText,
-                  isAddingToCart ? styles.secondaryTextDisabled : undefined,
+                  styles.secondaryButton,
+                  isAddingToCart ? styles.secondaryButtonDisabled : undefined,
                 ]}
+                onPress={handleAddToCart}
+                disabled={isAddingToCart}
               >
-                {isAddingToCart ? 'Adding...' : 'Add to Bag'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={async () => {
+                <Icon name="bag-add-outline" size={20} color={isAddingToCart ? "#999" : "#111"} />
+                <Text
+                  style={[
+                    styles.secondaryText,
+                    isAddingToCart ? styles.secondaryTextDisabled : undefined,
+                  ]}
+                >
+                  {isAddingToCart ? 'Adding...' : 'Add to Bag'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={async () => {
                 console.log("🔍 Buy Now button pressed from ListingDetailScreen");
                 
                 // 🔥 创建或获取与卖家的对话，以便下单后能回到聊天界面
@@ -954,7 +1057,8 @@ export default function ListingDetailScreen() {
               }}
             >
               <Text style={styles.primaryText}>Buy Now</Text>
-            </TouchableOpacity>
+              </TouchableOpacity>
+            </View>
           </>
         )}
         {isOwnListingFinal && (
@@ -1253,14 +1357,59 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: "column", // 🔥 改为垂直布局以支持数量选择器
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 12,
     backgroundColor: "#fff",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#ddd",
+  },
+  // 🔥 数量选择器样式
+  quantityContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  quantityLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111",
+  },
+  quantitySelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 16,
+  },
+  quantityButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#111",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  quantityButtonDisabled: {
+    borderColor: "#ddd",
+    backgroundColor: "#f9f9f9",
+  },
+  quantityValue: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111",
+    minWidth: 30,
+    textAlign: "center",
+  },
+  stockInfo: {
+    fontSize: 12,
+    color: "#666",
+  },
+  buttonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   secondaryButton: {
     flex: 1,

@@ -65,6 +65,61 @@ const mapSizeToDisplay = (sizeValue: string | null): string | null => {
   return sizeMap[sizeValue] || sizeValue;
 };
 
+const mapGenderToEnum = (raw: unknown): "Men" | "Women" | "Unisex" | null => {
+  if (typeof raw !== "string") {
+    return null;
+  }
+
+  const normalized = raw.trim().toLowerCase();
+  switch (normalized) {
+    case "men":
+    case "male":
+      return "Men";
+    case "women":
+    case "female":
+      return "Women";
+    case "unisex":
+    case "uni":
+    case "all":
+      return "Unisex";
+    default:
+      return null;
+  }
+};
+
+/**
+ * Helper to safely parse JSON arrays or comma-separated strings
+ */
+const parseJsonArray = (value: unknown): string[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        : [];
+    } catch (error) {
+      if (/^https?:\/\//i.test(trimmed)) {
+        return [trimmed];
+      }
+      // Handle comma-separated strings (e.g., "adidas,clothing,vintage")
+      if (trimmed.includes(',')) {
+        return trimmed.split(',').map(s => s.trim()).filter(s => s.length > 0);
+      }
+      console.warn("Failed to parse JSON array field for listing", { value: trimmed, error });
+      return [];
+    }
+  }
+  return [];
+};
+
 /**
  * 获取单个listing详情
  */
@@ -105,32 +160,6 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     if (!listing) {
       return NextResponse.json({ error: "Listing not found" }, { status: 404 });
     }
-
-    const parseJsonArray = (value: unknown): string[] => {
-      if (!value) return [];
-      if (Array.isArray(value)) {
-        return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
-      }
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (!trimmed) {
-          return [];
-        }
-        try {
-          const parsed = JSON.parse(trimmed);
-          return Array.isArray(parsed)
-            ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-            : [];
-        } catch (error) {
-          if (/^https?:\/\//i.test(trimmed)) {
-            return [trimmed];
-          }
-          console.warn("Failed to parse JSON array field for listing", { value: trimmed, error });
-          return [];
-        }
-      }
-      return [];
-    };
 
     const images = (() => {
       const parsed = parseJsonArray(listing.image_urls);
@@ -173,6 +202,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       createdAt: listing.created_at.toISOString(),
       listed: listing.listed,
       sold: listing.sold,
+      availableQuantity: Number((listing as any).inventory_count ?? 1), // 🔥 当前库存数量（stock）
     };
 
     return NextResponse.json({ listing: formattedListing });
@@ -250,19 +280,48 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
     if (body.title !== undefined) updateData.name = body.title;
     if (body.description !== undefined) updateData.description = body.description;
-    if (body.price !== undefined) updateData.price = parseFloat(body.price);
+    if (body.price !== undefined) {
+      const numericPrice = Number(body.price);
+      if (!Number.isNaN(numericPrice)) {
+        updateData.price = numericPrice;
+      }
+    }
     if (body.brand !== undefined) updateData.brand = body.brand;
     if (body.size !== undefined) updateData.size = body.size;
     if (body.condition !== undefined) updateData.condition_type = mapConditionToEnum(body.condition);
     if (body.material !== undefined) updateData.material = body.material;
-    if (body.gender !== undefined) updateData.gender = body.gender.toLowerCase();
-    if (body.tags !== undefined) updateData.tags = JSON.stringify(body.tags);
-    if (body.images !== undefined) updateData.image_urls = JSON.stringify(body.images);
+    if (body.gender !== undefined) {
+      const resolvedGender = mapGenderToEnum(body.gender);
+      if (resolvedGender) {
+        updateData.gender = resolvedGender;
+      }
+    }
+    // Prisma expects Json type fields as JavaScript arrays/objects, not JSON strings
+    if (body.tags !== undefined) updateData.tags = body.tags;
+    if (body.images !== undefined) updateData.image_urls = body.images;
     if (body.shippingOption !== undefined) updateData.shipping_option = body.shippingOption;
-    if (body.shippingFee !== undefined) updateData.shipping_fee = parseFloat(body.shippingFee);
+    if (body.shippingFee !== undefined) {
+      const numericFee = Number(body.shippingFee);
+      if (!Number.isNaN(numericFee)) {
+        updateData.shipping_fee = numericFee;
+      } else {
+        updateData.shipping_fee = null;
+      }
+    }
     if (body.location !== undefined) updateData.location = body.location;
     if (body.listed !== undefined) updateData.listed = body.listed;
     if (body.sold !== undefined) updateData.sold = body.sold;
+    
+    // 🔥 处理库存数量
+    if (body.quantity !== undefined) {
+      const numericQuantity = Number(body.quantity);
+      if (!Number.isNaN(numericQuantity) && numericQuantity >= 1) {
+        updateData.inventory_count = numericQuantity;
+        console.log("✅ Updating inventory_count to:", numericQuantity);
+      } else {
+        console.warn("⚠️ Invalid quantity value:", body.quantity);
+      }
+    }
 
     // 🔥 处理 category（通过 name 查找 category_id）
     if (body.category !== undefined && typeof body.category === "string" && body.category.trim().length > 0) {
@@ -304,6 +363,19 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
     console.log("✅ Listing updated successfully:", updatedListing.id);
 
+    const images = (() => {
+      const parsed = parseJsonArray(updatedListing.image_urls);
+      if (parsed.length > 0) {
+        return parsed;
+      }
+      if (typeof updatedListing.image_url === "string" && updatedListing.image_url.trim().length > 0) {
+        return [updatedListing.image_url];
+      }
+      return [];
+    })();
+
+    const tags = parseJsonArray(updatedListing.tags);
+
     const formattedListing = {
       id: updatedListing.id.toString(),
       title: updatedListing.name,
@@ -314,10 +386,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       condition: mapConditionToDisplay(updatedListing.condition_type),
       material: updatedListing.material,
       gender: (updatedListing as any).gender || "unisex",
-      tags: updatedListing.tags ? JSON.parse(updatedListing.tags as string) : [],
+      tags,
       category: updatedListing.category?.name || "Unknown",
-      images: updatedListing.image_urls ? JSON.parse(updatedListing.image_urls as string) : 
-              (updatedListing.image_url ? [updatedListing.image_url] : []),
+      images,
       shippingOption: (updatedListing as any).shipping_option || "Free shipping",
       shippingFee: Number((updatedListing as any).shipping_fee || 0),
       location: (updatedListing as any).location || "",
@@ -330,6 +401,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       },
       listed: updatedListing.listed,
       sold: updatedListing.sold,
+      availableQuantity: Number((updatedListing as any).inventory_count ?? 1), // 🔥 当前库存数量（stock）
       createdAt: updatedListing.created_at.toISOString(),
       updatedAt: updatedListing.updated_at?.toISOString() || null,
     };
@@ -407,49 +479,127 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
 /**
  * 🔥 获取 category ID（通过 category name）
  */
-type BaseCategory = "Accessories" | "Bottoms" | "Footwear" | "Outerwear" | "Tops";
-const BASE_CATEGORY_NAMES: BaseCategory[] = ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"];
+const CATEGORY_CANONICALS = [
+  "Accessories",
+  "Activewear",
+  "Bottoms",
+  "Designer",
+  "Dresses",
+  "Formal Wear",
+  "Outerwear",
+  "Shoes",
+  "Tops",
+  "Vintage",
+] as const;
 
 async function getCategoryId(categoryName: string): Promise<number> {
-  const name = categoryName.trim().toLowerCase();
+  const normalized = (categoryName || "").trim().toLowerCase();
 
-  const synonymMap: Record<string, BaseCategory> = {
+  if (
+    !normalized ||
+    normalized === "select" ||
+    normalized === "none" ||
+    normalized.startsWith("select ") ||
+    normalized.includes("selecta") ||
+    normalized.startsWith("choose")
+  ) {
+    throw new Error("Category name is empty");
+  }
+
+  const synonymMap: Record<string, (typeof CATEGORY_CANONICALS)[number]> = {
     accessories: "Accessories",
     accessory: "Accessories",
+    jewelry: "Accessories",
+    jewellery: "Accessories",
+    bag: "Accessories",
     bags: "Accessories",
+    handbag: "Accessories",
+    belt: "Accessories",
     belts: "Accessories",
+    scarf: "Accessories",
+    scarves: "Accessories",
+    hat: "Accessories",
+    hats: "Accessories",
+    beanie: "Accessories",
+    sunglasses: "Accessories",
+    eyewear: "Accessories",
+    watch: "Accessories",
+    watches: "Accessories",
+    activewear: "Activewear",
+    sportswear: "Activewear",
+    sport: "Activewear",
+    gym: "Activewear",
+    workout: "Activewear",
+    athleisure: "Activewear",
     bottoms: "Bottoms",
+    bottom: "Bottoms",
     pants: "Bottoms",
+    trouser: "Bottoms",
     trousers: "Bottoms",
+    jeans: "Bottoms",
     shorts: "Bottoms",
+    skirt: "Bottoms",
     skirts: "Bottoms",
     leggings: "Bottoms",
     joggers: "Bottoms",
-    footwear: "Footwear",
-    shoes: "Footwear",
-    shoe: "Footwear",
-    boots: "Footwear",
-    sneakers: "Footwear",
+    designer: "Designer",
+    luxury: "Designer",
+    couture: "Designer",
+    dresses: "Dresses",
+    dress: "Dresses",
+    gown: "Dresses",
+    gowns: "Dresses",
+    formal: "Formal Wear",
+    "formal wear": "Formal Wear",
+    suit: "Formal Wear",
+    suits: "Formal Wear",
+    tuxedo: "Formal Wear",
+    tuxedos: "Formal Wear",
+    blazer: "Formal Wear",
+    blazers: "Formal Wear",
+    evening: "Formal Wear",
     outerwear: "Outerwear",
+    coat: "Outerwear",
     coats: "Outerwear",
+    jacket: "Outerwear",
     jackets: "Outerwear",
-    blazers: "Outerwear",
+    parka: "Outerwear",
+    trench: "Outerwear",
+    shoes: "Shoes",
+    shoe: "Shoes",
+    footwear: "Shoes",
+    sneaker: "Shoes",
+    sneakers: "Shoes",
+    heel: "Shoes",
+    heels: "Shoes",
+    boot: "Shoes",
+    boots: "Shoes",
+    sandal: "Shoes",
+    sandals: "Shoes",
     tops: "Tops",
     top: "Tops",
-    shirts: "Tops",
     shirt: "Tops",
+    shirts: "Tops",
+    blouse: "Tops",
+    blouses: "Tops",
+    tee: "Tops",
+    tees: "Tops",
+    tshirt: "Tops",
+    "t-shirt": "Tops",
+    hoodie: "Tops",
     hoodies: "Tops",
+    sweater: "Tops",
     sweaters: "Tops",
-    dress: "Tops",
-    dresses: "Tops",
-    activewear: "Tops",
-    others: "Accessories",
-    other: "Accessories",
+    cardigan: "Tops",
+    cardigans: "Tops",
+    vintage: "Vintage",
+    retro: "Vintage",
+    "retro wear": "Vintage",
   };
 
   const mapped =
-    synonymMap[name] ??
-    BASE_CATEGORY_NAMES.find((cat) => cat.toLowerCase() === name) ??
+    synonymMap[normalized] ??
+    CATEGORY_CANONICALS.find((cat) => cat.toLowerCase() === normalized) ??
     "Tops";
 
   const category = await prisma.listing_categories.findFirst({
@@ -457,7 +607,7 @@ async function getCategoryId(categoryName: string): Promise<number> {
   });
 
   if (!category) {
-    throw new Error(`Base category '${mapped}' is missing from the database.`);
+    throw new Error(`Category '${mapped}' is missing from the database.`);
   }
 
   return category.id;

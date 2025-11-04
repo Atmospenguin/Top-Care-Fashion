@@ -60,8 +60,8 @@ export default function SoldTab() {
       setError(null);
       
       // 🔥 获取所有sold状态的商品（包括被取消的）
-      const listings = await listingsService.getUserListings({ status: 'sold' });
-      setSoldListings(listings);
+  const { listings } = await listingsService.getUserListings({ status: 'sold' });
+  setSoldListings(Array.isArray(listings) ? listings : []);
     } catch (err) {
       console.error("Error loading sold listings:", err);
       setError(err instanceof Error ? err.message : "Failed to load listings");
@@ -184,9 +184,7 @@ export default function SoldTab() {
             style={styles.retryBtn}
             onPress={() => {
               setError(null);
-              setLoading(true);
-              // Trigger reload
-              setSoldListings([]);
+              loadSoldListings();
             }}
           >
             <Text style={styles.retryBtnText}>Retry</Text>

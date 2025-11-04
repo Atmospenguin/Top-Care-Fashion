@@ -4,22 +4,32 @@ import { requireAdmin } from "@/lib/auth";
 
 type TagList = string[];
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const feedbackList = await prisma.feedback.findMany({
-    include: {
-      user: {
-        select: {
-          username: true,
+  const { searchParams } = new URL(request.url);
+  const page = parseInt(searchParams.get("page") || "1");
+  const limit = parseInt(searchParams.get("limit") || "50");
+  const skip = (page - 1) * limit;
+
+  const [feedbackList, totalCount] = await Promise.all([
+    prisma.feedback.findMany({
+      skip,
+      take: limit,
+      include: {
+        user: {
+          select: {
+            username: true,
+          },
         },
       },
-    },
-    orderBy: {
-      id: "desc",
-    },
-  });
+      orderBy: {
+        id: "desc",
+      },
+    }),
+    prisma.feedback.count(),
+  ]);
 
   const feedbacks = feedbackList.map((feedback) => ({
     id: String(feedback.id),
@@ -40,7 +50,17 @@ export async function GET() {
     updatedAt: feedback.updated_at?.toISOString(),
   }));
 
-  return NextResponse.json({ feedbacks });
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return NextResponse.json({
+    feedbacks,
+    pagination: {
+      page,
+      limit,
+      totalCount,
+      totalPages,
+    },
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -66,7 +86,7 @@ export async function POST(req: NextRequest) {
         user_name: userName || null,
         message,
         rating: rating !== undefined && rating !== null ? Number(rating) : null,
-        tags: tags ? JSON.stringify(tags) : undefined,
+        tags: tags || undefined,
         featured: Boolean(featured),
         is_public: isPublic !== undefined ? Boolean(isPublic) : true,
         type: type || "general",
