@@ -193,6 +193,7 @@ export default function TransactionsPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Seller</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -233,6 +234,15 @@ export default function TransactionsPage() {
                         </td>
                         <td className="px-4 py-3 text-sm">{transaction.quantity}</td>
                         <td className="px-4 py-3 text-sm font-medium">${total}</td>
+                        <td className="px-4 py-3 text-sm">
+                          {(transaction as any).commissionAmount ? (
+                            <span className="text-orange-600 font-medium">
+                              ${((transaction as any).commissionAmount).toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(transaction.status)}`}>
@@ -276,7 +286,7 @@ export default function TransactionsPage() {
                       </tr>
                       {isExpanded && (
                         <tr>
-                          <td colSpan={9} className="px-4 py-4 bg-gray-50 text-sm">
+                          <td colSpan={10} className="px-4 py-4 bg-gray-50 text-sm">
                             <div className="grid gap-4 md:grid-cols-2">
                               <div className="flex gap-3">
                                 {transaction.listingImageUrl && (
@@ -332,6 +342,27 @@ export default function TransactionsPage() {
                                   <div className="text-xs uppercase text-gray-500">Total</div>
                                   <div className="text-gray-800">${total}</div>
                                 </div>
+                                {((transaction as any).commissionAmount) && (
+                                  <>
+                                    <div>
+                                      <div className="text-xs uppercase text-gray-500">Commission</div>
+                                      <div className="text-orange-600 font-medium">
+                                        ${((transaction as any).commissionAmount).toFixed(2)}
+                                        {(transaction as any).commissionRate && (
+                                          <span className="text-xs text-gray-500 ml-1">
+                                            ({((transaction as any).commissionRate * 100).toFixed(2)}%)
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-xs uppercase text-gray-500">Seller Receives</div>
+                                      <div className="text-green-600 font-medium">
+                                        ${(parseFloat(total) - (transaction as any).commissionAmount).toFixed(2)}
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </td>
