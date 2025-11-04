@@ -1016,7 +1016,7 @@ export default function ChatScreen() {
     };
 
     const handleViewMutualReview = () => {
-      console.log("👀 View Mutual Review button pressed for order:", o.id);
+      console.log("👀 View Review button pressed for order:", o.id);
       // 直接在InboxStack中导航到MutualReview
       navigation.navigate("MutualReview" as any, { orderId: parseInt(o.id) });
     };
@@ -1253,7 +1253,7 @@ export default function ChatScreen() {
               {["RECEIVED", "COMPLETED", "REVIEWED"].includes(o.status) && (() => {
                 const reviewStatus = reviewStatuses[o.id];
                 
-                // 双方都评论了 - View Mutual Review
+                // 双方都评论了 - View Review
                 if (reviewStatus?.hasUserReviewed && reviewStatus?.hasOtherReviewed) {
                   return (
                     <TouchableOpacity 
@@ -1265,7 +1265,7 @@ export default function ChatScreen() {
                       onPress={handleViewMutualReview}
                       activeOpacity={0.8}
                     >
-                      <Text style={[styles.actionButtonText, { color: "#000" }]}>View Mutual Review</Text>
+                      <Text style={[styles.actionButtonText, { color: "#000" }]}>View Review</Text>
                     </TouchableOpacity>
                   );
                 }
@@ -1343,7 +1343,7 @@ export default function ChatScreen() {
               {["COMPLETED", "REVIEWED"].includes(o.status) && (() => {
                 const reviewStatus = reviewStatuses[o.id];
                 
-                // 双方都评论了 - View Mutual Review
+                // 双方都评论了 - View Review
                 if (reviewStatus?.hasUserReviewed && reviewStatus?.hasOtherReviewed) {
                   return (
                     <TouchableOpacity 
@@ -1355,7 +1355,7 @@ export default function ChatScreen() {
                       onPress={handleViewMutualReview}
                       activeOpacity={0.8}
                     >
-                      <Text style={[styles.actionButtonText, { color: "#000" }]}>View Mutual Review</Text>
+                      <Text style={[styles.actionButtonText, { color: "#000" }]}>View Review</Text>
                     </TouchableOpacity>
                   );
                 }
@@ -1640,9 +1640,9 @@ export default function ChatScreen() {
     // 🔍 调试日志（简化输出避免 LogBox 崩溃）
     console.log("🔍 renderReviewCTA - orderId:", orderId, "hasUserReviewed:", status?.hasUserReviewed, "hasOtherReviewed:", status?.hasOtherReviewed);
     
-    // 状态 4: 双评状态 - 显示 "View Mutual Review"
+    // 状态 4: 双评状态 - 显示 "View Review"
     if (status?.hasUserReviewed && status?.hasOtherReviewed) {
-      console.log("✅ Showing View Mutual Review CTA");
+      console.log("✅ Showing View Review CTA (both reviewed)");
       return (
         <View style={styles.reviewBox}>
           <Text style={styles.reviewHint}>Both reviewed this transaction</Text>
@@ -1653,11 +1653,11 @@ export default function ChatScreen() {
               borderColor: "#000" // 黑色边框
             }]}
             onPress={() => {
-              console.log("⭐ View Mutual Review pressed for order:", orderId);
+              console.log("⭐ View Review pressed for order:", orderId);
               navigation.navigate("MutualReview" as any, { orderId: parseInt(orderId) });
             }}
           >
-            <Text style={[styles.reviewBtnText, { color: "#000" }]}>View Mutual Review</Text>
+            <Text style={[styles.reviewBtnText, { color: "#000" }]}>View Review</Text>
           </TouchableOpacity>
         </View>
       );
@@ -1869,7 +1869,7 @@ export default function ChatScreen() {
       <TouchableOpacity 
         style={styles.reviewBtnCenter}
         onPress={() => {
-          console.log("⭐ View Mutual Review button pressed for order:", orderId);
+          console.log("⭐ View Review button pressed for order:", orderId);
           const rootNavigation = (navigation as any).getParent?.();
           if (rootNavigation) {
             rootNavigation.navigate("Main", {
@@ -1884,7 +1884,7 @@ export default function ChatScreen() {
           }
         }}
       >
-        <Text style={styles.reviewBtnText}>View Mutual Review</Text>
+        <Text style={styles.reviewBtnText}>View Review</Text>
       </TouchableOpacity>
     </View>
   );
