@@ -336,6 +336,17 @@ export class ListingsService {
       sanitized.sold = Boolean(rawSold);
     }
 
+    // 🔥 保留库存数量字段
+    const rawAvailableQuantity = (listing as any).availableQuantity;
+    if (typeof rawAvailableQuantity === "number") {
+      sanitized.availableQuantity = rawAvailableQuantity;
+    } else if (rawAvailableQuantity !== undefined && rawAvailableQuantity !== null) {
+      const parsed = Number(rawAvailableQuantity);
+      if (!Number.isNaN(parsed)) {
+        sanitized.availableQuantity = parsed;
+      }
+    }
+
     if (Array.isArray(listing.tags)) {
       const cleanedTags = listing.tags
         .map((tag) => sanitizeStringValue(tag))
@@ -503,7 +514,11 @@ export class ListingsService {
       
       if (response.data?.listing) {
         console.log("✅ Listing found:", response.data.listing.title);
-        return this.sanitizeListingItem(response.data.listing);
+        console.log("🔍 Raw listing data:", JSON.stringify(response.data.listing, null, 2));
+        console.log("🔍 availableQuantity from API:", response.data.listing.availableQuantity);
+        const sanitized = this.sanitizeListingItem(response.data.listing);
+        console.log("🔍 Sanitized availableQuantity:", sanitized.availableQuantity);
+        return sanitized;
       }
       
       console.log("❌ No listing data received");
