@@ -72,6 +72,10 @@ export default function ListingDetailPage() {
   const [listing, setListing] = useState<EnhancedListing | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCreatePromotion, setShowCreatePromotion] = useState(false);
+  const [promotionEndDate, setPromotionEndDate] = useState("");
+  const [useFreeCredit, setUseFreeCredit] = useState(false);
+  const [creatingPromotion, setCreatingPromotion] = useState(false);
 
   const loadListingDetails = async () => {
     try {
@@ -96,6 +100,84 @@ export default function ListingDetailPage() {
       setError(error instanceof Error ? error.message : "Failed to load listing details");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreatePromotion = async () => {
+    if (!listing) return;
+
+    setCreatingPromotion(true);
+    try {
+      const res = await fetch('/api/admin/promotions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listingId: listing.id,
+          sellerId: listing.sellerId,
+          endsAt: promotionEndDate || null,
+          usedFreeCredit: useFreeCredit,
+        }),
+      });
+
+      if (res.ok) {
+        alert('Promotion created successfully!');
+        setShowCreatePromotion(false);
+        setPromotionEndDate('');
+        setUseFreeCredit(false);
+        await loadListingDetails();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to create promotion');
+      }
+    } catch (err) {
+      console.error('Error creating promotion:', err);
+      alert('Error creating promotion');
+    } finally {
+      setCreatingPromotion(false);
+    }
+  };
+
+  const handleStopPromotion = async (promotionId: number) => {
+    if (!confirm('Are you sure you want to stop this promotion?')) return;
+
+    try {
+      const res = await fetch(`/api/admin/promotions/${promotionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'PAUSED' }),
+      });
+
+      if (res.ok) {
+        alert('Promotion stopped successfully!');
+        await loadListingDetails();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to stop promotion');
+      }
+    } catch (err) {
+      console.error('Error stopping promotion:', err);
+      alert('Error stopping promotion');
+    }
+  };
+
+  const handleDeletePromotion = async (promotionId: number) => {
+    if (!confirm('Are you sure you want to delete this promotion? This action cannot be undone.')) return;
+
+    try {
+      const res = await fetch(`/api/admin/promotions/${promotionId}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        alert('Promotion deleted successfully!');
+        await loadListingDetails();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to delete promotion');
+      }
+    } catch (err) {
+      console.error('Error deleting promotion:', err);
+      alert('Error deleting promotion');
     }
   };
 
@@ -314,15 +396,73 @@ export default function ListingDetailPage() {
       <div className="bg-white border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Promotions & Boosts</h3>
-          {!activePromotion && listing.listed && !listing.sold && (
+          {!activePromotion && listing.listed && !listing.sold && !showCreatePromotion && (
             <button
-              onClick={() => alert('Promotion feature coming soon!')}
+              onClick={() => setShowCreatePromotion(true)}
               className="px-4 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700"
             >
               Create Promotion
             </button>
           )}
         </div>
+
+        {/* Create Promotion Form */}
+        {showCreatePromotion && (
+          <div className="mb-6 border rounded-lg p-4 bg-purple-50">
+            <h4 className="font-semibold mb-3">Create New Promotion</h4>
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="promotionEndDate" className="block text-sm font-medium text-gray-700 mb-1">
+                  End Date (Optional)
+                </label>
+                <input
+                  type="date"
+                  id="promotionEndDate"
+                  value={promotionEndDate}
+                  onChange={(e) => setPromotionEndDate(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  min={new Date().toISOString().split('T')[0]}
+                  aria-label="Promotion end date"
+                />
+                <p className="text-xs text-gray-500 mt-1">Leave empty for no end date</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="useFreeCredit"
+                  checked={useFreeCredit}
+                  onChange={(e) => setUseFreeCredit(e.target.checked)}
+                  className="rounded"
+                />
+                <label htmlFor="useFreeCredit" className="text-sm">
+                  Use seller's free promotion credit
+                </label>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleCreatePromotion}
+                  disabled={creatingPromotion}
+                  className="px-4 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {creatingPromotion ? 'Creating...' : 'Create'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreatePromotion(false);
+                    setPromotionEndDate('');
+                    setUseFreeCredit(false);
+                  }}
+                  disabled={creatingPromotion}
+                  className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {listing.promotions && listing.promotions.length > 0 ? (
           <div className="space-y-4">
@@ -335,6 +475,8 @@ export default function ListingDetailPage() {
                         ? 'bg-green-100 text-green-800'
                         : promo.status === 'EXPIRED'
                         ? 'bg-gray-100 text-gray-800'
+                        : promo.status === 'PAUSED'
+                        ? 'bg-yellow-100 text-yellow-800'
                         : 'bg-blue-100 text-blue-800'
                     }`}>
                       {promo.status}
@@ -345,7 +487,25 @@ export default function ListingDetailPage() {
                       </span>
                     )}
                   </div>
-                  <span className="text-sm text-gray-500">ID: {promo.id}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-500">ID: {promo.id}</span>
+                    {promo.status === 'ACTIVE' && (
+                      <button
+                        type="button"
+                        onClick={() => handleStopPromotion(Number(promo.id))}
+                        className="px-3 py-1 text-xs bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+                      >
+                        Stop
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleDeletePromotion(Number(promo.id))}
+                      className="px-3 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
