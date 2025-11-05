@@ -24,6 +24,7 @@ export type ListingItem = {
   updatedAt?: string;
   listed?: boolean;
   sold?: boolean;
+  quantity?: number | null; // current stock quantity returned by backend
   availableQuantity?: number; // 🔥 当前库存数量（stock/quantity）
   seller: {
     id?: number;

@@ -9,8 +9,6 @@ export const CATEGORY_DISPLAY_ORDER = [
   "Outerwear",
   "Footwear",
   "Accessories",
-  "Bags",
-  "Dresses",
 ];
 
 /**
