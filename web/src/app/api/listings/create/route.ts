@@ -298,17 +298,13 @@ export async function POST(req: Request) {
 }
 
 // 辅助函数：根据分类名称获取分类ID
+// Only 5 core categories are supported
 const CATEGORY_CANONICALS = [
   "Accessories",
-  "Activewear",
   "Bottoms",
-  "Designer",
-  "Dresses",
-  "Formal Wear",
+  "Footwear",
   "Outerwear",
-  "Shoes",
   "Tops",
-  "Vintage",
 ] as const;
 
 function resolveGender(input: unknown): "Men" | "Women" | "Unisex" {
@@ -348,6 +344,7 @@ async function getCategoryId(categoryName: string): Promise<number> {
   }
 
   const synonymMap: Record<string, (typeof CATEGORY_CANONICALS)[number]> = {
+    // Accessories (including bags)
     accessories: "Accessories",
     accessory: "Accessories",
     jewelry: "Accessories",
@@ -355,6 +352,8 @@ async function getCategoryId(categoryName: string): Promise<number> {
     bag: "Accessories",
     bags: "Accessories",
     handbag: "Accessories",
+    purse: "Accessories",
+    backpack: "Accessories",
     belt: "Accessories",
     belts: "Accessories",
     scarf: "Accessories",
@@ -366,12 +365,8 @@ async function getCategoryId(categoryName: string): Promise<number> {
     eyewear: "Accessories",
     watch: "Accessories",
     watches: "Accessories",
-    activewear: "Activewear",
-    sportswear: "Activewear",
-    sport: "Activewear",
-    gym: "Activewear",
-    workout: "Activewear",
-    athleisure: "Activewear",
+
+    // Bottoms
     bottoms: "Bottoms",
     bottom: "Bottoms",
     pants: "Bottoms",
@@ -383,40 +378,32 @@ async function getCategoryId(categoryName: string): Promise<number> {
     skirts: "Bottoms",
     leggings: "Bottoms",
     joggers: "Bottoms",
-    designer: "Designer",
-    luxury: "Designer",
-    couture: "Designer",
-    dresses: "Dresses",
-    dress: "Dresses",
-    gown: "Dresses",
-    gowns: "Dresses",
-    formal: "Formal Wear",
-    "formal wear": "Formal Wear",
-    suit: "Formal Wear",
-    suits: "Formal Wear",
-    tuxedo: "Formal Wear",
-    tuxedos: "Formal Wear",
-    blazer: "Formal Wear",
-    blazers: "Formal Wear",
-    evening: "Formal Wear",
+
+    // Footwear (renamed from Shoes)
+    footwear: "Footwear",
+    shoes: "Footwear",
+    shoe: "Footwear",
+    sneaker: "Footwear",
+    sneakers: "Footwear",
+    heel: "Footwear",
+    heels: "Footwear",
+    boot: "Footwear",
+    boots: "Footwear",
+    sandal: "Footwear",
+    sandals: "Footwear",
+
+    // Outerwear
     outerwear: "Outerwear",
     coat: "Outerwear",
     coats: "Outerwear",
     jacket: "Outerwear",
     jackets: "Outerwear",
+    blazer: "Outerwear",
+    blazers: "Outerwear",
     parka: "Outerwear",
     trench: "Outerwear",
-    shoes: "Shoes",
-    shoe: "Shoes",
-    footwear: "Shoes",
-    sneaker: "Shoes",
-    sneakers: "Shoes",
-    heel: "Shoes",
-    heels: "Shoes",
-    boot: "Shoes",
-    boots: "Shoes",
-    sandal: "Shoes",
-    sandals: "Shoes",
+
+    // Tops (including dresses mapped to tops)
     tops: "Tops",
     top: "Tops",
     shirt: "Tops",
@@ -433,9 +420,10 @@ async function getCategoryId(categoryName: string): Promise<number> {
     sweaters: "Tops",
     cardigan: "Tops",
     cardigans: "Tops",
-    vintage: "Vintage",
-    retro: "Vintage",
-    "retro wear": "Vintage",
+    dress: "Tops",  // Dresses now categorized as Tops
+    dresses: "Tops",
+    gown: "Tops",
+    gowns: "Tops",
   };
 
   const mapped =

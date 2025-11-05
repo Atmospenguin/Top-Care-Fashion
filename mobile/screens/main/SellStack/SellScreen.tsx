@@ -44,36 +44,28 @@ type UICategory =
   | "Bottoms"
   | "Footwear"
   | "Outerwear"
-  | "Tops"
-  | "Bags"
-  | "Dresses";
+  | "Tops";
 
 type CanonicalCategory =
-  | "Top"
-  | "Bottom"
+  | "Tops"
+  | "Bottoms"
   | "Footwear"
   | "Accessories"
-  | "Bags"
-  | "Dresses"
   | "Outerwear";
 
 const UI_TO_CANONICAL: Record<UICategory, CanonicalCategory> = {
-  Tops: "Top",
-  Bottoms: "Bottom",
+  Tops: "Tops",
+  Bottoms: "Bottoms",
   Footwear: "Footwear",
   Accessories: "Accessories",
-  Bags: "Bags",
-  Dresses: "Dresses",
   Outerwear: "Outerwear",
 };
 
 const CANONICAL_TO_UI: Record<CanonicalCategory, UICategory> = {
-  Top: "Tops",
-  Bottom: "Bottoms",
+  Tops: "Tops",
+  Bottoms: "Bottoms",
   Footwear: "Footwear",
   Accessories: "Accessories",
-  Bags: "Bags",
-  Dresses: "Dresses",
   Outerwear: "Outerwear",
 };
 
@@ -170,30 +162,27 @@ function OptionPicker({
 
 type SellScreenNavigationProp = NativeStackNavigationProp<SellStackParamList, "SellMain">;
 
-/** --- 7-category mapping: canonical → UI with keyword fallback (no collapsing) --- */
+/** --- 5-category mapping: canonical → UI with keyword fallback --- */
 function mapToUICategory(raw: string | undefined): UICategory | null {
   if (!raw) return null;
   const k = raw.trim().toLowerCase();
 
-  // if backend already returned canonical (singular), map exactly
+  // if backend already returned canonical name, map exactly
   switch (k) {
-    case "top": return "Tops";
-    case "bottom": return "Bottoms";
+    case "tops": return "Tops";
+    case "bottoms": return "Bottoms";
     case "footwear": return "Footwear";
     case "accessories": return "Accessories";
-    case "bags": return "Bags";
-    case "dresses": return "Dresses";
     case "outerwear": return "Outerwear";
   }
 
   // keyword fallback for raw labels
-  if (/(bag|handbag|purse|tote|backpack|clutch|crossbody|satchel|duffel|briefcase|fanny)/i.test(k)) return "Bags";
-  if (/(dress|gown)/i.test(k)) return "Dresses";
   if (/(shirt|t-?shirt|tee|blouse|hoodie|sweater|cardigan|pullover|tank|polo|jersey|crewneck|top)/i.test(k)) return "Tops";
   if (/(jeans|pants|trousers|shorts|skirt)/i.test(k)) return "Bottoms";
   if (/(shoe|sneaker|boot|heel|sandals|loafers|oxford|slippers|trainer)/i.test(k)) return "Footwear";
   if (/(jacket|coat|blazer|trench|windbreaker|parka|raincoat|puffer|vest|outerwear)/i.test(k)) return "Outerwear";
-  if (/(watch|hat|cap|beanie|belt|scarf|sunglasses|glasses|tie|earrings|necklace|ring|bracelet|jewelry|umbrella|hairband)/i.test(k)) return "Accessories";
+  // Bags are now categorized as Accessories
+  if (/(watch|hat|cap|beanie|belt|scarf|sunglasses|glasses|tie|earrings|necklace|ring|bracelet|jewelry|umbrella|hairband|bag|handbag|purse|tote|backpack|clutch|crossbody|satchel|duffel|briefcase|fanny)/i.test(k)) return "Accessories";
 
   return null;
 }
