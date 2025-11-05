@@ -6,12 +6,10 @@ const DEBUG_AI = __DEV__ || process.env.EXPO_PUBLIC_DEBUG_AI === "1";
 
 // ---------- Category Display ----------
 export const CATEGORY_DISPLAY: Record<string, string> = {
-  Top: "Tops",
-  Bottom: "Bottoms",
+  Tops: "Tops",
+  Bottoms: "Bottoms",
   Footwear: "Footwear",
   Accessories: "Accessories",
-  Bags: "Bags",
-  Dresses: "Dresses",
   Outerwear: "Outerwear",
 };
 

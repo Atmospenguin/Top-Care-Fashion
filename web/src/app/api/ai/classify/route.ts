@@ -1,6 +1,7 @@
 // web/src/app/api/ai/classify/route.ts
 import { NextResponse, NextRequest } from "next/server";
 import { ImageAnnotatorClient } from "@google-cloud/vision";
+import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";         // Vision requires Node on Vercel
 export const dynamic = "force-dynamic";
@@ -17,42 +18,71 @@ const vision = new ImageAnnotatorClient({
   },
 });
 
-// ---------- Categories (normalized to 7 canonical names) ----------
-const CATEGORY_KEYS: Record<string, string[]> = {
-  Top: [
-    "shirt","t-shirt","tee","blouse","sweater","hoodie","cardigan",
-    "pullover","top","tank","camisole","polo","jersey","jumper",
-    "knitwear","crewneck","long sleeve","sweatshirt","uniform shirt",
-    "denim shirt","sleeve","neck","collar","wool","woolen","fur"
-  ],
-  Bottom: [
-    "pants","trousers","jeans","shorts",
-    "skirt","skirts","midi skirt","maxi skirt","mini skirt",
-    "pleated skirt","a-line skirt","a line skirt","wrap skirt",
-    "tiered skirt","balloon skirt","long skirt","denim skirt",
-    "tulle skirt","circle skirt","a-line","a line","waist"
-  ],
-  Footwear: [
-    "shoe","sneaker","boot","heels","sandals","flip-flops","loafers","footwear",
-    "oxford","running shoe","slippers","trainer","cleats","platform shoe"
-  ],
-  Accessories: [
-    "watch","hat","cap","beanie","belt","scarf","sunglasses","glasses","tie",
-    "wallet","earrings","necklace","ring","bracelet","jewelry","umbrella","hairband"
-  ],
-  Bags: [
-    "bag","handbag","purse","tote","backpack","clutch","crossbody","satchel",
-    "shoulder bag","duffel","sling bag","briefcase","shopping bag","fanny pack"
-  ],
-  Dresses: [
-    "dress","gown","sundress","maxi dress","mini dress","cocktail dress","shirt dress",
-    "evening gown","wedding dress","romper"
-  ],
-  Outerwear: [
-    "coat","jacket","blazer","trench","windbreaker","parka","overcoat",
-    "bomber jacket","raincoat","puffer","vest"
-  ],
+// ---------- Dynamic Category Loading from Database ----------
+type CategoryConfig = {
+  name: string;
+  keywords: string[];
+  weightBoost: number;
 };
+
+let categoryCache: {
+  categories: Record<string, CategoryConfig>;
+  expiry: number;
+} = { categories: {}, expiry: 0 };
+
+async function getActiveCategories(): Promise<Record<string, CategoryConfig>> {
+  // Return cached if still valid (5 minute cache)
+  if (Object.keys(categoryCache.categories).length > 0 && Date.now() < categoryCache.expiry) {
+    return categoryCache.categories;
+  }
+
+  try {
+    const categories = await prisma.listing_categories.findMany({
+      where: { is_active: true },
+      select: {
+        name: true,
+        ai_keywords: true,
+        ai_weight_boost: true,
+      },
+    });
+
+    const config: Record<string, CategoryConfig> = {};
+
+    for (const cat of categories) {
+      // Parse keywords from JSONB
+      let keywords: string[] = [];
+      if (cat.ai_keywords) {
+        try {
+          keywords = Array.isArray(cat.ai_keywords) ? cat.ai_keywords : [];
+        } catch (e) {
+          console.warn(`[classify] Failed to parse keywords for ${cat.name}:`, e);
+        }
+      }
+
+      config[cat.name] = {
+        name: cat.name,
+        keywords,
+        weightBoost: cat.ai_weight_boost ?? 1.0,
+      };
+    }
+
+    // Cache for 5 minutes
+    categoryCache = {
+      categories: config,
+      expiry: Date.now() + 5 * 60 * 1000,
+    };
+
+    if (DEBUG) {
+      console.log("[classify] Loaded categories from DB:", Object.keys(config));
+    }
+
+    return config;
+  } catch (error) {
+    console.error("[classify] Failed to load categories from database:", error);
+    // Return empty config on error - will result in "Unknown" classification
+    return {};
+  }
+}
 
 const GENERIC = new Set([
   "clothing","clothes","fashion","apparel","garment","textile","retail",
@@ -80,40 +110,32 @@ function kwHits(text: string, keyword: string) {
 }
 
 function scoreCategoriesWeighted(
-  labelAnnotations: { description?: string | null; score?: number | null }[]
+  labelAnnotations: { description?: string | null; score?: number | null }[],
+  categoryConfigs: Record<string, CategoryConfig>
 ) {
   const scores: Record<string, number> =
-    Object.fromEntries(Object.keys(CATEGORY_KEYS).map((k) => [k, 0]));
+    Object.fromEntries(Object.keys(categoryConfigs).map((k) => [k, 0]));
 
   for (const { description, score } of labelAnnotations) {
     const dRaw = description || "";
     const d = dRaw.toLowerCase();
     if (!d || GENERIC.has(d)) continue;
 
-    for (const [cat, keywords] of Object.entries(CATEGORY_KEYS)) {
-      if (!keywords.some((k) => kwHits(d, k))) continue;
+    for (const [cat, config] of Object.entries(categoryConfigs)) {
+      if (!config.keywords.some((k) => kwHits(d, k))) continue;
 
       let w = score ?? 0;
       if (["clothing", "apparel", "fashion", "style"].includes(d)) continue;
 
-      // Focused boosts per category
-      if (cat === "Dresses"  && (kwHits(d, "dress") || kwHits(d, "gown"))) w *= 2.0;
-      if (cat === "Footwear" && (kwHits(d, "shoe") || kwHits(d, "sneaker") || kwHits(d, "boot") || kwHits(d, "heel"))) w *= 1.6;
-      if (cat === "Bags"     && (kwHits(d, "bag")  || kwHits(d, "backpack") || kwHits(d, "purse"))) w *= 1.4;
+      // Apply weight boost from database
+      w *= config.weightBoost;
 
-      if (cat === "Top"      && (kwHits(d, "sweater") || kwHits(d, "hoodie") || kwHits(d, "shirt") || kwHits(d, "blouse") || kwHits(d, "t-shirt") || kwHits(d, "top"))) w *= 2.0;
-      if (cat === "Outerwear"&& (kwHits(d, "coat") || kwHits(d, "jacket") || kwHits(d, "blazer"))) w *= 1.4;
-
-      if (cat === "Bottom" && (
-        kwHits(d, "skirt") || kwHits(d, "skirts") ||
-        kwHits(d, "midi skirt") || kwHits(d, "maxi skirt") || kwHits(d, "mini skirt") ||
-        kwHits(d, "pleated skirt") || kwHits(d, "wrap skirt") || kwHits(d, "tiered skirt") ||
-        kwHits(d, "balloon skirt") || kwHits(d, "a-line") || kwHits(d, "a line")
-      )) w *= 2.0;
-
-      if (cat === "Top" && /sleeve|neck|collar/.test(d)) w *= 1.3;
-      if (cat === "Bottom" && d === "waist") w *= 1.15;
+      // Additional fine-grained boosts for high-confidence labels
       if ((score ?? 0) > 0.85) w *= 1.2;
+
+      // Specific keyword boosts (keeping some logic for better accuracy)
+      if (cat === "Tops" && /sleeve|neck|collar/.test(d)) w *= 1.3;
+      if (cat === "Bottoms" && d === "waist") w *= 1.15;
 
       scores[cat] += w;
     }
@@ -151,7 +173,10 @@ async function classifyImage(imageBuffer: Buffer) {
     .slice(0, 6);
 
   const labels = uniq(topK.map(x => x.label));
-  const { category, confidence } = scoreCategoriesWeighted(anns);
+
+  // Load active categories from database
+  const categoryConfigs = await getActiveCategories();
+  const { category, confidence } = scoreCategoriesWeighted(anns, categoryConfigs);
 
   return {
     category,
