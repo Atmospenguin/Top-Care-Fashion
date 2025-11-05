@@ -8,14 +8,28 @@ interface ExtendedCategory extends ListingCategory {
   editing?: boolean;
 }
 
+type SortField = 'name' | 'count' | 'date' | 'weight';
+type SortOrder = 'asc' | 'desc';
+
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<ExtendedCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [newCategory, setNewCategory] = useState({ name: "", description: "" });
+  const [newCategory, setNewCategory] = useState({
+    name: "",
+    description: "",
+    aiKeywords: [] as string[],
+    aiWeightBoost: 1.0,
+    isActive: true
+  });
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+  const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
+  const [newKeyword, setNewKeyword] = useState("");
+  const [editingKeyword, setEditingKeyword] = useState<{categoryId: string, keyword: string}>({categoryId: "", keyword: ""});
 
   const load = async () => {
     setLoading(true);
@@ -35,30 +49,59 @@ export default function CategoriesPage() {
     load();
   }, []);
 
-  const filteredCategories = categories.filter(category => {
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      if (
-        !category.name?.toLowerCase().includes(searchLower) &&
-        !category.description?.toLowerCase().includes(searchLower)
-      ) {
-        return false;
+  // Filtering and sorting logic
+  const filteredAndSortedCategories = categories
+    .filter(category => {
+      // Search filter
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        if (
+          !category.name?.toLowerCase().includes(searchLower) &&
+          !category.description?.toLowerCase().includes(searchLower) &&
+          !(category.aiKeywords || []).some(kw => kw.toLowerCase().includes(searchLower))
+        ) {
+          return false;
+        }
       }
-    }
-    return true;
-  });
+
+      // Active status filter
+      if (filterActive === 'active' && !category.isActive) return false;
+      if (filterActive === 'inactive' && category.isActive) return false;
+
+      return true;
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case 'name':
+          comparison = (a.name || '').localeCompare(b.name || '');
+          break;
+        case 'count':
+          comparison = (a.listingCount || 0) - (b.listingCount || 0);
+          break;
+        case 'date':
+          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          break;
+        case 'weight':
+          comparison = (a.aiWeightBoost || 1.0) - (b.aiWeightBoost || 1.0);
+          break;
+      }
+
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
 
   const startEdit = (id: string) => {
-    setCategories(categories.map(cat => ({ 
-      ...cat, 
-      editing: cat.id === id ? true : false 
+    setCategories(categories.map(cat => ({
+      ...cat,
+      editing: cat.id === id ? true : false
     })));
   };
 
   const cancelEdit = (id: string) => {
-    setCategories(categories.map(cat => ({ 
-      ...cat, 
-      editing: cat.id === id ? false : cat.editing 
+    setCategories(categories.map(cat => ({
+      ...cat,
+      editing: cat.id === id ? false : cat.editing
     })));
     load(); // Reload to reset changes
   };
@@ -68,7 +111,10 @@ export default function CategoriesPage() {
       setSaving(category.id);
       const updateData = {
         name: category.name,
-        description: category.description
+        description: category.description,
+        isActive: category.isActive,
+        aiKeywords: category.aiKeywords || [],
+        aiWeightBoost: category.aiWeightBoost || 1.0
       };
 
       const res = await fetch(`/api/admin/categories/${category.id}`, {
@@ -78,9 +124,9 @@ export default function CategoriesPage() {
       });
 
       if (res.ok) {
-        setCategories(categories.map(c => ({ 
-          ...c, 
-          editing: c.id === category.id ? false : c.editing 
+        setCategories(categories.map(c => ({
+          ...c,
+          editing: c.id === category.id ? false : c.editing
         })));
         load();
       } else {
@@ -94,7 +140,10 @@ export default function CategoriesPage() {
   };
 
   const deleteCategory = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this category? This action cannot be undone.")) {
+    const category = categories.find(c => c.id === id);
+    const listingCount = category?.listingCount || 0;
+
+    if (!confirm(`Are you sure you want to delete this category? ${listingCount > 0 ? `This will affect ${listingCount} listing(s).` : ''} This action cannot be undone.`)) {
       return;
     }
 
@@ -113,6 +162,27 @@ export default function CategoriesPage() {
     }
   };
 
+  const toggleActive = async (id: string) => {
+    const category = categories.find(c => c.id === id);
+    if (!category) return;
+
+    try {
+      const res = await fetch(`/api/admin/categories/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !category.isActive })
+      });
+
+      if (res.ok) {
+        load();
+      } else {
+        console.error('Failed to toggle category status');
+      }
+    } catch (error) {
+      console.error('Error toggling category status:', error);
+    }
+  };
+
   const createCategory = async () => {
     if (!newCategory.name.trim()) return;
 
@@ -125,7 +195,13 @@ export default function CategoriesPage() {
       });
 
       if (res.ok) {
-        setNewCategory({ name: "", description: "" });
+        setNewCategory({
+          name: "",
+          description: "",
+          aiKeywords: [],
+          aiWeightBoost: 1.0,
+          isActive: true
+        });
         load();
       } else {
         console.error('Failed to create category');
@@ -138,9 +214,50 @@ export default function CategoriesPage() {
   };
 
   const updateField = (id: string, field: keyof ListingCategory, value: any) => {
-    setCategories(categories.map(category => 
+    setCategories(categories.map(category =>
       category.id === id ? { ...category, [field]: value } : category
     ));
+  };
+
+  const addKeyword = (categoryId: string, keyword: string) => {
+    if (!keyword.trim()) return;
+
+    setCategories(categories.map(category => {
+      if (category.id === categoryId) {
+        const keywords = category.aiKeywords || [];
+        if (!keywords.includes(keyword.trim())) {
+          return { ...category, aiKeywords: [...keywords, keyword.trim()] };
+        }
+      }
+      return category;
+    }));
+    setEditingKeyword({categoryId: "", keyword: ""});
+  };
+
+  const removeKeyword = (categoryId: string, keyword: string) => {
+    setCategories(categories.map(category =>
+      category.id === categoryId
+        ? { ...category, aiKeywords: (category.aiKeywords || []).filter(kw => kw !== keyword) }
+        : category
+    ));
+  };
+
+  const addNewCategoryKeyword = (keyword: string) => {
+    if (!keyword.trim()) return;
+    if (!newCategory.aiKeywords.includes(keyword.trim())) {
+      setNewCategory({
+        ...newCategory,
+        aiKeywords: [...newCategory.aiKeywords, keyword.trim()]
+      });
+    }
+    setNewKeyword("");
+  };
+
+  const removeNewCategoryKeyword = (keyword: string) => {
+    setNewCategory({
+      ...newCategory,
+      aiKeywords: newCategory.aiKeywords.filter(kw => kw !== keyword)
+    });
   };
 
   if (loading) {
@@ -162,7 +279,7 @@ export default function CategoriesPage() {
         <h2 className="text-xl font-semibold">Category Management</h2>
         <div className="bg-red-50 border border-red-200 rounded-md p-4">
           <div className="text-red-800">Error: {error}</div>
-          <button 
+          <button
             onClick={load}
             className="mt-2 px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700"
           >
@@ -178,16 +295,16 @@ export default function CategoriesPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Category Management</h2>
         <div className="text-sm text-gray-600">
-          {filteredCategories.length} of {categories.length} categories
+          {filteredAndSortedCategories.length} of {categories.length} categories
         </div>
       </div>
 
-      {/* Search Controls */}
-      <div className="bg-white p-4 rounded-lg border">
+      {/* Search and Filter Controls */}
+      <div className="bg-white p-4 rounded-lg border space-y-3">
         <div className="flex gap-2">
           <input
             type="text"
-            placeholder="Search categories by name or description..."
+            placeholder="Search categories by name, description, or keywords..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -201,35 +318,149 @@ export default function CategoriesPage() {
             </button>
           )}
         </div>
+
+        <div className="flex gap-3 flex-wrap">
+          {/* Status Filter */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Status:</label>
+            <select
+              value={filterActive}
+              onChange={(e) => setFilterActive(e.target.value as 'all' | 'active' | 'inactive')}
+              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+
+          {/* Sort By */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Sort by:</label>
+            <select
+              value={sortField}
+              onChange={(e) => setSortField(e.target.value as SortField)}
+              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="name">Name</option>
+              <option value="count">Listing Count</option>
+              <option value="date">Date Created</option>
+              <option value="weight">AI Weight</option>
+            </select>
+          </div>
+
+          {/* Sort Order */}
+          <button
+            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+            className="px-3 py-1.5 border border-gray-300 rounded-md text-sm hover:bg-gray-50 flex items-center gap-1"
+          >
+            {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
+          </button>
+        </div>
       </div>
 
       {/* Create New Category */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
         <h3 className="text-lg font-medium mb-4">Create New Category</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="new-category-name" className="block text-sm font-medium text-gray-700 mb-1">Category Name</label>
-            <input
-              id="new-category-name"
-              type="text"
-              value={newCategory.name}
-              onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g. Accessories, Clothing, Shoes"
-            />
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="new-category-name" className="block text-sm font-medium text-gray-700 mb-1">Category Name *</label>
+              <input
+                id="new-category-name"
+                type="text"
+                value={newCategory.name}
+                onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g. Accessories, Clothing, Shoes"
+              />
+            </div>
+            <div>
+              <label htmlFor="new-category-description" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <input
+                id="new-category-description"
+                type="text"
+                value={newCategory.description}
+                onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Brief description of this category"
+              />
+            </div>
           </div>
+
           <div>
-            <label htmlFor="new-category-description" className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">AI Weight Boost: {newCategory.aiWeightBoost.toFixed(1)}</label>
             <input
-              id="new-category-description"
-              type="text"
-              value={newCategory.description}
-              onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Brief description of this category"
+              type="range"
+              min="0.5"
+              max="3.0"
+              step="0.1"
+              value={newCategory.aiWeightBoost}
+              onChange={(e) => setNewCategory({ ...newCategory, aiWeightBoost: parseFloat(e.target.value) })}
+              className="w-full"
             />
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>0.5 (Low)</span>
+              <span>1.5 (Medium)</span>
+              <span>3.0 (High)</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">AI Keywords</label>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                value={newKeyword}
+                onChange={(e) => setNewKeyword(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addNewCategoryKeyword(newKeyword);
+                  }
+                }}
+                placeholder="Add keyword for AI classification"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                onClick={() => addNewCategoryKeyword(newKeyword)}
+                className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"
+              >
+                Add
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {newCategory.aiKeywords.map((keyword, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-sm"
+                >
+                  {keyword}
+                  <button
+                    onClick={() => removeNewCategoryKeyword(keyword)}
+                    className="text-blue-600 hover:text-blue-800"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="new-category-active"
+              checked={newCategory.isActive}
+              onChange={(e) => setNewCategory({ ...newCategory, isActive: e.target.checked })}
+              className="w-4 h-4"
+            />
+            <label htmlFor="new-category-active" className="text-sm text-gray-700">
+              Active (visible to users)
+            </label>
           </div>
         </div>
+
         <div className="flex justify-end mt-4">
           <button
             onClick={createCategory}
@@ -243,7 +474,7 @@ export default function CategoriesPage() {
 
       {/* Categories List */}
       <div className="grid gap-4">
-        {filteredCategories.map((category) => (
+        {filteredAndSortedCategories.map((category) => (
           <div key={category.id} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
             {category.editing ? (
               // Edit Mode
@@ -273,6 +504,80 @@ export default function CategoriesPage() {
                   </div>
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    AI Weight Boost: {(category.aiWeightBoost || 1.0).toFixed(1)}
+                  </label>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="3.0"
+                    step="0.1"
+                    value={category.aiWeightBoost || 1.0}
+                    onChange={(e) => updateField(category.id, 'aiWeightBoost', parseFloat(e.target.value))}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>0.5 (Low)</span>
+                    <span>1.5 (Medium)</span>
+                    <span>3.0 (High)</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">AI Keywords</label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={editingKeyword.categoryId === category.id ? editingKeyword.keyword : ""}
+                      onChange={(e) => setEditingKeyword({categoryId: category.id, keyword: e.target.value})}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addKeyword(category.id, editingKeyword.keyword);
+                        }
+                      }}
+                      placeholder="Add keyword for AI classification"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={() => addKeyword(category.id, editingKeyword.keyword)}
+                      className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(category.aiKeywords || []).map((keyword, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-sm"
+                      >
+                        {keyword}
+                        <button
+                          onClick={() => removeKeyword(category.id, keyword)}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`active-${category.id}`}
+                    checked={category.isActive ?? true}
+                    onChange={(e) => updateField(category.id, 'isActive', e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <label htmlFor={`active-${category.id}`} className="text-sm text-gray-700">
+                    Active (visible to users)
+                  </label>
+                </div>
+
                 <div className="flex items-center justify-end space-x-3 pt-4 border-t">
                   <button
                     onClick={() => cancelEdit(category.id)}
@@ -295,14 +600,26 @@ export default function CategoriesPage() {
               <div className="space-y-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="text-lg font-medium">{category.name}</h3>
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-lg font-medium">{category.name}</h3>
+                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+                        category.isActive
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {category.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                      <span className="px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
+                        {category.listingCount || 0} listings
+                      </span>
+                    </div>
                     <p className="text-gray-600 mt-1">
                       {category.description || "No description provided"}
                     </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
                     <span className="text-gray-500">Category ID:</span>
                     <div className="font-medium">{category.id}</div>
@@ -314,16 +631,48 @@ export default function CategoriesPage() {
                     </div>
                   </div>
                   <div>
-                    <span className="text-gray-500">Status:</span>
-                    <div className="font-medium text-green-600">Active</div>
+                    <span className="text-gray-500">AI Weight:</span>
+                    <div className="font-medium">{(category.aiWeightBoost || 1.0).toFixed(1)}x</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Keywords:</span>
+                    <div className="font-medium">{(category.aiKeywords || []).length}</div>
                   </div>
                 </div>
 
+                {(category.aiKeywords || []).length > 0 && (
+                  <div>
+                    <div className="text-xs text-gray-500 mb-1">AI Classification Keywords:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {(category.aiKeywords || []).map((keyword, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs"
+                        >
+                          {keyword}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between pt-4 border-t">
                   <div className="text-sm text-gray-500">
-                    Products using this category will need to be recategorized if deleted
+                    {category.listingCount && category.listingCount > 0
+                      ? `${category.listingCount} product(s) using this category`
+                      : 'No products using this category'}
                   </div>
                   <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => toggleActive(category.id)}
+                      className={`px-3 py-1.5 text-sm rounded-md ${
+                        category.isActive
+                          ? 'bg-gray-600 text-white hover:bg-gray-700'
+                          : 'bg-green-600 text-white hover:bg-green-700'
+                      }`}
+                    >
+                      {category.isActive ? 'Deactivate' : 'Activate'}
+                    </button>
                     <Link
                       href={`/admin/listings?category=${category.id}`}
                       className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700"
@@ -349,6 +698,12 @@ export default function CategoriesPage() {
           </div>
         ))}
       </div>
+
+      {filteredAndSortedCategories.length === 0 && categories.length > 0 && (
+        <div className="text-center py-12 text-gray-500">
+          No categories match your filters. Try adjusting your search or filter criteria.
+        </div>
+      )}
 
       {categories.length === 0 && (
         <div className="text-center py-12 text-gray-500">
