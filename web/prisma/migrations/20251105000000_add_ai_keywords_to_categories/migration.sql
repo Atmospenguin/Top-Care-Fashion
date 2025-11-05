@@ -1,6 +1,23 @@
 -- Add AI classification fields to listing_categories
-ALTER TABLE listing_categories ADD COLUMN ai_keywords JSONB;
-ALTER TABLE listing_categories ADD COLUMN ai_weight_boost DOUBLE PRECISION DEFAULT 1.0;
+ALTER TABLE listing_categories ADD COLUMN IF NOT EXISTS ai_keywords JSONB;
+ALTER TABLE listing_categories ADD COLUMN IF NOT EXISTS ai_weight_boost DOUBLE PRECISION DEFAULT 1.0;
+
+-- Remove any duplicate category names so the upcoming unique constraint can be added safely
+DELETE FROM listing_categories lc
+USING listing_categories lc_keep
+WHERE lc.name = lc_keep.name
+  AND lc.id > lc_keep.id;
+
+-- Add unique constraint on name if not exists (must be in place before upserts)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'listing_categories_name_key'
+  ) THEN
+    ALTER TABLE listing_categories ADD CONSTRAINT listing_categories_name_key UNIQUE (name);
+  END IF;
+END $$;
 
 -- Disable all categories first
 UPDATE listing_categories SET is_active = false;
@@ -103,14 +120,3 @@ DO UPDATE SET
   ai_keywords = '["watch","hat","cap","beanie","belt","scarf","sunglasses","glasses","tie","wallet","earrings","necklace","ring","bracelet","jewelry","umbrella","hairband","bag","handbag","purse","tote","backpack","clutch","crossbody","satchel","shoulder bag","duffel","sling bag","briefcase","shopping bag","fanny pack"]'::jsonb,
   ai_weight_boost = 1.0,
   description = 'Watches, hats, belts, scarves, bags, jewelry, and other accessories';
-
--- Add unique constraint on name if not exists
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'listing_categories_name_key'
-  ) THEN
-    ALTER TABLE listing_categories ADD CONSTRAINT listing_categories_name_key UNIQUE (name);
-  END IF;
-END $$;

@@ -2,6 +2,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { ImageAnnotatorClient } from "@google-cloud/vision";
 import { prisma } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";         // Vision requires Node on Vercel
 export const dynamic = "force-dynamic";
@@ -49,15 +50,7 @@ async function getActiveCategories(): Promise<Record<string, CategoryConfig>> {
     const config: Record<string, CategoryConfig> = {};
 
     for (const cat of categories) {
-      // Parse keywords from JSONB
-      let keywords: string[] = [];
-      if (cat.ai_keywords) {
-        try {
-          keywords = Array.isArray(cat.ai_keywords) ? cat.ai_keywords : [];
-        } catch (e) {
-          console.warn(`[classify] Failed to parse keywords for ${cat.name}:`, e);
-        }
-      }
+      const keywords = parseKeywords(cat.ai_keywords);
 
       config[cat.name] = {
         name: cat.name,
@@ -82,6 +75,20 @@ async function getActiveCategories(): Promise<Record<string, CategoryConfig>> {
     // Return empty config on error - will result in "Unknown" classification
     return {};
   }
+}
+
+function parseKeywords(value: Prisma.JsonValue | null): string[] {
+  if (!value) return [];
+
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string");
+  }
+
+  if (typeof value === "string") {
+    return [value];
+  }
+
+  return [];
 }
 
 const GENERIC = new Set([
