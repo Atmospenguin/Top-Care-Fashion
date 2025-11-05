@@ -78,10 +78,7 @@ class ApiClient {
   }
 
   private previewToken(token: string): string {
-    if (token.length <= 16) return token;
-    const head = token.slice(0, 8);
-    const tail = token.slice(-6);
-    return `${head}...${tail}`;
+    return token;
   }
 
   private async ensureRefreshTokenLoaded(): Promise<void> {
