@@ -90,6 +90,13 @@ export default function AdminHomePage() {
       icon: "🏷️",
       color: "bg-pink-50 border-pink-200",
     },
+    {
+      title: "Listing Images",
+      description: "Manage image storage & cleanup",
+      href: "/admin/listing-images",
+      icon: "🖼️",
+      color: "bg-indigo-50 border-indigo-200",
+    },
   ];
 
   return (
