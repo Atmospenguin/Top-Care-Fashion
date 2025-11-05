@@ -8,7 +8,7 @@ interface ExtendedCategory extends ListingCategory {
   editing?: boolean;
 }
 
-type SortField = 'name' | 'count' | 'date' | 'weight';
+type SortField = 'name' | 'count' | 'date' | 'weight' | 'sortOrder';
 type SortOrder = 'asc' | 'desc';
 
 export default function CategoriesPage() {
@@ -20,6 +20,7 @@ export default function CategoriesPage() {
   const [newCategory, setNewCategory] = useState({
     name: "",
     description: "",
+    sortOrder: 0,
     aiKeywords: [] as string[],
     aiWeightBoost: 1.0,
     isActive: true
@@ -37,7 +38,13 @@ export default function CategoriesPage() {
     try {
       const res = await fetch("/api/admin/categories", { cache: "no-store" });
       const json = await res.json();
-      setCategories((json.categories || []).map((c: ListingCategory) => ({ ...c, editing: false })));
+      const loadedCategories = (json.categories || []).map((c: ListingCategory) => ({ ...c, editing: false }));
+      setCategories(loadedCategories);
+
+      // Calculate max sort_order and set default for new category
+      const maxSortOrder = loadedCategories.reduce((max: number, cat: ExtendedCategory) =>
+        Math.max(max, cat.sortOrder ?? 0), 0);
+      setNewCategory(prev => ({ ...prev, sortOrder: maxSortOrder + 1 }));
     } catch (e: any) {
       setError(e.message || "Load failed");
     } finally {
@@ -86,6 +93,9 @@ export default function CategoriesPage() {
         case 'weight':
           comparison = (a.aiWeightBoost || 1.0) - (b.aiWeightBoost || 1.0);
           break;
+        case 'sortOrder':
+          comparison = (a.sortOrder || 0) - (b.sortOrder || 0);
+          break;
       }
 
       return sortOrder === 'asc' ? comparison : -comparison;
@@ -113,6 +123,7 @@ export default function CategoriesPage() {
         name: category.name,
         description: category.description,
         isActive: category.isActive,
+        sortOrder: category.sortOrder ?? 0,
         aiKeywords: category.aiKeywords || [],
         aiWeightBoost: category.aiWeightBoost || 1.0
       };
@@ -195,14 +206,15 @@ export default function CategoriesPage() {
       });
 
       if (res.ok) {
-        setNewCategory({
+        setNewCategory(prev => ({
           name: "",
           description: "",
+          sortOrder: prev.sortOrder + 1, // Increment for next category
           aiKeywords: [],
           aiWeightBoost: 1.0,
           isActive: true
-        });
-        load();
+        }));
+        load(); // This will also update sortOrder to max + 1
       } else {
         console.error('Failed to create category');
       }
@@ -342,6 +354,7 @@ export default function CategoriesPage() {
               onChange={(e) => setSortField(e.target.value as SortField)}
               className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
+              <option value="sortOrder">Sort Order</option>
               <option value="name">Name</option>
               <option value="count">Listing Count</option>
               <option value="date">Date Created</option>
@@ -363,7 +376,7 @@ export default function CategoriesPage() {
       <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
         <h3 className="text-lg font-medium mb-4">Create New Category</h3>
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label htmlFor="new-category-name" className="block text-sm font-medium text-gray-700 mb-1">Category Name *</label>
               <input
@@ -384,6 +397,18 @@ export default function CategoriesPage() {
                 onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Brief description of this category"
+              />
+            </div>
+            <div>
+              <label htmlFor="new-category-sort-order" className="block text-sm font-medium text-gray-700 mb-1">Sort Order</label>
+              <input
+                id="new-category-sort-order"
+                type="number"
+                min="0"
+                value={newCategory.sortOrder}
+                onChange={(e) => setNewCategory({ ...newCategory, sortOrder: parseInt(e.target.value) || 0 })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="0"
               />
             </div>
           </div>
@@ -479,7 +504,7 @@ export default function CategoriesPage() {
             {category.editing ? (
               // Edit Mode
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label htmlFor={`name-${category.id}`} className="block text-sm font-medium text-gray-700 mb-1">Category Name</label>
                     <input
@@ -500,6 +525,18 @@ export default function CategoriesPage() {
                       onChange={(e) => updateField(category.id, 'description', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Enter description (optional)"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor={`sort-order-${category.id}`} className="block text-sm font-medium text-gray-700 mb-1">Sort Order</label>
+                    <input
+                      id={`sort-order-${category.id}`}
+                      type="number"
+                      min="0"
+                      value={category.sortOrder ?? 0}
+                      onChange={(e) => updateField(category.id, 'sortOrder', parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="0"
                     />
                   </div>
                 </div>
@@ -619,10 +656,14 @@ export default function CategoriesPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                   <div>
                     <span className="text-gray-500">Category ID:</span>
                     <div className="font-medium">{category.id}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Sort Order:</span>
+                    <div className="font-medium">{category.sortOrder ?? 0}</div>
                   </div>
                   <div>
                     <span className="text-gray-500">Created:</span>

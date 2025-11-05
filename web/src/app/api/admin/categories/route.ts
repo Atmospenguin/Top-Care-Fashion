@@ -8,6 +8,7 @@ function mapCategory(category: {
   description: string | null;
   created_at: Date;
   is_active: boolean | null;
+  sort_order: number | null;
   ai_keywords: any;
   ai_weight_boost: number | null;
   _count?: {
@@ -20,6 +21,7 @@ function mapCategory(category: {
     description: category.description,
     createdAt: category.created_at.toISOString(),
     isActive: category.is_active ?? true,
+    sortOrder: category.sort_order ?? 0,
     aiKeywords: category.ai_keywords || [],
     aiWeightBoost: category.ai_weight_boost ?? 1.0,
     listingCount: category._count?.listings ?? 0,
@@ -37,6 +39,7 @@ export async function GET() {
       description: true,
       created_at: true,
       is_active: true,
+      sort_order: true,
       ai_keywords: true,
       ai_weight_boost: true,
       _count: {
@@ -46,7 +49,7 @@ export async function GET() {
       },
     },
     orderBy: {
-      id: "asc",
+      sort_order: "asc",
     },
   });
 
@@ -64,6 +67,7 @@ export async function POST(req: NextRequest) {
       name: body.name,
       description: body.description ?? null,
       is_active: body.isActive ?? true,
+      sort_order: body.sortOrder ?? 0,
       ai_keywords: body.aiKeywords ?? [],
       ai_weight_boost: body.aiWeightBoost ?? 1.0,
     },
@@ -73,6 +77,7 @@ export async function POST(req: NextRequest) {
       description: true,
       created_at: true,
       is_active: true,
+      sort_order: true,
       ai_keywords: true,
       ai_weight_boost: true,
       _count: {

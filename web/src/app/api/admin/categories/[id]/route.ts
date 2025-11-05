@@ -18,6 +18,7 @@ export async function PATCH(
       name?: string;
       description?: string;
       is_active?: boolean;
+      sort_order?: number;
       ai_keywords?: any;
       ai_weight_boost?: number;
     } = {};
@@ -30,6 +31,9 @@ export async function PATCH(
     }
     if (body.isActive !== undefined) {
       updateData.is_active = body.isActive;
+    }
+    if (body.sortOrder !== undefined) {
+      updateData.sort_order = body.sortOrder;
     }
     if (body.aiKeywords !== undefined) {
       updateData.ai_keywords = body.aiKeywords;
@@ -47,6 +51,7 @@ export async function PATCH(
         description: true,
         created_at: true,
         is_active: true,
+        sort_order: true,
         ai_keywords: true,
         ai_weight_boost: true,
         _count: {
@@ -63,6 +68,7 @@ export async function PATCH(
       description: category.description,
       createdAt: category.created_at.toISOString(),
       isActive: category.is_active ?? true,
+      sortOrder: category.sort_order ?? 0,
       aiKeywords: category.ai_keywords || [],
       aiWeightBoost: category.ai_weight_boost ?? 1.0,
       listingCount: category._count?.listings ?? 0,
