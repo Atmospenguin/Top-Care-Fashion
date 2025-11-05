@@ -103,6 +103,10 @@ export default function LikesTab() {
       title: likedListing.listing?.name, // 将name转换为title
       images: images, // 添加images数组
       tags: tags, // 添加tags数组
+      // 🔥 添加库存信息
+      availableQuantity: typeof (likedListing.listing as any)?.inventory_count === 'number'
+        ? (likedListing.listing as any).inventory_count
+        : undefined,
       seller: {
         ...rawSeller,
         name: sellerName,
@@ -117,6 +121,8 @@ export default function LikesTab() {
     // 调试：查看转换后的数据
     console.log('🔍 Debug - Converted listingData:', listingData);
     console.log('🔍 Debug - Converted seller:', listingData.seller);
+    console.log('🔍 Debug - availableQuantity:', listingData.availableQuantity);
+    console.log('🔍 Debug - Raw inventory_count:', (likedListing.listing as any)?.inventory_count);
     
     rootNavigation?.navigate("Buy", {
       screen: "ListingDetail",
