@@ -110,8 +110,30 @@ export async function GET(
         hasPhoto: images.length > 0,
         product: review.order?.listing ? {
           name: review.order.listing.name,
-          image: review.order.listing.image_url || 
-                 (review.order.listing.image_urls ? JSON.parse(review.order.listing.image_urls as string)[0] : undefined),
+          image: (() => {
+            // 优先使用 image_url
+            if (review.order.listing.image_url) {
+              return review.order.listing.image_url;
+            }
+            // 尝试解析 image_urls
+            if (review.order.listing.image_urls) {
+              try {
+                // 可能是 JSON 字符串
+                if (typeof review.order.listing.image_urls === 'string') {
+                  const parsed = JSON.parse(review.order.listing.image_urls);
+                  return Array.isArray(parsed) ? parsed[0] : undefined;
+                }
+                // 可能已经是数组
+                if (Array.isArray(review.order.listing.image_urls)) {
+                  return review.order.listing.image_urls[0];
+                }
+              } catch (e) {
+                // 如果 JSON.parse 失败，可能本身就是 URL 字符串
+                return review.order.listing.image_urls as string;
+              }
+            }
+            return undefined;
+          })(),
         } : undefined,
       };
     });
