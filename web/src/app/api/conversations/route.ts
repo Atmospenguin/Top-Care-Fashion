@@ -123,10 +123,9 @@ export async function GET(request: NextRequest) {
           // 如果是用户发送的真实消息（TEXT），就不要覆盖
           const isLastMessageSystem = lastMessage.message_type === "SYSTEM";
           
-          // 🔥 修复：只有当最后一条消息是系统消息时，才用订单状态覆盖
-          // 用户发送的真实消息（无论是谁发的）都应该保留显示
-          const shouldOverrideWithOrderStatus = isLastMessageSystem;
-          
+          // 🔥 新策略：永远展示真实消息内容，不再用订单状态覆盖
+          const shouldOverrideWithOrderStatus = false;
+
           // 如果是订单对话，检查订单状态并生成相应的最新消息
           if (kind === "order" && conv.listing && shouldOverrideWithOrderStatus) {
             // 🔥 修复：查询当前对话双方的订单，而不是任意买家/卖家的订单
