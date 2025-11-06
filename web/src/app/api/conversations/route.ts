@@ -320,7 +320,10 @@ export async function GET(request: NextRequest) {
       ...otherConversations
     ].filter(Boolean);
 
-    return NextResponse.json({ conversations: allConversations });
+    return NextResponse.json({ 
+      conversations: allConversations,
+      _debug_version: "v2_text_message_priority" // 🔥 Debug marker
+    });
 
   } catch (error) {
     console.error("Error fetching conversations:", error);
