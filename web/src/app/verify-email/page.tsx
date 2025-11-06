@@ -1,15 +1,22 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useAuth } from "@/components/AuthContext";
-import { useRouter } from "next/navigation";
 
-export default function ResetPasswordPage() {
-  const { resetPassword } = useAuth();
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+
+function VerifyEmailContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    const emailParam = searchParams.get("email");
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (cooldown > 0) {
@@ -18,7 +25,7 @@ export default function ResetPasswordPage() {
     }
   }, [cooldown]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleResendVerification(e: React.FormEvent) {
     e.preventDefault();
 
     if (!email) {
@@ -32,15 +39,26 @@ export default function ResetPasswordPage() {
     }
 
     setIsLoading(true);
-    setStatus("Sending password reset email...");
+    setStatus("Sending verification email...");
 
     try {
-      await resetPassword(email.trim().toLowerCase());
-      setStatus("Password reset email sent! Please check your inbox and spam folder.");
-      setCooldown(60); // 60 seconds cooldown
-    } catch (error: any) {
-      const message = error?.message || "Failed to send password reset email.";
-      setStatus(message);
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setStatus("Verification email sent! Please check your inbox and spam folder.");
+        setCooldown(60); // 60 seconds cooldown
+      } else {
+        setStatus(data.error || "Failed to send verification email");
+      }
+    } catch (err) {
+      setStatus("An error occurred. Please try again.");
+      console.error("Resend verification error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -48,15 +66,22 @@ export default function ResetPasswordPage() {
 
   return (
     <section className="max-w-md">
-      <h1 className="text-3xl font-semibold tracking-tight">Reset Your Password</h1>
+      <h1 className="text-3xl font-semibold tracking-tight">Verify Your Email</h1>
 
-      <div className="mt-6">
-        <p className="text-sm text-gray-600">
-          Enter your email address and we&apos;ll send you a link to reset your password.
+      <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+        <p className="text-sm text-yellow-800">
+          Your email address has not been verified yet. Please check your inbox for the verification email we sent when you signed up.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+      <div className="mt-6">
+        <h2 className="text-lg font-medium">Didn&apos;t receive the email?</h2>
+        <p className="mt-2 text-sm text-gray-600">
+          Enter your email address below and we&apos;ll send you a new verification link.
+        </p>
+      </div>
+
+      <form onSubmit={handleResendVerification} className="mt-6 flex flex-col gap-4">
         <label className="text-sm">
           Email Address
           <input
@@ -78,7 +103,7 @@ export default function ResetPasswordPage() {
             ? "Sending..."
             : cooldown > 0
             ? `Resend in ${cooldown}s`
-            : "Send Reset Link"}
+            : "Resend Verification Email"}
         </button>
       </form>
 
@@ -90,7 +115,7 @@ export default function ResetPasswordPage() {
 
       <div className="mt-8 pt-6 border-t border-gray-200">
         <div className="flex flex-col gap-2 text-sm">
-          <p className="text-gray-600">Remember your password?</p>
+          <p className="text-gray-600">Already verified?</p>
           <button
             onClick={() => router.push("/signin")}
             className="text-[var(--brand-color)] hover:underline text-left"
@@ -104,11 +129,23 @@ export default function ResetPasswordPage() {
         <h3 className="text-sm font-medium text-blue-900">Tips:</h3>
         <ul className="mt-2 text-sm text-blue-800 list-disc list-inside space-y-1">
           <li>Check your spam or junk folder</li>
-          <li>The reset link is valid for 1 hour</li>
           <li>Make sure you entered the correct email address</li>
-          <li>If you don&apos;t receive the email, you can request a new one after 60 seconds</li>
+          <li>Add our email to your contacts to prevent future emails from going to spam</li>
+          <li>The verification link is valid for 24 hours</li>
         </ul>
       </div>
     </section>
+  );
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={
+      <section className="max-w-md">
+        <h1 className="text-3xl font-semibold tracking-tight">Loading...</h1>
+      </section>
+    }>
+      <VerifyEmailContent />
+    </Suspense>
   );
 }

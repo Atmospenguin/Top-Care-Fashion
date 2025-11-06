@@ -76,23 +76,17 @@ export async function POST(req: NextRequest) {
 }
 console.log("✅ The email entered has passed regex check");
 
-// add password length logic 
+// Password validation
 if (normalizedPassword.length < 6) {
     return NextResponse.json(
       { error: "Password must be at least 6 characters long." },
       { status: 400 }
     );
   }
-  // increase security of password logic
-  if (!/[A-Za-z]/.test(normalizedPassword) || !/\d/.test(normalizedPassword)) {
-    return NextResponse.json(
-      { error: "Password must include both letters and numbers." },
-      { status: 400 }
-    );
-  }
 
 
 
+  // DOB and gender are now optional - can be set later in profile
   const trimmedDob = typeof dob === "string" ? dob.trim() : "";
   let normalizedDob: string | null = null;
   if (trimmedDob) {
