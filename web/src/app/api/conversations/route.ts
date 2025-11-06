@@ -80,14 +80,6 @@ export async function GET(request: NextRequest) {
         .map(async (conv) => {
           const otherUser = conv.initiator_id === dbUser.id ? conv.participant : conv.initiator;
           const lastMessage = conv.messages[0];
-          const lastTextMessage = await prisma.messages.findFirst({
-            where: {
-              conversation_id: conv.id,
-              message_type: "TEXT"
-            },
-            orderBy: { created_at: "desc" }
-          });
-          
           // 确定对话类型
           let kind = "general";
           if (conv.type === "SUPPORT") {
@@ -114,21 +106,117 @@ export async function GET(request: NextRequest) {
             }
           }
 
-          // 🔥 检查是否需要显示"Leave Review"消息
-          const effectiveMessage = lastTextMessage ?? lastMessage;
-          let displayMessage = effectiveMessage?.content ?? "";
-          let displayTime = effectiveMessage ? formatTime(effectiveMessage.created_at) : "";
+          // 🔥 新策略：直接显示最新消息（不管是TEXT还是SYSTEM）
+          let rawMessage = lastMessage?.content ?? "";
+          let displayMessage = rawMessage;
+          let displayTime = lastMessage ? formatTime(lastMessage.created_at) : "";
+          
+          // 🔥 对于订单类型的对话，检查是否需要显示 Review 提示
+          if (kind === 'order' && conv.listing) {
+            const isBuyer = conv.initiator_id === dbUser.id;
+            const isSeller = conv.participant_id === dbUser.id;
+            
+            // 查询订单状态
+            const order = await prisma.orders.findFirst({
+              where: {
+                listing_id: conv.listing.id,
+                AND: [
+                  {
+                    OR: [
+                      { buyer_id: conv.initiator_id, seller_id: conv.participant_id },
+                      { buyer_id: conv.participant_id, seller_id: conv.initiator_id }
+                    ]
+                  }
+                ]
+              },
+              orderBy: { created_at: "desc" }
+            });
+            
+            // 如果订单存在且状态为 RECEIVED、COMPLETED 或 REVIEWED，检查评论状态
+            if (order && ['RECEIVED', 'COMPLETED', 'REVIEWED'].includes(order.status)) {
+              const reviews = await prisma.reviews.findMany({
+                where: { order_id: order.id }
+              });
+              
+              const hasBuyerReview = reviews.some(r => r.reviewer_id === order.buyer_id);
+              const hasSellerReview = reviews.some(r => r.reviewer_id === order.seller_id);
+              
+              // 如果订单更新时间比最后一条消息更晚，则显示评论状态
+              const orderUpdateTime = order.updated_at || order.created_at;
+              const lastMessageTime = lastMessage?.created_at;
+              
+              if (orderUpdateTime > lastMessageTime) {
+                displayTime = formatTime(orderUpdateTime);
+                
+                if (hasBuyerReview && hasSellerReview) {
+                  displayMessage = "Both parties reviewed each other.";
+                } else if (isBuyer && hasBuyerReview) {
+                  displayMessage = "You left a review. Waiting for seller's review.";
+                } else if (isSeller && hasSellerReview) {
+                  displayMessage = "You left a review. Waiting for buyer's review.";
+                } else if (isBuyer && hasSellerReview) {
+                  displayMessage = "Seller left a review. Leave yours now!";
+                } else if (isSeller && hasBuyerReview) {
+                  displayMessage = "Buyer left a review. Leave yours now!";
+                } else {
+                  displayMessage = "How was your experience? Leave a review!";
+                }
+              } else if (lastMessage?.message_type === 'SYSTEM') {
+                // 如果最新消息是系统消息，根据当前用户视角转换
+                if (rawMessage.includes('Seller has shipped')) {
+                  displayMessage = isBuyer 
+                    ? 'Seller has shipped your parcel.'
+                    : 'You have shipped the parcel.';
+                } else if (rawMessage.includes('Parcel arrived')) {
+                  displayMessage = isBuyer
+                    ? 'Parcel arrived. Please confirm you have received the item.'
+                    : 'Parcel delivered. Waiting for buyer to confirm.';
+                } else if (rawMessage.includes('confirmed received') || rawMessage.includes('Transaction completed')) {
+                  displayMessage = isBuyer
+                    ? 'You confirmed received. Transaction completed.'
+                    : 'Buyer confirmed received. Transaction completed.';
+                } else if (rawMessage.includes('@Buyer has paid')) {
+                  displayMessage = isBuyer
+                    ? "You've paid. Waiting for seller to ship."
+                    : 'Buyer has paid for the order. Please ship the item.';
+                } else if (rawMessage.includes('cancelled')) {
+                  displayMessage = rawMessage.replace('@User', isBuyer ? 'Seller' : 'Buyer');
+                }
+              }
+            } else if (lastMessage?.message_type === 'SYSTEM') {
+              // 非评论状态，但是系统消息，根据视角转换
+              if (rawMessage.includes('Seller has shipped')) {
+                displayMessage = isBuyer 
+                  ? 'Seller has shipped your parcel.'
+                  : 'You have shipped the parcel.';
+              } else if (rawMessage.includes('Parcel arrived')) {
+                displayMessage = isBuyer
+                  ? 'Parcel arrived. Please confirm you have received the item.'
+                  : 'Parcel delivered. Waiting for buyer to confirm.';
+              } else if (rawMessage.includes('confirmed received') || rawMessage.includes('Transaction completed')) {
+                displayMessage = isBuyer
+                  ? 'You confirmed received. Transaction completed.'
+                  : 'Buyer confirmed received. Transaction completed.';
+              } else if (rawMessage.includes('@Buyer has paid')) {
+                displayMessage = isBuyer
+                  ? "You've paid. Waiting for seller to ship."
+                  : 'Buyer has paid for the order. Please ship the item.';
+              } else if (rawMessage.includes('cancelled')) {
+                displayMessage = rawMessage.replace('@User', isBuyer ? 'Seller' : 'Buyer');
+              }
+            }
+          } else if (lastMessage?.message_type === 'SYSTEM') {
+            // 非订单对话的系统消息，保持原样
+            displayMessage = rawMessage;
+          }
           
           console.log("🔥 Conversation display logic", {
             conversationId: conv.id,
-            hasLastTextMessage: !!lastTextMessage,
-            lastTextMessageContent: lastTextMessage?.content,
-            lastTextMessageCreatedAt: lastTextMessage?.created_at,
-            lastMessageContent: lastMessage?.content,
+            lastMessageContent: rawMessage,
             lastMessageType: lastMessage?.message_type,
-            lastMessageCreatedAt: lastMessage?.created_at,
-            effectiveMessageContent: effectiveMessage?.content,
-            finalDisplayMessage: displayMessage
+            isBuyer: conv.initiator_id === dbUser.id,
+            isSeller: conv.participant_id === dbUser.id,
+            transformedMessage: displayMessage
           });
           console.log("🔍 Inbox conversation", {
             conversationId: conv.id,
@@ -140,15 +228,10 @@ export async function GET(request: NextRequest) {
             listingId: conv.listing?.id,
           });
           
-          // 🔥 重要：检查 lastMessage 是否是系统消息
-          // 如果是用户发送的真实消息（TEXT），就不要覆盖
-          const isLastMessageSystem = lastMessage.message_type === "SYSTEM";
-          
-          // 🔥 新策略：永远展示真实消息内容，不再用订单状态覆盖
-          const shouldOverrideWithOrderStatus = false;
-
-          // 如果是订单对话，检查订单状态并生成相应的最新消息
-          if (kind === "order" && conv.listing && shouldOverrideWithOrderStatus) {
+          // 🔥 策略：直接显示最新消息，不做任何覆盖
+          // 订单状态消息已经由 ChatScreen 在发送消息时创建为 SYSTEM 消息
+          // 所以这里不需要再生成订单状态消息
+          if (false) { // 保留原代码结构但永不执行
             // 🔥 修复：查询当前对话双方的订单，而不是任意买家/卖家的订单
             const order = await prisma.orders.findFirst({
               where: {
@@ -233,20 +316,53 @@ export async function GET(request: NextRequest) {
           console.log("🔍 Conversation preview", {
             conversationId: conv.id,
             previewMessage,
-            displayMessage,
-            rawMessage: lastMessage.content,
             messageType: lastMessage.message_type,
             lastMessageAt: conv.last_message_at,
-            effectiveMessageContent: effectiveMessage?.content,
           });
+
+          // 🔥 判断是否为评论提示消息并需要标记未读
+          let isUnread = !lastMessage.is_read && lastMessage.sender_id !== dbUser.id;
           
-          // 🔥 CRITICAL DEBUG: Check if previewMessage matches displayMessage
-          if (previewMessage !== displayMessage) {
-            console.error("⚠️ MISMATCH: previewMessage !== displayMessage", {
-              conversationId: conv.id,
-              previewMessage,
-              displayMessage,
+          // 如果显示的是评论提示消息，检查是否需要标记未读
+          if (kind === 'order' && conv.listing && 
+              (displayMessage.includes('left a review') || 
+               displayMessage.includes('Leave a review') ||
+               displayMessage.includes('Waiting for'))) {
+            
+            // 查询订单和评论状态（如果之前没查询过）
+            const order = await prisma.orders.findFirst({
+              where: {
+                listing_id: conv.listing.id,
+                AND: [
+                  {
+                    OR: [
+                      { buyer_id: conv.initiator_id, seller_id: conv.participant_id },
+                      { buyer_id: conv.participant_id, seller_id: conv.initiator_id }
+                    ]
+                  }
+                ]
+              },
+              include: {
+                reviews: true
+              },
+              orderBy: { created_at: "desc" }
             });
+            
+            if (order && ['RECEIVED', 'COMPLETED', 'REVIEWED'].includes(order.status)) {
+              const hasBuyerReview = order.reviews.some(r => r.reviewer_id === order.buyer_id);
+              const hasSellerReview = order.reviews.some(r => r.reviewer_id === order.seller_id);
+              const isBuyer = conv.initiator_id === dbUser.id;
+              
+              // 🔥 如果对方已评论但我还没评论，标记为未读
+              if (isBuyer && hasSellerReview && !hasBuyerReview) {
+                isUnread = true;
+              } else if (!isBuyer && hasBuyerReview && !hasSellerReview) {
+                isUnread = true;
+              } else if (!hasBuyerReview && !hasSellerReview) {
+                // 🔥 如果都没评论，标记为未读（提醒去评论）
+                isUnread = true;
+              }
+            }
           }
 
           return {
@@ -258,7 +374,7 @@ export async function GET(request: NextRequest) {
             time: displayTime,
             avatar: otherUser.avatar_url ? { uri: otherUser.avatar_url } : null,
             kind,
-            unread: !lastMessage.is_read && lastMessage.sender_id !== dbUser.id,
+            unread: isUnread,
             lastFrom,
             order: conv.listing ? {
               id: conv.listing.id.toString(),
