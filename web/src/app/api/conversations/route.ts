@@ -111,12 +111,12 @@ export async function GET(request: NextRequest) {
           let displayTime = formatTime(lastMessage.created_at);
           
           // 🔥 重要：检查 lastMessage 是否是系统消息
-          // 如果是用户发送的真实消息，就不要覆盖
+          // 如果是用户发送的真实消息（TEXT），就不要覆盖
           const isLastMessageSystem = lastMessage.message_type === "SYSTEM";
-          const isLastMessageFromCurrentUser = lastMessage.sender_id === dbUser.id;
           
-          // 只有当最后一条消息是系统消息，或者是来自对方的消息时，才考虑用订单状态覆盖
-          const shouldOverrideWithOrderStatus = isLastMessageSystem || !isLastMessageFromCurrentUser;
+          // 🔥 修复：只有当最后一条消息是系统消息时，才用订单状态覆盖
+          // 用户发送的真实消息（无论是谁发的）都应该保留显示
+          const shouldOverrideWithOrderStatus = isLastMessageSystem;
           
           // 如果是订单对话，检查订单状态并生成相应的最新消息
           if (kind === "order" && conv.listing && shouldOverrideWithOrderStatus) {
