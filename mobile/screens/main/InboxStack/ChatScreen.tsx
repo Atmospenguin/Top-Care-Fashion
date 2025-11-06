@@ -505,6 +505,11 @@ export default function ChatScreen() {
       
       const conversationData = await messagesService.getMessages(conversationId);
       setConversation(conversationData);
+      console.log("🔍 Conversation payload:", {
+        conversation: conversationData?.conversation,
+        order: conversationData?.order,
+        messagesCount: conversationData?.messages?.length,
+      });
       
       // 🔥 安全地输出日志，避免包含换行符导致崩溃
       console.log("🔍 API 返回的消息数量:", conversationData.messages?.length || 0);
@@ -568,7 +573,7 @@ export default function ChatScreen() {
         // 优先使用最新加载的数据（conversationData.order），再回退到 state 或 route params
         const latestConversationOrder = conversationData?.order ?? null;
         const hasConversationOrder = Boolean(latestConversationOrder);
-        const rawOrderData = latestConversationOrder ?? conversation?.order ?? order;
+        const rawOrderData = latestConversationOrder ?? (conversationId ? null : order);
         console.log("🔍 Order 数据来源:", hasConversationOrder ? "conversation" : order ? "route.params" : "conversation" );
         
         console.log("🔍 Order ID:", rawOrderData?.id, "Status:", rawOrderData?.status);
