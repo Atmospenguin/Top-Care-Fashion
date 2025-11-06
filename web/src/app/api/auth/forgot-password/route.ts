@@ -29,6 +29,9 @@ export async function POST(req: NextRequest) {
     const redirectBase = resolveSiteUrl(req);
     const redirectUrl = `${redirectBase}/reset-password/confirm`;
 
+    console.log('[forgot-password] redirectBase:', redirectBase);
+    console.log('[forgot-password] redirectUrl:', redirectUrl);
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: redirectUrl,
     });
