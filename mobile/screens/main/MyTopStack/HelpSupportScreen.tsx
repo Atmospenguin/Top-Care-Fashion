@@ -1,12 +1,19 @@
 import React, { useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { MyTopStackParamList } from "./index";
+import { API_BASE_URL } from "../../../src/config/api";
 
 const helpTopics = [
+  {
+    icon: "help-circle-outline" as const,
+    title: "Frequently Asked Questions",
+    description: "Browse common questions and answers from our community.",
+    action: "faq" as const,
+  },
   {
     icon: "help-circle-outline" as const,
     title: "Getting Started",
@@ -55,6 +62,27 @@ export default function HelpSupportScreen() {
     Alert.alert("Navigation unavailable", "Please open the Inbox tab to chat with support.");
   }, [navigation]);
 
+  const handleTopicPress = useCallback((topic: typeof helpTopics[0]) => {
+    if (topic.action === "faq") {
+      // Extract base URL from API_BASE_URL and open FAQ page
+      const baseUrl = API_BASE_URL.replace(/\/api$/, "");
+      const faqUrl = `${baseUrl}/faq`;
+
+      Linking.canOpenURL(faqUrl).then((supported) => {
+        if (supported) {
+          Linking.openURL(faqUrl);
+        } else {
+          Alert.alert("Error", "Unable to open FAQ page. Please visit the web app.");
+        }
+      }).catch(() => {
+        Alert.alert("Error", "Unable to open FAQ page. Please visit the web app.");
+      });
+    } else {
+      // Placeholder for future topic navigation
+      Alert.alert(topic.title, "This help topic is coming soon!");
+    }
+  }, []);
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header title="Help & Support" showBack />
@@ -76,7 +104,12 @@ export default function HelpSupportScreen() {
         <Text style={styles.sectionTitle}>Popular topics</Text>
         <View style={styles.topicsList}>
           {helpTopics.map((topic) => (
-            <TouchableOpacity key={topic.title} style={styles.topicItem} activeOpacity={0.75}>
+            <TouchableOpacity
+              key={topic.title}
+              style={styles.topicItem}
+              activeOpacity={0.75}
+              onPress={() => handleTopicPress(topic)}
+            >
               <View style={styles.topicIconWrapper}>
                 <Icon name={topic.icon} size={20} color="#FF4D4F" />
               </View>
