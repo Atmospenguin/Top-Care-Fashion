@@ -117,6 +117,18 @@ export async function GET(request: NextRequest) {
           const effectiveMessage = lastTextMessage ?? lastMessage;
           let displayMessage = effectiveMessage?.content ?? "";
           let displayTime = effectiveMessage ? formatTime(effectiveMessage.created_at) : "";
+          
+          console.log("🔥 Conversation display logic", {
+            conversationId: conv.id,
+            hasLastTextMessage: !!lastTextMessage,
+            lastTextMessageContent: lastTextMessage?.content,
+            lastTextMessageCreatedAt: lastTextMessage?.created_at,
+            lastMessageContent: lastMessage?.content,
+            lastMessageType: lastMessage?.message_type,
+            lastMessageCreatedAt: lastMessage?.created_at,
+            effectiveMessageContent: effectiveMessage?.content,
+            finalDisplayMessage: displayMessage
+          });
           console.log("🔍 Inbox conversation", {
             conversationId: conv.id,
             lastMessageType: lastMessage.message_type,
