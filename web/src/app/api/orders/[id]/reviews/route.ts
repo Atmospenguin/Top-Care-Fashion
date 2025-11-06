@@ -260,17 +260,24 @@ export async function POST(
           },
         });
 
+        // 🔥 根据评论者身份生成不同的通知标题
+        const isBuyerReviewing = orderWithListing.buyer.id === currentUser.id;
+        const notificationTitle = isBuyerReviewing
+          ? `@${currentUser.username} left a review for you`
+          : `@${currentUser.username} left a review for you`;
+        const notificationMessage = `${orderWithListing.listing.name} - ${rating} star${rating > 1 ? 's' : ''}`;
+
         await prisma.notifications.create({
           data: {
             user_id: revieweeId, // 被review的用户收到通知
             type: 'REVIEW',
-            title: `@${currentUser.username} left a review for your product`,
-            message: `${orderWithListing.listing.name} - ${rating} stars`,
-            image_url: (currentUser as any).avatar_url || null,
-            order_id: orderId.toString(), // ✅ 添加订单ID
+            title: notificationTitle,
+            message: notificationMessage,
+            image_url: (currentUser as any).avatar_url || null, // 显示评论者头像
+            order_id: orderId.toString(),
             listing_id: orderWithListing.listing.id,
-            related_user_id: currentUser.id,
-            conversation_id: conversation?.id, // ✅ 添加对话ID
+            related_user_id: currentUser.id, // 评论者ID
+            conversation_id: conversation?.id,
           },
         });
         console.log(`🔔 Review notification created for user ${revieweeId}`);
