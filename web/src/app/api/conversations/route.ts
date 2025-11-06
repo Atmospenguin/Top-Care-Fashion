@@ -79,6 +79,16 @@ export async function GET(request: NextRequest) {
         .map(async (conv) => {
           const otherUser = conv.initiator_id === dbUser.id ? conv.participant : conv.initiator;
           const lastMessage = conv.messages[0];
+          let lastTextMessage = null;
+          if (lastMessage?.message_type === "SYSTEM") {
+            lastTextMessage = await prisma.messages.findFirst({
+              where: {
+                conversation_id: conv.id,
+                message_type: "TEXT"
+              },
+              orderBy: { created_at: "desc" }
+            });
+          }
           
           // 确定对话类型
           let kind = "general";
@@ -208,7 +218,9 @@ export async function GET(request: NextRequest) {
             }
           }
 
-          const previewMessage = lastMessage.message_type === "SYSTEM" ? displayMessage : (lastMessage.content ?? "");
+          const previewMessage = lastMessage.message_type === "SYSTEM"
+            ? lastTextMessage?.content ?? displayMessage
+            : (lastMessage.content ?? "");
           console.log("🔍 Conversation preview", {
             conversationId: conv.id,
             previewMessage,
