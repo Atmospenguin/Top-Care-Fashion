@@ -237,54 +237,7 @@ export default function InboxScreen() {
 
   // Normalize preview text so Inbox shows the same semantic message as ChatScreen's system formatting
   const getPreviewText = (conv: Conversation) => {
-    const raw = (conv.message || "").toString();
-    // If there's no order context, just return raw message
-    if (!conv.order) return raw;
-
-    const isCurrentUserSeller = user?.username && conv.order?.seller && user.username === conv.order.seller.name;
-    const lower = raw.toLowerCase();
-
-    // Cancellation
-    if (lower.includes("cancel")) {
-      return isCurrentUserSeller ? "Buyer has cancelled the order." : "Seller has cancelled the order.";
-    }
-
-    // Paid messages
-    if (lower.includes("i've paid") || lower.includes("has paid")) {
-      return isCurrentUserSeller ? "Buyer has paid for the order." : "I've paid, waiting for you to ship.";
-    }
-
-    // Shipped messages
-    if (lower.includes("shipped")) {
-      return isCurrentUserSeller ? "You have shipped the parcel." : "Seller has shipped your parcel.";
-    }
-
-    // Transaction completed messages
-    if (lower.includes("transaction completed") || lower.includes("confirmed received")) {
-      return isCurrentUserSeller ? "Buyer confirmed received. Transaction completed." : "I've confirmed received. Transaction completed.";
-    }
-
-    // Parcel arrived messages
-    if (lower.includes("parcel arrived") || lower.includes("waiting for buyer")) {
-      return isCurrentUserSeller ? "Parcel arrived. Waiting for buyer to confirm received." : "Parcel arrived. Please confirm received.";
-    }
-
-    // In transit messages
-    if (lower.includes("in transit")) {
-      return "Parcel is in transit.";
-    }
-
-    // Mutual review messages
-    if (lower.includes("both parties reviewed")) {
-      return "Both parties reviewed each other.";
-    }
-    
-    if (lower.includes("one party has left a review")) {
-      return "One party has left a review.";
-    }
-
-    // Default: return the backend-provided preview
-    return raw;
+    return (conv.message || "").toString();
   };
 
   return (
