@@ -448,44 +448,44 @@ export async function PATCH(
       
       switch (status) {
         case 'IN_PROGRESS':
-          if (isSeller) {
-            notificationTitle = 'New order received';
-            notificationMessage = `@${existingOrder.buyer.username} placed an order for your item.`;
-          } else {
-            notificationTitle = 'Order placed successfully';
-            notificationMessage = `Your order with @${existingOrder.seller.username} has been placed.`;
-          }
+          // 🔥 买家下单 → 通知卖家 "有新订单"
+          // isSeller=false（买家操作）→ 通知给卖家
+          notificationTitle = 'New order received';
+          notificationMessage = `@${existingOrder.buyer.username} placed an order for your item.`;
           break;
         case 'TO_SHIP':
           notificationTitle = 'Order ready to ship';
           notificationMessage = `@${existingOrder.seller.username} is preparing your order for shipment.`;
           break;
         case 'SHIPPED':
+          // 🔥 通知是发给对方的，所以视角要反过来
+          // isSeller=true → 通知买家 "卖家发货了"
+          // isSeller=false → 通知卖家 "你发货了"（理论上不会发生，因为只有卖家能标记发货）
           if (isSeller) {
             notificationTitle = 'Order shipped';
-            notificationMessage = `You shipped the order to @${existingOrder.buyer.username}.`;
+            notificationMessage = `@${existingOrder.seller.username} has shipped your order.`;
           } else {
             notificationTitle = 'Order shipped';
-            notificationMessage = `@${existingOrder.seller.username} has shipped your order.`;
+            notificationMessage = `You shipped the order to @${existingOrder.buyer.username}.`;
           }
           break;
         case 'DELIVERED':
+          // 🔥 通知是发给对方的
+          // isSeller=true → 通知买家 "包裹到了，请确认"
+          // isSeller=false → 通知卖家 "买家说包裹到了"（理论上不会发生）
           if (isSeller) {
             notificationTitle = 'Order arrived';
-            notificationMessage = `Parcel delivered to @${existingOrder.buyer.username}. Waiting for confirmation.`;
+            notificationMessage = `Parcel arrived. Please confirm you have received the item.`;
           } else {
             notificationTitle = 'Order arrived';
-            notificationMessage = `Parcel arrived. Please confirm you have received the item.`;
+            notificationMessage = `Parcel delivered to @${existingOrder.buyer.username}. Waiting for confirmation.`;
           }
           break;
         case 'RECEIVED':
-          if (isSeller) {
-            notificationTitle = 'Order completed';
-            notificationMessage = `@${existingOrder.buyer.username} confirmed received. Transaction completed.`;
-          } else {
-            notificationTitle = 'Order completed';
-            notificationMessage = `You confirmed received. Transaction completed successfully.`;
-          }
+          // 🔥 买家确认收货 → 通知卖家 "买家确认了"
+          // isSeller=false（买家操作）→ 通知给卖家
+          notificationTitle = 'Order completed';
+          notificationMessage = `@${existingOrder.buyer.username} confirmed received. Transaction completed.`;
           break;
         case 'CANCELLED':
           // 通知targetUser（对方）谁取消了订单
@@ -495,11 +495,9 @@ export async function PATCH(
       }
       
       if (notificationTitle && targetUserId) {
-        // 对于CANCELLED状态，使用currentUser的头像
-        // 对于其他状态，使用对方的头像
-        const notificationImageUrl = status === 'CANCELLED' 
-          ? currentUser.avatar_url 
-          : (isSeller ? existingOrder.buyer.avatar_url : existingOrder.seller.avatar_url);
+        // 🔥 通知头像应该显示执行操作的人（currentUser）的头像
+        // 例如：卖家发货 → 显示卖家头像；买家确认 → 显示买家头像
+        const notificationImageUrl = currentUser.avatar_url || null;
         
         await prisma.notifications.create({
           data: {

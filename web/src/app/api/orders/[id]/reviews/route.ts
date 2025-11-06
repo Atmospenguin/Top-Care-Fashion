@@ -189,16 +189,18 @@ export async function POST(
     });
 
     // Update order status to REVIEWED if both parties have reviewed
+    // ✅ Always update updated_at to trigger Inbox message update
     const allReviews = await prisma.reviews.findMany({
       where: { order_id: orderId }
     });
 
-    if (allReviews.length >= 2) {
-      await prisma.orders.update({
-        where: { id: orderId },
-        data: { status: 'REVIEWED' }
-      });
-    }
+    await prisma.orders.update({
+      where: { id: orderId },
+      data: { 
+        status: allReviews.length >= 2 ? 'REVIEWED' : order.status,
+        updated_at: new Date() // 🔥 Force update timestamp to show review prompt in Inbox
+      }
+    });
 
     // Update reviewee's average rating
     const revieweeReviews = await prisma.reviews.findMany({
