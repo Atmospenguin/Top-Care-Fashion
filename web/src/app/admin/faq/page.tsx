@@ -8,18 +8,41 @@ interface ExtendedFaq extends FaqQuery {
   associatedUserName?: string;
 }
 
+const FAQ_CATEGORIES = [
+  { value: "", label: "All Categories" },
+  { value: "General", label: "General" },
+  { value: "Account", label: "Account" },
+  { value: "Products", label: "Products" },
+  { value: "Orders", label: "Orders" },
+  { value: "Shipping", label: "Shipping" },
+  { value: "Returns", label: "Returns" },
+  { value: "Technical", label: "Technical" },
+  { value: "Other", label: "Other" },
+];
+
 export default function FAQPage() {
   const [faqs, setFaqs] = useState<ExtendedFaq[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "answered" | "pending">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
 
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/faq", { cache: "no-store" });
+      const params = new URLSearchParams();
+      if (searchQuery) params.append("search", searchQuery);
+      if (categoryFilter) params.append("category", categoryFilter);
+      if (filter === "answered") params.append("status", "answered");
+      if (filter === "pending") params.append("status", "pending");
+
+      const queryString = params.toString();
+      const url = `/api/admin/faq${queryString ? `?${queryString}` : ""}`;
+
+      const res = await fetch(url, { cache: "no-store" });
       const json = await res.json();
       setFaqs((json.faqs || []).map((faq: FaqQuery) => ({ ...faq, editing: false })));
     } catch (e: any) {
@@ -31,7 +54,7 @@ export default function FAQPage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [searchQuery, categoryFilter, filter]);
 
   const startEdit = (id: string) => {
     setFaqs(faqs.map(faq => ({ 
@@ -53,7 +76,8 @@ export default function FAQPage() {
       setSaving(faq.id);
       const updateData = {
         id: faq.id,
-        answer: faq.answer
+        answer: faq.answer,
+        category: faq.category
       };
 
       const res = await fetch("/api/admin/faq", {
@@ -63,9 +87,9 @@ export default function FAQPage() {
       });
 
       if (res.ok) {
-        setFaqs(faqs.map(f => ({ 
-          ...f, 
-          editing: f.id === faq.id ? false : f.editing 
+        setFaqs(faqs.map(f => ({
+          ...f,
+          editing: f.id === faq.id ? false : f.editing
         })));
         load();
       } else {
@@ -105,13 +129,8 @@ export default function FAQPage() {
     ));
   };
 
-  const filteredFaqs = faqs.filter(faq => {
-    switch (filter) {
-      case "answered": return faq.answer && faq.answer.trim();
-      case "pending": return !faq.answer || !faq.answer.trim();
-      default: return true;
-    }
-  });
+  // Note: Filtering is now done server-side through API params
+  const filteredFaqs = faqs;
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -158,7 +177,41 @@ export default function FAQPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">FAQ Management</h2>
         <div className="text-sm text-gray-600">
-          {faqs.length} total • {faqs.filter(f => !f.answer || !f.answer.trim()).length} pending
+          {faqs.length} results
+        </div>
+      </div>
+
+      {/* Search and Category Filter */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
+            Search Questions & Answers
+          </label>
+          <input
+            type="text"
+            id="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by keyword..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
+            Filter by Category
+          </label>
+          <select
+            id="category"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {FAQ_CATEGORIES.map((cat) => (
+              <option key={cat.value} value={cat.value}>
+                {cat.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -179,11 +232,6 @@ export default function FAQPage() {
             }`}
           >
             {tab.label}
-            <span className="ml-1 text-xs bg-gray-200 px-1.5 py-0.5 rounded-full">
-              {tab.key === "all" ? faqs.length :
-               tab.key === "answered" ? faqs.filter(f => f.answer && f.answer.trim()).length :
-               faqs.filter(f => !f.answer || !f.answer.trim()).length}
-            </span>
           </button>
         ))}
       </div>
@@ -200,6 +248,21 @@ export default function FAQPage() {
                   <div className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-gray-700">
                     {faq.question}
                   </div>
+                </div>
+                <div>
+                  <label htmlFor={`category-${faq.id}`} className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select
+                    id={`category-${faq.id}`}
+                    value={faq.category || ''}
+                    onChange={(e) => updateField(faq.id, 'category', e.target.value || null)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {FAQ_CATEGORIES.map((cat) => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label htmlFor={`answer-${faq.id}`} className="block text-sm font-medium text-gray-700 mb-1">Answer</label>
@@ -239,11 +302,16 @@ export default function FAQPage() {
                       <h3 className="text-lg font-medium">FAQ #{faq.id}</h3>
                       <span className={`px-2 py-1 text-xs rounded-full ${
                         faq.answer && faq.answer.trim()
-                          ? 'bg-green-100 text-green-800' 
+                          ? 'bg-green-100 text-green-800'
                           : 'bg-yellow-100 text-yellow-800'
                       }`}>
                         {faq.answer && faq.answer.trim() ? 'Answered' : 'Pending'}
                       </span>
+                      {faq.category && (
+                        <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">
+                          {faq.category}
+                        </span>
+                      )}
                     </div>
                     
                     <div className="mb-4">
