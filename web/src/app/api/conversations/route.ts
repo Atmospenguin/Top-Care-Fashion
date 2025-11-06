@@ -209,6 +209,13 @@ export async function GET(request: NextRequest) {
           }
 
           const previewMessage = lastMessage.message_type === "SYSTEM" ? displayMessage : (lastMessage.content ?? "");
+          console.log("🔍 Conversation preview", {
+            conversationId: conv.id,
+            previewMessage,
+            rawMessage: lastMessage.content,
+            messageType: lastMessage.message_type,
+            lastMessageAt: conv.last_message_at,
+          });
 
           return {
             id: conv.id.toString(),
