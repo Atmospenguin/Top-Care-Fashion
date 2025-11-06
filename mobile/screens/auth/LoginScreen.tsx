@@ -13,6 +13,7 @@ export default function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [logoTapCount, setLogoTapCount] = useState(0);
   const { login, error, clearError } = useAuth();
 
   // Disable back button

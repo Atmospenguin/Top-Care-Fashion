@@ -263,12 +263,26 @@ export async function GET(
     let existingOrder = null;
     if (conversation.listing) {
       try {
+        // 🔥 修复：查询当前对话双方的订单，而不是这个listing的任意订单
         existingOrder = await prisma.orders.findFirst({
           where: {
             listing_id: conversation.listing.id,
-            OR: [
-              { buyer_id: dbUser.id },
-              { seller_id: dbUser.id }
+            // 🔥 确保订单的买家和卖家匹配当前对话的双方
+            AND: [
+              {
+                OR: [
+                  // 买家是initiator，卖家是participant
+                  {
+                    buyer_id: conversation.initiator_id,
+                    seller_id: conversation.participant_id
+                  },
+                  // 或者买家是participant，卖家是initiator（理论上不会发生，但做个保险）
+                  {
+                    buyer_id: conversation.participant_id,
+                    seller_id: conversation.initiator_id
+                  }
+                ]
+              }
             ]
           },
           include: {
@@ -290,6 +304,8 @@ export async function GET(
           orderBy: { created_at: 'desc' }
         });
         console.log("🔍 Found existing order:", existingOrder?.id, "Status:", existingOrder?.status);
+        console.log("🔍 Order buyer:", existingOrder?.buyer?.username, "seller:", existingOrder?.seller?.username);
+        console.log("🔍 Conversation initiator:", conversation.initiator.username, "participant:", conversation.participant.username);
       } catch (error) {
         console.error("❌ Error querying order:", error);
       }
