@@ -6,6 +6,7 @@ import type { FaqQuery } from "@/types/admin";
 interface ExtendedFaq extends FaqQuery {
   editing?: boolean;
   associatedUserName?: string;
+  category?: string;
 }
 
 const FAQ_CATEGORIES = [
