@@ -124,8 +124,34 @@ export default function FAQPage() {
     }
   };
 
+  const deleteFaq = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this FAQ? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setSaving(id);
+      const res = await fetch(`/api/admin/faq?id=${id}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        // Remove from local state immediately
+        setFaqs(faqs.filter(f => f.id !== id));
+      } else {
+        console.error('Failed to delete FAQ');
+        alert('Failed to delete FAQ. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error deleting FAQ:', error);
+      alert('Error deleting FAQ. Please try again.');
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const updateField = (id: string, field: keyof FaqQuery, value: any) => {
-    setFaqs(faqs.map(faq => 
+    setFaqs(faqs.map(faq =>
       faq.id === id ? { ...faq, [field]: value } : faq
     ));
   };
@@ -405,9 +431,18 @@ export default function FAQPage() {
                     )}
                     <button
                       onClick={() => startEdit(faq.id)}
-                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                      disabled={saving === faq.id}
+                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                     >
                       {faq.answer && faq.answer.trim() ? 'Edit Answer' : 'Answer'}
+                    </button>
+                    <button
+                      onClick={() => deleteFaq(faq.id)}
+                      disabled={saving === faq.id}
+                      className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+                      title="Delete this FAQ"
+                    >
+                      Delete
                     </button>
                   </div>
                 </div>

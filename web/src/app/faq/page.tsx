@@ -118,9 +118,36 @@ export default function FAQPage() {
         </div>
       </div>
 
-      {/* Ask Question Form */}
+      {/* FAQ List */}
+      <div className="mt-8 space-y-4">
+        {list.length === 0 && (
+          <p className="text-sm text-black/60">
+            {searchQuery || categoryFilter ? "No matching questions found." : "No questions yet."}
+          </p>
+        )}
+        {list.map((item) => (
+          <div key={item.ts} className="rounded-xl border border-black/10 p-4 bg-white">
+            <div className="flex items-start justify-between mb-2">
+              <div className="text-sm font-medium">Q: {item.q}</div>
+              {item.category && (
+                <span className="ml-2 px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">
+                  {item.category}
+                </span>
+              )}
+            </div>
+            {item.a ? (
+              <div className="text-sm mt-1 text-black/70 whitespace-pre-wrap">A: {item.a}</div>
+            ) : (
+              <div className="text-xs text-black/50 mt-1">Awaiting answer</div>
+            )}
+            {item.user && <div className="text-xs text-black/50 mt-2">From: {item.user}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Ask Question Form - Moved to Bottom */}
       {isAuthenticated ? (
-        <form onSubmit={addQuestion} className="mt-6 space-y-3 p-4 border border-black/10 rounded-md bg-white">
+        <form onSubmit={addQuestion} className="mt-8 space-y-3 p-4 border border-black/10 rounded-md bg-white shadow-sm">
           <h3 className="text-sm font-medium">Ask a Question</h3>
           <input
             value={q}
@@ -148,35 +175,10 @@ export default function FAQPage() {
           </button>
         </form>
       ) : (
-        <p className="mt-6 text-sm">Please sign in to ask a question.</p>
+        <div className="mt-8 p-4 border border-black/10 rounded-md bg-gray-50 text-center">
+          <p className="text-sm text-black/70">Please sign in to ask a question.</p>
+        </div>
       )}
-
-      {/* FAQ List */}
-      <div className="mt-8 space-y-4">
-        {list.length === 0 && (
-          <p className="text-sm text-black/60">
-            {searchQuery || categoryFilter ? "No matching questions found." : "No questions yet."}
-          </p>
-        )}
-        {list.map((item) => (
-          <div key={item.ts} className="rounded-xl border border-black/10 p-4 bg-white">
-            <div className="flex items-start justify-between mb-2">
-              <div className="text-sm font-medium">Q: {item.q}</div>
-              {item.category && (
-                <span className="ml-2 px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">
-                  {item.category}
-                </span>
-              )}
-            </div>
-            {item.a ? (
-              <div className="text-sm mt-1 text-black/70 whitespace-pre-wrap">A: {item.a}</div>
-            ) : (
-              <div className="text-xs text-black/50 mt-1">Awaiting answer</div>
-            )}
-            {item.user && <div className="text-xs text-black/50 mt-2">From: {item.user}</div>}
-          </div>
-        ))}
-      </div>
     </section>
   );
 }

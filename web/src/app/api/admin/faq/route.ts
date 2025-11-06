@@ -127,3 +127,24 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Failed to update FAQ" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  const admin = await requireAdmin();
+  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+    await prisma.faq.delete({
+      where: { id: Number(id) },
+    });
+
+    return NextResponse.json({ success: true, message: "FAQ deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting FAQ:", error);
+    return NextResponse.json({ error: "Failed to delete FAQ" }, { status: 500 });
+  }
+}
