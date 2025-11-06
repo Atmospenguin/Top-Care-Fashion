@@ -208,12 +208,14 @@ export async function GET(request: NextRequest) {
             }
           }
 
+          const previewMessage = lastMessage.message_type === "SYSTEM" ? displayMessage : (lastMessage.content ?? "");
+
           return {
             id: conv.id.toString(),
             sender: otherUser.username,
-            message: displayMessage.length > 50 
-              ? displayMessage.substring(0, 50) + "..." 
-              : displayMessage, // 🔥 截断长消息并添加省略号
+            message: previewMessage.length > 50 
+              ? previewMessage.substring(0, 50) + "..." 
+              : previewMessage, // 🔥 截断长消息并添加省略号
             time: displayTime,
             avatar: otherUser.avatar_url ? { uri: otherUser.avatar_url } : null,
             kind,
