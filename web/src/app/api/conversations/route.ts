@@ -120,13 +120,26 @@ export async function GET(request: NextRequest) {
           
           // 如果是订单对话，检查订单状态并生成相应的最新消息
           if (kind === "order" && conv.listing && shouldOverrideWithOrderStatus) {
-            // 查询订单状态
+            // 🔥 修复：查询当前对话双方的订单，而不是任意买家/卖家的订单
             const order = await prisma.orders.findFirst({
               where: {
                 listing_id: conv.listing.id,
-                OR: [
-                  { buyer_id: dbUser.id },
-                  { seller_id: dbUser.id }
+                // 🔥 确保订单的买家和卖家是当前对话的双方
+                AND: [
+                  {
+                    OR: [
+                      // 买家是initiator，卖家是participant
+                      {
+                        buyer_id: conv.initiator_id,
+                        seller_id: conv.participant_id
+                      },
+                      // 或者买家是participant，卖家是initiator
+                      {
+                        buyer_id: conv.participant_id,
+                        seller_id: conv.initiator_id
+                      }
+                    ]
+                  }
                 ]
               },
               orderBy: { created_at: "desc" }
