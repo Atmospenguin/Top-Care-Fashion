@@ -108,7 +108,11 @@ export class AuthService {
       if (response.data && (response.data as any).user) return (response.data as any).user as User;
       return null;
     } catch (error) {
-      console.error('Error getting current user:', error);
+      // 🔥 静默处理错误 - 这通常是正常的（例如 logout 后重启）
+      // 只在调试模式下记录详细信息
+      if (__DEV__) {
+        console.log('📝 getCurrentUser failed (this is normal after logout):', error);
+      }
       return null;
     }
   }

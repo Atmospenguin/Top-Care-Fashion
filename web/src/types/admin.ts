@@ -21,6 +21,11 @@ export type ListingCategory = {
   name: string;
   description?: string;
   createdAt: string;
+  isActive?: boolean;
+  sortOrder?: number;
+  aiKeywords?: string[];
+  aiWeightBoost?: number;
+  listingCount?: number;
 };
 
 export type Listing = {

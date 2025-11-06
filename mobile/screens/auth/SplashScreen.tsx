@@ -17,12 +17,23 @@ type Props = NativeStackScreenProps<RootStackParamList, "Splash">;
 
 export default function SplashScreen({ navigation }: Props) {
   const { loading, isAuthenticated } = useAuth();
+  const [minTimeElapsed, setMinTimeElapsed] = React.useState(false);
+
+  // 🔥 确保 Splash screen 至少显示 1.5 秒
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMinTimeElapsed(true);
+    }, 1500); // 1.5 秒最小显示时间
+
+    return () => clearTimeout(timer);
+  }, []);
 
   // 应用启动时根据认证状态决定跳转：
   // - 已登录 -> 检查偏好是否完整，决定进入 Main 或 OnboardingPreference
   // - 未登录 -> 进入 Landing
   useEffect(() => {
-    if (loading) return; // 等待 AuthContext 完成初始化
+    // 🔥 等待 AuthContext 完成初始化 AND 最小显示时间
+    if (loading || !minTimeElapsed) return;
 
     const checkPreferencesAndNavigate = async () => {
       if (isAuthenticated) {
@@ -49,7 +60,7 @@ export default function SplashScreen({ navigation }: Props) {
     };
 
     checkPreferencesAndNavigate();
-  }, [loading, isAuthenticated, navigation]);
+  }, [loading, minTimeElapsed, isAuthenticated, navigation]);
 
   return (
     <View style={styles.container}>

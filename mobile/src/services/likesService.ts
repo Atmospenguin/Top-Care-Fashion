@@ -16,6 +16,7 @@ export interface LikedListing {
     image_urls?: string[] | string | null;
     images?: string[];
     tags?: string[] | string | null;
+    inventory_count?: number; // 🔥 库存数量
     seller: {
       id: number;
       username: string;
@@ -161,7 +162,7 @@ const normalizeListing = (listing: any): LikedListing['listing'] => {
   const name = typeof listing.name === 'string' && listing.name.trim() ? listing.name : listing.title;
   const title = typeof listing.title === 'string' && listing.title.trim() ? listing.title : listing.name;
 
-  return {
+  const result: any = {
     ...listing,
     id: coerceNumber(listing.id ?? listing.listing_id, 0),
     name,
@@ -174,6 +175,13 @@ const normalizeListing = (listing: any): LikedListing['listing'] => {
     tags,
     seller: listing.seller ? normalizeSeller(listing.seller) : listing.seller,
   };
+  
+  // 🔥 只在 inventory_count 存在时才设置
+  if (listing.inventory_count !== undefined && listing.inventory_count !== null) {
+    result.inventory_count = coerceNumber(listing.inventory_count, 0);
+  }
+  
+  return result;
 };
 
 const normalizePrivateLike = (entry: any): LikedListing => {

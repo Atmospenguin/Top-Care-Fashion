@@ -5,6 +5,8 @@ import { useAuth } from "@/components/AuthContext";
 import type { Listing } from "@/types/admin";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import SearchBar from "@/components/admin/SearchBar";
+import Pagination from "@/components/admin/Pagination";
 
 type EditingListing = Listing;
 
@@ -24,6 +26,8 @@ interface Category {
   description: string | null;
   createdAt: string;
 }
+
+const PAGE_SIZE = 50;
 
 interface PaginationInfo {
   page: number;
@@ -86,7 +90,7 @@ export default function ListingManagementPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
-    limit: 50,
+    limit: PAGE_SIZE,
     totalCount: 0,
     totalPages: 0,
   });
@@ -117,12 +121,26 @@ export default function ListingManagementPage() {
       setError(null);
       const params = new URLSearchParams({
         page: currentPage.toString(),
-        limit: "50",
+        limit: PAGE_SIZE.toString(),
+        sort: sortOption,
       });
-      const endpoint = isAdmin ? `/api/admin/listings?${params.toString()}` : "/api/listings";
+      if (isAdmin && filter !== "all") {
+        params.set("status", filter);
+      }
+      if (categoryFilter && categoryFilter !== "all") {
+        params.set("category", categoryFilter);
+      }
+      const trimmedSearch = searchTerm.trim();
+      if (trimmedSearch) {
+        params.set("search", trimmedSearch);
+      }
+
+      const endpoint = isAdmin
+        ? `/api/admin/listings?${params.toString()}`
+        : `/api/listings?${params.toString()}`;
       const [listingsRes, categoriesRes] = await Promise.all([
         fetch(endpoint, { cache: "no-store" }),
-        fetch("/api/admin/categories", { cache: "no-store" })
+        isAdmin ? fetch("/api/admin/categories", { cache: "no-store" }) : Promise.resolve(null)
       ]);
 
       if (!listingsRes.ok) {
@@ -134,14 +152,32 @@ export default function ListingManagementPage() {
       }
 
       const listingsJson = await listingsRes.json();
-      setItems((listingsJson.listings || []) as EditingListing[]);
-      if (listingsJson.pagination) {
-        setPagination(listingsJson.pagination);
+      if (isAdmin) {
+        setItems((listingsJson.listings || []) as EditingListing[]);
+        if (listingsJson.pagination) {
+          setPagination(listingsJson.pagination);
+        }
+      } else {
+        const data = listingsJson?.data;
+        const fetchedItems = (data?.items || []) as EditingListing[];
+        setItems(fetchedItems);
+        if (data) {
+          const total = Number(data.total ?? fetchedItems.length) || 0;
+          const totalPages = total > 0 ? Math.ceil(total / PAGE_SIZE) : 0;
+          setPagination({
+            page: currentPage,
+            limit: PAGE_SIZE,
+            totalCount: total,
+            totalPages,
+          });
+        }
       }
 
-      if (categoriesRes.ok) {
-        const categoriesJson = await categoriesRes.json();
-        setCategories(categoriesJson.categories || []);
+      if (categoriesRes) {
+        if (categoriesRes.ok) {
+          const categoriesJson = await categoriesRes.json();
+          setCategories(categoriesJson.categories || []);
+        }
       }
     } catch (error) {
       console.error('Error loading listings:', error);
@@ -149,71 +185,17 @@ export default function ListingManagementPage() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, currentPage]);
+  }, [isAdmin, currentPage, sortOption, filter, categoryFilter, searchTerm]);
 
   useEffect(() => {
     loadListings();
   }, [loadListings]);
   // Editing moved to Listing Details page; no inline edit via query string.
 
-  const filteredItems = useMemo(() => {
-    const normalized = searchTerm.trim().toLowerCase();
-    return items.filter((item) => {
-      if (filter === "listed" && !item.listed) return false;
-      if (filter === "unlisted" && item.listed) return false;
-      if (filter === "sold" && !item.sold) return false;
-
-      if (categoryFilter !== "all" && item.categoryId !== categoryFilter) return false;
-
-      if (normalized) {
-        const matchesFields = [
-          item.name,
-          item.brand,
-          item.sellerName,
-          item.description,
-          item.categoryId,
-        ].some((field) => typeof field === "string" && field.toLowerCase().includes(normalized));
-
-        const matchesTags = item.tags?.some((tag) => tag.toLowerCase().includes(normalized));
-
-        if (!matchesFields && !matchesTags) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [items, filter, categoryFilter, searchTerm]);
-
-  const sortedItems = useMemo(() => {
-    const sorted = [...filteredItems];
-    switch (sortOption) {
-      case "price-desc":
-        sorted.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
-        break;
-      case "price-asc":
-        sorted.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
-        break;
-      case "name-asc":
-        sorted.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-        break;
-      case "name-desc":
-        sorted.sort((a, b) => (b.name || "").localeCompare(a.name || ""));
-        break;
-      case "date-asc":
-        sorted.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        break;
-      case "date-desc":
-      default:
-        sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        break;
-    }
-    return sorted;
-  }, [filteredItems, sortOption]);
-
   const applyTagFilter = (tag: string) => {
     setFilter("all");
     setSearchTerm(tag);
+    setCurrentPage(1);
   };
 
   const deleteListing = async (id: string) => {
@@ -288,7 +270,7 @@ export default function ListingManagementPage() {
         <div>
           <h1 className="text-2xl font-semibold">Listing Management</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Showing {sortedItems.length} of {pagination.totalCount} listings
+            Showing {items.length} of {pagination.totalCount} listings
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
@@ -321,20 +303,26 @@ export default function ListingManagementPage() {
         </div>
       </div>
 
+      {/* Pagination - Top */}
+      {!loading && pagination.totalPages > 1 && (
+        <Pagination
+          pagination={pagination}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+        />
+      )}
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
-          <input
-            type="text"
-            placeholder="Search listings..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full px-3 py-2 border rounded-md"
-          />
-        </div>
+        <SearchBar
+          value={searchTerm}
+          onChange={(value) => {
+            setSearchTerm(value);
+            setCurrentPage(1);
+          }}
+          placeholder="Search listings..."
+          className="flex-1"
+        />
         <div className="flex gap-2 flex-wrap">
           <select
             value={filter}
@@ -388,7 +376,7 @@ export default function ListingManagementPage() {
       {/* Content */}
       {viewMode === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {sortedItems.map((listing) => (
+          {items.map((listing) => (
             <ListingCard
               key={listing.id}
               listing={listing}
@@ -401,7 +389,7 @@ export default function ListingManagementPage() {
         </div>
       ) : (
         <ListingTable
-          listings={sortedItems}
+          listings={items}
           isAdmin={isAdmin}
           onDelete={deleteListing}
           onToggleListing={toggleListing}
@@ -409,7 +397,7 @@ export default function ListingManagementPage() {
         />
       )}
 
-      {sortedItems.length === 0 && (
+      {items.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           {searchTerm || filter !== "all"
             ? "No listings match your search criteria."
@@ -418,29 +406,13 @@ export default function ListingManagementPage() {
         </div>
       )}
 
-      {/* Pagination */}
+      {/* Pagination - Bottom */}
       {!loading && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white border rounded-lg p-4">
-          <div className="text-sm text-gray-600">
-            Showing page {pagination.page} of {pagination.totalPages} ({pagination.totalCount} total listings)
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
-              disabled={currentPage === pagination.totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        </div>
+        <Pagination
+          pagination={pagination}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+        />
       )}
 
       {/* Creation disabled in management UI */}

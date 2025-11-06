@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { UserAccount } from "@/types/admin";
+import SearchBar from "@/components/admin/SearchBar";
+import Pagination from "@/components/admin/Pagination";
 
 interface ExtendedUser extends UserAccount {
   editing?: boolean;
@@ -25,6 +27,8 @@ interface PaginationInfo {
   totalCount: number;
   totalPages: number;
 }
+
+const PAGE_SIZE = 50;
 
 const AVATAR_SIZE_CLASSES: Record<number, string> = {
   48: "h-12 w-12",
@@ -48,7 +52,7 @@ export default function UsersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
-    limit: 50,
+    limit: PAGE_SIZE,
     totalCount: 0,
     totalPages: 0,
   });
@@ -86,90 +90,43 @@ export default function UsersPage() {
     );
   };
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({
         page: currentPage.toString(),
-        limit: "50",
+        limit: PAGE_SIZE.toString(),
+        sort: sortOption,
       });
+      if (filter !== "all") {
+        params.set("filter", filter);
+      }
+      const trimmedSearch = searchTerm.trim();
+      if (trimmedSearch) {
+        params.set("search", trimmedSearch);
+      }
+
       const res = await fetch(`/api/admin/users?${params.toString()}`, { cache: "no-store" });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
       const json = await res.json();
       setUsers((json.users || []).map((u: UserAccount) => ({ ...u, editing: false })));
       if (json.pagination) {
         setPagination(json.pagination);
       }
-    } catch (e: any) {
-      setError(e.message || "Load failed");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Load failed";
+      setError(message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, sortOption, filter, searchTerm]);
 
   useEffect(() => {
     load();
-  }, [currentPage]);
-
-  const filteredUsers = useMemo(() => {
-    const normalized = searchTerm.trim().toLowerCase();
-    return users.filter((user) => {
-      if (filter !== "all") {
-        switch (filter) {
-          case "active":
-            if (user.status !== "active") return false;
-            break;
-          case "suspended":
-            if (user.status !== "suspended") return false;
-            break;
-          case "premium":
-            if (!user.is_premium) return false;
-            break;
-          case "admin":
-            if (user.role !== "Admin") return false;
-            break;
-        }
-      }
-
-      if (normalized) {
-        const matched = [user.username, user.email, user.role]
-          .filter(Boolean)
-          .some((value) => value!.toLowerCase().includes(normalized));
-        if (!matched) return false;
-      }
-
-      return true;
-    });
-  }, [users, filter, searchTerm]);
-
-  const sortedUsers = useMemo(() => {
-    const list = [...filteredUsers];
-    switch (sortOption) {
-      case "name-asc":
-        list.sort((a, b) => (a.username || "").localeCompare(b.username || ""));
-        break;
-      case "name-desc":
-        list.sort((a, b) => (b.username || "").localeCompare(a.username || ""));
-        break;
-      case "created-asc":
-        list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        break;
-      case "status":
-        list.sort((a, b) => a.status.localeCompare(b.status));
-        break;
-      case "role":
-        list.sort((a, b) => a.role.localeCompare(b.role));
-        break;
-      case "premium":
-        list.sort((a, b) => Number(b.is_premium) - Number(a.is_premium));
-        break;
-      case "created-desc":
-      default:
-        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        break;
-    }
-    return list;
-  }, [filteredUsers, sortOption]);
+  }, [load]);
 
   const startEdit = (id: string) => {
     setUsers(users.map(user => ({ 
@@ -274,24 +231,30 @@ export default function UsersPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">User Management</h2>
         <div className="text-sm text-gray-600">
-          Showing {sortedUsers.length} of {pagination.totalCount} users • {users.filter(u => u.status === 'active').length} active
+          Showing {users.length} of {pagination.totalCount} users • {users.filter(u => u.status === 'active').length} active
         </div>
       </div>
 
+      {/* Pagination - Top */}
+      {!loading && pagination.totalPages > 1 && (
+        <Pagination
+          pagination={pagination}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+        />
+      )}
+
       {/* Search and Filter Controls */}
       <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 rounded-lg border">
-        <div className="flex-1">
-          <input
-            type="text"
-            placeholder="Search users by name, email, or role..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+        <SearchBar
+          value={searchTerm}
+          onChange={(value) => {
+            setSearchTerm(value);
+            setCurrentPage(1);
+          }}
+          placeholder="Search users by name, email, or role..."
+          className="flex-1"
+        />
         <div className="flex flex-wrap gap-2">
           <select
             value={filter}
@@ -342,7 +305,7 @@ export default function UsersPage() {
       </div>
 
       <div className="grid gap-4">
-        {sortedUsers.map((user) => (
+        {users.map((user) => (
           <div key={user.id} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
             {user.editing ? (
               // Edit Mode
@@ -511,7 +474,7 @@ export default function UsersPage() {
         ))}
       </div>
 
-      {sortedUsers.length === 0 && (
+      {users.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           {users.length === 0
             ? "No users found. Users will appear here once they register."
@@ -519,29 +482,13 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Pagination */}
+      {/* Pagination - Bottom */}
       {!loading && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white border rounded-lg p-4">
-          <div className="text-sm text-gray-600">
-            Showing page {pagination.page} of {pagination.totalPages} ({pagination.totalCount} total users)
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
-              disabled={currentPage === pagination.totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        </div>
+        <Pagination
+          pagination={pagination}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+        />
       )}
 
       {/* User Details Modal */}

@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "TOP",
+    "slug": "top",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "extra": {
-      "EXPO_PUBLIC_API_URL": "http://192.168.0.80:3000",
+      "EXPO_PUBLIC_API_URL": "http://192.168.31.225:3000",
       "EXPO_PUBLIC_SUPABASE_URL": "https://ilykxrtilsbymlncunua.supabase.co",
       "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlseWt4cnRpbHNieW1sbmN1bnVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0OTY1MjEsImV4cCI6MjA3MzA3MjUyMX0.q78hAUkVNeeXxZlY75hQo6cah6m6iBm1_Yh3z_qx-6o"
     },
@@ -19,7 +19,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.mobile"
+      "bundleIdentifier": "com.topcarefashion.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +27,7 @@
         "backgroundColor": "#F54B3D"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.mobile"
+      "package": "com.topcarefashion.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"

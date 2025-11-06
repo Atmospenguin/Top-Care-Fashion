@@ -68,36 +68,37 @@ export default function ConfirmResetPasswordPage() {
         if (code) {
           setVerifying(true);
           setStatus("Verifying reset link...");
-
-          const { data, error } = await supabase.auth.verifyOtp({
-            type: 'recovery',
-            token_hash: code,
-          });
-
-          if (!error && data.session?.access_token) {
-            setToken(data.session.access_token);
-            setStatus(null);
-          } else if (error) {
-            console.error("OTP verification failed:", error);
+          try {
+            const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+            if (exchangeError || !data.session?.access_token) {
+              console.error("Code exchange failed:", exchangeError);
+              setStatus("Reset link is invalid or has expired. Please request a new one.");
+            } else {
+              setToken(data.session.access_token);
+              setStatus(null);
+            }
+          } catch (err) {
+            console.error("Code exchange threw:", err);
             setStatus("Reset link is invalid or has expired. Please request a new one.");
+          } finally {
+            setVerifying(false);
           }
-          setVerifying(false);
         } else if (token && email) {
           // Fallback for old email format
           setVerifying(true);
           setStatus("Verifying reset link...");
 
-          const { data, error } = await supabase.auth.verifyOtp({
+          const { data, error: verifyError } = await supabase.auth.verifyOtp({
             email,
             token,
             type: 'recovery',
           });
 
-          if (!error && data.session?.access_token) {
+          if (!verifyError && data.session?.access_token) {
             setToken(data.session.access_token);
             setStatus(null);
-          } else if (error) {
-            console.error("Token verification failed:", error);
+          } else if (verifyError) {
+            console.error("Token verification failed:", verifyError);
             setStatus("Reset link is invalid or has expired. Please request a new one.");
           }
           setVerifying(false);

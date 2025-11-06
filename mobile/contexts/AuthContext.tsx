@@ -122,14 +122,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Logging out user...');
       await authService.signOut();
+      console.log('✅ Logout successful - all tokens cleared');
     } catch (error) {
-      console.error('Error during logout:', error);
+      console.error('❌ Error during logout:', error);
     } finally {
       // Clear all local auth data
       setUser(null);
       setError(null);
       setLoading(false);
+      console.log('✅ User state cleared');
     }
   };
 
@@ -203,8 +206,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return; // 直接结束检查流程
         }
 
+        // 🔥 确保在获取当前用户前，先检查本地是否有 token
+        const hasToken = await apiClient.getCurrentToken();
+        console.log('🔍 Auth check - has stored token:', !!hasToken);
+        
+        if (!hasToken) {
+          console.log('🔍 Auth check - no token found, skipping user fetch');
+          setUser(null);
+          return;
+        }
+
+        console.log('🔍 Auth check - fetching current user...');
         const baseUser = await authService.getCurrentUser();
+        
         if (baseUser) {
+          console.log('🔍 Auth check - user found:', baseUser.username);
           try {
             const status = await premiumService.getStatus();
             setUser({ ...(baseUser as any), isPremium: status.isPremium, premiumUntil: status.premiumUntil });
@@ -212,11 +228,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUser(baseUser);
           }
         } else {
+          console.log('🔍 Auth check - no user returned, clearing state');
           setUser(null);
         }
       } catch (error) {
-        console.error('Error checking auth status:', error);
+        // 🔥 只在有 token 但获取用户失败时才记录错误
+        // 正常的 logout 后重启不应该显示错误
+        console.log('🔍 Auth check - failed to get user (expected after logout)');
         setUser(null);
+        // 不设置 error，避免在 logout 后重启时显示错误信息
       } finally {
         setLoading(false);
       }

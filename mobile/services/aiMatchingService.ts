@@ -288,5 +288,9 @@ export async function getQuickSuggestions(
     bottoms: fullSuggestions.bottoms.slice(0, 10),
     shoes: fullSuggestions.shoes.slice(0, 10),
     accessories: fullSuggestions.accessories.slice(0, 10),
+    topScores: fullSuggestions.topScores,
+    bottomScores: fullSuggestions.bottomScores,
+    shoeScores: fullSuggestions.shoeScores,
+    accessoryScores: fullSuggestions.accessoryScores,
   };
 }
