@@ -146,6 +146,7 @@ export default function InboxScreen() {
       console.log("🔍 Loading conversations from API...");
       
       const apiConversations = await messagesService.getConversations();
+      console.log("🔍 Conversations payload:", JSON.stringify(apiConversations.slice(0, 5), null, 2));
       const sortedConversations = [...apiConversations].sort((a, b) => {
         const aSource = a.last_message_at ?? a.time;
         const bSource = b.last_message_at ?? b.time;
