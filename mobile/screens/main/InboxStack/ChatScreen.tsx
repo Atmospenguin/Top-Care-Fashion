@@ -565,15 +565,18 @@ export default function ChatScreen() {
         // 订单聊天：在开头添加商品卡片和系统消息
         console.log("🔍 订单聊天，添加商品卡片和系统消息");
         
-        // 优先使用 route.params.order，如果没有则使用 conversation.order
-        const rawOrderData = order || conversation?.order;
-        console.log("🔍 Order 数据来源:", order ? "route.params" : "conversation");
+        // 优先使用最新加载的数据（conversationData.order），再回退到 state 或 route params
+        const latestConversationOrder = conversationData?.order ?? null;
+        const hasConversationOrder = Boolean(latestConversationOrder);
+        const rawOrderData = latestConversationOrder ?? conversation?.order ?? order;
+        console.log("🔍 Order 数据来源:", hasConversationOrder ? "conversation" : order ? "route.params" : "conversation" );
+        
         console.log("🔍 Order ID:", rawOrderData?.id, "Status:", rawOrderData?.status);
         
         if (rawOrderData) {
           const orderData = normalizeOrder(rawOrderData);
           // 🔥 判断当前用户是否为卖家
-          const participantId = (conversation?.conversation as any)?.participant_id;
+          const participantId = (conversationData?.conversation as any)?.participant_id ?? (conversation?.conversation as any)?.participant_id;
           const isSeller = Number(participantId) === Number(user?.id); // ✅ 使用 Number() 转换
           
           const orderCard: ChatItem = {

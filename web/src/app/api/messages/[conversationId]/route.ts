@@ -306,6 +306,16 @@ export async function GET(
         console.log("🔍 Found existing order:", existingOrder?.id, "Status:", existingOrder?.status);
         console.log("🔍 Order buyer:", existingOrder?.buyer?.username, "seller:", existingOrder?.seller?.username);
         console.log("🔍 Conversation initiator:", conversation.initiator.username, "participant:", conversation.participant.username);
+
+        if (existingOrder) {
+          const matchesInitiatorBuyer = existingOrder.buyer_id === conversation.initiator_id && existingOrder.seller_id === conversation.participant_id;
+          const matchesInitiatorSeller = existingOrder.buyer_id === conversation.participant_id && existingOrder.seller_id === conversation.initiator_id;
+
+          if (!matchesInitiatorBuyer && !matchesInitiatorSeller) {
+            console.log("⚠️ Existing order does not match conversation participants, ignoring order", existingOrder.id);
+            existingOrder = null;
+          }
+        }
       } catch (error) {
         console.error("❌ Error querying order:", error);
       }
@@ -373,11 +383,11 @@ export async function GET(
         }
       },
       messages: orderCard ? [orderCard, ...formattedMessages] : formattedMessages,
-      order: conversation.listing ? {
-        id: existingOrder ? existingOrder.id.toString() : conversation.listing.id.toString(),
-        listing_id: existingOrder ? existingOrder.listing_id : conversation.listing.id, // 🔥 添加 listing_id
-        buyer_id: existingOrder ? existingOrder.buyer_id : buyer.id,
-        seller_id: existingOrder ? existingOrder.seller_id : seller.id,
+      order: conversation.listing ? existingOrder ? {
+        id: existingOrder.id.toString(),
+        listing_id: existingOrder.listing_id,
+        buyer_id: existingOrder.buyer_id,
+        seller_id: existingOrder.seller_id,
         product: {
           title: conversation.listing.name,
           price: Number(conversation.listing.price),
@@ -413,7 +423,7 @@ export async function GET(
           avatar: existingOrder ? existingOrder.buyer.avatar_url : buyer.avatar_url
         },
         status: existingOrder ? existingOrder.status : "Inquiry"
-      } : null
+      } : null : null
     });
 
   } catch (error) {
