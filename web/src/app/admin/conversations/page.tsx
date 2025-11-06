@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import ConversationTable, { type Conversation } from "@/components/admin/ConversationTable";
 import Link from "next/link";
+import SearchBar from "@/components/admin/SearchBar";
+import Pagination from "@/components/admin/Pagination";
 
 type FilterType = "all" | "ORDER" | "SUPPORT" | "GENERAL";
 type StatusFilter = "all" | "ACTIVE" | "ARCHIVED" | "DELETED";
@@ -69,11 +71,6 @@ export default function ConversationsPage() {
   useEffect(() => {
     load();
   }, [currentPage, filter, statusFilter, searchTerm]);
-
-  const handleSearch = (value: string) => {
-    setSearchTerm(value);
-    setCurrentPage(1); // Reset to first page on search
-  };
 
   const handleFilterChange = (value: FilterType) => {
     setFilter(value);
@@ -144,17 +141,26 @@ export default function ConversationsPage() {
         </div>
       )}
 
+      {/* Pagination - Top */}
+      {!loading && pagination.totalPages > 1 && (
+        <Pagination
+          pagination={pagination}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+        />
+      )}
+
       {/* Search and Filter Controls */}
       <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 rounded-lg border">
-        <div className="flex-1">
-          <input
-            type="text"
-            placeholder="Search by username..."
-            value={searchTerm}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+        <SearchBar
+          value={searchTerm}
+          onChange={(value) => {
+            setSearchTerm(value);
+            setCurrentPage(1);
+          }}
+          placeholder="Search by username..."
+          className="flex-1"
+        />
         <div className="flex flex-wrap gap-2">
           <select
             value={filter}
@@ -201,29 +207,13 @@ export default function ConversationsPage() {
         emptyMessage="No conversations found. Conversations will appear here once users start chatting."
       />
 
-      {/* Pagination */}
+      {/* Pagination - Bottom */}
       {!loading && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white border rounded-lg p-4">
-          <div className="text-sm text-gray-600">
-            Showing page {pagination.page} of {pagination.totalPages}
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
-              disabled={currentPage === pagination.totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        </div>
+        <Pagination
+          pagination={pagination}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+        />
       )}
     </div>
   );
