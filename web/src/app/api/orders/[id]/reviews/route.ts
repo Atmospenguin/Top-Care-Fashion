@@ -227,6 +227,8 @@ export async function POST(
             select: {
               id: true,
               name: true,
+              image_url: true,
+              image_urls: true,
             }
           },
           buyer: {
@@ -260,12 +262,14 @@ export async function POST(
           },
         });
 
-        // 🔥 根据评论者身份生成不同的通知标题
-        const isBuyerReviewing = orderWithListing.buyer.id === currentUser.id;
-        const notificationTitle = isBuyerReviewing
-          ? `@${currentUser.username} left a review for you`
-          : `@${currentUser.username} left a review for you`;
+        // 🔥 通知标题
+        const notificationTitle = `@${currentUser.username} left a review for you`;
         const notificationMessage = `${orderWithListing.listing.name} - ${rating} star${rating > 1 ? 's' : ''}`;
+
+        // 🔥 从 order 对象中获取评论者的头像（确保有 avatar_url 字段）
+        const reviewerAvatar = order.buyer_id === currentUser.id 
+          ? order.buyer.avatar_url 
+          : order.seller.avatar_url;
 
         await prisma.notifications.create({
           data: {
@@ -273,7 +277,7 @@ export async function POST(
             type: 'REVIEW',
             title: notificationTitle,
             message: notificationMessage,
-            image_url: (currentUser as any).avatar_url || null, // 显示评论者头像
+            image_url: reviewerAvatar || null, // 🔥 显示评论者（对方）的头像
             order_id: orderId.toString(),
             listing_id: orderWithListing.listing.id,
             related_user_id: currentUser.id, // 评论者ID
