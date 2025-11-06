@@ -508,52 +508,148 @@ export default function ChatScreen() {
       console.log("🔍 Conversation payload:", {
         conversation: conversationData?.conversation,
         order: conversationData?.order,
+        listing: (conversationData as any)?.listing,
         messagesCount: conversationData?.messages?.length,
       });
       
+      const conversationInitiatorId = Number(conversationData?.conversation?.initiator_id ?? NaN);
+      const conversationParticipantId = Number(conversationData?.conversation?.participant_id ?? NaN);
+      const otherUserInfo = conversationData?.conversation?.otherUser;
+      const currentUserId = Number(user?.id ?? NaN);
+      const currentUserAvatar = (user as any)?.avatar_url ?? (user as any)?.avatar ?? undefined;
+      const isCurrentSeller = Number.isFinite(conversationParticipantId) && conversationParticipantId === currentUserId;
+
+      const sanitizeOrderForConversation = (rawOrder: any | null): { order: Order | null; matches: boolean } => {
+        if (!rawOrder) {
+          return { order: null, matches: false };
+        }
+
+        const normalized = normalizeOrder(rawOrder);
+        const buyerIdRaw = normalized?.buyer_id;
+        const sellerIdRaw = normalized?.seller_id;
+        const buyerIdNum = buyerIdRaw !== undefined ? Number(buyerIdRaw) : NaN;
+        const sellerIdNum = sellerIdRaw !== undefined ? Number(sellerIdRaw) : NaN;
+        const hasConversationParticipants =
+          Number.isFinite(conversationInitiatorId) && Number.isFinite(conversationParticipantId);
+        const matches =
+          hasConversationParticipants &&
+          Number.isFinite(buyerIdNum) &&
+          Number.isFinite(sellerIdNum) &&
+          ((buyerIdNum === conversationInitiatorId && sellerIdNum === conversationParticipantId) ||
+            (buyerIdNum === conversationParticipantId && sellerIdNum === conversationInitiatorId));
+
+        if (matches) {
+          return { order: normalized, matches: true };
+        }
+
+        console.log("⚠️ sanitizeOrderForConversation: order does not match participants", {
+          orderId: normalized.id,
+          buyerId: buyerIdNum,
+          sellerId: sellerIdNum,
+          conversationInitiatorId,
+          conversationParticipantId,
+        });
+
+        const sanitized: Order = {
+          ...normalized,
+          status: "Inquiry",
+        };
+
+        const fallbackBuyerId = isCurrentSeller ? otherUserInfo?.id : currentUserId;
+        const fallbackSellerId = isCurrentSeller ? currentUserId : otherUserInfo?.id;
+
+        if (fallbackBuyerId !== undefined && fallbackBuyerId !== null && !Number.isNaN(Number(fallbackBuyerId))) {
+          sanitized.buyer_id = fallbackBuyerId;
+          sanitized.buyer = {
+            name: isCurrentSeller
+              ? otherUserInfo?.username ?? sanitized.buyer?.name ?? "Buyer"
+              : user?.username ?? sanitized.buyer?.name ?? "Buyer",
+            avatar: isCurrentSeller
+              ? otherUserInfo?.avatar ?? sanitized.buyer?.avatar ?? undefined
+              : currentUserAvatar ?? sanitized.buyer?.avatar ?? undefined,
+            id: fallbackBuyerId,
+            user_id: fallbackBuyerId,
+          };
+        } else if (!sanitized.buyer) {
+          sanitized.buyer = {
+            name: sanitized.buyer?.name ?? "Buyer",
+            avatar: sanitized.buyer?.avatar,
+          } as any;
+        }
+
+        if (fallbackSellerId !== undefined && fallbackSellerId !== null && !Number.isNaN(Number(fallbackSellerId))) {
+          sanitized.seller_id = fallbackSellerId;
+          sanitized.seller = {
+            name: isCurrentSeller
+              ? user?.username ?? sanitized.seller.name ?? "Seller"
+              : otherUserInfo?.username ?? sanitized.seller.name ?? "Seller",
+            avatar: isCurrentSeller
+              ? currentUserAvatar ?? sanitized.seller.avatar ?? undefined
+              : otherUserInfo?.avatar ?? sanitized.seller.avatar ?? undefined,
+            id: fallbackSellerId,
+            user_id: fallbackSellerId,
+          } as any;
+        } else if (!sanitized.seller) {
+          sanitized.seller = {
+            name: sanitized.seller?.name ?? "Seller",
+            avatar: sanitized.seller?.avatar,
+          } as any;
+        }
+
+        return { order: sanitized, matches: false };
+      };
+
       // 🔥 安全地输出日志，避免包含换行符导致崩溃
       console.log("🔍 API 返回的消息数量:", conversationData.messages?.length || 0);
       console.log("🔍 Conversation ID:", conversationData.conversation?.id);
       console.log("🔍 Other User (对话对象):", conversationData.conversation?.otherUser?.username);
-      
-      // 转换 API 数据为 ChatItem 格式
-      const apiItems: ChatItem[] = conversationData.messages.map((msg: Message) => {
-        if (msg.type === "msg") {
-          return {
-            id: msg.id,
-            type: "msg",
-            sender: msg.sender || "other",
-            text: msg.text,
-            time: msg.time,
-            senderInfo: msg.senderInfo
-          };
-        } else if (msg.type === "system") {
-          return {
-            id: msg.id,
-            type: "system",
-            text: msg.text,
-            time: msg.time,
-            sentByUser: msg.sentByUser, // 🔥 添加 sentByUser 字段
-            senderInfo: msg.senderInfo
-          };
-        } else if (msg.type === "orderCard" && msg.order) {
-          return {
-            id: msg.id,
-            type: "orderCard",
-            order: normalizeOrder(msg.order)
-          };
-        } else {
-          // Fallback for unknown types - 确保所有消息都显示
-          return {
-            id: msg.id,
-            type: "msg",
-            sender: msg.sender || "other",
-            text: msg.text,
-            time: msg.time,
-            senderInfo: msg.senderInfo
-          };
-        }
-      });
+ 
+      let backendHasValidOrderCard = false;
+      const apiItems = (conversationData.messages || [])
+        .map((msg) => {
+          if (msg.type === "msg") {
+            return {
+              id: msg.id,
+              type: "msg",
+              sender: msg.sender,
+              text: msg.text,
+              time: msg.time,
+              senderInfo: msg.senderInfo
+            };
+          } else if (msg.type === "system") {
+            return {
+              id: msg.id,
+              type: "system",
+              text: msg.text,
+              time: msg.time,
+              sentByUser: msg.sentByUser, // 🔥 添加 sentByUser 字段
+              senderInfo: msg.senderInfo
+            };
+          } else if (msg.type === "orderCard" && msg.order) {
+            const { order: sanitizedOrder } = sanitizeOrderForConversation(msg.order);
+            if (!sanitizedOrder) {
+              console.log("⚠️ Dropping backend order card due to missing sanitized order", msg.id);
+              return null;
+            }
+            backendHasValidOrderCard = true;
+            return {
+              id: msg.id,
+              type: "orderCard",
+              order: sanitizedOrder
+            };
+          } else {
+            // Fallback for unknown types - 确保所有消息都显示
+            return {
+              id: msg.id,
+              type: "msg",
+              sender: msg.sender || "other",
+              text: msg.text,
+              time: msg.time,
+              senderInfo: msg.senderInfo
+            };
+          }
+        })
+        .filter((item): item is ChatItem => Boolean(item));
 
       // 🔥 安全地输出日志
       console.log("🔍 转换后的消息数量:", apiItems.length);
@@ -571,63 +667,21 @@ export default function ChatScreen() {
         console.log("🔍 订单聊天，添加商品卡片和系统消息");
         
         // 优先使用最新加载的数据（conversationData.order），再回退到 state 或 route params
-        const latestConversationOrder = conversationData?.order ?? null;
+        const { order: sanitizedConversationOrder } = sanitizeOrderForConversation(conversationData?.order ?? null);
+        const { order: sanitizedRouteOrder } = sanitizeOrderForConversation(order ?? null);
+        const latestConversationOrder = sanitizedConversationOrder;
         const hasConversationOrder = Boolean(latestConversationOrder);
-        const rawOrderData = latestConversationOrder ?? (conversationId ? null : order);
-        console.log("🔍 Order 数据来源:", hasConversationOrder ? "conversation" : order ? "route.params" : "conversation" );
+        const rawOrderData = latestConversationOrder ?? sanitizedRouteOrder ?? null;
+        console.log("🔍 Order 数据来源:", hasConversationOrder ? "conversation" : sanitizedRouteOrder ? "route.params" : "conversation");
         
         console.log("🔍 Order ID:", rawOrderData?.id, "Status:", rawOrderData?.status);
         
         if (rawOrderData) {
           const orderData = normalizeOrder(rawOrderData);
 
-          const conversationInitiatorId = Number((conversationData?.conversation as any)?.initiator_id ?? (conversation?.conversation as any)?.initiator_id ?? NaN);
-          const conversationParticipantId = Number((conversationData?.conversation as any)?.participant_id ?? (conversation?.conversation as any)?.participant_id ?? NaN);
-          const currentUserId = Number(user?.id ?? NaN);
-          const buyerId = orderData.buyer_id !== undefined ? Number(orderData.buyer_id) : NaN;
-          const sellerId = orderData.seller_id !== undefined ? Number(orderData.seller_id) : NaN;
-          const matchesParticipants =
-            Number.isFinite(buyerId) &&
-            Number.isFinite(sellerId) &&
-            Number.isFinite(conversationInitiatorId) &&
-            Number.isFinite(conversationParticipantId) &&
-            ((buyerId === conversationInitiatorId && sellerId === conversationParticipantId) ||
-              (buyerId === conversationParticipantId && sellerId === conversationInitiatorId));
+          const participantId = conversationParticipantId ?? (conversation?.conversation as any)?.participant_id;
+          const isSeller = Number(participantId) === Number(user?.id); // ✅ 使用 Number() 转换
 
-          const participantId = conversationParticipantId;
-          const isSeller = Number.isFinite(participantId) && Number(participantId) === currentUserId;
-
-          if (!matchesParticipants) {
-            console.log("⚠️ Order participants do not match conversation, forcing Inquiry view");
-            const otherUser = conversationData?.conversation?.otherUser ?? conversation?.conversation?.otherUser;
-            const fallbackBuyerId = isSeller ? otherUser?.id : currentUserId;
-            const fallbackSellerId = isSeller ? currentUserId : otherUser?.id;
-
-            orderData.status = "Inquiry";
-            orderData.buyer_id = fallbackBuyerId;
-            orderData.seller_id = fallbackSellerId;
-            orderData.buyer = {
-              name: isSeller
-                ? otherUser?.username ?? orderData.buyer?.name ?? "Buyer"
-                : user?.username ?? orderData.buyer?.name ?? "Buyer",
-              avatar: isSeller
-                ? otherUser?.avatar ?? orderData.buyer?.avatar
-                : user?.avatar_url ?? (orderData.buyer as any)?.avatar,
-              id: fallbackBuyerId,
-              user_id: fallbackBuyerId,
-            };
-            orderData.seller = {
-              name: isSeller
-                ? user?.username ?? orderData.seller.name
-                : otherUser?.username ?? orderData.seller.name,
-              avatar: isSeller
-                ? user?.avatar_url ?? orderData.seller.avatar
-                : otherUser?.avatar ?? orderData.seller.avatar,
-              id: fallbackSellerId,
-              user_id: fallbackSellerId,
-            };
-          }
-   
           const orderCard: ChatItem = {
             id: "order-card-" + orderData.id,
             type: "orderCard",
@@ -637,7 +691,7 @@ export default function ChatScreen() {
           console.log("🔍 创建的商品卡片 ID:", orderCard.id);
    
           // 检查是否已经有商品卡片，避免重复
-          const hasOrderCard = apiItems.some(item => item.type === "orderCard");
+          const hasOrderCard = backendHasValidOrderCard || apiItems.some(item => item.type === "orderCard");
           if (!hasOrderCard) {
             // ✅ 只添加商品卡片，系统消息由后端生成（已在 apiItems 中）
             finalItems = [orderCard, ...apiItems];
@@ -645,6 +699,8 @@ export default function ChatScreen() {
           } else {
             console.log("🔍 商品卡片已存在，不重复添加");
           }
+
+          setLastOrderStatus(orderData.status);
         } else {
           console.log("⚠️ 订单聊天但没有找到商品数据");
         }
