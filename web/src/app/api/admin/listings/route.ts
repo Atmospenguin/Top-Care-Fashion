@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, parseJson, toNumber } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
 import { ConditionType, OrderStatus } from "@prisma/client";
 
 type ImageList = string[];
@@ -42,6 +43,14 @@ function normalizeConditionIn(value: unknown): ConditionType {
       return ConditionType.GOOD;
   }
 }
+
+type SortOption =
+  | "date-desc"
+  | "date-asc"
+  | "price-desc"
+  | "price-asc"
+  | "name-asc"
+  | "name-desc";
 
 function mapOrderStatus(value: OrderStatus | null | undefined): "pending" | "paid" | "shipped" | "completed" | "cancelled" | null {
   if (!value) return null;
@@ -115,12 +124,73 @@ export async function GET(request: NextRequest) {
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { searchParams } = new URL(request.url);
-  const page = parseInt(searchParams.get("page") || "1");
-  const limit = parseInt(searchParams.get("limit") || "50");
+  const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
+  const limit = Math.max(parseInt(searchParams.get("limit") || "50", 10), 1);
   const skip = (page - 1) * limit;
+  const sortParam = (searchParams.get("sort") as SortOption | null) ?? "date-desc";
+  const statusParam = searchParams.get("status");
+  const categoryParam = searchParams.get("category");
+  const searchParam = searchParams.get("search");
+
+  const where: Prisma.listingsWhereInput = {};
+
+  if (statusParam === "listed") {
+    where.listed = true;
+  } else if (statusParam === "unlisted") {
+    where.listed = false;
+  } else if (statusParam === "sold") {
+    where.sold = true;
+  }
+
+  if (categoryParam && categoryParam !== "all") {
+    const categoryId = Number(categoryParam);
+    if (!Number.isNaN(categoryId)) {
+      where.category_id = categoryId;
+    }
+  }
+
+  const trimmedSearch = searchParam?.trim();
+  if (trimmedSearch) {
+    const searchConditions: Prisma.listingsWhereInput[] = [
+      { name: { contains: trimmedSearch, mode: "insensitive" } },
+      { description: { contains: trimmedSearch, mode: "insensitive" } },
+      { brand: { contains: trimmedSearch, mode: "insensitive" } },
+      { seller: { username: { contains: trimmedSearch, mode: "insensitive" } } },
+    ];
+
+    // Attempt to match numeric IDs directly
+    const numericId = Number(trimmedSearch);
+    if (!Number.isNaN(numericId)) {
+      searchConditions.push({ id: numericId });
+    }
+
+    // For tag-based searches, try to match exact tag entries
+    searchConditions.push({ tags: { array_contains: [trimmedSearch] } });
+
+    where.OR = searchConditions;
+  }
+
+  const orderBy: Prisma.listingsOrderByWithRelationInput = (() => {
+    switch (sortParam) {
+      case "price-desc":
+        return { price: "desc" };
+      case "price-asc":
+        return { price: "asc" };
+      case "name-asc":
+        return { name: "asc" };
+      case "name-desc":
+        return { name: "desc" };
+      case "date-asc":
+        return { created_at: "asc" };
+      case "date-desc":
+      default:
+        return { created_at: "desc" };
+    }
+  })();
 
   const [dbListings, totalCount] = await Promise.all([
     prisma.listings.findMany({
+      where,
       skip,
       take: limit,
       include: {
@@ -140,11 +210,9 @@ export async function GET(request: NextRequest) {
           take: 1,
         },
       },
-      orderBy: {
-        id: "asc",
-      },
+      orderBy,
     }),
-    prisma.listings.count(),
+    prisma.listings.count({ where }),
   ]);
 
   const listings = dbListings.map(mapListingRow);

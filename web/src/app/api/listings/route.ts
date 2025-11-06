@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
 
 export async function GET(req: Request) {
   try {
@@ -7,8 +8,12 @@ export async function GET(req: Request) {
     const category = searchParams.get("category");
     const search = searchParams.get("search");
     const genderParam = searchParams.get("gender");
-    const limit = parseInt(searchParams.get("limit") || "20");
-    const offset = parseInt(searchParams.get("offset") || "0");
+    const limit = Math.max(parseInt(searchParams.get("limit") || "20", 10), 1);
+    const pageParam = searchParams.get("page");
+    const explicitOffset = parseInt(searchParams.get("offset") || "0", 10);
+    const page = pageParam ? Math.max(parseInt(pageParam, 10), 1) : null;
+    const offset = page ? (page - 1) * limit : Math.max(explicitOffset, 0);
+    const sortParam = searchParams.get("sort");
 
     // 构建查询条件
     const where: any = {
@@ -55,6 +60,24 @@ export async function GET(req: Request) {
       }
     }
 
+    const orderBy: Prisma.listingsOrderByWithRelationInput = (() => {
+      switch (sortParam) {
+        case "price-asc":
+          return { price: "asc" };
+        case "price-desc":
+          return { price: "desc" };
+        case "name-asc":
+          return { name: "asc" };
+        case "name-desc":
+          return { name: "desc" };
+        case "date-asc":
+          return { created_at: "asc" };
+        case "date-desc":
+        default:
+          return { created_at: "desc" };
+      }
+    })();
+
   // 获取总记录数（用于分页）
   const totalCount = await prisma.listings.count({
     where,
@@ -82,7 +105,7 @@ export async function GET(req: Request) {
           },
         },
       },
-      orderBy: { created_at: "desc" },
+      orderBy,
       take: limit,
       skip: offset,
     });
@@ -245,6 +268,8 @@ export async function GET(req: Request) {
         items: formattedListings,
         total: totalCount, // 真实的总记录数
         hasMore: offset + formattedListings.length < totalCount, // 精确判断是否有更多数据
+        page: page ?? undefined,
+        limit,
       },
     });
 
