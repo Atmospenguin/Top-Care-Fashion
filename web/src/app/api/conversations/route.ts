@@ -109,6 +109,15 @@ export async function GET(request: NextRequest) {
           // 🔥 检查是否需要显示"Leave Review"消息
           let displayMessage = lastMessage.content;
           let displayTime = formatTime(lastMessage.created_at);
+          console.log("🔍 Inbox conversation", {
+            conversationId: conv.id,
+            lastMessageType: lastMessage.message_type,
+            lastMessageContent: lastMessage.content,
+            lastMessageSender: lastMessage.sender_id,
+            initiatorId: conv.initiator_id,
+            participantId: conv.participant_id,
+            listingId: conv.listing?.id,
+          });
           
           // 🔥 重要：检查 lastMessage 是否是系统消息
           // 如果是用户发送的真实消息（TEXT），就不要覆盖
