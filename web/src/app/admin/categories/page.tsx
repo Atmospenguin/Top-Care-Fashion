@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ListingCategory } from "@/types/admin";
 import Link from "next/link";
+import SearchBar from "@/components/admin/SearchBar";
 
 interface ExtendedCategory extends ListingCategory {
   editing?: boolean;
@@ -313,23 +314,11 @@ export default function CategoriesPage() {
 
       {/* Search and Filter Controls */}
       <div className="bg-white p-4 rounded-lg border space-y-3">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Search categories by name, description, or keywords..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm("")}
-              className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Clear
-            </button>
-          )}
-        </div>
+        <SearchBar
+          value={searchTerm}
+          onChange={setSearchTerm}
+          placeholder="Search categories by name, description, or keywords..."
+        />
 
         <div className="flex gap-3 flex-wrap">
           {/* Status Filter */}

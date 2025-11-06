@@ -5,6 +5,8 @@ import { useAuth } from "@/components/AuthContext";
 import type { Listing } from "@/types/admin";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import SearchBar from "@/components/admin/SearchBar";
+import Pagination from "@/components/admin/Pagination";
 
 type EditingListing = Listing;
 
@@ -301,20 +303,26 @@ export default function ListingManagementPage() {
         </div>
       </div>
 
+      {/* Pagination - Top */}
+      {!loading && pagination.totalPages > 1 && (
+        <Pagination
+          pagination={pagination}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+        />
+      )}
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
-          <input
-            type="text"
-            placeholder="Search listings..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full px-3 py-2 border rounded-md"
-          />
-        </div>
+        <SearchBar
+          value={searchTerm}
+          onChange={(value) => {
+            setSearchTerm(value);
+            setCurrentPage(1);
+          }}
+          placeholder="Search listings..."
+          className="flex-1"
+        />
         <div className="flex gap-2 flex-wrap">
           <select
             value={filter}
@@ -398,29 +406,13 @@ export default function ListingManagementPage() {
         </div>
       )}
 
-      {/* Pagination */}
+      {/* Pagination - Bottom */}
       {!loading && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white border rounded-lg p-4">
-          <div className="text-sm text-gray-600">
-            Showing page {pagination.page} of {pagination.totalPages} ({pagination.totalCount} total listings)
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
-              disabled={currentPage === pagination.totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        </div>
+        <Pagination
+          pagination={pagination}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+        />
       )}
 
       {/* Creation disabled in management UI */}

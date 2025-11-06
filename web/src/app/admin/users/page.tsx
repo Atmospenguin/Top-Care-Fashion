@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { UserAccount } from "@/types/admin";
+import SearchBar from "@/components/admin/SearchBar";
+import Pagination from "@/components/admin/Pagination";
 
 interface ExtendedUser extends UserAccount {
   editing?: boolean;
@@ -233,20 +235,26 @@ export default function UsersPage() {
         </div>
       </div>
 
+      {/* Pagination - Top */}
+      {!loading && pagination.totalPages > 1 && (
+        <Pagination
+          pagination={pagination}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+        />
+      )}
+
       {/* Search and Filter Controls */}
       <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 rounded-lg border">
-        <div className="flex-1">
-          <input
-            type="text"
-            placeholder="Search users by name, email, or role..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+        <SearchBar
+          value={searchTerm}
+          onChange={(value) => {
+            setSearchTerm(value);
+            setCurrentPage(1);
+          }}
+          placeholder="Search users by name, email, or role..."
+          className="flex-1"
+        />
         <div className="flex flex-wrap gap-2">
           <select
             value={filter}
@@ -474,29 +482,13 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Pagination */}
+      {/* Pagination - Bottom */}
       {!loading && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white border rounded-lg p-4">
-          <div className="text-sm text-gray-600">
-            Showing page {pagination.page} of {pagination.totalPages} ({pagination.totalCount} total users)
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
-              disabled={currentPage === pagination.totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        </div>
+        <Pagination
+          pagination={pagination}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+        />
       )}
 
       {/* User Details Modal */}

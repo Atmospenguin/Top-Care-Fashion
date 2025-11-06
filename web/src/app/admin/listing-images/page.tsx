@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import SearchBar from "@/components/admin/SearchBar";
 
 interface FileInfo {
   name: string;
@@ -271,15 +272,12 @@ export default function ListingImagesPage() {
       {/* Filter and Search */}
       <div className="bg-white border rounded-lg p-4">
         <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <input
-              type="text"
-              placeholder="Search files by name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <SearchBar
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Search files by name..."
+            className="flex-1"
+          />
           <div className="flex gap-2">
             <button
               onClick={() => setShowOrphansOnly(false)}
