@@ -2,7 +2,6 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/components/AuthContext";
-import type { Gender } from "@/components/AuthContext";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -10,8 +9,6 @@ export default function RegisterPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [dob, setDob] = useState("");
-  const [gender, setGender] = useState<Gender | "">("");
   const [status, setStatus] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -31,26 +28,36 @@ export default function RegisterPage() {
     return;
   }
 
+    // Password validation
+    if (password.length < 6) {
+      setStatus("Password must be at least 6 characters long");
+      return;
+    }
+
     try {
       if (USE_BACKEND) {
         // posting registration request to dingcheng's backend
         const res = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, email, password, dob, gender }),
+          body: JSON.stringify({ username, email, password }),
         });
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Register failed");
 
-        setStatus("Success! Redirecting...");
-        router.push("/");
+        setStatus("Success! Please check your email to verify your account.");
+        setTimeout(() => {
+          router.push(`/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}`);
+        }, 1500);
       } else {
 
         //  use Supabase code(false)
-        await signUp({ username, email, password, dob, gender: gender || undefined });
-        setStatus("Success! Redirecting...");
-        router.push("/");
+        await signUp({ username, email, password });
+        setStatus("Success! Please check your email to verify your account.");
+        setTimeout(() => {
+          router.push(`/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}`);
+        }, 1500);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong";
@@ -91,29 +98,10 @@ export default function RegisterPage() {
             className="mt-1 w-full border border-black/10 rounded-md px-3 py-2 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-color)]/30 focus:border-[var(--brand-color)]"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            minLength={6}
             required
           />
-        </label>
-        <label className="text-sm">
-          Date of Birth
-          <input
-            type="date"
-            className="mt-1 w-full border border-black/10 rounded-md px-3 py-2 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-color)]/30 focus:border-[var(--brand-color)]"
-            value={dob}
-            onChange={(e) => setDob(e.target.value)}
-          />
-        </label>
-        <label className="text-sm">
-          Gender
-          <select
-            className="mt-1 w-full border border-black/10 rounded-md px-3 py-2 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-color)]/30 focus:border-[var(--brand-color)]"
-            value={gender}
-            onChange={(e) => setGender(e.target.value as Gender | "")}
-          >
-            <option value="">Select gender</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-          </select>
+          <span className="text-xs text-gray-500 mt-1 block">Minimum 6 characters</span>
         </label>
         <button
           type="submit"
