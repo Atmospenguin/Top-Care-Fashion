@@ -12,6 +12,7 @@ const SUPPORT_USER_ID = Number(process.env.SUPPORT_USER_ID) || 59;
 
 // GET /api/conversations - 获取当前用户的所有对话
 export async function GET(request: NextRequest) {
+  console.log("🔥🔥🔥 CONVERSATIONS API CALLED - VERSION: v3_final_text_priority - TIMESTAMP:", new Date().toISOString());
   try {
     const sessionUser = await getSessionUser(request);
     const dbUser = sessionUser
@@ -232,10 +233,21 @@ export async function GET(request: NextRequest) {
           console.log("🔍 Conversation preview", {
             conversationId: conv.id,
             previewMessage,
+            displayMessage,
             rawMessage: lastMessage.content,
             messageType: lastMessage.message_type,
             lastMessageAt: conv.last_message_at,
+            effectiveMessageContent: effectiveMessage?.content,
           });
+          
+          // 🔥 CRITICAL DEBUG: Check if previewMessage matches displayMessage
+          if (previewMessage !== displayMessage) {
+            console.error("⚠️ MISMATCH: previewMessage !== displayMessage", {
+              conversationId: conv.id,
+              previewMessage,
+              displayMessage,
+            });
+          }
 
           return {
             id: conv.id.toString(),
