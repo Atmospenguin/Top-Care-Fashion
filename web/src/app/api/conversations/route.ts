@@ -79,16 +79,13 @@ export async function GET(request: NextRequest) {
         .map(async (conv) => {
           const otherUser = conv.initiator_id === dbUser.id ? conv.participant : conv.initiator;
           const lastMessage = conv.messages[0];
-          let lastTextMessage = null;
-          if (lastMessage?.message_type === "SYSTEM") {
-            lastTextMessage = await prisma.messages.findFirst({
-              where: {
-                conversation_id: conv.id,
-                message_type: "TEXT"
-              },
-              orderBy: { created_at: "desc" }
-            });
-          }
+          const lastTextMessage = await prisma.messages.findFirst({
+            where: {
+              conversation_id: conv.id,
+              message_type: "TEXT"
+            },
+            orderBy: { created_at: "desc" }
+          });
           
           // 确定对话类型
           let kind = "general";
@@ -117,8 +114,10 @@ export async function GET(request: NextRequest) {
           }
 
           // 🔥 检查是否需要显示"Leave Review"消息
-          let displayMessage = lastMessage.content;
-          let displayTime = formatTime(lastMessage.created_at);
+          const useTextMessage = lastTextMessage && (!lastMessage || lastTextMessage.created_at > lastMessage.created_at || lastMessage.message_type === "SYSTEM");
+          const effectiveMessage = useTextMessage ? lastTextMessage : lastMessage;
+          let displayMessage = effectiveMessage?.content ?? "";
+          let displayTime = effectiveMessage ? formatTime(effectiveMessage.created_at) : "";
           console.log("🔍 Inbox conversation", {
             conversationId: conv.id,
             lastMessageType: lastMessage.message_type,
@@ -218,9 +217,7 @@ export async function GET(request: NextRequest) {
             }
           }
 
-          const previewMessage = lastMessage.message_type === "SYSTEM"
-            ? lastTextMessage?.content ?? displayMessage
-            : (lastMessage.content ?? "");
+          const previewMessage = displayMessage;
           console.log("🔍 Conversation preview", {
             conversationId: conv.id,
             previewMessage,
