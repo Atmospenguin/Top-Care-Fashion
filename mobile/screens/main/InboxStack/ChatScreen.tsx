@@ -575,18 +575,62 @@ export default function ChatScreen() {
         
         if (rawOrderData) {
           const orderData = normalizeOrder(rawOrderData);
-          // 🔥 判断当前用户是否为卖家
-          const participantId = (conversationData?.conversation as any)?.participant_id ?? (conversation?.conversation as any)?.participant_id;
-          const isSeller = Number(participantId) === Number(user?.id); // ✅ 使用 Number() 转换
-          
+
+          const conversationInitiatorId = Number((conversationData?.conversation as any)?.initiator_id ?? (conversation?.conversation as any)?.initiator_id ?? NaN);
+          const conversationParticipantId = Number((conversationData?.conversation as any)?.participant_id ?? (conversation?.conversation as any)?.participant_id ?? NaN);
+          const currentUserId = Number(user?.id ?? NaN);
+          const buyerId = orderData.buyer_id !== undefined ? Number(orderData.buyer_id) : NaN;
+          const sellerId = orderData.seller_id !== undefined ? Number(orderData.seller_id) : NaN;
+          const matchesParticipants =
+            Number.isFinite(buyerId) &&
+            Number.isFinite(sellerId) &&
+            Number.isFinite(conversationInitiatorId) &&
+            Number.isFinite(conversationParticipantId) &&
+            ((buyerId === conversationInitiatorId && sellerId === conversationParticipantId) ||
+              (buyerId === conversationParticipantId && sellerId === conversationInitiatorId));
+
+          const participantId = conversationParticipantId;
+          const isSeller = Number.isFinite(participantId) && Number(participantId) === currentUserId;
+
+          if (!matchesParticipants) {
+            console.log("⚠️ Order participants do not match conversation, forcing Inquiry view");
+            const otherUser = conversationData?.conversation?.otherUser ?? conversation?.conversation?.otherUser;
+            const fallbackBuyerId = isSeller ? otherUser?.id : currentUserId;
+            const fallbackSellerId = isSeller ? currentUserId : otherUser?.id;
+
+            orderData.status = "Inquiry";
+            orderData.buyer_id = fallbackBuyerId;
+            orderData.seller_id = fallbackSellerId;
+            orderData.buyer = {
+              name: isSeller
+                ? otherUser?.username ?? orderData.buyer?.name ?? "Buyer"
+                : user?.username ?? orderData.buyer?.name ?? "Buyer",
+              avatar: isSeller
+                ? otherUser?.avatar ?? orderData.buyer?.avatar
+                : user?.avatar_url ?? (orderData.buyer as any)?.avatar,
+              id: fallbackBuyerId,
+              user_id: fallbackBuyerId,
+            };
+            orderData.seller = {
+              name: isSeller
+                ? user?.username ?? orderData.seller.name
+                : otherUser?.username ?? orderData.seller.name,
+              avatar: isSeller
+                ? user?.avatar_url ?? orderData.seller.avatar
+                : otherUser?.avatar ?? orderData.seller.avatar,
+              id: fallbackSellerId,
+              user_id: fallbackSellerId,
+            };
+          }
+   
           const orderCard: ChatItem = {
             id: "order-card-" + orderData.id,
             type: "orderCard",
             order: orderData
           };
-          
+   
           console.log("🔍 创建的商品卡片 ID:", orderCard.id);
-          
+   
           // 检查是否已经有商品卡片，避免重复
           const hasOrderCard = apiItems.some(item => item.type === "orderCard");
           if (!hasOrderCard) {
