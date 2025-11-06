@@ -114,8 +114,7 @@ export async function GET(request: NextRequest) {
           }
 
           // 🔥 检查是否需要显示"Leave Review"消息
-          const useTextMessage = lastTextMessage && (!lastMessage || lastTextMessage.created_at > lastMessage.created_at || lastMessage.message_type === "SYSTEM");
-          const effectiveMessage = useTextMessage ? lastTextMessage : lastMessage;
+          const effectiveMessage = lastTextMessage ?? lastMessage;
           let displayMessage = effectiveMessage?.content ?? "";
           let displayTime = effectiveMessage ? formatTime(effectiveMessage.created_at) : "";
           console.log("🔍 Inbox conversation", {
