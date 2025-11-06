@@ -139,6 +139,7 @@ export type FaqQuery = {
   userEmail?: string; // Contact email
   question: string;
   answer?: string;
+  category?: string; // FAQ category
   createdAt: string;
   answeredAt?: string;
 };
