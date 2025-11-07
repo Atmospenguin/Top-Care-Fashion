@@ -66,11 +66,6 @@ export default function SettingScreen() {
             label="Help & Support"
             onPress={() => navigation.navigate("HelpSupport")}
           />
-          <SettingItem
-            icon="information-circle-outline"
-            label="Terms and Policies"
-            onPress={() => navigation.navigate("TermsPolicies")}
-          />
         </View>
 
         {/* Actions Section */}
