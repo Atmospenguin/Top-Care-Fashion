@@ -1,33 +1,33 @@
 import { apiClient } from "./api";
 import { API_CONFIG, ApiError } from "../config/api";
 
-export type ReportTargetType = "listing" | "user";
+export type FlagTargetType = "listing" | "user";
 
-export interface SubmitReportParams {
-  targetType: ReportTargetType;
+export interface SubmitFlagParams {
+  targetType: FlagTargetType;
   targetId: string;
   category?: string;
   details?: string;
-  reportedUsername?: string;
-  reportedListingId?: string | number;
+  flaggedUsername?: string;
+  flaggedListingId?: string | number;
 }
 
-export interface SubmitReportResponse {
+export interface SubmitFlagResponse {
   success: boolean;
-  report: {
+  flag: {
     id: string;
-    targetType: ReportTargetType;
+    targetType: FlagTargetType;
     targetId: string;
-    reporter: string;
+    flagger: string;
     reason: string;
     status: "open" | "resolved" | "dismissed";
     createdAt: string;
   };
 }
 
-export interface UserReportSummary {
+export interface UserFlagSummary {
   id: string;
-  targetType: ReportTargetType;
+  targetType: FlagTargetType;
   targetId: string;
   reason: string;
   status: "open" | "resolved" | "dismissed";
@@ -36,8 +36,8 @@ export interface UserReportSummary {
   resolvedAt?: string | null;
 }
 
-class ReportsService {
-  private normalizeReport(raw: any): UserReportSummary | null {
+class FlagsService {
+  private normalizeFlag(raw: any): UserFlagSummary | null {
     if (!raw || typeof raw !== "object") {
       return null;
     }
@@ -58,7 +58,7 @@ class ReportsService {
       (raw as { targetType?: unknown }).targetType ??
       (raw as { target_type?: unknown }).target_type;
 
-    const normalizedTargetType: ReportTargetType =
+    const normalizedTargetType: FlagTargetType =
       typeof targetTypeRaw === "string" && targetTypeRaw.trim().toLowerCase() === "listing"
         ? "listing"
         : "user";
@@ -83,7 +83,7 @@ class ReportsService {
     const statusNormalized =
       typeof statusRaw === "string" ? statusRaw.trim().toLowerCase() : "";
 
-    const status: UserReportSummary["status"] =
+    const status: UserFlagSummary["status"] =
       statusNormalized === "resolved"
         ? "resolved"
         : statusNormalized === "dismissed"
@@ -127,20 +127,20 @@ class ReportsService {
       createdAt,
       resolvedAt,
       notes,
-    } satisfies UserReportSummary;
+    } satisfies UserFlagSummary;
   }
 
-  async getMyReports(): Promise<UserReportSummary[]> {
+  async getMyFlags(): Promise<UserFlagSummary[]> {
     try {
       const response = await apiClient.get<{ reports?: unknown }>(
         API_CONFIG.ENDPOINTS.REPORTS,
       );
 
       const payload = response.data;
-      let rawReports: unknown[] = [];
+      let rawFlags: unknown[] = [];
 
       if (Array.isArray(payload)) {
-        rawReports = payload as unknown[];
+        rawFlags = payload as unknown[];
       } else if (payload && typeof payload === "object") {
         const maybeArray = [
           (payload as { reports?: unknown }).reports,
@@ -149,28 +149,28 @@ class ReportsService {
         ].find((value): value is unknown[] => Array.isArray(value));
 
         if (maybeArray) {
-          rawReports = maybeArray;
+          rawFlags = maybeArray;
         } else {
           const single = (payload as { report?: unknown }).report;
           if (single && typeof single === "object") {
-            rawReports = [single];
+            rawFlags = [single];
           }
         }
       }
 
-      return rawReports
-        .map((report) => this.normalizeReport(report))
-        .filter((report): report is UserReportSummary => report !== null);
+      return rawFlags
+        .map((flag) => this.normalizeFlag(flag))
+        .filter((flag): flag is UserFlagSummary => flag !== null);
     } catch (error) {
       if (error instanceof ApiError) {
-        throw new Error(error.message || "Failed to load reports");
+        throw new Error(error.message || "Failed to load flags");
       }
       throw error;
     }
   }
 
-  async submitReport(params: SubmitReportParams): Promise<SubmitReportResponse> {
-    const { targetType, targetId, category, details, reportedUsername, reportedListingId } = params;
+  async submitFlag(params: SubmitFlagParams): Promise<SubmitFlagResponse> {
+    const { targetType, targetId, category, details, flaggedUsername, flaggedListingId } = params;
 
     if (!targetType) {
       throw new Error("targetType is required");
@@ -179,7 +179,7 @@ class ReportsService {
       throw new Error("targetId is required");
     }
     if ((!category || !category.trim()) && (!details || !details.trim())) {
-      throw new Error("Please provide a report category or details");
+      throw new Error("Please provide a flag category or details");
     }
 
     const payload = {
@@ -187,12 +187,12 @@ class ReportsService {
       targetId,
       category: category?.trim() || undefined,
       details: details?.trim() || undefined,
-      reportedUsername: reportedUsername?.trim() || undefined,
-      reportedListingId: reportedListingId ?? undefined,
+      reportedUsername: flaggedUsername?.trim() || undefined,
+      reportedListingId: flaggedListingId ?? undefined,
     };
 
     try {
-      const response = await apiClient.post<SubmitReportResponse>(
+      const response = await apiClient.post<SubmitFlagResponse>(
         API_CONFIG.ENDPOINTS.REPORTS,
         payload,
       );
@@ -200,7 +200,7 @@ class ReportsService {
       if (!response.data?.success) {
         const maybeMessage = (response.data as any)?.message;
         throw new Error(
-          typeof maybeMessage === "string" ? maybeMessage : "Report submission failed",
+          typeof maybeMessage === "string" ? maybeMessage : "Flag submission failed",
         );
       }
 
@@ -210,11 +210,12 @@ class ReportsService {
         const serverMessage =
           (typeof error.response?.error === "string" && error.response.error) ||
           (typeof error.response?.message === "string" && error.response.message);
-        throw new Error(serverMessage || error.message || "Report submission failed");
+        throw new Error(serverMessage || error.message || "Flag submission failed");
       }
       throw error;
     }
   }
 }
 
-export const reportsService = new ReportsService();
+export const flagsService = new FlagsService();
+

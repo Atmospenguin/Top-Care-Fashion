@@ -30,7 +30,7 @@ import { userService, type UserProfile, type VisibilitySetting } from "../../../
 import { premiumService } from "../../../src/services";
 import { likesService, messagesService, type LikedListing } from "../../../src/services";
 import { authService } from "../../../src/services/authService";
-import { reportsService } from "../../../src/services/reportsService";
+import { flagsService } from "../../../src/services/flagsService";
 import { listingsService } from "../../../src/services/listingsService";
 import { sortCategories } from "../../../utils/categoryHelpers";
 import { ApiError } from "../../../src/config/api";
@@ -212,10 +212,10 @@ export default function UserProfileScreen() {
   const [activeTab, setActiveTab] = useState<"Shop" | "Likes" | "Reviews">(
     "Shop"
   );
-  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [flagModalVisible, setFlagModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [reportDetails, setReportDetails] = useState("");
-  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [flagDetails, setFlagDetails] = useState("");
+  const [isSubmittingFlag, setIsSubmittingFlag] = useState(false);
 
   const likesVisibility: VisibilitySetting = userProfile?.likesVisibility ?? "PUBLIC";
   const followsVisibility: VisibilitySetting = userProfile?.followsVisibility ?? "PUBLIC";
@@ -781,63 +781,63 @@ export default function UserProfileScreen() {
     return results;
   }, [reviews, reviewRole, reviewRating, showWithPhotos, showLatest]);
 
-  const handleReport = () => {
-    setReportModalVisible(true);
+  const handleFlag = () => {
+    setFlagModalVisible(true);
   };
 
-  const handleSubmitReport = async () => {
+  const handleSubmitFlag = async () => {
     if (!userProfile) {
-      Alert.alert("Error", "Unable to submit report for this user. Please try again later.");
+      Alert.alert("Error", "Unable to submit flag for this user. Please try again later.");
       return;
     }
     if (!selectedCategory) {
-      Alert.alert("Notice", "Please select a report category");
+      Alert.alert("Notice", "Please select a flag category");
       return;
     }
-    if (!reportDetails.trim()) {
-      Alert.alert("Notice", "Please fill in report details");
+    if (!flagDetails.trim()) {
+      Alert.alert("Notice", "Please fill in flag details");
       return;
     }
 
     try {
-      setIsSubmittingReport(true);
-      await reportsService.submitReport({
+      setIsSubmittingFlag(true);
+      await flagsService.submitFlag({
         targetType: "user",
         targetId: String(userProfile.id ?? username ?? ""),
         category: selectedCategory,
-        details: reportDetails,
-        reportedUsername: userProfile.username ?? username,
+        details: flagDetails,
+        flaggedUsername: userProfile.username ?? username,
       });
       Alert.alert(
-        "Report Submitted",
+        "Flag Submitted",
         "Thank you for helping keep our community safe.",
         [
           {
             text: "OK",
             onPress: () => {
-              setReportModalVisible(false);
+              setFlagModalVisible(false);
               setSelectedCategory(null);
-              setReportDetails("");
+              setFlagDetails("");
             },
           },
         ],
       );
     } catch (error) {
-      console.error("Error submitting user report:", error);
+      console.error("Error submitting user flag:", error);
       const message =
         error instanceof Error && error.message
           ? error.message
-          : "Failed to submit report. Please try again.";
+          : "Failed to submit flag. Please try again.";
       Alert.alert("Error", message);
     } finally {
-      setIsSubmittingReport(false);
+      setIsSubmittingFlag(false);
     }
   };
 
-  const handleCancelReport = () => {
-    setReportModalVisible(false);
+  const handleCancelFlag = () => {
+    setFlagModalVisible(false);
     setSelectedCategory(null);
-    setReportDetails("");
+    setFlagDetails("");
   };
 
   const handleOpenShopFilters = () => {
@@ -1069,7 +1069,7 @@ export default function UserProfileScreen() {
         title={userProfile.username} 
         showBack 
         rightAction={
-          <TouchableOpacity onPress={handleReport} style={styles.reportButton}>
+          <TouchableOpacity onPress={handleFlag} style={styles.flagButton}>
             <Icon name="flag-outline" size={22} color="#111" />
           </TouchableOpacity>
         }
@@ -1612,12 +1612,12 @@ export default function UserProfileScreen() {
         ) : null}
       </View>
 
-      {/* Report Modal */}
+      {/* Flag Modal */}
       <Modal
-        visible={reportModalVisible}
+        visible={flagModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={handleCancelReport}
+        onRequestClose={handleCancelFlag}
       >
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
@@ -1626,14 +1626,14 @@ export default function UserProfileScreen() {
           >
             <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Report User</Text>
-                <TouchableOpacity onPress={handleCancelReport}>
+                <Text style={styles.modalTitle}>Flag User</Text>
+                <TouchableOpacity onPress={handleCancelFlag}>
                   <Icon name="close" size={24} color="#111" />
                 </TouchableOpacity>
               </View>
 
               <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
-                <Text style={styles.sectionTitle}>Select Report Category</Text>
+                <Text style={styles.sectionTitle}>Select Flag Category</Text>
                 <View style={styles.categoriesContainer}>
                   {REPORT_CATEGORIES.map((category) => (
                     <TouchableOpacity
@@ -1661,23 +1661,23 @@ export default function UserProfileScreen() {
                   ))}
                 </View>
 
-                <Text style={styles.sectionTitle}>Report Details</Text>
+                <Text style={styles.sectionTitle}>Flag Details</Text>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Please describe your reason for reporting..."
+                  placeholder="Please describe your reason for flagging..."
                   placeholderTextColor="#999"
                   multiline
                   numberOfLines={6}
                   textAlignVertical="top"
-                  value={reportDetails}
-                  onChangeText={setReportDetails}
+                  value={flagDetails}
+                  onChangeText={setFlagDetails}
                 />
               </ScrollView>
 
               <View style={styles.modalFooter}>
                 <TouchableOpacity
                   style={[styles.modalButton, styles.cancelButton]}
-                  onPress={handleCancelReport}
+                  onPress={handleCancelFlag}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
@@ -1685,13 +1685,13 @@ export default function UserProfileScreen() {
                   style={[
                     styles.modalButton,
                     styles.submitButton,
-                    isSubmittingReport ? { opacity: 0.6 } : undefined,
+                    isSubmittingFlag ? { opacity: 0.6 } : undefined,
                   ]}
-                  onPress={handleSubmitReport}
-                  disabled={isSubmittingReport}
+                  onPress={handleSubmitFlag}
+                  disabled={isSubmittingFlag}
                 >
                   <Text style={styles.submitButtonText}>
-                    {isSubmittingReport ? "Submitting..." : "Submit Report"}
+                    {isSubmittingFlag ? "Submitting..." : "Submit Flag"}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1765,7 +1765,7 @@ export default function UserProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  reportButton: {
+  flagButton: {
     padding: 8,
     marginRight: 8,
   },
@@ -2162,7 +2162,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#666",
   },
-  // Report Modal Styles
+  // Flag Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
