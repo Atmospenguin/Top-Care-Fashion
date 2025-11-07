@@ -152,11 +152,11 @@ export default function LoginScreen({ navigation }: Props) {
       <Text style={styles.forgot}>Forgot Password?</Text>
       </TouchableOpacity>
 
-      {/* 错误信息 */}
-      {(localError || error) && (
+      {/* 错误信息 - 优先显示本地错误，避免显示context中的原始错误信息 */}
+      {localError && (
         <View style={styles.errorContainer}>
           <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorText}>{localError || error}</Text>
+          <Text style={styles.errorText}>{localError}</Text>
         </View>
       )}
 
