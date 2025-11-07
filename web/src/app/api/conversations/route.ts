@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
           }
 
           // 🔥 新策略：直接显示最新消息（不管是TEXT还是SYSTEM）
-          let rawMessage = lastMessage?.content ?? "";
+          const rawMessage = lastMessage?.content ?? "";
           let displayMessage = rawMessage;
           let displayTime = lastMessage ? formatTime(lastMessage.created_at) : "";
           
