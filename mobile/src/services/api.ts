@@ -304,7 +304,15 @@ class ApiClient {
         const errorData = await response.json().catch(() => ({}));
 
         // 如果是 401 错误且还有重试次数，尝试刷新 session
-        if (response.status === 401 && retryCount < 1) {
+        // 🔥 但是登录/注册相关的端点不应该触发session刷新（因为用户还没有登录，没有refresh token）
+        // 🔥 忘记密码/重置密码端点也不需要刷新session（这些是公开端点）
+        const isPublicAuthEndpoint = endpoint.includes('/api/auth/signin') || 
+                                     endpoint.includes('/api/auth/register') || 
+                                     endpoint.includes('/api/auth/signup') ||
+                                     endpoint.includes('/api/auth/forgot-password') ||
+                                     endpoint.includes('/api/auth/reset-password');
+        
+        if (response.status === 401 && retryCount < 1 && !isPublicAuthEndpoint) {
           console.log(`🔍 API Client - 401 error, attempting session refresh (retry ${retryCount + 1})`);
           const refreshed = await this.tryRefreshSession();
           if (refreshed) {
@@ -318,6 +326,15 @@ class ApiClient {
             console.log("🔍 API Client - Triggering auth failure callback (navigating to login)");
             this.onAuthFailure();
           }
+          
+          // 🔥 对于非公开认证端点，session刷新失败后，不抛出原始401错误
+          // 因为已经导航到登录页了，抛出错误可能会在UI层显示"HTTP 401"
+          // 改为抛出更友好的错误消息，或者让调用方知道认证已失效
+          throw new ApiError(
+            "Session expired. Please log in again.",
+            response.status,
+            errorData
+          );
         }
 
         throw new ApiError(
