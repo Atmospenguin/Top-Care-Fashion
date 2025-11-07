@@ -45,7 +45,11 @@ class NotificationService {
       }
       
       return 0;
-    } catch (error) {
+    } catch (error: any) {
+      // 🔥 如果是 401 错误（未授权），静默处理（用户已登出）
+      if (error?.status === 401 || error?.message?.includes('401')) {
+        return 0;
+      }
       console.error("❌ Error fetching unread count:", error);
       return 0;
     }
@@ -69,7 +73,12 @@ class NotificationService {
       }
       
       throw new Error('Failed to fetch notifications');
-    } catch (error) {
+    } catch (error: any) {
+      // 🔥 如果是 401 错误（未授权），静默处理（用户已登出），不显示错误和 mock 数据
+      if (error?.status === 401 || error?.message?.includes('401')) {
+        return [];
+      }
+      
       console.error("❌ Error fetching notifications:", error);
       
       // Fallback to mock data if API fails

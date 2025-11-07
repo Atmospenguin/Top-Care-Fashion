@@ -219,7 +219,11 @@ class MessagesService {
     try {
       const response = await apiClient.get<{ conversations: Conversation[] }>('/api/conversations');
       return response.data?.conversations ?? [];
-    } catch (error) {
+    } catch (error: any) {
+      // 🔥 如果是 401 错误（未授权），静默处理（用户已登出）
+      if (error?.status === 401 || error?.message?.includes('401')) {
+        throw error; // 仍然抛出，但不记录错误日志
+      }
       console.error('Error fetching conversations:', error);
       throw error;
     }
@@ -233,7 +237,11 @@ class MessagesService {
         throw new Error('Failed to fetch conversation: missing response data');
       }
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      // 🔥 如果是 401 错误（未授权），静默处理（用户已登出）
+      if (error?.status === 401 || error?.message?.includes('401')) {
+        throw error; // 仍然抛出，但不记录错误日志
+      }
       console.error('Error fetching messages:', error);
       throw error;
     }
