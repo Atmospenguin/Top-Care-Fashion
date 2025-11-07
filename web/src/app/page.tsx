@@ -196,13 +196,17 @@ export default function Home() {
           {visible.map((t) => {
             const tags = (t.tags ?? []) as Testimonial["tags"];
             const from = tags.includes('buyer') ? 'from buyer' : (tags.includes('seller') ? 'from seller' : undefined);
+            // Get user initials (first 2 characters)
+            const initials = t.user.slice(0, 2).toUpperCase();
             return (
              <div key={t.id} className="rounded-xl border border-black/10 p-6 shadow-sm bg-white">
                <div className="flex items-center gap-2">
-                 <div className="h-8 w-8 rounded-full bg-black/10" />
+                 <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                   <span className="text-xs font-semibold text-gray-600">{initials}</span>
+                 </div>
                  <span className="text-sm font-medium">{t.user}</span>
                </div>
-              <p className="mt-3 text-sm text-black/70">“{t.text}” {from && (<span className="text-black/50">— {from}</span>)}</p>
+              <p className="mt-3 text-sm text-black/70">"{t.text}" {from && (<span className="text-black/50">— {from}</span>)}</p>
                 <div className="mt-3 text-[var(--brand-color)]">{"★★★★★".slice(0, t.rating)}</div>
               </div>
           );})}

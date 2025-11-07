@@ -83,93 +83,72 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <section className="max-w-md">
-      <h1 className="text-3xl font-semibold tracking-tight">Reset Your Password</h1>
+    <div className="min-h-[calc(100vh-200px)] flex items-center justify-center">
+      <section className="max-w-md w-full">
+        <h1 className="text-3xl font-semibold mb-2">Forgot Password?</h1>
 
-      <div className="mt-6">
-        <p className="text-sm text-gray-600">
-          Enter your email address and we&apos;ll send you a link to reset your password.
+        <p className="text-sm text-gray-500 mb-8">
+          Don't worry! It occurs. Please enter the email address linked with your account.
         </p>
-      </div>
 
-      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
-        <label className="text-sm">
-          Email Address
-          <input
-            type="email"
-            className="mt-1 w-full border border-black/10 rounded-md px-3 py-2"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            placeholder="your@email.com"
-          />
-        </label>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <input
+          type="email"
+          className="w-full border border-gray-300 rounded-md px-4 py-3 bg-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          placeholder="Enter your email"
+        />
 
         <button
           type="submit"
           disabled={isLoading || cooldown > 0}
-          className="inline-flex items-center justify-center rounded-md bg-[var(--brand-color)] text-white px-4 py-2 text-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full rounded-md bg-gray-800 text-white px-4 py-3 text-base font-medium hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isLoading
             ? "Sending..."
             : cooldown > 0
             ? `Resend in ${cooldown}s`
-            : "Send Reset Link"}
+            : "Send Code"}
         </button>
       </form>
 
-      {status && (
+      {status && emailSent && (
         <div className="mt-4">
-          <p className={`text-sm ${status.includes("sent") || status.includes("Sent") ? "text-green-600" : "text-gray-700"}`}>
+          <p className="text-sm text-green-600 mb-3">
             {status}
           </p>
 
-          {emailSent && (
-            <button
-              onClick={handleOpenEmail}
-              className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700 transition-colors"
+          <button
+            onClick={handleOpenEmail}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700 transition-colors"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                />
-              </svg>
-              Open Email App
-            </button>
-          )}
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+              />
+            </svg>
+            Open Email App
+          </button>
         </div>
       )}
 
-      <div className="mt-8 pt-6 border-t border-gray-200">
-        <div className="flex flex-col gap-2 text-sm">
-          <p className="text-gray-600">Remember your password?</p>
-          <button
-            onClick={() => router.push("/signin")}
-            className="text-[var(--brand-color)] hover:underline text-left"
-          >
-            Back to Sign In
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
-        <h3 className="text-sm font-medium text-blue-900">Tips:</h3>
-        <ul className="mt-2 text-sm text-blue-800 list-disc list-inside space-y-1">
-          <li>Check your spam or junk folder</li>
-          <li>The reset link is valid for 1 hour</li>
-          <li>Make sure you entered the correct email address</li>
-          <li>If you don&apos;t receive the email, you can request a new one after 60 seconds</li>
-        </ul>
-      </div>
-    </section>
+      {status && !emailSent && (
+        <p className="mt-4 text-sm text-gray-700">
+          {status}
+        </p>
+      )}
+      </section>
+    </div>
   );
 }

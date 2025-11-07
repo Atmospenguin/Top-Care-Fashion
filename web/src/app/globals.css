@@ -10,8 +10,6 @@
 :root[data-theme="inline"] {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
 /* Ignore system dark-mode preference so the site remains light */
@@ -25,7 +23,7 @@
 html, body {
   background-color: var(--background) !important;
   color: var(--foreground) !important;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
