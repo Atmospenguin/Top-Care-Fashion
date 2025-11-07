@@ -308,14 +308,36 @@ export default function NotificationScreen() {
   };
 
   const renderNotification = ({ item }: { item: Notification }) => {
-    // ✅ 优先显示商品图片，其次显示用户头像，最后显示默认头像
+    // 🔥 根据通知类型决定显示什么图片：
+    // ORDER/REVIEW/FOLLOW → 显示用户头像（image 字段）
+    // LIKE → 可以显示商品图片（listingImage）
     let imageSource;
-    if (item.listingImage && item.listingImage !== '') {
-      imageSource = { uri: item.listingImage };
-    } else if (item.image && item.image !== '') {
-      imageSource = { uri: item.image };
+    
+    if (item.type === 'order' || item.type === 'review' || item.type === 'follow') {
+      // 订单、评论、关注通知 → 显示用户头像
+      if (item.image && item.image !== '') {
+        imageSource = { uri: item.image };
+      } else {
+        imageSource = ASSETS.avatars.default;
+      }
+    } else if (item.type === 'like') {
+      // 点赞通知 → 优先显示商品图片，回退到用户头像
+      if (item.listingImage && item.listingImage !== '') {
+        imageSource = { uri: item.listingImage };
+      } else if (item.image && item.image !== '') {
+        imageSource = { uri: item.image };
+      } else {
+        imageSource = ASSETS.avatars.default;
+      }
     } else {
-      imageSource = ASSETS.avatars.default;
+      // 其他通知 → 优先用户头像，回退到商品图片
+      if (item.image && item.image !== '') {
+        imageSource = { uri: item.image };
+      } else if (item.listingImage && item.listingImage !== '') {
+        imageSource = { uri: item.listingImage };
+      } else {
+        imageSource = ASSETS.avatars.default;
+      }
     }
 
     const renderRightActions = () => (
