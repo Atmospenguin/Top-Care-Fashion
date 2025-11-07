@@ -8,6 +8,7 @@ import { useAuth } from "./AuthContext";
 export default function NavBar() {
   const { user, isAuthenticated, signOut } = useAuth();
   const [open, setOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const closeTimer = useRef<number | null>(null);
 
   return (
@@ -17,7 +18,8 @@ export default function NavBar() {
           <Image src="/logo_white.svg" alt="Top Care Fashion" width={120} height={32} priority />
         </Link>
 
-        <div className="flex items-center gap-5 text-sm">
+        {/* Desktop Navigation */}
+        <div className="hidden md:flex items-center gap-5 text-sm">
           <Link href="/#features" className="hover:opacity-90">Features</Link>
           <Link href="/#community" className="hover:opacity-90">Community</Link>
           <Link href="/#pricing" className="hover:opacity-90">Pricing</Link>
@@ -81,7 +83,85 @@ export default function NavBar() {
             </div>
           )}
         </div>
+
+        {/* Mobile Hamburger Menu Button */}
+        <button
+          className="md:hidden p-2 hover:bg-white/10 rounded-md"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label="Toggle menu"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {mobileMenuOpen ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            )}
+          </svg>
+        </button>
       </div>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-t border-white/20 bg-[var(--brand-color)]">
+          <div className="px-4 py-3 space-y-3 text-sm">
+            <Link href="/#features" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Features</Link>
+            <Link href="/#community" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Community</Link>
+            <Link href="/#pricing" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
+            <Link href="/#download" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Download</Link>
+            <Link href="/faq" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>FAQ</Link>
+
+            {!isAuthenticated ? (
+              <>
+                <div className="border-t border-white/20 pt-3 mt-3">
+                  <Link href="/signin" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Sign in</Link>
+                  <Link
+                    href="/register"
+                    className="block mt-2 text-center rounded-md bg-white text-[var(--brand-color)] px-4 py-2 font-medium hover:opacity-90"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Sign up
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="border-t border-white/20 pt-3 mt-3">
+                  <div className="py-2 font-medium">{user?.username || user?.email}</div>
+                  <Link href="/profile" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Profile</Link>
+                  {user?.actor === "Admin" && (
+                    <>
+                      <div className="border-t border-white/20 pt-3 mt-3">
+                        <div className="py-1 text-xs font-medium opacity-70">Admin</div>
+                        <Link href="/admin" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Admin Home</Link>
+                        <Link href="/admin/dashboard" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Dashboard</Link>
+                        <Link href="/admin/users" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Users</Link>
+                        <Link href="/admin/conversations" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Conversations</Link>
+                        <Link href="/admin/support" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>TOP Support</Link>
+                        <Link href="/admin/categories" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Categories</Link>
+                        <Link href="/admin/listings" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Listings</Link>
+                        <Link href="/admin/transactions" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Transactions</Link>
+                        <Link href="/admin/reports" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Reports</Link>
+                        <Link href="/admin/feedback" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Feedback</Link>
+                        <Link href="/admin/faq" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>FAQ</Link>
+                        <Link href="/admin/content" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Content</Link>
+                      </div>
+                    </>
+                  )}
+                  <button
+                    className="block w-full text-left py-2 hover:opacity-90 border-t border-white/20 mt-3 pt-3"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      signOut();
+                    }}
+                  >
+                    Sign out
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
