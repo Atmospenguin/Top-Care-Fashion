@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from 'expo-image-picker';
@@ -260,7 +261,11 @@ export default function EditProfileScreen() {
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header title="Edit Profile" showBack />
 
-      <ScrollView contentContainerStyle={styles.container}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         {/* 头像 */}
         <View style={styles.avatarWrapper}>
           <Avatar source={getAvatarSource()} style={styles.avatar} isPremium={user?.isPremium} self />
@@ -363,6 +368,7 @@ export default function EditProfileScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

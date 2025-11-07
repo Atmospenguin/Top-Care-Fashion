@@ -11,6 +11,7 @@ import {
   TextInput,
   ActionSheetIOS,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -214,62 +215,90 @@ export default function ManagePaymentsScreen() {
         {/* Address Section */}
         <View style={styles.divider} />
 
-        <TouchableOpacity style={styles.addButton} onPress={handleAddAddress}>
-          <Icon name="add-circle" size={24} color="#0066FF" />
-          <Text style={styles.addButtonText}>Add shipping address</Text>
-        </TouchableOpacity>
+        <View style={styles.addressHeader}>
+          <Text style={styles.addressTitle}>Shipping Address</Text>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={handleAddAddress}
+            accessible
+            accessibilityRole="button"
+          >
+            <Icon name="add-circle-outline" size={20} color="#2A7BF4" />
+            <Text style={styles.addButtonText}>Add New Address</Text>
+          </TouchableOpacity>
+        </View>
 
         {loadingAddresses ? (
-          <ActivityIndicator size="large" color="#0066FF" style={styles.loader} />
+          <ActivityIndicator size="small" color="#2A7BF4" style={styles.loader} />
+        ) : addresses.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Icon name="location-outline" size={48} color="#ccc" />
+            <Text style={styles.emptyText}>No addresses saved</Text>
+            <Text style={styles.emptySubtext}>Add an address to get started</Text>
+          </View>
         ) : (
           <>
-            {/* Default Return Address */}
             {defaultAddress && (
-              <View style={styles.addressSection}>
-                <View style={styles.addressSectionHeader}>
-                  <Text style={styles.addressSectionTitle}>Default Return Address</Text>
-                  <TouchableOpacity onPress={() => Alert.alert('Info', 'Your default shipping and return address')}>
-                    <Icon name="information-circle-outline" size={20} color="#666" />
-                  </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.addressCard}
+                onPress={() => handleAddressPress(defaultAddress)}
+                accessible
+                accessibilityRole="button"
+              >
+                <View style={styles.addressLeft}>
+                  <Icon name="location" size={24} color="#666" />
+                  <View style={styles.addressInfo}>
+                    <Text style={styles.addressName}>{defaultAddress.name}</Text>
+                    <Text style={styles.addressText}>{formatAddress(defaultAddress)}</Text>
+                    <Text style={styles.addressPhone}>{defaultAddress.phone}</Text>
+                  </View>
                 </View>
 
-                <TouchableOpacity
-                  style={styles.addressCard}
-                  onPress={() => handleAddressPress(defaultAddress)}
-                >
-                  <Text style={styles.addressName}>{defaultAddress.name}</Text>
-                  <Text style={styles.addressText}>{formatAddress(defaultAddress)}</Text>
-                  <Text style={styles.addressPhone}>{defaultAddress.phone}</Text>
+                <View style={styles.addressRight}>
                   <View style={styles.defaultBadge}>
                     <Text style={styles.defaultBadgeText}>Default</Text>
                   </View>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* All Shipping Addresses */}
-            {otherAddresses.length > 0 && (
-              <View style={styles.addressSection}>
-                <View style={styles.addressSectionHeader}>
-                  <Text style={styles.addressSectionTitle}>All Shipping Addresses</Text>
-                  <TouchableOpacity onPress={() => Alert.alert('Info', 'All your saved shipping addresses')}>
-                    <Icon name="information-circle-outline" size={20} color="#666" />
+                  <TouchableOpacity
+                    onPress={() => handleDeleteAddress(defaultAddress)}
+                    style={styles.deleteButton}
+                    accessible
+                    accessibilityRole="button"
+                  >
+                    <Icon name="trash-outline" size={18} color="#999" />
                   </TouchableOpacity>
                 </View>
+              </TouchableOpacity>
+            )}
 
-                {otherAddresses.map((address) => (
-                  <TouchableOpacity
-                    key={address.id}
-                    style={styles.addressCard}
-                    onPress={() => handleAddressPress(address)}
-                  >
+            {otherAddresses.map((address) => (
+              <TouchableOpacity
+                key={address.id}
+                style={styles.addressCard}
+                onPress={() => handleAddressPress(address)}
+                accessible
+                accessibilityRole="button"
+              >
+                <View style={styles.addressLeft}>
+                  <Icon name="location" size={24} color="#666" />
+                  <View style={styles.addressInfo}>
                     <Text style={styles.addressName}>{address.name}</Text>
                     <Text style={styles.addressText}>{formatAddress(address)}</Text>
                     <Text style={styles.addressPhone}>{address.phone}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.addressRight}>
+                  <TouchableOpacity
+                    onPress={() => handleDeleteAddress(address)}
+                    style={styles.deleteButton}
+                    accessible
+                    accessibilityRole="button"
+                  >
+                    <Icon name="trash-outline" size={18} color="#999" />
                   </TouchableOpacity>
-                ))}
-              </View>
-            )}
+                </View>
+              </TouchableOpacity>
+            ))}
           </>
         )}
       </ScrollView>
@@ -281,15 +310,19 @@ export default function ManagePaymentsScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setShowAddressModal(false)}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{editingAddress ? 'Edit' : 'Add'} Address</Text>
-            <TouchableOpacity onPress={() => setShowAddressModal(false)}>
-              <Icon name="close" size={28} color="#333" />
-            </TouchableOpacity>
-          </View>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{editingAddress ? 'Edit' : 'Add'} Address</Text>
+              <TouchableOpacity onPress={() => setShowAddressModal(false)}>
+                <Icon name="close" size={28} color="#333" />
+              </TouchableOpacity>
+            </View>
 
-          <ScrollView style={styles.modalContent}>
+            <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
             <Text style={styles.inputLabel}>Name</Text>
             <TextInput
               style={styles.textInput}
@@ -389,7 +422,8 @@ export default function ManagePaymentsScreen() {
               <Text style={styles.saveButtonText}>SAVE</Text>
             </TouchableOpacity>
           </ScrollView>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -439,71 +473,103 @@ const styles = StyleSheet.create({
     backgroundColor: '#E0E0E0',
     marginVertical: 24,
   },
+  addressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  addressTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111',
+  },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    gap: 8,
-    marginBottom: 20,
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: '#E6F0FF',
   },
   addButtonText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#0066FF',
+    color: '#2A7BF4',
   },
   loader: {
     marginVertical: 20,
   },
-  addressSection: {
-    marginBottom: 24,
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 32,
   },
-  addressSectionHeader: {
+  emptyText: {
+    marginTop: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#666',
+  },
+  emptySubtext: {
+    marginTop: 4,
+    fontSize: 13,
+    color: '#999',
+  },
+  addressCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#ddd',
+    backgroundColor: '#fff',
+    marginBottom: 10,
   },
-  addressSectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#000',
+  addressLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
   },
-  addressCard: {
-    padding: 16,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    marginBottom: 12,
-    position: 'relative',
+  addressInfo: {
+    flex: 1,
   },
   addressName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#000',
-    marginBottom: 8,
+    color: '#333',
+    marginBottom: 2,
   },
   addressText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666',
-    lineHeight: 20,
+    lineHeight: 18,
   },
   addressPhone: {
-    fontSize: 13,
-    color: '#888',
-    marginTop: 4,
+    marginTop: 2,
+    fontSize: 12,
+    color: '#999',
+  },
+  addressRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   defaultBadge: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: '#E8F5E9',
   },
   defaultBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2E7D32',
+  },
+  deleteButton: {
+    padding: 4,
   },
   // Modal styles
   modalContainer: {

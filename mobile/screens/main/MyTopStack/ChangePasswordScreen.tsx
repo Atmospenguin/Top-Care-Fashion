@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import Header from "../../../components/Header";
 import { useAuth } from "../../../contexts/AuthContext";
 
@@ -38,49 +38,54 @@ export default function ChangePasswordScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header title="Change Password" showBack />
-      <View style={styles.container}>
-        <Text style={styles.caption}>Enter your current password and set a new one.</Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+          <Text style={styles.caption}>Enter your current password and set a new one.</Text>
 
-        <Text style={styles.label}>Current password</Text>
-        <TextInput
-          value={currentPassword}
-          onChangeText={setCurrentPassword}
-          secureTextEntry
-          autoCapitalize="none"
-          style={styles.input}
-          placeholder="Current password"
-        />
+          <Text style={styles.label}>Current password</Text>
+          <TextInput
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+            secureTextEntry
+            autoCapitalize="none"
+            style={styles.input}
+            placeholder="Current password"
+          />
 
-        <Text style={styles.label}>New password</Text>
-        <TextInput
-          value={newPassword}
-          onChangeText={setNewPassword}
-          secureTextEntry
-          autoCapitalize="none"
-          style={styles.input}
-          placeholder="New password"
-        />
+          <Text style={styles.label}>New password</Text>
+          <TextInput
+            value={newPassword}
+            onChangeText={setNewPassword}
+            secureTextEntry
+            autoCapitalize="none"
+            style={styles.input}
+            placeholder="New password"
+          />
 
-        <Text style={styles.label}>Confirm new password</Text>
-        <TextInput
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-          autoCapitalize="none"
-          style={styles.input}
-          placeholder="Confirm new password"
-        />
+          <Text style={styles.label}>Confirm new password</Text>
+          <TextInput
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+            autoCapitalize="none"
+            style={styles.input}
+            placeholder="Confirm new password"
+          />
 
-        <TouchableOpacity
-          style={[styles.button, submitting && styles.buttonDisabled]}
-          onPress={onSubmit}
-          disabled={submitting}
-        >
-          <Text style={styles.buttonText}>{submitting ? "Updating..." : "Update password"}</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, submitting && styles.buttonDisabled]}
+            onPress={onSubmit}
+            disabled={submitting}
+          >
+            <Text style={styles.buttonText}>{submitting ? "Updating..." : "Update password"}</Text>
+          </TouchableOpacity>
 
-        {status ? <Text style={styles.status}>{status}</Text> : null}
-      </View>
+          {status ? <Text style={styles.status}>{status}</Text> : null}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
