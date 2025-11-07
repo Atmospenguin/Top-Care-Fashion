@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { UserStatus, OrderStatus } from "@prisma/client";
+import { summarizeOrderTotals } from "@/lib/admin-orders";
 
 export async function GET() {
   const admin = await requireAdmin();
@@ -37,6 +38,9 @@ export async function GET() {
           id: true,
           status: true,
           created_at: true,
+          total_amount: true,
+          commission_rate: true,
+          commission_amount: true,
           listing: {
             select: {
               price: true,
@@ -61,13 +65,27 @@ export async function GET() {
     );
 
     const totalRevenue = completedOrders.reduce((sum, order) => {
-      return sum + (order.listing?.price ? Number(order.listing.price) : 0);
+      const { totalAmount } = summarizeOrderTotals(order);
+      return sum + totalAmount;
     }, 0);
 
     const revenueThisMonth = completedOrders
       .filter((t) => new Date(t.created_at) >= startOfMonth)
       .reduce((sum, order) => {
-        return sum + (order.listing?.price ? Number(order.listing.price) : 0);
+        const { totalAmount } = summarizeOrderTotals(order);
+        return sum + totalAmount;
+      }, 0);
+
+    const totalCommissionRevenue = completedOrders.reduce((sum, order) => {
+      const commissionAmount = order.commission_amount ? Number(order.commission_amount) : 0;
+      return sum + commissionAmount;
+    }, 0);
+
+    const commissionRevenueThisMonth = completedOrders
+      .filter((t) => new Date(t.created_at) >= startOfMonth)
+      .reduce((sum, order) => {
+        const commissionAmount = order.commission_amount ? Number(order.commission_amount) : 0;
+        return sum + commissionAmount;
       }, 0);
 
     // Get top items by views
@@ -177,6 +195,8 @@ export async function GET() {
       completedTransactions,
       totalRevenue,
       revenueThisMonth,
+      totalCommissionRevenue,
+      commissionRevenueThisMonth,
       newUsersThisWeek,
       newListingsThisWeek,
       transactionsThisWeek,
