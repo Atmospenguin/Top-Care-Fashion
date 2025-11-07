@@ -27,6 +27,7 @@ export default function FAQPage() {
   const load = async () => {
     try {
       const params = new URLSearchParams();
+      params.append("status", "answered");
       if (searchQuery) params.append("search", searchQuery);
       if (categoryFilter) params.append("category", categoryFilter);
 

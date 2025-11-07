@@ -1090,7 +1090,7 @@ export default function UserProfileScreen() {
             style={styles.avatar}
             isPremium={userProfile?.isPremium}
             self={isOwnProfile}
-            // 将徽章移到右上角并做微偏移，让位置更自然
+            // 将徽章移到右下角并做微偏移，让位置更自然
             badgePosition="bottom-right"
             badgeOffset={{ x: 0, y: 0 }}
             badgeScale={0.34}
@@ -1561,7 +1561,7 @@ export default function UserProfileScreen() {
                     source={item.avatar ? { uri: item.avatar } : ASSETS.avatars.default}
                     style={styles.reviewAvatar}
                     isPremium={item.isPremium}
-                    badgePosition="top-right"
+                    badgePosition="bottom-right"
                   />
                   <View style={{ flex: 1 }}>
                     <View style={styles.reviewHeader}>

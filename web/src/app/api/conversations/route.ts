@@ -37,14 +37,18 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             username: true,
-            avatar_url: true
+            avatar_url: true,
+            is_premium: true,
+            premium_until: true
           }
         },
         participant: {
           select: {
             id: true,
             username: true,
-            avatar_url: true
+            avatar_url: true,
+            is_premium: true,
+            premium_until: true
           }
         },
         listing: {
@@ -365,17 +369,23 @@ export async function GET(request: NextRequest) {
             }
           }
 
+          // 🔥 计算isPremium状态
+          const isPremium = otherUser.is_premium &&
+            otherUser.premium_until &&
+            new Date(otherUser.premium_until) > new Date();
+
           return {
             id: conv.id.toString(),
             sender: otherUser.username,
-            message: previewMessage.length > 50 
-              ? previewMessage.substring(0, 50) + "..." 
+            message: previewMessage.length > 50
+              ? previewMessage.substring(0, 50) + "..."
               : previewMessage, // 🔥 截断长消息并添加省略号
             time: displayTime,
             avatar: otherUser.avatar_url ? { uri: otherUser.avatar_url } : null,
             kind,
             unread: isUnread,
             lastFrom,
+            isPremium, // 🔥 添加 isPremium 字段
             order: conv.listing ? {
               id: conv.listing.id.toString(),
               product: {
@@ -540,14 +550,18 @@ export async function POST(request: NextRequest) {
           select: {
             id: true,
             username: true,
-            avatar_url: true
+            avatar_url: true,
+            is_premium: true,
+            premium_until: true
           }
         },
         participant: {
           select: {
             id: true,
             username: true,
-            avatar_url: true
+            avatar_url: true,
+            is_premium: true,
+            premium_until: true
           }
         },
         listing: {
@@ -583,14 +597,18 @@ export async function POST(request: NextRequest) {
           select: {
             id: true,
             username: true,
-            avatar_url: true
+            avatar_url: true,
+            is_premium: true,
+            premium_until: true
           }
         },
         participant: {
           select: {
             id: true,
             username: true,
-            avatar_url: true
+            avatar_url: true,
+            is_premium: true,
+            premium_until: true
           }
         },
         listing: {
