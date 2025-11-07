@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { resolveCategoryId } from "@/lib/categories";
 
 /**
  * 映射条件显示值
@@ -326,7 +327,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     // 🔥 处理 category（通过 name 查找 category_id）
     if (body.category !== undefined && typeof body.category === "string" && body.category.trim().length > 0) {
       try {
-        const categoryId = await getCategoryId(body.category);
+        const categoryId = await resolveCategoryId(body.category);
         updateData.category_id = categoryId;
         console.log("✅ Category resolved:", body.category, "->", categoryId);
       } catch (err) {
@@ -476,139 +477,3 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
   }
 }
 
-/**
- * 🔥 获取 category ID（通过 category name）
- */
-const CATEGORY_CANONICALS = [
-  "Accessories",
-  "Activewear",
-  "Bottoms",
-  "Designer",
-  "Dresses",
-  "Formal Wear",
-  "Outerwear",
-  "Shoes",
-  "Tops",
-  "Vintage",
-] as const;
-
-async function getCategoryId(categoryName: string): Promise<number> {
-  const normalized = (categoryName || "").trim().toLowerCase();
-
-  if (
-    !normalized ||
-    normalized === "select" ||
-    normalized === "none" ||
-    normalized.startsWith("select ") ||
-    normalized.includes("selecta") ||
-    normalized.startsWith("choose")
-  ) {
-    throw new Error("Category name is empty");
-  }
-
-  const synonymMap: Record<string, (typeof CATEGORY_CANONICALS)[number]> = {
-    accessories: "Accessories",
-    accessory: "Accessories",
-    jewelry: "Accessories",
-    jewellery: "Accessories",
-    bag: "Accessories",
-    bags: "Accessories",
-    handbag: "Accessories",
-    belt: "Accessories",
-    belts: "Accessories",
-    scarf: "Accessories",
-    scarves: "Accessories",
-    hat: "Accessories",
-    hats: "Accessories",
-    beanie: "Accessories",
-    sunglasses: "Accessories",
-    eyewear: "Accessories",
-    watch: "Accessories",
-    watches: "Accessories",
-    activewear: "Activewear",
-    sportswear: "Activewear",
-    sport: "Activewear",
-    gym: "Activewear",
-    workout: "Activewear",
-    athleisure: "Activewear",
-    bottoms: "Bottoms",
-    bottom: "Bottoms",
-    pants: "Bottoms",
-    trouser: "Bottoms",
-    trousers: "Bottoms",
-    jeans: "Bottoms",
-    shorts: "Bottoms",
-    skirt: "Bottoms",
-    skirts: "Bottoms",
-    leggings: "Bottoms",
-    joggers: "Bottoms",
-    designer: "Designer",
-    luxury: "Designer",
-    couture: "Designer",
-    dresses: "Dresses",
-    dress: "Dresses",
-    gown: "Dresses",
-    gowns: "Dresses",
-    formal: "Formal Wear",
-    "formal wear": "Formal Wear",
-    suit: "Formal Wear",
-    suits: "Formal Wear",
-    tuxedo: "Formal Wear",
-    tuxedos: "Formal Wear",
-    blazer: "Formal Wear",
-    blazers: "Formal Wear",
-    evening: "Formal Wear",
-    outerwear: "Outerwear",
-    coat: "Outerwear",
-    coats: "Outerwear",
-    jacket: "Outerwear",
-    jackets: "Outerwear",
-    parka: "Outerwear",
-    trench: "Outerwear",
-    shoes: "Shoes",
-    shoe: "Shoes",
-    footwear: "Shoes",
-    sneaker: "Shoes",
-    sneakers: "Shoes",
-    heel: "Shoes",
-    heels: "Shoes",
-    boot: "Shoes",
-    boots: "Shoes",
-    sandal: "Shoes",
-    sandals: "Shoes",
-    tops: "Tops",
-    top: "Tops",
-    shirt: "Tops",
-    shirts: "Tops",
-    blouse: "Tops",
-    blouses: "Tops",
-    tee: "Tops",
-    tees: "Tops",
-    tshirt: "Tops",
-    "t-shirt": "Tops",
-    hoodie: "Tops",
-    hoodies: "Tops",
-    sweater: "Tops",
-    sweaters: "Tops",
-    cardigan: "Tops",
-    cardigans: "Tops",
-    vintage: "Vintage",
-    retro: "Vintage",
-    "retro wear": "Vintage",
-  };
-
-  const mapped =
-    synonymMap[normalized] ??
-    CATEGORY_CANONICALS.find((cat) => cat.toLowerCase() === normalized) ??
-    "Tops";
-
-  const category = await prisma.listing_categories.findFirst({
-    where: { name: mapped },
-  });
-
-  if (!category) {
-    throw new Error(`Category '${mapped}' is missing from the database.`);
-  }
-
-  return category.id;
-}

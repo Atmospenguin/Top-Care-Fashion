@@ -7,7 +7,7 @@ import type { RouteProp } from "@react-navigation/native";
 import Header from "../../../components/Header";
 import { listingsService, type CategoryData } from "../../../src/services/listingsService";
 import type { DiscoverStackParamList } from "./index";
-import { CATEGORY_DISPLAY_ORDER } from "../../../utils/categoryHelpers";
+import { sortCategories } from "../../../utils/categoryHelpers";
 
 type DiscoverNavigation = NativeStackNavigationProp<DiscoverStackParamList>;
 type DiscoverCategoryRoute = RouteProp<DiscoverStackParamList, "DiscoverCategory">;
@@ -44,7 +44,7 @@ export default function DiscoverCategoryScreen() {
       return [] as string[];
     }
     const available = Object.keys(genderCategories);
-    return CATEGORY_DISPLAY_ORDER.filter((category) => available.includes(category));
+    return sortCategories(available);
   }, [categories, gender]);
 
   const headerTitle = gender === "men" ? "Men" : gender === "women" ? "Women" : "Unisex";
