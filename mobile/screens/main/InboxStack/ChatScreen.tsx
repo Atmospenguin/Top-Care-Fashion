@@ -505,50 +505,151 @@ export default function ChatScreen() {
       
       const conversationData = await messagesService.getMessages(conversationId);
       setConversation(conversationData);
+      console.log("🔍 Conversation payload:", {
+        conversation: conversationData?.conversation,
+        order: conversationData?.order,
+        listing: (conversationData as any)?.listing,
+        messagesCount: conversationData?.messages?.length,
+      });
       
+      const conversationInitiatorId = Number(conversationData?.conversation?.initiator_id ?? NaN);
+      const conversationParticipantId = Number(conversationData?.conversation?.participant_id ?? NaN);
+      const otherUserInfo = conversationData?.conversation?.otherUser;
+      const currentUserId = Number(user?.id ?? NaN);
+      const currentUserAvatar = (user as any)?.avatar_url ?? (user as any)?.avatar ?? undefined;
+      const isCurrentSeller = Number.isFinite(conversationParticipantId) && conversationParticipantId === currentUserId;
+
+      const sanitizeOrderForConversation = (rawOrder: any | null): { order: Order | null; matches: boolean } => {
+        if (!rawOrder) {
+          return { order: null, matches: false };
+        }
+
+        const normalized = normalizeOrder(rawOrder);
+        const buyerIdRaw = normalized?.buyer_id;
+        const sellerIdRaw = normalized?.seller_id;
+        const buyerIdNum = buyerIdRaw !== undefined ? Number(buyerIdRaw) : NaN;
+        const sellerIdNum = sellerIdRaw !== undefined ? Number(sellerIdRaw) : NaN;
+        const hasConversationParticipants =
+          Number.isFinite(conversationInitiatorId) && Number.isFinite(conversationParticipantId);
+        const matches =
+          hasConversationParticipants &&
+          Number.isFinite(buyerIdNum) &&
+          Number.isFinite(sellerIdNum) &&
+          ((buyerIdNum === conversationInitiatorId && sellerIdNum === conversationParticipantId) ||
+            (buyerIdNum === conversationParticipantId && sellerIdNum === conversationInitiatorId));
+
+        if (matches) {
+          return { order: normalized, matches: true };
+        }
+
+        console.log("⚠️ sanitizeOrderForConversation: order does not match participants", {
+          orderId: normalized.id,
+          buyerId: buyerIdNum,
+          sellerId: sellerIdNum,
+          conversationInitiatorId,
+          conversationParticipantId,
+        });
+
+        const sanitized: Order = {
+          ...normalized,
+          status: "Inquiry",
+        };
+
+        const fallbackBuyerId = isCurrentSeller ? otherUserInfo?.id : currentUserId;
+        const fallbackSellerId = isCurrentSeller ? currentUserId : otherUserInfo?.id;
+
+        if (fallbackBuyerId !== undefined && fallbackBuyerId !== null && !Number.isNaN(Number(fallbackBuyerId))) {
+          sanitized.buyer_id = fallbackBuyerId;
+          sanitized.buyer = {
+            name: isCurrentSeller
+              ? otherUserInfo?.username ?? sanitized.buyer?.name ?? "Buyer"
+              : user?.username ?? sanitized.buyer?.name ?? "Buyer",
+            avatar: isCurrentSeller
+              ? otherUserInfo?.avatar ?? sanitized.buyer?.avatar ?? undefined
+              : currentUserAvatar ?? sanitized.buyer?.avatar ?? undefined,
+            id: fallbackBuyerId,
+            user_id: fallbackBuyerId,
+          };
+        } else if (!sanitized.buyer) {
+          sanitized.buyer = {
+            name: sanitized.buyer?.name ?? "Buyer",
+            avatar: sanitized.buyer?.avatar,
+          } as any;
+        }
+
+        if (fallbackSellerId !== undefined && fallbackSellerId !== null && !Number.isNaN(Number(fallbackSellerId))) {
+          sanitized.seller_id = fallbackSellerId;
+          sanitized.seller = {
+            name: isCurrentSeller
+              ? user?.username ?? sanitized.seller.name ?? "Seller"
+              : otherUserInfo?.username ?? sanitized.seller.name ?? "Seller",
+            avatar: isCurrentSeller
+              ? currentUserAvatar ?? sanitized.seller.avatar ?? undefined
+              : otherUserInfo?.avatar ?? sanitized.seller.avatar ?? undefined,
+            id: fallbackSellerId,
+            user_id: fallbackSellerId,
+          } as any;
+        } else if (!sanitized.seller) {
+          sanitized.seller = {
+            name: sanitized.seller?.name ?? "Seller",
+            avatar: sanitized.seller?.avatar,
+          } as any;
+        }
+
+        return { order: sanitized, matches: false };
+      };
+
       // 🔥 安全地输出日志，避免包含换行符导致崩溃
       console.log("🔍 API 返回的消息数量:", conversationData.messages?.length || 0);
       console.log("🔍 Conversation ID:", conversationData.conversation?.id);
       console.log("🔍 Other User (对话对象):", conversationData.conversation?.otherUser?.username);
-      
-      // 转换 API 数据为 ChatItem 格式
-      const apiItems: ChatItem[] = conversationData.messages.map((msg: Message) => {
-        if (msg.type === "msg") {
-          return {
-            id: msg.id,
-            type: "msg",
-            sender: msg.sender || "other",
-            text: msg.text,
-            time: msg.time,
-            senderInfo: msg.senderInfo
-          };
-        } else if (msg.type === "system") {
-          return {
-            id: msg.id,
-            type: "system",
-            text: msg.text,
-            time: msg.time,
-            sentByUser: msg.sentByUser, // 🔥 添加 sentByUser 字段
-            senderInfo: msg.senderInfo
-          };
-        } else if (msg.type === "orderCard" && msg.order) {
-          return {
-            id: msg.id,
-            type: "orderCard",
-            order: normalizeOrder(msg.order)
-          };
-        } else {
-          // Fallback for unknown types - 确保所有消息都显示
-          return {
-            id: msg.id,
-            type: "msg",
-            sender: msg.sender || "other",
-            text: msg.text,
-            time: msg.time,
-            senderInfo: msg.senderInfo
-          };
-        }
-      });
+ 
+      let backendHasValidOrderCard = false;
+      const apiItems = (conversationData.messages || [])
+        .map((msg) => {
+          if (msg.type === "msg") {
+            return {
+              id: msg.id,
+              type: "msg",
+              sender: msg.sender,
+              text: msg.text,
+              time: msg.time,
+              senderInfo: msg.senderInfo
+            };
+          } else if (msg.type === "system") {
+            return {
+              id: msg.id,
+              type: "system",
+              text: msg.text,
+              time: msg.time,
+              sentByUser: msg.sentByUser, // 🔥 添加 sentByUser 字段
+              senderInfo: msg.senderInfo
+            };
+          } else if (msg.type === "orderCard" && msg.order) {
+            const { order: sanitizedOrder } = sanitizeOrderForConversation(msg.order);
+            if (!sanitizedOrder) {
+              console.log("⚠️ Dropping backend order card due to missing sanitized order", msg.id);
+              return null;
+            }
+            backendHasValidOrderCard = true;
+            return {
+              id: msg.id,
+              type: "orderCard",
+              order: sanitizedOrder
+            };
+          } else {
+            // Fallback for unknown types - 确保所有消息都显示
+            return {
+              id: msg.id,
+              type: "msg",
+              sender: msg.sender || "other",
+              text: msg.text,
+              time: msg.time,
+              senderInfo: msg.senderInfo
+            };
+          }
+        })
+        .filter((item): item is ChatItem => Boolean(item));
 
       // 🔥 安全地输出日志
       console.log("🔍 转换后的消息数量:", apiItems.length);
@@ -565,27 +666,32 @@ export default function ChatScreen() {
         // 订单聊天：在开头添加商品卡片和系统消息
         console.log("🔍 订单聊天，添加商品卡片和系统消息");
         
-        // 优先使用 route.params.order，如果没有则使用 conversation.order
-        const rawOrderData = order || conversation?.order;
-        console.log("🔍 Order 数据来源:", order ? "route.params" : "conversation");
+        // 优先使用最新加载的数据（conversationData.order），再回退到 state 或 route params
+        const { order: sanitizedConversationOrder } = sanitizeOrderForConversation(conversationData?.order ?? null);
+        const { order: sanitizedRouteOrder } = sanitizeOrderForConversation(order ?? null);
+        const latestConversationOrder = sanitizedConversationOrder;
+        const hasConversationOrder = Boolean(latestConversationOrder);
+        const rawOrderData = latestConversationOrder ?? sanitizedRouteOrder ?? null;
+        console.log("🔍 Order 数据来源:", hasConversationOrder ? "conversation" : sanitizedRouteOrder ? "route.params" : "conversation");
+        
         console.log("🔍 Order ID:", rawOrderData?.id, "Status:", rawOrderData?.status);
         
         if (rawOrderData) {
           const orderData = normalizeOrder(rawOrderData);
-          // 🔥 判断当前用户是否为卖家
-          const participantId = (conversation?.conversation as any)?.participant_id;
+
+          const participantId = conversationParticipantId ?? (conversation?.conversation as any)?.participant_id;
           const isSeller = Number(participantId) === Number(user?.id); // ✅ 使用 Number() 转换
-          
+
           const orderCard: ChatItem = {
             id: "order-card-" + orderData.id,
             type: "orderCard",
             order: orderData
           };
-          
+   
           console.log("🔍 创建的商品卡片 ID:", orderCard.id);
-          
+   
           // 检查是否已经有商品卡片，避免重复
-          const hasOrderCard = apiItems.some(item => item.type === "orderCard");
+          const hasOrderCard = backendHasValidOrderCard || apiItems.some(item => item.type === "orderCard");
           if (!hasOrderCard) {
             // ✅ 只添加商品卡片，系统消息由后端生成（已在 apiItems 中）
             finalItems = [orderCard, ...apiItems];
@@ -593,6 +699,8 @@ export default function ChatScreen() {
           } else {
             console.log("🔍 商品卡片已存在，不重复添加");
           }
+
+          setLastOrderStatus(orderData.status);
         } else {
           console.log("⚠️ 订单聊天但没有找到商品数据");
         }
@@ -755,21 +863,21 @@ export default function ChatScreen() {
 
   // —— UI 组件 —— //
   const renderOrderCard = (o: Order) => {
-    // 🔥 修复：正确判断当前用户是否为卖家
-    // 在订单对话中，initiator 是买家，participant 是卖家
-    // 如果当前用户ID等于participant_id，则当前用户是卖家
-    const participantId = (conversation?.conversation as any)?.participant_id;
+    // 🔥 正确判断当前用户是否为卖家 - 使用订单中的 seller_id 和 buyer_id
     const currentUserId = user?.id;
-    const isSeller = Number(participantId) === Number(currentUserId); // ✅ 使用 Number() 转换
+    const orderSellerId = o.seller_id || o.seller?.id || o.seller?.user_id;
+    const orderBuyerId = o.buyer_id || o.buyer?.id || o.buyer?.user_id;
+    
+    // 🔥 根据订单的 seller_id 判断，而不是 conversation 的 participant_id
+    const isSeller = Number(currentUserId) === Number(orderSellerId);
     
     console.log("🔍 Order card - isSeller:", isSeller);
-    console.log("🔍 Order card - conversation participant_id:", participantId);
-    console.log("🔍 Order card - participant_id type:", typeof participantId);
     console.log("🔍 Order card - current user id:", currentUserId);
-    console.log("🔍 Order card - current user id type:", typeof currentUserId);
     console.log("🔍 Order card - current user username:", user?.username);
-    console.log("🔍 Order card - order seller:", o.seller.name);
-    console.log("🔍 Order card - order buyer:", o.buyer?.name);
+    console.log("🔍 Order card - order seller_id:", orderSellerId);
+    console.log("🔍 Order card - order buyer_id:", orderBuyerId);
+    console.log("🔍 Order card - order seller name:", o.seller.name);
+    console.log("🔍 Order card - order buyer name:", o.buyer?.name);
 
     const handleBuyNow = () => {
       // 🔥 使用正确的listing_id，如果没有则从conversation中获取
@@ -791,7 +899,14 @@ export default function ChatScreen() {
       console.log("🛒 Conversation listing_id:", (conversation as any)?.listing?.id);
       
       // 🔥 跳转到CheckoutScreen而不是直接创建订单
-      const rootNavigation = (navigation as any).getParent?.();
+      // 获取根导航器（Main Tab Navigator）
+      let rootNavigation: any = navigation;
+      while (rootNavigation.getParent && typeof rootNavigation.getParent === 'function') {
+        const parent = rootNavigation.getParent();
+        if (!parent) break;
+        rootNavigation = parent;
+      }
+      
       if (rootNavigation) {
         // 构造单个商品的购物车项目格式
         const singleItem = {
@@ -808,19 +923,29 @@ export default function ChatScreen() {
         };
         
         console.log("🔍 Navigating to Checkout with listing ID:", listingId);
-        
-        // 🔥 BuyStack在根级别，直接导航
-        rootNavigation.navigate("Buy", {
-          screen: "Checkout",
-          params: {
-            items: [singleItem],
-            subtotal: o.product.price,
-            shipping: o.product.shippingFee || 0, // 使用商品的真实运费
-            conversationId: conversationId // 🔥 传递 conversationId
-          }
+        console.log("🔍 Navigation structure:", { 
+          currentRoute: navigation.getState().routes[navigation.getState().index]?.name,
+          rootNav: !!rootNavigation
         });
+        
+        try {
+          // 🔥 BuyStack在根级别，直接导航
+          rootNavigation.navigate("Buy", {
+            screen: "Checkout",
+            params: {
+              items: [singleItem],
+              subtotal: o.product.price,
+              shipping: o.product.shippingFee || 0, // 使用商品的真实运费
+              conversationId: conversationId // 🔥 传递 conversationId
+            }
+          });
+        } catch (error) {
+          console.error("❌ Navigation error:", error);
+          Alert.alert("Error", "Unable to navigate to checkout. Please try again.");
+        }
       } else {
         console.error("❌ Root navigation not found");
+        Alert.alert("Error", "Navigation error. Please return to listing and try again.");
       }
     };
 
@@ -1929,18 +2054,20 @@ export default function ChatScreen() {
 
           if (item.type === "orderCard") {
             // 🔥 判断订单卡片应该显示在左侧还是右侧
-            // 如果当前用户是买家，订单卡片应该显示在右侧
-            const initiatorId = (conversation?.conversation as any)?.initiator_id;
+            // 根据订单中的 buyer_id 判断当前用户是否为买家
             const currentUserId = user?.id;
-            const isBuyer = Number(initiatorId) === Number(currentUserId);
-            const cardPosition = isBuyer ? "flex-end" : "flex-start";
+            const orderBuyerId = item.order.buyer_id || item.order.buyer?.id || item.order.buyer?.user_id;
+            const orderSellerId = item.order.seller_id || item.order.seller?.id || item.order.seller?.user_id;
+            const isBuyer = Number(currentUserId) === Number(orderBuyerId);
+            const cardPosition = isBuyer ? "flex-end" : "flex-start"; // 买家显示右侧，卖家显示左侧
             
-            console.log("🔍 Order card - isBuyer:", isBuyer);
-            console.log("🔍 Order card - conversation initiator_id:", initiatorId);
-            console.log("🔍 Order card - current user id:", currentUserId);
-            console.log("🔍 Order card - current user username:", user?.username);
-            console.log("🔍 Order card - order buyer:", item.order.buyer?.name);
-            console.log("🔍 Order card - order seller:", item.order.seller?.name);
+            console.log("🔍 Order card position - isBuyer:", isBuyer);
+            console.log("🔍 Order card position - current user id:", currentUserId);
+            console.log("🔍 Order card position - current user username:", user?.username);
+            console.log("🔍 Order card position - order buyer_id:", orderBuyerId);
+            console.log("🔍 Order card position - order seller_id:", orderSellerId);
+            console.log("🔍 Order card position - order buyer name:", item.order.buyer?.name);
+            console.log("🔍 Order card position - order seller name:", item.order.seller?.name);
             
             return (
               <View style={{ 
@@ -2047,7 +2174,7 @@ export default function ChatScreen() {
       />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={-20}
       >
           <View style={[styles.inputBar, { marginBottom: bottomInset - 12 }]}> {/* 修复缺少右括号 */}

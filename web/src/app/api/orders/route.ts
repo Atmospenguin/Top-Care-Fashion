@@ -34,6 +34,7 @@ async function getCurrentUserWithLegacySupport(req: NextRequest) {
           is_premium: true,
           dob: true,
           gender: true,
+          avatar_url: true,
         },
       });
       if (legacyUser) {
@@ -46,6 +47,7 @@ async function getCurrentUserWithLegacySupport(req: NextRequest) {
           isPremium: Boolean(legacyUser.is_premium),
           dob: legacyUser.dob ? legacyUser.dob.toISOString().slice(0, 10) : null,
           gender: legacyUser.gender,
+          avatar_url: legacyUser.avatar_url,
         };
       }
     }
@@ -78,6 +80,7 @@ async function getCurrentUserWithLegacySupport(req: NextRequest) {
         is_premium: true,
         dob: true,
         gender: true,
+        avatar_url: true,
       },
     });
 
@@ -92,6 +95,7 @@ async function getCurrentUserWithLegacySupport(req: NextRequest) {
         isPremium: Boolean(dbUser.is_premium),
         dob: dbUser.dob ? dbUser.dob.toISOString().slice(0, 10) : null,
         gender: dbUser.gender,
+        avatar_url: dbUser.avatar_url,
       };
     } else {
       console.log("❌ No local user found for Supabase user:", user.email);
@@ -531,6 +535,26 @@ export async function POST(request: NextRequest) {
         messageType: 'PAID' // 🔥 消息类型
       });
       console.log(`✅ PAID system message created for order ${order.id} in conversation ${conversation.id}`);
+      
+      // 🔔 创建下单通知给卖家
+      try {
+        await prisma.notifications.create({
+          data: {
+            user_id: sellerId, // 通知卖家
+            type: 'ORDER',
+            title: 'New order received',
+            message: `@${currentUser.username} placed an order for your item.`,
+            image_url: currentUser.avatar_url || null, // 显示买家头像
+            order_id: order.id.toString(),
+            related_user_id: currentUser.id, // 买家ID
+            conversation_id: conversation.id,
+          },
+        });
+        console.log(`🔔 Order notification created for seller ${sellerId}`);
+      } catch (notifError) {
+        console.error('❌ Failed to create order notification:', notifError);
+        // 不阻止订单创建
+      }
     } catch (msgError) {
       console.error('❌ Failed to create PAID system message:', msgError);
       // 不阻止订单创建，只记录错误

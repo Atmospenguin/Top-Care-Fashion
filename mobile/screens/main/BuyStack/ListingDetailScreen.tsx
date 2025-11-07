@@ -27,7 +27,7 @@ import ASSETS from "../../../constants/assetUrls";
 import type { BagItem, ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
 import { likesService, cartService, messagesService } from "../../../src/services";
-import { reportsService } from "../../../src/services/reportsService";
+import { flagsService } from "../../../src/services/flagsService";
 import { useAuth } from "../../../contexts/AuthContext";
 import { apiClient } from "../../../src/services/api";
 
@@ -88,10 +88,10 @@ export default function ListingDetailScreen() {
   const [item, setItem] = useState<ListingItem | null>(itemParam || null);
   const [isLoadingListing, setIsLoadingListing] = useState(!itemParam && !!listingId);
   const [showMenu, setShowMenu] = useState(false);
-  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [flagModalVisible, setFlagModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [reportDetails, setReportDetails] = useState("");
-  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [flagDetails, setFlagDetails] = useState("");
+  const [isSubmittingFlag, setIsSubmittingFlag] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [isLoadingLike, setIsLoadingLike] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
@@ -410,68 +410,68 @@ export default function ListingDetailScreen() {
     }
   };
 
-  const handleReport = () => {
+  const handleFlag = () => {
     setShowMenu(false);
-    setReportModalVisible(true);
+    setFlagModalVisible(true);
   };
 
-  const handleSubmitReport = async () => {
+  const handleSubmitFlag = async () => {
     if (!safeItem) {
-      Alert.alert("Error", "Unable to submit report for this listing. Please try again later.");
+      Alert.alert("Error", "Unable to submit flag for this listing. Please try again later.");
       return;
     }
     if (!selectedCategory) {
-      Alert.alert("Notice", "Please select a report category");
+      Alert.alert("Notice", "Please select a flag category");
       return;
     }
-    if (!reportDetails.trim()) {
-      Alert.alert("Notice", "Please fill in report details");
+    if (!flagDetails.trim()) {
+      Alert.alert("Notice", "Please fill in flag details");
       return;
     }
 
     try {
-      setIsSubmittingReport(true);
-      await reportsService.submitReport({
+      setIsSubmittingFlag(true);
+      await flagsService.submitFlag({
         targetType: "listing",
         targetId: String(safeItem.id ?? ""),
         category: selectedCategory,
-        details: reportDetails,
-        reportedListingId: safeItem.id ?? undefined,
-        reportedUsername:
+        details: flagDetails,
+        flaggedListingId: safeItem.id ?? undefined,
+        flaggedUsername:
           typeof safeItem.seller?.id !== "undefined"
             ? String(safeItem.seller?.id)
             : safeItem.seller?.name,
       });
       Alert.alert(
-        "Report Submitted",
+        "Flag Submitted",
         "Thank you for your feedback. We will review it shortly.",
         [
           {
             text: "OK",
             onPress: () => {
-              setReportModalVisible(false);
+              setFlagModalVisible(false);
               setSelectedCategory(null);
-              setReportDetails("");
+              setFlagDetails("");
             },
           },
         ],
       );
     } catch (error) {
-      console.error("Error submitting report:", error);
+      console.error("Error submitting flag:", error);
       const message =
         error instanceof Error && error.message
           ? error.message
-          : "Failed to submit report. Please try again.";
+          : "Failed to submit flag. Please try again.";
       Alert.alert("Error", message);
     } finally {
-      setIsSubmittingReport(false);
+      setIsSubmittingFlag(false);
     }
   };
 
-  const handleCancelReport = () => {
-    setReportModalVisible(false);
+  const handleCancelFlag = () => {
+    setFlagModalVisible(false);
     setSelectedCategory(null);
-    setReportDetails("");
+    setFlagDetails("");
   };
 
   const handleShare = async () => {
@@ -513,10 +513,10 @@ export default function ListingDetailScreen() {
               <View style={styles.menuCard}>
                 <TouchableOpacity
                   style={styles.menuItem}
-                  onPress={handleReport}
+                  onPress={handleFlag}
                 >
                   <Icon name="flag-outline" size={18} color="#111" />
-                  <Text style={styles.menuItemText}>Report</Text>
+                  <Text style={styles.menuItemText}>Flag</Text>
                 </TouchableOpacity>
                 <View style={styles.menuDivider} />
                 <TouchableOpacity
@@ -532,28 +532,28 @@ export default function ListingDetailScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Report Modal */}
+      {/* Flag Modal */}
       <Modal
-        visible={reportModalVisible}
+        visible={flagModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={handleCancelReport}
+        onRequestClose={handleCancelFlag}
       >
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.keyboardAvoidingView}
           >
             <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Report Listing</Text>
-                <TouchableOpacity onPress={handleCancelReport}>
+                <Text style={styles.modalTitle}>Flag Listing</Text>
+                <TouchableOpacity onPress={handleCancelFlag}>
                   <Icon name="close" size={24} color="#111" />
                 </TouchableOpacity>
               </View>
 
               <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
-                <Text style={styles.sectionTitle}>Select Report Category</Text>
+                <Text style={styles.sectionTitle}>Select Flag Category</Text>
                 <View style={styles.categoriesContainer}>
                   {Array.isArray(REPORT_CATEGORIES) && REPORT_CATEGORIES.map((category) => (
                     <TouchableOpacity
@@ -581,23 +581,23 @@ export default function ListingDetailScreen() {
                   ))}
                 </View>
 
-                <Text style={styles.sectionTitle}>Report Details</Text>
+                <Text style={styles.sectionTitle}>Flag Details</Text>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Please describe your reason for reporting..."
+                  placeholder="Please describe your reason for flagging..."
                   placeholderTextColor="#999"
                   multiline
                   numberOfLines={6}
                   textAlignVertical="top"
-                  value={reportDetails}
-                  onChangeText={setReportDetails}
+                  value={flagDetails}
+                  onChangeText={setFlagDetails}
                 />
               </ScrollView>
 
               <View style={styles.modalFooter}>
                 <TouchableOpacity
                   style={[styles.modalButton, styles.cancelButton]}
-                  onPress={handleCancelReport}
+                  onPress={handleCancelFlag}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
@@ -605,13 +605,13 @@ export default function ListingDetailScreen() {
                   style={[
                     styles.modalButton,
                     styles.submitButton,
-                    isSubmittingReport ? { opacity: 0.6 } : undefined,
+                    isSubmittingFlag ? { opacity: 0.6 } : undefined,
                   ]}
-                  onPress={handleSubmitReport}
-                  disabled={isSubmittingReport}
+                  onPress={handleSubmitFlag}
+                  disabled={isSubmittingFlag}
                 >
                   <Text style={styles.submitButtonText}>
-                    {isSubmittingReport ? "Submitting..." : "Submit Report"}
+                    {isSubmittingFlag ? "Submitting..." : "Submit Flag"}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1448,7 +1448,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#fff",
   },
-  // Report Modal Styles
+  // Flag Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",

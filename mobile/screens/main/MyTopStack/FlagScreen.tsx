@@ -11,11 +11,11 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 
 import Header from "../../../components/Header";
-import { reportsService } from "../../../src/services";
-import type { UserReportSummary } from "../../../src/services";
+import { flagsService } from "../../../src/services";
+import type { UserFlagSummary } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
 
-type StatusKey = UserReportSummary["status"];
+type StatusKey = UserFlagSummary["status"];
 
 const STATUS_META: Record<StatusKey, { label: string; tint: string; background: string }> = {
   open: {
@@ -52,22 +52,22 @@ function formatTimestamp(value?: string | null) {
   }
 }
 
-export default function ReportScreen() {
+export default function FlagScreen() {
   const { user } = useAuth();
-  const [reports, setReports] = useState<UserReportSummary[]>([]);
+  const [flags, setFlags] = useState<UserFlagSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchReports = useCallback(
+  const fetchFlags = useCallback(
     async (options?: { silent?: boolean }) => {
       const silent = options?.silent ?? false;
 
       if (!user?.id) {
         setLoading(false);
         setRefreshing(false);
-        setReports([]);
-        setError("Sign in to track the progress of your reports.");
+        setFlags([]);
+        setError("Sign in to track the progress of your flags.");
         return;
       }
 
@@ -79,7 +79,7 @@ export default function ReportScreen() {
         }
         setError(null);
 
-        const results = await reportsService.getMyReports();
+        const results = await flagsService.getMyFlags();
         const sorted = [...results].sort((a, b) => {
           const timeA = Date.parse(a.createdAt);
           const timeB = Date.parse(b.createdAt);
@@ -87,13 +87,13 @@ export default function ReportScreen() {
           const safeB = Number.isNaN(timeB) ? 0 : timeB;
           return safeB - safeA;
         });
-        setReports(sorted);
+        setFlags(sorted);
       } catch (err) {
-        console.error("Error loading report progress:", err);
+        console.error("Error loading flag progress:", err);
         const message =
           err instanceof Error && err.message
             ? err.message
-            : "Unable to load your reports right now.";
+            : "Unable to load your flags right now.";
         setError(message);
       } finally {
         setLoading(false);
@@ -105,26 +105,26 @@ export default function ReportScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchReports();
-    }, [fetchReports]),
+      fetchFlags();
+    }, [fetchFlags]),
   );
 
   const handleRefresh = useCallback(() => {
-    fetchReports({ silent: true });
-  }, [fetchReports]);
+    fetchFlags({ silent: true });
+  }, [fetchFlags]);
 
   const handleRetry = useCallback(() => {
-    fetchReports();
-  }, [fetchReports]);
+    fetchFlags();
+  }, [fetchFlags]);
 
   const showEmptyState = useMemo(
-    () => !loading && !refreshing && !error && reports.length === 0,
-    [loading, refreshing, error, reports],
+    () => !loading && !refreshing && !error && flags.length === 0,
+    [loading, refreshing, error, flags],
   );
 
   return (
     <View style={styles.screen}>
-      <Header title="My Reports" showBack />
+      <Header title="My Flags" showBack />
 
       <ScrollView
         contentContainerStyle={styles.container}
@@ -138,14 +138,14 @@ export default function ReportScreen() {
         }
       >
         <Text style={styles.subtitle}>
-          Track the reports you've submitted and see when our support team takes action.
+          Track the flags you've submitted and see when our support team takes action.
         </Text>
         <Text style={styles.sectionTitle}>Status updates</Text>
 
         {loading && !refreshing ? (
           <View style={styles.loader}>
             <ActivityIndicator color="#FF4D4F" />
-            <Text style={styles.loaderText}>Loading your reports…</Text>
+            <Text style={styles.loaderText}>Loading your flags…</Text>
           </View>
         ) : null}
 
@@ -159,20 +159,20 @@ export default function ReportScreen() {
           </View>
         ) : null}
 
-        {!loading && reports.length > 0
-          ? reports.map((report) => {
-              const statusMeta = STATUS_META[report.status] ?? STATUS_META.open;
-              const openedAt = formatTimestamp(report.createdAt);
+        {!loading && flags.length > 0
+          ? flags.map((flag) => {
+              const statusMeta = STATUS_META[flag.status] ?? STATUS_META.open;
+              const openedAt = formatTimestamp(flag.createdAt);
               const updatedAt =
-                report.status !== "open" ? formatTimestamp(report.resolvedAt) : null;
+                flag.status !== "open" ? formatTimestamp(flag.resolvedAt) : null;
               const targetLabel =
-                report.targetType === "listing" ? "Listing" : "User";
+                flag.targetType === "listing" ? "Listing" : "User";
 
               return (
-                <View key={report.id} style={styles.reportCard}>
+                <View key={flag.id} style={styles.flagCard}>
                   <View style={styles.cardHeader}>
-                    <Text style={styles.reportTitle} numberOfLines={2}>
-                      {report.reason || "Report submitted"}
+                    <Text style={styles.flagTitle} numberOfLines={2}>
+                      {flag.reason || "Flag submitted"}
                     </Text>
                     <View
                       style={[
@@ -186,13 +186,13 @@ export default function ReportScreen() {
                     </View>
                   </View>
 
-                  <Text style={styles.reportId}>Case #{report.id}</Text>
+                  <Text style={styles.flagId}>Case #{flag.id}</Text>
 
                   <View style={styles.metaRow}>
                     <Text style={styles.metaLabel}>Target</Text>
                     <Text style={styles.metaValue} numberOfLines={1}>
                       {targetLabel}
-                      {report.targetId ? ` • ${report.targetId}` : ""}
+                      {flag.targetId ? ` • ${flag.targetId}` : ""}
                     </Text>
                   </View>
 
@@ -204,11 +204,11 @@ export default function ReportScreen() {
                     <Text style={styles.timestamp}>Last updated {updatedAt}</Text>
                   ) : null}
 
-                  {report.notes ? (
+                  {flag.notes ? (
                     <>
                       <View style={styles.divider} />
                       <Text style={styles.notesLabel}>Latest update</Text>
-                      <Text style={styles.notesText}>{report.notes}</Text>
+                      <Text style={styles.notesText}>{flag.notes}</Text>
                     </>
                   ) : null}
                 </View>
@@ -218,9 +218,9 @@ export default function ReportScreen() {
 
         {showEmptyState ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No reports yet</Text>
+            <Text style={styles.emptyTitle}>No flags yet</Text>
             <Text style={styles.emptyMessage}>
-              When you submit a report, you'll see each step of the review process here.
+              When you submit a flag, you'll see each step of the review process here.
             </Text>
           </View>
         ) : null}
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
-  reportCard: {
+  flagCard: {
     padding: 16,
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
@@ -313,14 +313,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
   },
-  reportTitle: {
+  flagTitle: {
     flex: 1,
     marginRight: 12,
     fontSize: 16,
     fontWeight: "700",
     color: "#111",
   },
-  reportId: {
+  flagId: {
     marginTop: 6,
     fontSize: 12,
     fontWeight: "500",
@@ -395,3 +395,4 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+

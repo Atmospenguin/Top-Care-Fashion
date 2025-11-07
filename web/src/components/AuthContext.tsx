@@ -20,7 +20,7 @@ type AuthContextType = {
   //ding cheng input
   // add in new boolean isLoading to handle loading of page for session
   isLoading: boolean;
-  signUp: (data: { username: string; email: string; password: string; dob?: string; gender?: Gender }) => Promise<void>;
+  signUp: (data: { username: string; email: string; password: string }) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => void;
   resetPassword: (email: string) => Promise<void>;
@@ -105,11 +105,11 @@ const [isLoading, setIsLoading] = useState(true);
     }
   }, [user]);
 
-  const signUp = useCallback<AuthContextType["signUp"]>(async ({ username, email, password, dob, gender }) => {
+  const signUp = useCallback<AuthContextType["signUp"]>(async ({ username, email, password }) => {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, email, password, dob, gender }),
+      body: JSON.stringify({ username, email, password }),
     });
 
     const j = await res.json().catch(() => ({}));
@@ -118,14 +118,8 @@ const [isLoading, setIsLoading] = useState(true);
       throw new Error(errorMessage);
     }
 
-    setUser({
-      username: j.user.username,
-      email: j.user.email,
-      dob: normalizeDob(j.user.dob ?? dob),
-      gender: normalizeGender(j.user.gender ?? gender),
-      actor: j.user.role === "Admin" ? "Admin" : "User",
-      isPremium: !!j.user.isPremium,
-    });
+    // Don't set user immediately after signup - they need to verify email first
+    // The user will be set after they verify their email and sign in
   }, []);
 
   const signIn = useCallback<AuthContextType["signIn"]>(async (email, password) => {

@@ -6,6 +6,7 @@ import { AuthProvider } from "@/components/AuthContext";
 import NavBar from "@/components/NavBar";
 import BackToTopButton from "@/components/BackToTopButton";
 
+// Initialize Geist fonts
 const geistSans = GeistSans;
 const geistMono = GeistMono;
 
@@ -23,9 +24,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-  <html lang="en">
+  <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body
-        className={`${geistSans?.variable ?? ""} ${geistMono?.variable ?? ""} antialiased`}
+        className="antialiased"
       >
         <AuthProvider>
           <header>

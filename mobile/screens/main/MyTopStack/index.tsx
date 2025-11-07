@@ -10,7 +10,7 @@ import NotificationsScreen from "./NotificationsScreen";
 import PrivacyScreen from "./PrivacyScreen";
 import HelpSupportScreen from "./HelpSupportScreen";
 import TermsPoliciesScreen from "./TermsPoliciesScreen";
-import ReportScreen from "./ReportScreen";
+import FlagScreen from "./FlagScreen";
 import FeedbackScreen from "./FeedbackScreen";
 import ActiveListingDetailScreen from "./ActiveListingDetailScreen";
 import ManageListingScreen from "./ManageListingScreen";
@@ -54,7 +54,7 @@ export type MyTopStackParamList = {
   Privacy: undefined;
   HelpSupport: undefined;
   TermsPolicies: undefined;
-  Report: undefined;
+  Flag: undefined;
   Feedback: undefined;
   OrderDetail: { id: string; source: "purchase" | "sold"; conversationId?: string };
   Review: { orderId: string };
@@ -147,7 +147,7 @@ export default function MyTopStackNavigator() {
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
     <Stack.Screen name="TermsPolicies" component={TermsPoliciesScreen} />
     <Stack.Screen name="Feedback" component={FeedbackScreen} />
-      <Stack.Screen name="Report" component={ReportScreen} />
+      <Stack.Screen name="Flag" component={FlagScreen} />
       <Stack.Screen name="ActiveListingDetail" component={ActiveListingDetailScreen} />
       <Stack.Screen name="ManageListing" component={ManageListingScreen} />
       <Stack.Screen name="EditListing" component={EditListingScreen} />

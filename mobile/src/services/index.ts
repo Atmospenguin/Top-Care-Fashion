@@ -9,7 +9,7 @@ export { likesService } from './likesService';
 export { cartService } from './cartService';
 export { messagesService } from './messagesService';
 export { reviewsService } from './reviewsService';
-export { reportsService } from './reportsService';
+export { flagsService } from './flagsService';
 export { notificationService } from './notificationService';
 export { premiumService, PremiumServiceType } from './premiumService';
 export { benefitsService, BenefitsServiceType } from './benefitsService';
@@ -57,11 +57,11 @@ export type {
   NotificationParams
 } from './notificationService';
 export type {
-  ReportTargetType,
-  SubmitReportParams,
-  SubmitReportResponse,
-  UserReportSummary
-} from './reportsService';
+  FlagTargetType,
+  SubmitFlagParams,
+  SubmitFlagResponse,
+  UserFlagSummary
+} from './flagsService';
 export type { UserBenefitsPayload, MixMatchUsageResult } from './benefitsService';
 export type {
   PaymentMethod,

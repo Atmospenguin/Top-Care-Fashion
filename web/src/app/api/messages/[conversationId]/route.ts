@@ -261,14 +261,30 @@ export async function GET(
     
     // 🔥 查询真实订单状态（如果有订单的话）
     let existingOrder = null;
+    const convoInitiatorId = Number(conversation.initiator_id);
+    const convoParticipantId = Number(conversation.participant_id);
     if (conversation.listing) {
       try {
+        // 🔥 修复：查询当前对话双方的订单，而不是这个listing的任意订单
         existingOrder = await prisma.orders.findFirst({
           where: {
             listing_id: conversation.listing.id,
-            OR: [
-              { buyer_id: dbUser.id },
-              { seller_id: dbUser.id }
+            // 🔥 确保订单的买家和卖家匹配当前对话的双方
+            AND: [
+              {
+                OR: [
+                  // 买家是initiator，卖家是participant
+                  {
+                    buyer_id: conversation.initiator_id,
+                    seller_id: conversation.participant_id
+                  },
+                  // 或者买家是participant，卖家是initiator（理论上不会发生，但做个保险）
+                  {
+                    buyer_id: conversation.participant_id,
+                    seller_id: conversation.initiator_id
+                  }
+                ]
+              }
             ]
           },
           include: {
@@ -290,6 +306,22 @@ export async function GET(
           orderBy: { created_at: 'desc' }
         });
         console.log("🔍 Found existing order:", existingOrder?.id, "Status:", existingOrder?.status);
+        console.log("🔍 Order buyer:", existingOrder?.buyer?.username, "seller:", existingOrder?.seller?.username);
+        console.log("🔍 Conversation initiator:", conversation.initiator.username, "participant:", conversation.participant.username);
+
+        if (existingOrder) {
+          const buyerId = Number(existingOrder.buyer_id);
+          const sellerId = Number(existingOrder.seller_id);
+          const buyerMatches = Number.isFinite(buyerId) && (buyerId === convoInitiatorId || buyerId === convoParticipantId);
+          const sellerMatches = Number.isFinite(sellerId) && (sellerId === convoInitiatorId || sellerId === convoParticipantId);
+          const matchesInitiatorBuyer = buyerId === convoInitiatorId && sellerId === convoParticipantId;
+          const matchesInitiatorSeller = buyerId === convoParticipantId && sellerId === convoInitiatorId;
+
+          if (!buyerMatches || !sellerMatches || (!matchesInitiatorBuyer && !matchesInitiatorSeller)) {
+            console.log("⚠️ Existing order does not match conversation participants, ignoring order", existingOrder.id);
+            existingOrder = null;
+          }
+        }
       } catch (error) {
         console.error("❌ Error querying order:", error);
       }
@@ -357,11 +389,11 @@ export async function GET(
         }
       },
       messages: orderCard ? [orderCard, ...formattedMessages] : formattedMessages,
-      order: conversation.listing ? {
-        id: existingOrder ? existingOrder.id.toString() : conversation.listing.id.toString(),
-        listing_id: existingOrder ? existingOrder.listing_id : conversation.listing.id, // 🔥 添加 listing_id
-        buyer_id: existingOrder ? existingOrder.buyer_id : buyer.id,
-        seller_id: existingOrder ? existingOrder.seller_id : seller.id,
+      order: conversation.listing && existingOrder ? {
+        id: existingOrder.id.toString(),
+        listing_id: existingOrder.listing_id,
+        buyer_id: existingOrder.buyer_id,
+        seller_id: existingOrder.seller_id,
         product: {
           title: conversation.listing.name,
           price: Number(conversation.listing.price),
@@ -370,11 +402,11 @@ export async function GET(
             // 🔥 处理image_urls字段 - 可能是JSON字符串或数组
             let imageUrls = conversation.listing.image_urls;
             if (typeof imageUrls === 'string') {
-          try {
-            imageUrls = JSON.parse(imageUrls);
-          } catch {
-            imageUrls = null;
-          }
+              try {
+                imageUrls = JSON.parse(imageUrls);
+              } catch {
+                imageUrls = null;
+              }
             }
             
             if (Array.isArray(imageUrls) && imageUrls.length > 0) {
@@ -389,14 +421,14 @@ export async function GET(
           })()
         },
         seller: { 
-          name: existingOrder ? existingOrder.seller.username : seller.username,
-          avatar: existingOrder ? existingOrder.seller.avatar_url : seller.avatar_url
+          name: existingOrder.seller.username,
+          avatar: existingOrder.seller.avatar_url
         },
         buyer: {
-          name: existingOrder ? existingOrder.buyer.username : buyer.username,
-          avatar: existingOrder ? existingOrder.buyer.avatar_url : buyer.avatar_url
+          name: existingOrder.buyer.username,
+          avatar: existingOrder.buyer.avatar_url
         },
-        status: existingOrder ? existingOrder.status : "Inquiry"
+        status: existingOrder.status
       } : null
     });
 

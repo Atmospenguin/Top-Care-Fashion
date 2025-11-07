@@ -161,9 +161,10 @@ export default function ConfirmResetPasswordPage() {
             className="mt-1 w-full border border-black/10 rounded-md px-3 py-2"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            minLength={8}
+            minLength={6}
             required
           />
+          <span className="text-xs text-gray-500 mt-1 block">Minimum 6 characters</span>
         </label>
         <label className="text-sm">
           Confirm password
@@ -172,9 +173,10 @@ export default function ConfirmResetPasswordPage() {
             className="mt-1 w-full border border-black/10 rounded-md px-3 py-2"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            minLength={8}
+            minLength={6}
             required
           />
+          <span className="text-xs text-gray-500 mt-1 block">Must match the password above</span>
         </label>
         <button
           type="submit"

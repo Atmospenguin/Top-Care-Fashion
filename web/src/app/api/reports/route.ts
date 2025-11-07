@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ reports: payload }, { status: 200 });
   } catch (error) {
     console.error("Failed to fetch reports:", error);
-    return NextResponse.json({ error: "Failed to load reports" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to load flags" }, { status: 500 });
   }
 }
 
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
   const reason = buildReason(category, details);
   if (!reason) {
     return NextResponse.json(
-      { error: "Please include a category or provide report details" },
+      { error: "Please include a category or provide flag details" },
       { status: 400 },
     );
   }
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error("Failed to create report:", error);
-    return NextResponse.json({ error: "Failed to submit report" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to submit flag" }, { status: 500 });
   }
 }
 

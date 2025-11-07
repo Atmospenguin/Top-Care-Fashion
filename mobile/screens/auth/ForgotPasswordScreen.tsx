@@ -1,100 +1,88 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import React from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Linking, Alert, ScrollView } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../App";
 import { LOGO_FULL_COLOR } from "../../constants/assetUrls";
 import Icon from "../../components/Icon";
-import { useAuth } from "../../contexts/AuthContext";
+import { API_BASE_URL } from "../../src/config/api";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ForgotPassword">;
 
 export default function ForgotPasswordScreen({ navigation }: Props) {
-  const { requestPasswordReset } = useAuth();
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [countdown, setCountdown] = useState(0);
+  const handleOpenResetPassword = async () => {
+    const resetPasswordUrl = `${API_BASE_URL.replace(/\/+$/, '')}/reset-password`;
 
-  // Countdown timer effect
-  useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [countdown]);
-
-  const onSubmit = async () => {
-    if (!email.trim() || countdown > 0) return;
-    setSubmitting(true);
-    setStatus("Sending...");
     try {
-      await requestPasswordReset(email.trim());
-      setStatus("Password reset email sent. Please check your inbox.");
-      setCountdown(60); // Start 60-second cooldown
-    } catch (error: any) {
-      setStatus(error?.message || "Failed to send reset email");
-    } finally {
-      setSubmitting(false);
+      const supported = await Linking.canOpenURL(resetPasswordUrl);
+      if (supported) {
+        await Linking.openURL(resetPasswordUrl);
+      } else {
+        Alert.alert("Error", "Cannot open the reset password page");
+      }
+    } catch (error) {
+      console.error("Error opening reset password URL:", error);
+      Alert.alert("Error", "Failed to open reset password page");
     }
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container}>
       {/* 返回按钮 */}
       <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
         <Icon name="chevron-back" size={20} color="#111" />
       </TouchableOpacity>
 
-      {/* 标题 */}
-      <Text style={styles.title}>Forgot Password?</Text>
-      <Text style={styles.subtitle}>
-        Don’t worry! It occurs. Please enter the email address linked with your account.
-      </Text>
+      <View style={styles.content}>
+        {/* Logo */}
+        <View style={styles.logoWrapper}>
+          <LOGO_FULL_COLOR width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
+        </View>
 
-      <View style={styles.logoWrapper}>
-        <LOGO_FULL_COLOR width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
+        {/* 标题 */}
+        <Text style={styles.title}>Reset Your Password</Text>
+        <Text style={styles.subtitle}>
+          To reset your password, please open our secure web page where you can enter your email address and receive a password reset link.
+        </Text>
+
+        {/* 打开浏览器按钮 */}
+        <TouchableOpacity style={styles.openBrowserBtn} onPress={handleOpenResetPassword}>
+          <Icon name="globe-outline" size={24} color="#fff" />
+          <Text style={styles.openBrowserText}>Open Reset Password Page</Text>
+        </TouchableOpacity>
+
+        {/* 说明信息 */}
+        <View style={styles.infoBox}>
+          <Text style={styles.infoTitle}>What happens next?</Text>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoBullet}>1.</Text>
+            <Text style={styles.infoText}>You'll be taken to our secure web page</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoBullet}>2.</Text>
+            <Text style={styles.infoText}>Enter your email address</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoBullet}>3.</Text>
+            <Text style={styles.infoText}>Check your email for the reset link</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoBullet}>4.</Text>
+            <Text style={styles.infoText}>Follow the link to create a new password</Text>
+          </View>
+        </View>
       </View>
-
-      {/* 输入框 */}
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your email"
-        placeholderTextColor="#9AA0A6"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        value={email}
-        onChangeText={setEmail}
-      />
-
-      {/* Send Code 按钮 */}
-      <TouchableOpacity
-        style={[styles.sendBtn, (submitting || countdown > 0) && styles.sendBtnDisabled]}
-        onPress={onSubmit}
-        disabled={submitting || countdown > 0}
-      >
-        {submitting ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.sendBtnText}>
-            {countdown > 0 ? `Resend in ${countdown}s` : "Send Email"}
-          </Text>
-        )}
-      </TouchableOpacity>
-
-      {status ? <Text style={styles.status}>{status}</Text> : null}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: "#fff", 
+  container: {
+    flexGrow: 1,
+    backgroundColor: "#fff",
     padding: 24,
-    justifyContent: "center" // ⬅️ 内容整体垂直居中
   },
   backBtn: {
-    position: "absolute",  // ⬅️ 固定在左上角
+    position: "absolute",
     top: 50,
     left: 20,
     width: 40,
@@ -104,42 +92,79 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 10,
   },
-
-  title: { fontSize: 28, fontWeight: "800", color: "#111827", marginBottom: 12, textAlign: "center" },
-  subtitle: { fontSize: 15, color: "#6B7280", marginBottom: 24, lineHeight: 22, textAlign: "center" },
+  content: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 60,
+  },
   logoWrapper: {
-    alignSelf: "center",
-    width: 120,
-    height: 80,
-    marginBottom: 24,
+    width: 140,
+    height: 100,
+    marginBottom: 32,
   },
-
-  input: {
+  title: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 15,
+    color: "#6B7280",
+    marginBottom: 32,
+    lineHeight: 22,
+    textAlign: "center",
+    paddingHorizontal: 16,
+  },
+  openBrowserBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
     height: 56,
+    backgroundColor: "#F54B3D",
     borderRadius: 16,
+    paddingHorizontal: 24,
+    marginBottom: 32,
+    width: "100%",
+  },
+  openBrowserText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  infoBox: {
+    width: "100%",
     backgroundColor: "#F6F7F9",
-    paddingHorizontal: 20,
-    marginBottom: 24,
+    borderRadius: 16,
+    padding: 20,
     borderWidth: 1,
     borderColor: "#EEF0F3",
   },
-
-  sendBtn: {
-    height: 56,
-    backgroundColor: "#111827",
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 16,
   },
-  sendBtnDisabled: {
-    opacity: 0.5,
+  infoItem: {
+    flexDirection: "row",
+    marginBottom: 12,
   },
-  sendBtnText: { color: "#fff", fontSize: 18, fontWeight: "700" },
-  status: {
-    marginTop: 24,
-    textAlign: "center",
-    color: "#6B7280",
+  infoBullet: {
     fontSize: 14,
+    fontWeight: "700",
+    color: "#F54B3D",
+    width: 24,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 20,
   },
 });

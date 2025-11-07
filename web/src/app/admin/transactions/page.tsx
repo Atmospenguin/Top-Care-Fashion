@@ -148,6 +148,10 @@ export default function TransactionsPage() {
     .filter(t => t.status === 'completed')
     .reduce((sum, t) => sum + (t.priceEach || 0) * t.quantity, 0);
 
+  const totalCommissionRevenue = filteredTransactions
+    .filter(t => t.status === 'completed')
+    .reduce((sum, t) => sum + ((t as any).commissionAmount || 0), 0);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -161,6 +165,7 @@ export default function TransactionsPage() {
         <div className="text-right">
           <div className="text-sm text-gray-600">Total Revenue (Completed)</div>
           <div className="text-2xl font-bold text-green-600">${totalRevenue.toFixed(2)}</div>
+          <div className="text-xs text-gray-600 mt-1">Commission: ${totalCommissionRevenue.toFixed(2)}</div>
         </div>
       </div>
 
