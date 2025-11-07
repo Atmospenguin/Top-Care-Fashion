@@ -14,13 +14,13 @@ function env(name: string) {
 // PATCH - Set as current release
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   try {
-    const { id } = params;
+    const { id } = await context.params;
     const body = await req.json();
     const { isCurrent } = body;
 
@@ -68,13 +68,13 @@ export async function PATCH(
 // DELETE - Delete release
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   try {
-    const { id } = params;
+    const { id } = await context.params;
     const supabase = await createSupabaseServer();
 
     // Get release info before deleting
