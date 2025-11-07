@@ -68,6 +68,22 @@ export async function POST(req: Request) {
       }
     }
 
+    // 🔐 Users must have at least one payout method on file before posting
+    const hasPaymentMethod = await prisma.user_payment_methods.count({
+      where: { user_id: sessionUser.id },
+    });
+
+    if (!hasPaymentMethod) {
+      console.log("❌ Listing creation blocked - user missing payout method");
+      return NextResponse.json(
+        {
+          error: "Missing payout method",
+          message: "Add a payout method in Manage Payments before posting a listing.",
+        },
+        { status: 400 }
+      );
+    }
+
     const body = await req.json();
     console.log("📝 Request body received:", JSON.stringify(body, null, 2));
     const {
@@ -263,9 +279,9 @@ export async function POST(req: Request) {
         size: mapSizeToDisplay(listing.size),
         condition: listing.condition_type,
         material: listing.material,
-        tags: listing.tags ? JSON.parse(listing.tags as string) : [],
+        tags: parseJsonArray(listing.tags, []),
         category: listing.category?.name,
-        images: listing.image_urls ? JSON.parse(listing.image_urls as string) : [],
+        images: parseJsonArray(listing.image_urls, []),
         shippingOption: (listing as any).shipping_option ?? null,
         shippingFee: (listing as any).shipping_fee ?? null,
         location: (listing as any).location ?? null,
@@ -318,5 +334,23 @@ function resolveGender(input: unknown): "Men" | "Women" | "Unisex" {
     default:
       return "Unisex";
   }
+}
+
+function parseJsonArray(value: unknown, fallback: any[] = []) {
+  if (!value) {
+    return fallback;
+  }
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
 }
 

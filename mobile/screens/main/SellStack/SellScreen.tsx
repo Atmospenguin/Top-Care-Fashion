@@ -39,36 +39,6 @@ import type { ListingItem } from "../../../types/shop";
 import { sortCategories } from "../../../utils/categoryHelpers";
 
 /** --- Options (categories loaded dynamically from database) --- */
-type UICategory =
-  | "Accessories"
-  | "Bottoms"
-  | "Footwear"
-  | "Outerwear"
-  | "Tops";
-
-type CanonicalCategory =
-  | "Tops"
-  | "Bottoms"
-  | "Footwear"
-  | "Accessories"
-  | "Outerwear";
-
-const UI_TO_CANONICAL: Record<UICategory, CanonicalCategory> = {
-  Tops: "Tops",
-  Bottoms: "Bottoms",
-  Footwear: "Footwear",
-  Accessories: "Accessories",
-  Outerwear: "Outerwear",
-};
-
-const CANONICAL_TO_UI: Record<CanonicalCategory, UICategory> = {
-  Tops: "Tops",
-  Bottoms: "Bottoms",
-  Footwear: "Footwear",
-  Accessories: "Accessories",
-  Outerwear: "Outerwear",
-};
-
 const BRAND_OPTIONS = [
   "Nike",
   "Adidas",
@@ -163,29 +133,19 @@ function OptionPicker({
 type SellScreenNavigationProp = NativeStackNavigationProp<SellStackParamList, "SellMain">;
 
 /** --- 5-category mapping: canonical → UI with keyword fallback --- */
-function mapToUICategory(raw: string | undefined): UICategory | null {
-  if (!raw) return null;
-  const k = raw.trim().toLowerCase();
+type CategoryKeywordHint = { regex: RegExp; tokens: string[] };
 
-  // if backend already returned canonical name, map exactly
-  switch (k) {
-    case "tops": return "Tops";
-    case "bottoms": return "Bottoms";
-    case "footwear": return "Footwear";
-    case "accessories": return "Accessories";
-    case "outerwear": return "Outerwear";
-  }
+const CATEGORY_KEYWORD_HINTS: CategoryKeywordHint[] = [
+  { regex: /(shirt|t-?shirt|tee|blouse|hoodie|sweater|cardigan|pullover|tank|polo|jersey|crewneck|top)/i, tokens: ["top", "shirt", "tee", "hoodie", "sweater"] },
+  { regex: /(jeans|pants|trousers|shorts|skirt|legging|denim|culotte)/i, tokens: ["bottom", "pant", "jean", "short", "skirt", "legging"] },
+  { regex: /(shoe|sneaker|boot|heel|sandal|loafer|oxford|slipper|trainer)/i, tokens: ["shoe", "footwear", "sneaker", "boot", "heel"] },
+  { regex: /(jacket|coat|blazer|trench|windbreaker|parka|raincoat|puffer|vest)/i, tokens: ["outerwear", "jacket", "coat", "blazer", "vest"] },
+  { regex: /(dress|gown|romper|jumpsuit)/i, tokens: ["dress", "gown", "romper", "jumpsuit"] },
+  { regex: /(bag|handbag|purse|tote|backpack|clutch|crossbody|satchel|duffel|briefcase|fanny)/i, tokens: ["bag"] },
+  { regex: /(watch|hat|cap|beanie|belt|scarf|sunglasses|glasses|tie|earring|necklace|ring|bracelet|jewelry|umbrella|hairband)/i, tokens: ["accessor", "jewelry", "hat", "belt", "scarf"] },
+];
 
-  // keyword fallback for raw labels
-  if (/(shirt|t-?shirt|tee|blouse|hoodie|sweater|cardigan|pullover|tank|polo|jersey|crewneck|top)/i.test(k)) return "Tops";
-  if (/(jeans|pants|trousers|shorts|skirt)/i.test(k)) return "Bottoms";
-  if (/(shoe|sneaker|boot|heel|sandals|loafers|oxford|slippers|trainer)/i.test(k)) return "Footwear";
-  if (/(jacket|coat|blazer|trench|windbreaker|parka|raincoat|puffer|vest|outerwear)/i.test(k)) return "Outerwear";
-  // Bags are now categorized as Accessories
-  if (/(watch|hat|cap|beanie|belt|scarf|sunglasses|glasses|tie|earrings|necklace|ring|bracelet|jewelry|umbrella|hairband|bag|handbag|purse|tote|backpack|clutch|crossbody|satchel|duffel|briefcase|fanny)/i.test(k)) return "Accessories";
-
-  return null;
-}
+const normalizeCategoryValue = (value: string) => value.trim().toLowerCase();
 
 export default function SellScreen({
   navigation,
@@ -236,6 +196,50 @@ export default function SellScreen({
   const shouldFocusSizeInput = useRef(false);
   const shouldFocusMaterialInput = useRef(false);
   const shouldFocusBrandInput = useRef(false);
+
+  const resolveCategoryFromOptions = useCallback(
+    (raw?: string | null): string | null => {
+      if (!raw || !categoryOptions.length) {
+        return null;
+      }
+      const normalizedRaw = normalizeCategoryValue(raw);
+      if (!normalizedRaw) {
+        return null;
+      }
+
+      const exact = categoryOptions.find(
+        option => normalizeCategoryValue(option) === normalizedRaw
+      );
+      if (exact) {
+        return exact;
+      }
+
+      const partial = categoryOptions.find(option => {
+        const normalizedOption = normalizeCategoryValue(option);
+        return (
+          normalizedOption.includes(normalizedRaw) || normalizedRaw.includes(normalizedOption)
+        );
+      });
+      if (partial) {
+        return partial;
+      }
+
+      for (const hint of CATEGORY_KEYWORD_HINTS) {
+        if (hint.regex.test(raw)) {
+          const candidate = categoryOptions.find(option => {
+            const normalizedOption = normalizeCategoryValue(option);
+            return hint.tokens.some(token => normalizedOption.includes(token));
+          });
+          if (candidate) {
+            return candidate;
+          }
+        }
+      }
+
+      return null;
+    },
+    [categoryOptions]
+  );
 
   // Load categories from database
   useEffect(() => {
@@ -418,13 +422,11 @@ export default function SellScreen({
       GENDER_OPTIONS.find((opt) => opt.toLowerCase() === normalizedGender) ?? "Select";
     setGender(mappedGender);
 
-    let resolvedCategory: UICategory | "Select" = "Select";
-    if (listing.category && categoryOptions.includes(listing.category)) {
-      resolvedCategory = listing.category as UICategory;
-    } else if (listing.category) {
-      const mapped = mapToUICategory(listing.category);
-      if (mapped && categoryOptions.includes(mapped)) {
-        resolvedCategory = mapped;
+    let resolvedCategory: string = "Select";
+    if (listing.category) {
+      const matched = resolveCategoryFromOptions(listing.category);
+      if (matched) {
+        resolvedCategory = matched;
       }
     }
     setCategory(resolvedCategory);
@@ -514,7 +516,7 @@ export default function SellScreen({
 
     setSavingDraft(false);
     setSaving(false);
-  }, [categoryOptions]);
+  }, [resolveCategoryFromOptions]);
 
   useEffect(() => {
     const incomingId = route.params?.draftId ?? null;
@@ -592,11 +594,26 @@ export default function SellScreen({
   const aiStartKeyRef = React.useRef<string>("");
   useEffect(() => {
     const key = aiUris.join("|"); // '' if no photos
-    if (key && aiStartKeyRef.current !== key) {
-      aiStartKeyRef.current = key;
-      aiStart();
+    if (!key) {
+      aiStartKeyRef.current = "";
+      return;
     }
-  }, [aiUris, aiStart]);
+    if (aiStartKeyRef.current === key) {
+      return;
+    }
+    if (aiItems.length !== aiUris.length) {
+      return;
+    }
+    const allPending = aiItems.every(item => item.status === "pending");
+    if (!allPending) {
+      return;
+    }
+    aiStartKeyRef.current = key;
+    const timer = setTimeout(() => {
+      aiStart();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [aiUris, aiItems, aiStart]);
 
   // Helper to grab AI result for a specific photo
   const findAI = React.useCallback(
@@ -613,11 +630,11 @@ export default function SellScreen({
 
     if (!candidates.length) return;
     const best = candidates.reduce((a, b) => ((b.confidence ?? 0) > (a.confidence ?? 0) ? b : a));
-    const mapped = mapToUICategory(best.category);
-    if (mapped && categoryOptions.includes(mapped) && mapped !== category) {
+    const mapped = resolveCategoryFromOptions(best.category);
+    if (mapped && mapped !== category) {
       setCategory(mapped);
     }
-  }, [aiItems, userPickedCategory, category]);
+  }, [aiItems, userPickedCategory, category, resolveCategoryFromOptions]);
 
   // Permissions
   const ensureMediaPermissions = async () => {
@@ -779,15 +796,15 @@ export default function SellScreen({
   };
 
   const generateDescription = async () => {
-    // Prefer explicit user choice; otherwise use best AI (already mapped to UI in auto-update)
+    // Prefer explicit user choice; otherwise use best AI mapped to DB-driven categories
     const aiCategory = aiItems[0]?.classification?.category;
-    const uiResolved =
+    const resolvedCategory =
       category !== "Select"
-        ? (category as UICategory)
-        : (mapToUICategory(aiCategory) ?? "Tops");
+        ? category
+        : resolveCategoryFromOptions(aiCategory) ?? categoryOptions[0] ?? "General";
 
-    // Convert UI (plural) to canonical (singular) for backend
-    const canonicalCategory: CanonicalCategory = UI_TO_CANONICAL[uiResolved];
+    const describeCategory =
+      resolvedCategory === "Select" ? categoryOptions[0] ?? "General" : resolvedCategory;
 
     setLoading(true);
     setAiDesc(null);
@@ -796,7 +813,7 @@ export default function SellScreen({
       const labels = aiItems.flatMap(i => i.classification?.labels ?? []).slice(0, 10);
 
       const data = await describeProduct(
-        canonicalCategory,
+        describeCategory,
         labels.length ? labels : ["fashion", "clothing"]
       );
       setAiDesc(data.blurb || "No description returned");
@@ -1203,7 +1220,9 @@ export default function SellScreen({
     return candidates.reduce((a, b) => ((b.confidence ?? 0) > (a.confidence ?? 0) ? b : a));
   }, [aiItems]);
 
-  const uiBestCategory = bestAI ? (mapToUICategory(bestAI.category) ?? bestAI.category) : null;
+  const uiBestCategory = bestAI
+    ? resolveCategoryFromOptions(bestAI.category) ?? bestAI.category
+    : null;
   const topLabels = bestAI?.labels?.slice(0, 6) ?? [];
   const bestConfPct = bestAI?.confidence != null ? Math.round(bestAI.confidence * 100) : null;
   const headerTitle = isEditingDraft ? "Edit draft" : "Sell an item";
