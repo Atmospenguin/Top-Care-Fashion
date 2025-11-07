@@ -149,7 +149,7 @@ export default function ReportsPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Reports Management</h2>
+        <h2 className="text-xl font-semibold">Flags Management</h2>
         <div className="animate-pulse space-y-4">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="h-32 bg-gray-200 rounded"></div>
@@ -162,7 +162,7 @@ export default function ReportsPage() {
   if (error) {
     return (
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Reports Management</h2>
+        <h2 className="text-xl font-semibold">Flags Management</h2>
         <div className="bg-red-50 border border-red-200 rounded-md p-4">
           <div className="text-red-800">Error: {error}</div>
           <button 
@@ -179,16 +179,16 @@ export default function ReportsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Reports Management</h2>
+        <h2 className="text-xl font-semibold">Flags Management</h2>
         <div className="text-sm text-gray-600">
-          Showing {reports.length} of {pagination.totalCount} reports • {reports.filter(r => r.status === 'open').length} open
+          Showing {reports.length} of {pagination.totalCount} flags • {reports.filter(r => r.status === 'open').length} open
         </div>
       </div>
 
       {/* Filter Tabs */}
       <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
         {[
-          { key: "all", label: "All Reports" },
+          { key: "all", label: "All Flags" },
           { key: "open", label: "Open" },
           { key: "resolved", label: "Resolved" },
           { key: "dismissed", label: "Dismissed" }
@@ -215,7 +215,7 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {/* Reports List */}
+      {/* Flags List */}
       <div className="grid gap-4">
         {filteredReports.map((report) => (
           <div key={report.id} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
@@ -244,7 +244,7 @@ export default function ReportsPage() {
                       onChange={(e) => updateField(report.id, 'notes', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       rows={3}
-                      placeholder="Add internal notes about this report..."
+                      placeholder="Add internal notes about this flag..."
                     />
                   </div>
                 </div>
@@ -272,7 +272,7 @@ export default function ReportsPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="text-lg font-medium">Report #{report.id}</h3>
+                      <h3 className="text-lg font-medium">Flag #{report.id}</h3>
                       <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(report.status)}`}>
                         {report.status}
                       </span>
@@ -325,7 +325,7 @@ export default function ReportsPage() {
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-500">Report ID:</span>
+                    <span className="text-gray-500">Flag ID:</span>
                     <div className="font-medium">{report.id}</div>
                   </div>
                   <div>
@@ -392,8 +392,8 @@ export default function ReportsPage() {
       {filteredReports.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           {filter === "all"
-            ? "No reports found. User reports will appear here when submitted."
-            : `No ${filter} reports found.`
+            ? "No flags found. User flags will appear here when submitted."
+            : `No ${filter} flags found.`
           }
         </div>
       )}
@@ -402,7 +402,7 @@ export default function ReportsPage() {
       {!loading && pagination.totalPages > 1 && (
         <div className="flex items-center justify-between bg-white border rounded-lg p-4">
           <div className="text-sm text-gray-600">
-            Showing page {pagination.page} of {pagination.totalPages} ({pagination.totalCount} total reports)
+            Showing page {pagination.page} of {pagination.totalPages} ({pagination.totalCount} total flags)
           </div>
           <div className="flex gap-2">
             <button
