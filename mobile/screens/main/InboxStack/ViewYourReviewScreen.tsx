@@ -45,19 +45,34 @@ export default function ViewYourReviewScreen() {
         console.log("📊 ViewYourReviewScreen - Order data:", order);
         console.log("📊 ViewYourReviewScreen - User ID:", user?.id);
 
-        const buyerReview = reviewsData.find((r: any) => r.reviewer_id === order.buyer_id);
-        const sellerReview = reviewsData.find((r: any) => r.reviewer_id === order.seller_id);
+        // 🔥 确保所有 ID 都转换为 Number 类型再比较
+        const orderBuyerId = Number(order.buyer_id);
+        const orderSellerId = Number(order.seller_id);
+        
+        const buyerReview = reviewsData.find((r: any) => Number(r.reviewer_id) === orderBuyerId);
+        const sellerReview = reviewsData.find((r: any) => Number(r.reviewer_id) === orderSellerId);
 
         console.log("📊 ViewYourReviewScreen - Buyer review:", buyerReview);
         console.log("📊 ViewYourReviewScreen - Seller review:", sellerReview);
+        console.log("📊 ViewYourReviewScreen - All reviews:", reviewsData);
+        
+        // 🔥 详细日志：检查每个评论的 reviewer_id
+        reviewsData.forEach((r: any, index: number) => {
+          console.log(`📊 Review ${index}:`, {
+            reviewer_id: r.reviewer_id,
+            reviewer_id_type: typeof r.reviewer_id,
+            reviewer_id_number: Number(r.reviewer_id),
+            reviewee_id: r.reviewee_id,
+            rating: r.rating,
+            comment: r.comment?.substring(0, 20)
+          });
+        });
 
         // 🔥 根据当前用户ID找到自己的评论
         let myReviewRaw = null;
         let otherReviewRaw = null;
 
         const currentUserId = Number(user?.id);
-        const orderBuyerId = Number(order.buyer_id);
-        const orderSellerId = Number(order.seller_id);
 
         console.log("📊 ViewYourReviewScreen - Current user ID:", currentUserId, typeof currentUserId);
         console.log("📊 ViewYourReviewScreen - Order buyer ID:", orderBuyerId, typeof orderBuyerId);
