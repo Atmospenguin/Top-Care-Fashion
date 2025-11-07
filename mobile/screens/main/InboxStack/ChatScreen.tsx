@@ -2155,7 +2155,7 @@ export default function ChatScreen() {
       />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={-20}
       >
           <View style={[styles.inputBar, { marginBottom: bottomInset - 12 }]}> {/* 修复缺少右括号 */}
