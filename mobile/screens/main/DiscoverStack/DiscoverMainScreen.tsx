@@ -178,18 +178,23 @@ export default function DiscoverMainScreen() {
       <View style={styles.brandHeader}>
         <Text style={styles.sectionTitle}>Brands</Text>
         <TouchableOpacity
-          onPress={() =>
-            navigation
-              .getParent<BottomTabNavigationProp<MainTabParamList>>()
-              ?.navigate("My TOP", {
-                screen: "EditBrand",
-                params: {
+          onPress={() => {
+            const parent = navigation.getParent<BottomTabNavigationProp<MainTabParamList>>();
+            const requestTs = Date.now();
+            const available = brands.map((b) => b.name);
+
+            parent?.navigate("My TOP", {
+              screen: "MyTopMain",
+              params: {
+                brandPickerRequest: {
+                  ts: requestTs,
                   source: "discover",
-                  availableBrands: brands.map((b) => b.name),
+                  availableBrands: available,
                   selectedBrands: preferredBrands,
                 },
-              })
-          }
+              },
+            });
+          }}
         >
           <Text style={styles.selectBrands}>Select Brands</Text>
         </TouchableOpacity>
