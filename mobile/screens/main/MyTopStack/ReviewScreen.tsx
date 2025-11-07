@@ -9,6 +9,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import Header from "../../../components/Header";
@@ -204,106 +206,111 @@ export default function ReviewScreen() {
       {/* Header (内部已经有 SafeArea) */}
       <Header title="Leave Review" showBack />
 
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* 用户信息 */}
-        <View style={styles.userSection}>
-          <Avatar
-            source={{
-              uri:
-                reviewee.avatar_url ||
-                reviewee.avatar_path ||
-                "https://via.placeholder.com/60x60",
-            }}
-            style={styles.avatar}
-            isPremium={reviewee?.isPremium}
-          />
-          <Text style={styles.userName}>{reviewee.username}</Text>
-        </View>
-
-        {/* 星星评分 */}
-        <View style={styles.ratingSection}>
-          <View style={styles.starRow}>
-            {[1, 2, 3, 4, 5].map((i) => (
-              <TouchableOpacity key={i} onPress={() => setRating(i)}>
-                <Ionicons
-                  name={i <= rating ? "star" : "star-outline"}
-                  size={32}
-                  color={i <= rating ? "#FFD700" : "#ccc"}
-                  style={{ marginHorizontal: 4 }}
-                />
-              </TouchableOpacity>
-            ))}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+          {/* 用户信息 */}
+          <View style={styles.userSection}>
+            <Avatar
+              source={{
+                uri:
+                  reviewee.avatar_url ||
+                  reviewee.avatar_path ||
+                  "https://via.placeholder.com/60x60",
+              }}
+              style={styles.avatar}
+              isPremium={reviewee?.isPremium}
+            />
+            <Text style={styles.userName}>{reviewee.username}</Text>
           </View>
-          <Text style={styles.subText}>
-            Tap on a star to rate your experience with this user
-          </Text>
-        </View>
 
-        {/* 评论框 */}
-        <Text style={styles.label}>REVIEW</Text>
-        <TextInput
-          style={styles.textArea}
-          placeholder="Describe your experience with the product and the seller/buyer"
-          placeholderTextColor="#999"
-          value={review}
-          onChangeText={setReview}
-          multiline
-          maxLength={300}
-        />
-        <Text style={styles.counter}>{review.length}/300</Text>
-
-        {/* 上传图片 */}
-        <View style={styles.uploadSection}>
-          <Text style={styles.label}>PHOTOS (Optional)</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.uploadRow}>
-              {/* 显示已选中的图片 */}
-              {photos.map((photo) => (
-                <View key={photo.id} style={styles.photoContainer}>
-                  <Image source={{ uri: photo.uri }} style={styles.selectedPhoto} />
-                  <TouchableOpacity
-                    style={styles.removeBtn}
-                    onPress={() => handleRemovePhoto(photo.id)}
-                    hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
-                  >
-                    <Ionicons name="close" size={16} color="#F54B3D" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-              
-              {/* 添加图片按钮 */}
-              {photos.length < 9 && (
-                <TouchableOpacity
-                  style={styles.uploadBox}
-                  onPress={handleAddPhoto}
-                >
-                  <Ionicons name="camera-outline" size={28} color="#555" />
+          {/* 星星评分 */}
+          <View style={styles.ratingSection}>
+            <View style={styles.starRow}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <TouchableOpacity key={i} onPress={() => setRating(i)}>
+                  <Ionicons
+                    name={i <= rating ? "star" : "star-outline"}
+                    size={32}
+                    color={i <= rating ? "#FFD700" : "#ccc"}
+                    style={{ marginHorizontal: 4 }}
+                  />
                 </TouchableOpacity>
-              )}
+              ))}
             </View>
-          </ScrollView>
-          {photos.length > 0 && (
-            <Text style={styles.photoHint}>
-              {photos.length}/9 photos • Tap to remove
+            <Text style={styles.subText}>
+              Tap on a star to rate your experience with this user
             </Text>
-          )}
-        </View>
-      </ScrollView>
+          </View>
 
-      {/* 固定底部按钮 */}
-      <View style={styles.footer}>
-        <TouchableOpacity 
-          style={[styles.sendBtn, submitting && styles.sendBtnDisabled]}
-          onPress={handleSubmitReview}
-          disabled={submitting}
-        >
-          {submitting ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.sendText}>Send</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+          {/* 评论框 */}
+          <Text style={styles.label}>REVIEW</Text>
+          <TextInput
+            style={styles.textArea}
+            placeholder="Describe your experience with the product and the seller/buyer"
+            placeholderTextColor="#999"
+            value={review}
+            onChangeText={setReview}
+            multiline
+            maxLength={300}
+          />
+          <Text style={styles.counter}>{review.length}/300</Text>
+
+          {/* 上传图片 */}
+          <View style={styles.uploadSection}>
+            <Text style={styles.label}>PHOTOS (Optional)</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.uploadRow}>
+                {/* 显示已选中的图片 */}
+                {photos.map((photo) => (
+                  <View key={photo.id} style={styles.photoContainer}>
+                    <Image source={{ uri: photo.uri }} style={styles.selectedPhoto} />
+                    <TouchableOpacity
+                      style={styles.removeBtn}
+                      onPress={() => handleRemovePhoto(photo.id)}
+                      hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+                    >
+                      <Ionicons name="close" size={16} color="#F54B3D" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                
+                {/* 添加图片按钮 */}
+                {photos.length < 9 && (
+                  <TouchableOpacity
+                    style={styles.uploadBox}
+                    onPress={handleAddPhoto}
+                  >
+                    <Ionicons name="camera-outline" size={28} color="#555" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </ScrollView>
+            {photos.length > 0 && (
+              <Text style={styles.photoHint}>
+                {photos.length}/9 photos • Tap to remove
+              </Text>
+            )}
+          </View>
+        </ScrollView>
+
+        {/* 固定底部按钮 */}
+        <View style={styles.footer}>
+          <TouchableOpacity 
+            style={[styles.sendBtn, submitting && styles.sendBtnDisabled]}
+            onPress={handleSubmitReview}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.sendText}>Send</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }

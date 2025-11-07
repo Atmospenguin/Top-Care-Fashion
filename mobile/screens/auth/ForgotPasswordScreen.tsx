@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../App";
 import { LOGO_FULL_COLOR } from "../../constants/assetUrls";
@@ -39,50 +39,55 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
   };
 
   return (
-    <View style={styles.container}>
-      {/* 返回按钮 */}
-      <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-        <Icon name="chevron-back" size={20} color="#111" />
-      </TouchableOpacity>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        {/* 返回按钮 */}
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Icon name="chevron-back" size={20} color="#111" />
+        </TouchableOpacity>
 
-      {/* 标题 */}
-      <Text style={styles.title}>Forgot Password?</Text>
-      <Text style={styles.subtitle}>
-        Don’t worry! It occurs. Please enter the email address linked with your account.
-      </Text>
+        {/* 标题 */}
+        <Text style={styles.title}>Forgot Password?</Text>
+        <Text style={styles.subtitle}>
+          Don't worry! It occurs. Please enter the email address linked with your account.
+        </Text>
 
-      <View style={styles.logoWrapper}>
-        <LOGO_FULL_COLOR width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
-      </View>
+        <View style={styles.logoWrapper}>
+          <LOGO_FULL_COLOR width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
+        </View>
 
-      {/* 输入框 */}
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your email"
-        placeholderTextColor="#9AA0A6"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        value={email}
-        onChangeText={setEmail}
-      />
+        {/* 输入框 */}
+        <TextInput
+          style={styles.input}
+          placeholder="Enter your email"
+          placeholderTextColor="#9AA0A6"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          value={email}
+          onChangeText={setEmail}
+        />
 
-      {/* Send Code 按钮 */}
-      <TouchableOpacity
-        style={[styles.sendBtn, (submitting || countdown > 0) && styles.sendBtnDisabled]}
-        onPress={onSubmit}
-        disabled={submitting || countdown > 0}
-      >
-        {submitting ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.sendBtnText}>
-            {countdown > 0 ? `Resend in ${countdown}s` : "Send Email"}
-          </Text>
-        )}
-      </TouchableOpacity>
+        {/* Send Code 按钮 */}
+        <TouchableOpacity
+          style={[styles.sendBtn, (submitting || countdown > 0) && styles.sendBtnDisabled]}
+          onPress={onSubmit}
+          disabled={submitting || countdown > 0}
+        >
+          {submitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.sendBtnText}>
+              {countdown > 0 ? `Resend in ${countdown}s` : "Send Email"}
+            </Text>
+          )}
+        </TouchableOpacity>
 
-      {status ? <Text style={styles.status}>{status}</Text> : null}
-    </View>
+        {status ? <Text style={styles.status}>{status}</Text> : null}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
