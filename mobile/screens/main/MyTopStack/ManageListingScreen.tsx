@@ -141,14 +141,7 @@ export default function ManageListingScreen() {
   };
 
   // ✅ 处理标记为已售
-  const handleMarkAsSold = () => {
-    if (!listing) return;
-    navigation.navigate("ConfirmSell", {
-      mode: "markSold",
-      listingId: listing.id,
-      listingSnapshot: listing,
-    });
-  };
+  const handleMarkAsSold = () => {};
 
   // ✅ 处理删除listing
   const handleDeleteListing = () => {
@@ -253,6 +246,10 @@ export default function ManageListingScreen() {
     );
   }
 
+  const statusLabel = listing.listed === false ? "Unlisted" : "Listed";
+  const statusBadgeStyle = listing.listed === false ? styles.statusBadgeUnlisted : styles.statusBadgeListed;
+  const statusTextStyle = listing.listed === false ? styles.statusBadgeTextUnlisted : styles.statusBadgeTextListed;
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header title="Listing" showBack />
@@ -278,24 +275,8 @@ export default function ManageListingScreen() {
               <Icon name="create-outline" size={16} color="#6b6b6b" />
             </View>
             <View style={styles.statusRow}>
-              <View
-                style={[
-                  styles.statusBadge,
-                  listing.listed === false
-                    ? styles.statusBadgeUnlisted
-                    : styles.statusBadgeListed,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.statusBadgeText,
-                    listing.listed === false
-                      ? styles.statusBadgeTextUnlisted
-                      : styles.statusBadgeTextListed,
-                  ]}
-                >
-                  {listing.listed === false ? "Unlisted" : "Listed"}
-                </Text>
+              <View style={[styles.statusBadge, statusBadgeStyle]}>
+                <Text style={[styles.statusBadgeText, statusTextStyle]}>{statusLabel}</Text>
               </View>
               {updatingListed && (
                 <ActivityIndicator
@@ -439,13 +420,6 @@ export default function ManageListingScreen() {
             )}
           </TouchableOpacity>
 
-          {/* 🔥 只在商品已发布时显示 "Mark as Sold" */}
-          {listing?.listed === true && (
-            <TouchableOpacity style={styles.rowItem} onPress={handleMarkAsSold}>
-              <Text style={styles.rowText}>Mark as Sold</Text>
-              <Icon name="chevron-forward" size={18} color="#999" />
-            </TouchableOpacity>
-          )}
         </View>
       </ScrollView>
 
@@ -506,9 +480,11 @@ const styles = StyleSheet.create({
   },
   statusBadgeListed: { backgroundColor: "#DCFCE7" },
   statusBadgeUnlisted: { backgroundColor: "#FEE2E2" },
+  statusBadgeSold: { backgroundColor: "#EDE9FE" },
   statusBadgeText: { fontSize: 12, fontWeight: "700" },
   statusBadgeTextListed: { color: "#166534" },
   statusBadgeTextUnlisted: { color: "#991B1B" },
+  statusBadgeTextSold: { color: "#5B21B6" },
 
   promoCard: {
     marginTop: 12,
