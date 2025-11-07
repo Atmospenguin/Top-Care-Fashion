@@ -96,6 +96,7 @@ export default function ListingDetailScreen() {
   const [isLoadingLike, setIsLoadingLike] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1); // 🔥 购买数量
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   // ✅ 如果只有 listingId，通过 API 加载 listing 数据
   useEffect(() => {
@@ -235,6 +236,18 @@ export default function ListingDetailScreen() {
       (uri): uri is string => typeof uri === "string" && uri.length > 0,
     );
   }, [safeItem?.images]);
+
+  useEffect(() => {
+    if (previewIndex !== null && imageUris.length === 0) {
+      setPreviewIndex(null);
+    }
+  }, [imageUris.length, previewIndex]);
+
+  const previewActiveIndex =
+    previewIndex !== null
+      ? Math.min(previewIndex, Math.max(imageUris.length - 1, 0))
+      : 0;
+  const previewVisible = previewIndex !== null && imageUris.length > 0;
 
   const sizeLabel = useMemo(() => formatSizeLabel(safeItem?.size), [safeItem?.size]);
 
@@ -640,6 +653,53 @@ export default function ListingDetailScreen() {
           </View>
         }
       />
+      <Modal
+        visible={previewVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewIndex(null)}
+      >
+        <View style={styles.previewOverlay}>
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            contentOffset={{ x: previewActiveIndex * WINDOW_WIDTH, y: 0 }}
+            style={styles.previewScroll}
+          >
+            {imageUris.map((uri, idx) => (
+              <View
+                key={`${safeItem?.id ?? "listing"}-preview-${idx}`}
+                style={styles.previewImageContainer}
+              >
+                <Image source={{ uri }} style={styles.previewImage} resizeMode="contain" />
+              </View>
+            ))}
+          </ScrollView>
+          <View style={styles.previewTopBar}>
+            <Text style={styles.previewCounter}>
+              {previewActiveIndex + 1} / {imageUris.length}
+            </Text>
+            <TouchableOpacity style={styles.previewCloseBtn} onPress={() => setPreviewIndex(null)}>
+              <Icon name="close" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.previewThumbRow}>
+            {imageUris.map((uri, idx) => (
+              <TouchableOpacity
+                key={`${safeItem?.id ?? "listing"}-thumb-${idx}`}
+                onPress={() => setPreviewIndex(idx)}
+                style={[
+                  styles.previewThumb,
+                  previewActiveIndex === idx ? styles.previewThumbActive : undefined,
+                ]}
+              >
+                <Image source={{ uri }} style={styles.previewThumbImage} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Modal>
       <ScrollView contentContainerStyle={styles.container}>
         <ScrollView
           horizontal
@@ -648,12 +708,17 @@ export default function ListingDetailScreen() {
           contentContainerStyle={styles.imageCarousel}
         >
           {imageUris.map((uri, index) => (
-            <Image
+            <TouchableOpacity
               key={`${safeItem?.id ?? "listing"}-${index}`}
-              source={{ uri }}
-              style={styles.image}
-              onError={() => console.warn(`Failed to load image: ${uri}`)}
-            />
+              activeOpacity={0.9}
+              onPress={() => setPreviewIndex(index)}
+            >
+              <Image
+                source={{ uri }}
+                style={styles.image}
+                onError={() => console.warn(`Failed to load image: ${uri}`)}
+              />
+            </TouchableOpacity>
           ))}
           {imageUris.length === 0 && (
             <Image
@@ -1595,5 +1660,65 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     fontStyle: "italic",
+  },
+  previewOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center",
+  },
+  previewScroll: {
+    flexGrow: 0,
+  },
+  previewImageContainer: {
+    width: WINDOW_WIDTH,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  previewImage: {
+    width: WINDOW_WIDTH - 32,
+    height: WINDOW_WIDTH - 32,
+  },
+  previewTopBar: {
+    position: "absolute",
+    top: 40,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  previewCounter: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  previewCloseBtn: {
+    padding: 8,
+  },
+  previewThumbRow: {
+    position: "absolute",
+    bottom: 40,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  previewThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.4)",
+    marginHorizontal: 6,
+  },
+  previewThumbActive: {
+    borderColor: "#FFFFFF",
+  },
+  previewThumbImage: {
+    width: "100%",
+    height: "100%",
   },
 });
