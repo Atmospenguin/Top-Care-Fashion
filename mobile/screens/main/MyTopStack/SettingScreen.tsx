@@ -83,8 +83,8 @@ export default function SettingScreen() {
           />
           <SettingItem
             icon="flag-outline"
-            label="My Reports"
-            onPress={() => navigation.navigate("Report")}
+            label="My Flags"
+            onPress={() => navigation.navigate("Flag")}
           />
           <SettingItem
             icon="log-out-outline"
