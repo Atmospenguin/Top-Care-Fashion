@@ -70,7 +70,7 @@ export default function NavBar() {
                       <Link href="/admin/categories" className="block px-3 py-2 text-sm hover:bg-black/5">Categories</Link>
                       <Link href="/admin/listings" className="block px-3 py-2 text-sm hover:bg-black/5">Listings</Link>
                       <Link href="/admin/transactions" className="block px-3 py-2 text-sm hover:bg-black/5">Transactions</Link>
-                      <Link href="/admin/reports" className="block px-3 py-2 text-sm hover:bg-black/5">Reports</Link>
+                      <Link href="/admin/reports" className="block px-3 py-2 text-sm hover:bg-black/5">Flags</Link>
                       <Link href="/admin/feedback" className="block px-3 py-2 text-sm hover:bg-black/5">Feedback</Link>
                       <Link href="/admin/faq" className="block px-3 py-2 text-sm hover:bg-black/5">FAQ</Link>
                       <Link href="/admin/content" className="block px-3 py-2 text-sm hover:bg-black/5">Content</Link>
@@ -140,7 +140,7 @@ export default function NavBar() {
                         <Link href="/admin/categories" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Categories</Link>
                         <Link href="/admin/listings" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Listings</Link>
                         <Link href="/admin/transactions" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Transactions</Link>
-                        <Link href="/admin/reports" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Reports</Link>
+                        <Link href="/admin/reports" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Flags</Link>
                         <Link href="/admin/feedback" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Feedback</Link>
                         <Link href="/admin/faq" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>FAQ</Link>
                         <Link href="/admin/content" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Content</Link>

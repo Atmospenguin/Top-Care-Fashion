@@ -97,6 +97,13 @@ export default function AdminHomePage() {
       icon: "🖼️",
       color: "bg-indigo-50 border-indigo-200",
     },
+    {
+      title: "Flags",
+      description: "Review flagged content and users",
+      href: "/admin/reports",
+      icon: "🚩",
+      color: "bg-red-50 border-red-200",
+    },
   ];
 
   return (
