@@ -34,6 +34,7 @@ async function getCurrentUserWithLegacySupport(req: NextRequest) {
           is_premium: true,
           dob: true,
           gender: true,
+          avatar_url: true,
         },
       });
       if (legacyUser) {
@@ -46,6 +47,7 @@ async function getCurrentUserWithLegacySupport(req: NextRequest) {
           isPremium: Boolean(legacyUser.is_premium),
           dob: legacyUser.dob ? legacyUser.dob.toISOString().slice(0, 10) : null,
           gender: legacyUser.gender,
+          avatar_url: legacyUser.avatar_url,
         };
       }
     }
@@ -78,6 +80,7 @@ async function getCurrentUserWithLegacySupport(req: NextRequest) {
         is_premium: true,
         dob: true,
         gender: true,
+        avatar_url: true,
       },
     });
 
@@ -92,6 +95,7 @@ async function getCurrentUserWithLegacySupport(req: NextRequest) {
         isPremium: Boolean(dbUser.is_premium),
         dob: dbUser.dob ? dbUser.dob.toISOString().slice(0, 10) : null,
         gender: dbUser.gender,
+        avatar_url: dbUser.avatar_url,
       };
     } else {
       console.log("❌ No local user found for Supabase user:", user.email);

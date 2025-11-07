@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
           }
 
           // 🔥 新策略：直接显示最新消息（不管是TEXT还是SYSTEM）
-          let rawMessage = lastMessage?.content ?? "";
+          const rawMessage = lastMessage?.content ?? "";
           let displayMessage = rawMessage;
           let displayTime = lastMessage ? formatTime(lastMessage.created_at) : "";
           
@@ -235,7 +235,7 @@ export async function GET(request: NextRequest) {
             // 🔥 修复：查询当前对话双方的订单，而不是任意买家/卖家的订单
             const order = await prisma.orders.findFirst({
               where: {
-                listing_id: conv.listing.id,
+                listing_id: conv.listing!.id,
                 // 🔥 确保订单的买家和卖家是当前对话的双方
                 AND: [
                   {
@@ -259,15 +259,15 @@ export async function GET(request: NextRequest) {
             
             if (order) {
               // 根据订单状态生成相应的最新消息
-              if (order.status === "REVIEWED") {
+              if (order!.status === "REVIEWED") {
                 // 检查评论状态
                 const reviews = await prisma.reviews.findMany({
-                  where: { order_id: order.id }
+                  where: { order_id: order!.id }
                 });
-                
-                const hasBuyerReview = reviews.some(r => r.reviewer_id === order.buyer_id);
-                const hasSellerReview = reviews.some(r => r.reviewer_id === order.seller_id);
-                
+
+                const hasBuyerReview = reviews.some(r => r.reviewer_id === order!.buyer_id);
+                const hasSellerReview = reviews.some(r => r.reviewer_id === order!.seller_id);
+
                 if (hasBuyerReview && hasSellerReview) {
                   displayMessage = "Both parties reviewed each other.";
                 } else if (hasBuyerReview || hasSellerReview) {
@@ -275,16 +275,16 @@ export async function GET(request: NextRequest) {
                 } else {
                   displayMessage = "How was your experience? Leave a review to help others discover great items.";
                 }
-                displayTime = formatTime(order.updated_at || order.created_at);
-              } else if (order.status === "COMPLETED") {
+                displayTime = formatTime(order!.updated_at || order!.created_at);
+              } else if (order!.status === "COMPLETED") {
                 // 检查评论状态
                 const reviews = await prisma.reviews.findMany({
-                  where: { order_id: order.id }
+                  where: { order_id: order!.id }
                 });
-                
-                const hasBuyerReview = reviews.some(r => r.reviewer_id === order.buyer_id);
-                const hasSellerReview = reviews.some(r => r.reviewer_id === order.seller_id);
-                
+
+                const hasBuyerReview = reviews.some(r => r.reviewer_id === order!.buyer_id);
+                const hasSellerReview = reviews.some(r => r.reviewer_id === order!.seller_id);
+
                 if (hasBuyerReview && hasSellerReview) {
                   displayMessage = "Both parties reviewed each other.";
                 } else if (hasBuyerReview || hasSellerReview) {
@@ -292,22 +292,22 @@ export async function GET(request: NextRequest) {
                 } else {
                   displayMessage = "How was your experience? Leave a review to help others discover great items.";
                 }
-                displayTime = formatTime(order.updated_at || order.created_at);
-              } else if (order.status === "DELIVERED") {
+                displayTime = formatTime(order!.updated_at || order!.created_at);
+              } else if (order!.status === "DELIVERED") {
                 displayMessage = "Parcel arrived. Waiting for buyer to confirm received.";
-                displayTime = formatTime(order.updated_at || order.created_at);
-              } else if (order.status === "SHIPPED") {
+                displayTime = formatTime(order!.updated_at || order!.created_at);
+              } else if (order!.status === "SHIPPED") {
                 displayMessage = "Parcel is in transit.";
-                displayTime = formatTime(order.updated_at || order.created_at);
-              } else if (order.status === "TO_SHIP") {
+                displayTime = formatTime(order!.updated_at || order!.created_at);
+              } else if (order!.status === "TO_SHIP") {
                 displayMessage = "Seller has shipped your parcel.";
-                displayTime = formatTime(order.updated_at || order.created_at);
-              } else if (order.status === "IN_PROGRESS") {
-                const isBuyer = order.buyer_id === dbUser.id;
-                displayMessage = isBuyer 
-                  ? "I've paid, waiting for you to ship" 
+                displayTime = formatTime(order!.updated_at || order!.created_at);
+              } else if (order!.status === "IN_PROGRESS") {
+                const isBuyer = order!.buyer_id === dbUser!.id;
+                displayMessage = isBuyer
+                  ? "I've paid, waiting for you to ship"
                   : "Buyer has paid for the order";
-                displayTime = formatTime(order.updated_at || order.created_at);
+                displayTime = formatTime(order!.updated_at || order!.created_at);
               }
             }
           }
