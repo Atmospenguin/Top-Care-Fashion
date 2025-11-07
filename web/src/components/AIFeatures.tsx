@@ -90,6 +90,8 @@ export default function AIFeatures({ cards, config }: { cards?: FeatureCard[] | 
   const marqueeCards = resolvedCards.length > 0 ? [...resolvedCards, ...resolvedCards] : resolvedCards;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [paused, setPaused] = useState(false);
+  const [isUserInteracting, setIsUserInteracting] = useState(false);
+  const userInteractionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -99,7 +101,7 @@ export default function AIFeatures({ cards, config }: { cards?: FeatureCard[] | 
     if (halfWidth === 0) return;
 
     const step = () => {
-      if (node && !paused) {
+      if (node && !paused && !isUserInteracting) {
         node.scrollLeft += 0.75;
         if (node.scrollLeft >= halfWidth) {
           node.scrollLeft = 0;
@@ -110,19 +112,48 @@ export default function AIFeatures({ cards, config }: { cards?: FeatureCard[] | 
 
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [paused, marqueeCards.length]);
+  }, [paused, isUserInteracting, marqueeCards.length]);
+
+  // Handle user interaction detection
+  const handleUserInteractionStart = () => {
+    setIsUserInteracting(true);
+    if (userInteractionTimeoutRef.current) {
+      clearTimeout(userInteractionTimeoutRef.current);
+    }
+  };
+
+  const handleUserInteractionEnd = () => {
+    if (userInteractionTimeoutRef.current) {
+      clearTimeout(userInteractionTimeoutRef.current);
+    }
+    userInteractionTimeoutRef.current = setTimeout(() => {
+      setIsUserInteracting(false);
+    }, 1500); // Resume auto-scroll 1.5 seconds after user stops interacting
+  };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (userInteractionTimeoutRef.current) {
+        clearTimeout(userInteractionTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <section>
-      <h2 className="text-3xl font-semibold tracking-tight">AI Features</h2>
+      <h2 className="text-3xl font-semibold tracking-tight">Features</h2>
       <div className="mt-8">
         <div
           ref={scrollRef}
-          className="relative overflow-hidden w-screen left-1/2 -ml-[50vw] rounded-none md:rounded-[32px]"
+          className="relative overflow-x-auto overflow-y-hidden w-screen left-1/2 -ml-[50vw] rounded-none md:rounded-[32px] scrollbar-hide"
+          style={{ WebkitOverflowScrolling: 'touch' }}
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
-          onTouchStart={() => setPaused(true)}
-          onTouchEnd={() => setPaused(false)}
+          onTouchStart={handleUserInteractionStart}
+          onTouchEnd={handleUserInteractionEnd}
+          onMouseDown={handleUserInteractionStart}
+          onMouseUp={handleUserInteractionEnd}
         >
           {/* Full-bleed track (no side padding to remove gaps) */}
           <div className="flex items-stretch gap-6">
