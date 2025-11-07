@@ -863,21 +863,21 @@ export default function ChatScreen() {
 
   // —— UI 组件 —— //
   const renderOrderCard = (o: Order) => {
-    // 🔥 修复：正确判断当前用户是否为卖家
-    // 在订单对话中，initiator 是买家，participant 是卖家
-    // 如果当前用户ID等于participant_id，则当前用户是卖家
-    const participantId = (conversation?.conversation as any)?.participant_id;
+    // 🔥 正确判断当前用户是否为卖家 - 使用订单中的 seller_id 和 buyer_id
     const currentUserId = user?.id;
-    const isSeller = Number(participantId) === Number(currentUserId); // ✅ 使用 Number() 转换
+    const orderSellerId = o.seller_id || o.seller?.id || o.seller?.user_id;
+    const orderBuyerId = o.buyer_id || o.buyer?.id || o.buyer?.user_id;
+    
+    // 🔥 根据订单的 seller_id 判断，而不是 conversation 的 participant_id
+    const isSeller = Number(currentUserId) === Number(orderSellerId);
     
     console.log("🔍 Order card - isSeller:", isSeller);
-    console.log("🔍 Order card - conversation participant_id:", participantId);
-    console.log("🔍 Order card - participant_id type:", typeof participantId);
     console.log("🔍 Order card - current user id:", currentUserId);
-    console.log("🔍 Order card - current user id type:", typeof currentUserId);
     console.log("🔍 Order card - current user username:", user?.username);
-    console.log("🔍 Order card - order seller:", o.seller.name);
-    console.log("🔍 Order card - order buyer:", o.buyer?.name);
+    console.log("🔍 Order card - order seller_id:", orderSellerId);
+    console.log("🔍 Order card - order buyer_id:", orderBuyerId);
+    console.log("🔍 Order card - order seller name:", o.seller.name);
+    console.log("🔍 Order card - order buyer name:", o.buyer?.name);
 
     const handleBuyNow = () => {
       // 🔥 使用正确的listing_id，如果没有则从conversation中获取
@@ -899,7 +899,14 @@ export default function ChatScreen() {
       console.log("🛒 Conversation listing_id:", (conversation as any)?.listing?.id);
       
       // 🔥 跳转到CheckoutScreen而不是直接创建订单
-      const rootNavigation = (navigation as any).getParent?.();
+      // 获取根导航器（Main Tab Navigator）
+      let rootNavigation: any = navigation;
+      while (rootNavigation.getParent && typeof rootNavigation.getParent === 'function') {
+        const parent = rootNavigation.getParent();
+        if (!parent) break;
+        rootNavigation = parent;
+      }
+      
       if (rootNavigation) {
         // 构造单个商品的购物车项目格式
         const singleItem = {
@@ -916,19 +923,29 @@ export default function ChatScreen() {
         };
         
         console.log("🔍 Navigating to Checkout with listing ID:", listingId);
-        
-        // 🔥 BuyStack在根级别，直接导航
-        rootNavigation.navigate("Buy", {
-          screen: "Checkout",
-          params: {
-            items: [singleItem],
-            subtotal: o.product.price,
-            shipping: o.product.shippingFee || 0, // 使用商品的真实运费
-            conversationId: conversationId // 🔥 传递 conversationId
-          }
+        console.log("🔍 Navigation structure:", { 
+          currentRoute: navigation.getState().routes[navigation.getState().index]?.name,
+          rootNav: !!rootNavigation
         });
+        
+        try {
+          // 🔥 BuyStack在根级别，直接导航
+          rootNavigation.navigate("Buy", {
+            screen: "Checkout",
+            params: {
+              items: [singleItem],
+              subtotal: o.product.price,
+              shipping: o.product.shippingFee || 0, // 使用商品的真实运费
+              conversationId: conversationId // 🔥 传递 conversationId
+            }
+          });
+        } catch (error) {
+          console.error("❌ Navigation error:", error);
+          Alert.alert("Error", "Unable to navigate to checkout. Please try again.");
+        }
       } else {
         console.error("❌ Root navigation not found");
+        Alert.alert("Error", "Navigation error. Please return to listing and try again.");
       }
     };
 
@@ -2037,18 +2054,20 @@ export default function ChatScreen() {
 
           if (item.type === "orderCard") {
             // 🔥 判断订单卡片应该显示在左侧还是右侧
-            // 如果当前用户是买家，订单卡片应该显示在右侧
-            const initiatorId = (conversation?.conversation as any)?.initiator_id;
+            // 根据订单中的 buyer_id 判断当前用户是否为买家
             const currentUserId = user?.id;
-            const isBuyer = Number(initiatorId) === Number(currentUserId);
-            const cardPosition = isBuyer ? "flex-end" : "flex-start";
+            const orderBuyerId = item.order.buyer_id || item.order.buyer?.id || item.order.buyer?.user_id;
+            const orderSellerId = item.order.seller_id || item.order.seller?.id || item.order.seller?.user_id;
+            const isBuyer = Number(currentUserId) === Number(orderBuyerId);
+            const cardPosition = isBuyer ? "flex-end" : "flex-start"; // 买家显示右侧，卖家显示左侧
             
-            console.log("🔍 Order card - isBuyer:", isBuyer);
-            console.log("🔍 Order card - conversation initiator_id:", initiatorId);
-            console.log("🔍 Order card - current user id:", currentUserId);
-            console.log("🔍 Order card - current user username:", user?.username);
-            console.log("🔍 Order card - order buyer:", item.order.buyer?.name);
-            console.log("🔍 Order card - order seller:", item.order.seller?.name);
+            console.log("🔍 Order card position - isBuyer:", isBuyer);
+            console.log("🔍 Order card position - current user id:", currentUserId);
+            console.log("🔍 Order card position - current user username:", user?.username);
+            console.log("🔍 Order card position - order buyer_id:", orderBuyerId);
+            console.log("🔍 Order card position - order seller_id:", orderSellerId);
+            console.log("🔍 Order card position - order buyer name:", item.order.buyer?.name);
+            console.log("🔍 Order card position - order seller name:", item.order.seller?.name);
             
             return (
               <View style={{ 
