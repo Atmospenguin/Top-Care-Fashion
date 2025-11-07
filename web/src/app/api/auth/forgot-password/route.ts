@@ -3,6 +3,9 @@ import { createSupabaseServer } from "@/lib/supabase";
 
 const EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@[A-Za-z][A-Za-z0-9.-]*\.[A-Za-z]{2,}$/;
 
+// Production Web URL - used for password reset emails
+const PRODUCTION_WEB_URL = "https://top-care-fashion.vercel.app";
+
 function resolveSiteUrl(req: NextRequest) {
   const envUrl =
     process.env.NEXT_PUBLIC_SITE_URL ||
@@ -10,7 +13,18 @@ function resolveSiteUrl(req: NextRequest) {
     process.env.APP_ORIGIN ||
     "";
   if (envUrl.trim()) return envUrl.trim().replace(/\/+$/, "");
-  return req.nextUrl.origin.replace(/\/+$/, "");
+
+  const origin = req.nextUrl.origin;
+
+  // 🔥 If origin is localhost or local IP (from mobile dev), use production URL
+  if (origin.includes('localhost') ||
+      origin.includes('127.0.0.1') ||
+      /http:\/\/\d+\.\d+\.\d+\.\d+/.test(origin)) {
+    console.log(`[forgot-password] Detected local origin (${origin}), using production URL: ${PRODUCTION_WEB_URL}`);
+    return PRODUCTION_WEB_URL;
+  }
+
+  return origin.replace(/\/+$/, "");
 }
 
 export async function POST(req: NextRequest) {
