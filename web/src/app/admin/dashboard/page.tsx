@@ -14,6 +14,8 @@ interface DashboardStats {
   completedTransactions: number;
   totalRevenue: number;
   revenueThisMonth: number;
+  totalCommissionRevenue: number;
+  commissionRevenueThisMonth: number;
   newUsersThisWeek: number;
   newListingsThisWeek: number;
   transactionsThisWeek: number;
@@ -151,6 +153,86 @@ export default function DashboardPage() {
           color="yellow"
           link="/admin/transactions"
         />
+      </div>
+
+      {/* Revenue Details */}
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Revenue Breakdown */}
+        <div className="bg-white border rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-4">Revenue Breakdown</h3>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b">
+              <div>
+                <div className="text-sm text-gray-600">Total Revenue</div>
+                <div className="text-xs text-gray-500 mt-1">All completed transactions</div>
+              </div>
+              <div className="text-xl font-bold text-gray-900">
+                ${stats.totalRevenue.toFixed(2)}
+              </div>
+            </div>
+            <div className="flex justify-between items-center pb-3 border-b">
+              <div>
+                <div className="text-sm text-gray-600">Commission Revenue</div>
+                <div className="text-xs text-gray-500 mt-1">Platform earnings</div>
+              </div>
+              <div className="text-xl font-bold text-orange-600">
+                ${stats.totalCommissionRevenue.toFixed(2)}
+              </div>
+            </div>
+            <div className="flex justify-between items-center pb-3 border-b">
+              <div>
+                <div className="text-sm text-gray-600">Revenue This Month</div>
+                <div className="text-xs text-gray-500 mt-1">Current month total</div>
+              </div>
+              <div className="text-xl font-bold text-green-600">
+                ${stats.revenueThisMonth.toFixed(2)}
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <div>
+                <div className="text-sm text-gray-600">Commission This Month</div>
+                <div className="text-xs text-gray-500 mt-1">Current month earnings</div>
+              </div>
+              <div className="text-xl font-bold text-orange-600">
+                ${stats.commissionRevenueThisMonth.toFixed(2)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Commission Stats */}
+        <div className="bg-white border rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-4">Commission Stats</h3>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b">
+              <div>
+                <div className="text-sm text-gray-600">Total Commission</div>
+                <div className="text-xs text-gray-500 mt-1">Lifetime platform earnings</div>
+              </div>
+              <div className="text-xl font-bold text-orange-600">
+                ${stats.totalCommissionRevenue.toFixed(2)}
+              </div>
+            </div>
+            <div className="flex justify-between items-center pb-3 border-b">
+              <div>
+                <div className="text-sm text-gray-600">Effective Commission Rate</div>
+                <div className="text-xs text-gray-500 mt-1">Average rate across all sales</div>
+              </div>
+              <div className="text-xl font-bold text-purple-600">
+                {(stats.totalRevenue > 0 ? (stats.totalCommissionRevenue / stats.totalRevenue) * 100 : 0).toFixed(2)}%
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <div>
+                <div className="text-sm text-gray-600">Total Seller Revenue</div>
+                <div className="text-xs text-gray-500 mt-1">Paid out to sellers</div>
+              </div>
+              <div className="text-xl font-bold text-green-600">
+                ${(stats.totalRevenue - stats.totalCommissionRevenue).toFixed(2)}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Recent Activity */}
