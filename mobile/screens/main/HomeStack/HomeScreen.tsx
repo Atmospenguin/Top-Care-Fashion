@@ -34,6 +34,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const searchInputRef = useRef<TextInput>(null); // 🔥 添加搜索框引用
 
   // Pagination state
   const [offset, setOffset] = useState(0);
@@ -62,7 +63,13 @@ export default function HomeScreen() {
       console.log('🔍 HomeScreen: Received items:', result.items.length);
       console.log('🔍 HomeScreen: Has more:', result.hasMore);
 
-      setFeaturedItems(result.items);
+      // 🔥 去重：防止后端返回重复数据
+      const uniqueItems = Array.from(
+        new Map(result.items.map(item => [item.id, item])).values()
+      );
+      console.log('🔍 HomeScreen: After dedup:', uniqueItems.length, 'unique items');
+      
+      setFeaturedItems(uniqueItems);
       setHasMore(result.hasMore);
       setOffset(PAGE_SIZE);
     } catch (err) {
@@ -97,7 +104,13 @@ export default function HomeScreen() {
 
       console.log('🔍 HomeScreen: Loaded', result.items.length, 'more items');
 
-      setFeaturedItems(prev => [...prev, ...result.items]);
+      // 🔥 去重：防止重复的商品ID导致 FlatList key 冲突
+      setFeaturedItems(prev => {
+        const existingIds = new Set(prev.map(item => item.id));
+        const newItems = result.items.filter(item => !existingIds.has(item.id));
+        console.log('🔍 HomeScreen: After dedup, adding', newItems.length, 'new items');
+        return [...prev, ...newItems];
+      });
       setHasMore(result.hasMore);
       setOffset(prev => prev + PAGE_SIZE);
     } catch (err) {
@@ -151,34 +164,13 @@ export default function HomeScreen() {
   // Tab 单击滚到顶部（确保 ref 绑定到 FlatList）
   useScrollToTop(scrollRef);
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
-      <FlatList
-        ref={scrollRef as any}
-        onScroll={(e) => {
-          scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
-        }}
-        scrollEventThrottle={16}
-        style={styles.container}
-        data={featuredItems}
-        numColumns={2}
-        keyExtractor={(item) => item.id.toString()}
-        columnWrapperStyle={styles.row}
-        contentContainerStyle={styles.gridContainer}
-        showsVerticalScrollIndicator={false}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => loadFeaturedItems({ isRefresh: true })}
-          />
-        }
-        ListHeaderComponent={() => (
+  // 🔥 使用 useMemo 缓存 ListHeaderComponent，防止每次输入都重新渲染
+  const listHeader = React.useMemo(() => (
           <View>
             {/* 🔍 搜索栏 */}
             <View style={styles.searchRow}>
               <TextInput
+                ref={searchInputRef}
                 style={styles.searchBar}
                 placeholder="Search for anything"
                 placeholderTextColor="#666"
@@ -272,7 +264,32 @@ export default function HomeScreen() {
               </View>
             )}
           </View>
-        )}
+  ), [searchText, navigation, loading, error, loadFeaturedItems]); // 🔥 只在这些值改变时重新渲染
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
+      <FlatList
+        ref={scrollRef as any}
+        onScroll={(e) => {
+          scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={16}
+        style={styles.container}
+        data={featuredItems}
+        numColumns={2}
+        keyExtractor={(item) => item.id.toString()}
+        columnWrapperStyle={styles.row}
+        contentContainerStyle={styles.gridContainer}
+        showsVerticalScrollIndicator={false}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadFeaturedItems({ isRefresh: true })}
+          />
+        }
+        ListHeaderComponent={listHeader}
         ListFooterComponent={() => {
           if (isLoadingMore) {
             return (

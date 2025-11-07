@@ -110,7 +110,7 @@ model listings {
   weight                                               Decimal?             @db.Decimal(8, 2)
   dimensions                                           String?              @db.VarChar(50)
   sku                                                  String?              @db.VarChar(50)
-  inventory_count                                      Int?                 @default(0)
+  inventory_count                                      Int?                 @default(1)
   views_count                                          Int?                 @default(0)
   likes_count                                          Int?                 @default(0)
   updated_at                                           DateTime?            @default(now()) @db.Timestamp(6)
