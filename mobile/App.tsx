@@ -15,6 +15,7 @@ LogBox.ignoreLogs([
 
 import { AuthProvider } from './contexts/AuthContext'; // <-- make sure this path is correct
 import { navigationRef } from './src/services/navigationService';
+import NotificationHandler from './components/NotificationHandler';
 
 // Auth / entry screens
 import SplashScreen from './screens/auth/SplashScreen';
@@ -199,37 +200,44 @@ function MainTabs() {
   );
 }
 
+function AppContent() {
+  return (
+    <NavigationContainer ref={navigationRef}>
+      <NotificationHandler />
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Splash" component={SplashScreen} />
+        <Stack.Screen name="Landing" component={LandingScreen} />
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen
+          name="OnboardingPreference"
+          component={OnboardingPreferenceScreen}
+          options={{ gestureEnabled: false }}
+        />
+        <Stack.Screen name="Main" component={MainTabs} />
+        <Stack.Screen name="Review" component={ReviewScreen} />
+        <Stack.Screen name="MutualReview" component={MutualReviewScreen} />
+        <Stack.Screen name="ViewReview" component={ViewYourReviewScreen} />
+        <Stack.Screen name="Notification" component={NotificationScreen} />
+        <Stack.Screen
+          name="ChatStandalone"
+          component={ChatScreen}
+          options={{ headerShown: false }}
+        />
+        {/* Premium stack lives on root; entering it hides the bottom tab by design */}
+        <Stack.Screen name="Premium" component={PremiumStackNavigator} />
+        {/* Buy stack mirrors Premium: lives on root to avoid tab flicker */}
+        <Stack.Screen name="Buy" component={BuyStackNavigator} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <NavigationContainer ref={navigationRef}>
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="Splash" component={SplashScreen} />
-            <Stack.Screen name="Landing" component={LandingScreen} />
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-            <Stack.Screen
-              name="OnboardingPreference"
-              component={OnboardingPreferenceScreen}
-              options={{ gestureEnabled: false }}
-            />
-            <Stack.Screen name="Main" component={MainTabs} />
-            <Stack.Screen name="Review" component={ReviewScreen} />
-            <Stack.Screen name="MutualReview" component={MutualReviewScreen} />
-            <Stack.Screen name="ViewReview" component={ViewYourReviewScreen} />
-            <Stack.Screen name="Notification" component={NotificationScreen} />
-            <Stack.Screen
-              name="ChatStandalone"
-              component={ChatScreen}
-              options={{ headerShown: false }}
-            />
-            {/* Premium stack lives on root; entering it hides the bottom tab by design */}
-            <Stack.Screen name="Premium" component={PremiumStackNavigator} />
-            {/* Buy stack mirrors Premium: lives on root to avoid tab flicker */}
-            <Stack.Screen name="Buy" component={BuyStackNavigator} />
-          </Stack.Navigator>
-        </NavigationContainer>
+        <AppContent />
       </AuthProvider>
     </GestureHandlerRootView>
   );

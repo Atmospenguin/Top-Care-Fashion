@@ -5,7 +5,7 @@ import type { NavigationProp } from "@react-navigation/native";
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
-import { messagesService, ordersService, listingsService, reviewsService, type Message, type ConversationDetail } from "../../../src/services";
+import { messagesService, ordersService, listingsService, reviewsService, pollingService, type Message, type ConversationDetail } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
 import { premiumService } from "../../../src/services";
 import Avatar from "../../../components/Avatar";
@@ -216,6 +216,23 @@ export default function ChatScreen() {
   const [conversation, setConversation] = useState<ConversationDetail | null>(null);
   const [lastOrderStatus, setLastOrderStatus] = useState<string | null>(null);
   const listRef = useRef<FlatList<ChatItem>>(null);
+
+  // 🔥 设置/清除当前对话ID（用于轮询服务，避免在当前对话中显示通知）
+  useFocusEffect(
+    React.useCallback(() => {
+      // 进入聊天页面时设置当前对话ID
+      if (conversationId) {
+        pollingService.setCurrentConversationId(conversationId);
+        console.log('✅ Set current conversation ID:', conversationId);
+      }
+
+      return () => {
+        // 离开聊天页面时清除当前对话ID
+        pollingService.setCurrentConversationId(null);
+        console.log('✅ Cleared current conversation ID');
+      };
+    }, [conversationId])
+  );
 
   // 🔥 移除重复的 useEffect，只保留 focus listener 中的逻辑
 

@@ -16,6 +16,8 @@ export { benefitsService, BenefitsServiceType } from './benefitsService';
 export { paymentMethodsService } from './paymentMethodsService';
 export { addressService } from './addressService';
 export { NotificationHelper } from './notificationHelper';
+export { localNotificationService } from './localNotificationService';
+export { pollingService } from './pollingService';
 
 // 导出类型
 export type { ApiResponse, ApiError } from '../config/api';
