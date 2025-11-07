@@ -10,7 +10,10 @@
     "extra": {
       "EXPO_PUBLIC_API_URL": "https://top-care-fashion.vercel.app",
       "EXPO_PUBLIC_SUPABASE_URL": "https://ilykxrtilsbymlncunua.supabase.co",
-      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlseWt4cnRpbHNieW1sbmN1bnVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0OTY1MjEsImV4cCI6MjA3MzA3MjUyMX0.q78hAUkVNeeXxZlY75hQo6cah6m6iBm1_Yh3z_qx-6o"
+      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlseWt4cnRpbHNieW1sbmN1bnVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0OTY1MjEsImV4cCI6MjA3MzA3MjUyMX0.q78hAUkVNeeXxZlY75hQo6cah6m6iBm1_Yh3z_qx-6o",
+      "eas": {
+        "projectId": "43fcbd20-cac5-45f7-810b-463059702c7a"
+      }
     },
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -45,6 +48,9 @@
         }
       ]
     ],
-    "platforms": ["ios", "android"]
+    "platforms": [
+      "ios",
+      "android"
+    ]
   }
 }
