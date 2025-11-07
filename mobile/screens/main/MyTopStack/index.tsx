@@ -44,6 +44,12 @@ export type MyTopStackParamList = {
         refreshTS?: number;
         scrollToTopTS?: number;
         tabPressTS?: number;
+        brandPickerRequest?: {
+          ts: number;
+          availableBrands?: string[];
+          selectedBrands?: string[];
+          source?: "discover" | "mytop";
+        };
       }
     | undefined;
   EditProfile: undefined;

@@ -61,6 +61,7 @@ export default function MyTopScreen() {
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
   const route = useRoute<RouteProp<MyTopStackParamList, "MyTopMain">>();
   const lastRefreshRef = useRef<number | null>(null);
+  const brandPickerHandledTsRef = useRef<number | null>(null);
   const isRefreshingRef = useRef<boolean>(false);
   const [activeTab, setActiveTab] =
     useState<"Shop" | "Sold" | "Purchases" | "Likes">("Shop");
@@ -517,6 +518,21 @@ export default function MyTopScreen() {
       return () => { isActive = false; };
     }, [navigation, refreshAll, route.params])
   );
+
+  useEffect(() => {
+    const request = route.params?.brandPickerRequest;
+    if (!request) return;
+    if (brandPickerHandledTsRef.current === request.ts) return;
+    brandPickerHandledTsRef.current = request.ts;
+
+    navigation.navigate("EditBrand", {
+      source: request.source === "discover" ? "discover" : "mytop",
+      availableBrands: request.availableBrands ?? [],
+      selectedBrands: request.selectedBrands ?? [],
+    });
+
+    navigation.setParams({ brandPickerRequest: undefined });
+  }, [navigation, route.params?.brandPickerRequest]);
 
   // ✅ 使用真实用户数据，提供默认值以防用户数据为空
   const activeListings = useMemo(
