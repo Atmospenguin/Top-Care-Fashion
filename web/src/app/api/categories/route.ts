@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db";
 export async function GET() {
   try {
     const categories = await prisma.listing_categories.findMany({
-      orderBy: { name: "asc" },
+      where: { is_active: true },
+      orderBy: [{ sort_order: "asc" }, { name: "asc" }],
       select: { name: true },
     });
 
