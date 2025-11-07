@@ -51,12 +51,13 @@ function SignInContent() {
   }
 
   return (
-    <section className="max-w-md">
-      <h1 className="text-3xl font-semibold tracking-tight">Sign in</h1>
+    <div className="min-h-[calc(100vh-200px)] flex items-center justify-center">
+      <section className="max-w-md w-full">
+        <h1 className="text-3xl font-semibold mb-8">Welcome to TOP!</h1>
 
-      {status && (
+        {status && (
         <div
-          className={`mt-4 p-3 rounded-md text-sm ${
+          className={`mb-4 p-3 rounded-md text-sm ${
             status.includes("successfully") || status.includes("Success")
               ? "bg-green-50 text-green-800 border border-green-200"
               : status.includes("failed") || status.includes("error") || status.includes("Error")
@@ -68,19 +69,34 @@ function SignInContent() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
-        <label className="text-sm">Email
-          <input type="email" className="mt-1 w-full border border-black/10 rounded-md px-3 py-2" value={email} onChange={(e)=>setEmail(e.target.value)} required />
-        </label>
-        <label className="text-sm">Password
-          <input type="password" className="mt-1 w-full border border-black/10 rounded-md px-3 py-2" value={password} onChange={(e)=>setPassword(e.target.value)} required />
-        </label>
-        <div className="flex items-center justify-between">
-          <button type="submit" className="inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-4 py-2 text-sm hover:opacity-90">Sign in</button>
-          <a href="/reset-password" className="text-sm text-[var(--brand-color)] hover:underline">Forgot password?</a>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <input
+          type="email"
+          className="w-full border border-gray-300 rounded-md px-4 py-3 bg-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
+          value={email}
+          onChange={(e)=>setEmail(e.target.value)}
+          placeholder="Enter your email"
+          required
+        />
+        <input
+          type="password"
+          className="w-full border border-gray-300 rounded-md px-4 py-3 bg-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
+          value={password}
+          onChange={(e)=>setPassword(e.target.value)}
+          placeholder="Enter your password"
+          required
+        />
+
+        <div className="text-right">
+          <a href="/reset-password" className="text-sm text-gray-600 hover:text-gray-800">Forgot Password?</a>
         </div>
+
+        <button type="submit" className="w-full rounded-md text-white px-4 py-3 text-base font-medium transition-colors" style={{ backgroundColor: '#F54B3D' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#E03A2D'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#F54B3D'}>
+          Login
+        </button>
       </form>
-    </section>
+      </section>
+    </div>
   );
 }
 
@@ -88,7 +104,7 @@ export default function SignInPage() {
   return (
     <Suspense fallback={
       <section className="max-w-md">
-        <h1 className="text-3xl font-semibold tracking-tight">Sign in</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Login</h1>
       </section>
     }>
       <SignInContent />

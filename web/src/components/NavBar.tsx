@@ -19,7 +19,7 @@ export default function NavBar() {
         </Link>
 
         {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center gap-5 text-sm">
+        <div className="hidden md:flex items-center gap-5 text-sm font-medium">
           <Link href="/#features" className="hover:opacity-90">Features</Link>
           <Link href="/#community" className="hover:opacity-90">Community</Link>
           <Link href="/#pricing" className="hover:opacity-90">Pricing</Link>
@@ -27,8 +27,8 @@ export default function NavBar() {
           <Link href="/faq" className="hover:opacity-90">FAQ</Link>
           {!isAuthenticated ? (
             <div className="flex items-center gap-3">
-              <Link href="/signin" className="hover:opacity-90">Sign in</Link>
-              <Link href="/register" className="inline-flex items-center rounded-md bg-white text-[var(--brand-color)] px-3 py-1.5 font-medium hover:opacity-90">Sign up</Link>
+              <Link href="/signin" className="hover:opacity-90">Login</Link>
+              <Link href="/register" className="inline-flex items-center rounded-md bg-white text-[var(--brand-color)] px-3 py-1.5 font-semibold hover:opacity-90">Register</Link>
             </div>
           ) : (
             <div
@@ -50,7 +50,7 @@ export default function NavBar() {
               }}
             >
               <button className="inline-flex items-center gap-2 rounded-md border border-white/25 px-3 py-1.5 hover:bg-white/10">
-                <span className="font-medium">{user?.username || user?.email}</span>
+                <span className="font-semibold">{user?.username || user?.email}</span>
                 <span className="text-xs">▾</span>
               </button>
               {open && (
@@ -103,7 +103,7 @@ export default function NavBar() {
       {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-white/20 bg-[var(--brand-color)]">
-          <div className="px-4 py-3 space-y-3 text-sm">
+          <div className="px-4 py-3 space-y-3 text-sm font-medium">
             <Link href="/#features" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Features</Link>
             <Link href="/#community" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Community</Link>
             <Link href="/#pricing" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
@@ -113,20 +113,20 @@ export default function NavBar() {
             {!isAuthenticated ? (
               <>
                 <div className="border-t border-white/20 pt-3 mt-3">
-                  <Link href="/signin" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Sign in</Link>
+                  <Link href="/signin" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Login</Link>
                   <Link
                     href="/register"
-                    className="block mt-2 text-center rounded-md bg-white text-[var(--brand-color)] px-4 py-2 font-medium hover:opacity-90"
+                    className="block mt-2 text-center rounded-md bg-white text-[var(--brand-color)] px-4 py-2 font-semibold hover:opacity-90"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Sign up
+                    Register
                   </Link>
                 </div>
               </>
             ) : (
               <>
                 <div className="border-t border-white/20 pt-3 mt-3">
-                  <div className="py-2 font-medium">{user?.username || user?.email}</div>
+                  <div className="py-2 font-semibold">{user?.username || user?.email}</div>
                   <Link href="/profile" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Profile</Link>
                   {user?.actor === "Admin" && (
                     <>
