@@ -115,6 +115,10 @@ export const API_CONFIG = {
       SAFE: "/api/ai/safe",
     },
     REPORTS: "/api/reports",
+
+    FEED: {
+      HOME: "/api/feed/home",
+    },
   },
   TIMEOUT: 10000,
   RETRY_ATTEMPTS: 3,
@@ -143,3 +147,74 @@ export function buildUrl(path: string) {
 }
 
 export const DEBUG_API = process.env.EXPO_PUBLIC_DEBUG_API === "1";
+
+// ===== Feed types =====
+export type HomeFeedItem = {
+  id: number;
+  title: string | null;
+  image_url: string | null;
+  price_cents: number;
+  brand: string | null;
+  tags: string[];
+  source: "trending" | "brand" | "tag";
+  fair_score: number; // 0..1
+};
+
+export type HomeFeedResponse = {
+  items: HomeFeedItem[];
+  meta?: Record<string, any>;
+};
+
+// ===== Simple GET/POST helpers =====
+function withQuery(url: string, params?: Record<string, any>) {
+  if (!params || Object.keys(params).length === 0) return url;
+  const usp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null) continue;
+    usp.append(k, String(v));
+  }
+  return `${url}?${usp.toString()}`;
+}
+
+export async function apiGet<T = any>(path: string, params?: Record<string, any>): Promise<T> {
+  const url = withQuery(buildUrl(path), params);
+  const controller = new AbortController();
+  const to = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
+
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new ApiError(`HTTP ${res.status}: ${text || res.statusText}`, res.status, text);
+    }
+    return (await res.json()) as T;
+  } finally {
+    clearTimeout(to);
+  }
+}
+
+export async function apiPost<T = any>(path: string, body?: any): Promise<T> {
+  const url = buildUrl(path);
+  const controller = new AbortController();
+  const to = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new ApiError(`HTTP ${res.status}: ${text || res.statusText}`, res.status, text);
+    }
+    return (await res.json().catch(() => ({}))) as T;
+  } finally {
+    clearTimeout(to);
+  }
+}
