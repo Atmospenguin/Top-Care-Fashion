@@ -1,45 +1,58 @@
-import React, { useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from "react-native";
+import React, { useCallback, useState, useEffect } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, ActivityIndicator } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { MyTopStackParamList } from "./index";
-import { API_BASE_URL } from "../../../src/config/api";
+import { apiClient } from "../../../src/services/api";
+import { useAuth } from "../../../contexts/AuthContext";
 
-const helpTopics = [
-  {
-    icon: "help-circle-outline" as const,
-    title: "Frequently Asked Questions",
-    description: "Browse common questions and answers from our community.",
-    action: "faq" as const,
-  },
-  {
-    icon: "help-circle-outline" as const,
-    title: "Getting Started",
-    description: "Learn how to set up your shop and list items quickly.",
-  },
-  {
-    icon: "shirt-outline" as const,
-    title: "Buying & Selling",
-    description: "Tips for buying safely and managing your listings.",
-  },
-  {
-    icon: "wallet-outline" as const,
-    title: "Payments",
-    description: "Manage payouts, refunds, and payment methods.",
-  },
-  {
-    icon: "sync-outline" as const,
-    title: "Returns & Disputes",
-    description: "Steps to resolve order issues with other users.",
-  },
+interface FAQ {
+  id: string;
+  question: string;
+  answer: string;
+}
+
+const FAQ_CATEGORIES = [
+  { value: "General", label: "General" },
+  { value: "Account", label: "Account" },
+  { value: "Products", label: "Products" },
+  { value: "Orders", label: "Orders" },
+  { value: "Shipping", label: "Shipping" },
+  { value: "Returns", label: "Returns" },
+  { value: "Technical", label: "Technical" },
+  { value: "Other", label: "Other" },
 ];
 
 type HelpSupportNavigation = NativeStackNavigationProp<MyTopStackParamList>;
 
 export default function HelpSupportScreen() {
   const navigation = useNavigation<HelpSupportNavigation>();
+  const { user, isAuthenticated } = useAuth();
+  const [faqs, setFaqs] = useState<FAQ[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedFaqId, setExpandedFaqId] = useState<string | null>(null);
+  const [question, setQuestion] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetchFaqs();
+  }, []);
+
+  const fetchFaqs = async () => {
+    try {
+      const response = await apiClient.get<{ faqs: FAQ[] }>("/api/faq", { status: "answered" });
+      if (response.data) {
+        setFaqs(response.data.faqs || []);
+      }
+    } catch (error) {
+      console.error("Error fetching FAQs:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChatNow = useCallback(() => {
     const chatParams = {
@@ -62,26 +75,35 @@ export default function HelpSupportScreen() {
     Alert.alert("Navigation unavailable", "Please open the Inbox tab to chat with support.");
   }, [navigation]);
 
-  const handleTopicPress = useCallback((topic: typeof helpTopics[0]) => {
-    if (topic.action === "faq") {
-      // Extract base URL from API_BASE_URL and open FAQ page
-      const baseUrl = API_BASE_URL.replace(/\/api$/, "");
-      const faqUrl = `${baseUrl}/faq`;
-
-      Linking.canOpenURL(faqUrl).then((supported) => {
-        if (supported) {
-          Linking.openURL(faqUrl);
-        } else {
-          Alert.alert("Error", "Unable to open FAQ page. Please visit the web app.");
-        }
-      }).catch(() => {
-        Alert.alert("Error", "Unable to open FAQ page. Please visit the web app.");
-      });
-    } else {
-      // Placeholder for future topic navigation
-      Alert.alert(topic.title, "This help topic is coming soon!");
+  const handleSubmitQuestion = async () => {
+    if (!question.trim()) {
+      Alert.alert("Error", "Please enter your question");
+      return;
     }
-  }, []);
+
+    if (!isAuthenticated) {
+      Alert.alert("Error", "Please sign in to ask a question");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await apiClient.post("/api/faq", {
+        question: question.trim(),
+        category: selectedCategory || null,
+      });
+
+      Alert.alert("Success", "Your question has been submitted. We'll get back to you soon!");
+      setQuestion("");
+      setSelectedCategory("");
+      await fetchFaqs();
+    } catch (error) {
+      console.error("Error submitting question:", error);
+      Alert.alert("Error", "Failed to submit question. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -101,33 +123,108 @@ export default function HelpSupportScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionTitle}>Popular topics</Text>
-        <View style={styles.topicsList}>
-          {helpTopics.map((topic) => (
-            <TouchableOpacity
-              key={topic.title}
-              style={styles.topicItem}
-              activeOpacity={0.75}
-              onPress={() => handleTopicPress(topic)}
-            >
-              <View style={styles.topicIconWrapper}>
-                <Icon name={topic.icon} size={20} color="#FF4D4F" />
+        <Text style={styles.sectionTitle}>FAQs</Text>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#FF4D4F" />
+          </View>
+        ) : faqs.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No FAQs available at the moment.</Text>
+          </View>
+        ) : (
+          <View style={styles.faqList}>
+            {faqs.map((faq) => (
+              <View key={faq.id} style={styles.faqItem}>
+                <TouchableOpacity
+                  style={styles.faqQuestion}
+                  onPress={() => setExpandedFaqId(expandedFaqId === faq.id ? null : faq.id)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.faqQuestionText}>{faq.question}</Text>
+                  <Icon
+                    name={expandedFaqId === faq.id ? "chevron-up" : "chevron-down"}
+                    size={20}
+                    color="#666"
+                  />
+                </TouchableOpacity>
+                {expandedFaqId === faq.id && (
+                  <View style={styles.faqAnswer}>
+                    <Text style={styles.faqAnswerText}>{faq.answer}</Text>
+                  </View>
+                )}
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.topicTitle}>{topic.title}</Text>
-                <Text style={styles.topicDescription}>{topic.description}</Text>
-              </View>
-              <Icon name="chevron-forward" size={18} color="#bbb" />
-            </TouchableOpacity>
-          ))}
-        </View>
+            ))}
+          </View>
+        )}
 
-        <View style={styles.footerCard}>
-          <Text style={styles.footerTitle}>Still need help?</Text>
-          <Text style={styles.footerDescription}>
-            Email us at support@topcare.fashion or visit the FAQ in our web app for detailed guides.
-          </Text>
-        </View>
+        {isAuthenticated ? (
+          <View style={styles.formCard}>
+            <Text style={styles.formTitle}>Ask Anything</Text>
+            <Text style={styles.formDescription}>
+              Can't find what you're looking for? Submit your question below.
+            </Text>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Question</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Type your question here..."
+                value={question}
+                onChangeText={setQuestion}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                editable={!submitting}
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Category (Optional)</Text>
+              <View style={styles.pickerContainer}>
+                <TouchableOpacity
+                  style={styles.picker}
+                  onPress={() => {
+                    Alert.alert(
+                      "Select Category",
+                      "",
+                      [
+                        ...FAQ_CATEGORIES.map((cat) => ({
+                          text: cat.label,
+                          onPress: () => setSelectedCategory(cat.value),
+                        })),
+                        { text: "Cancel", style: "cancel" },
+                      ],
+                      { cancelable: true }
+                    );
+                  }}
+                  disabled={submitting}
+                >
+                  <Text style={styles.pickerText}>
+                    {selectedCategory || "Select a category"}
+                  </Text>
+                  <Icon name="chevron-down" size={18} color="#666" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+              onPress={handleSubmitQuestion}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.submitButtonText}>Submit Question</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.signInCard}>
+            <Text style={styles.signInText}>Please sign in to ask a question.</Text>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -175,52 +272,135 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111",
   },
-  topicsList: {
+  loadingContainer: {
+    paddingVertical: 40,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  emptyContainer: {
+    paddingVertical: 40,
+    alignItems: "center" as const,
+    backgroundColor: "#f8f8f8",
+    borderRadius: 16,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#888",
+  },
+  faqList: {
     borderRadius: 16,
     backgroundColor: "#f8f8f8",
+    overflow: "hidden",
   },
-  topicItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    columnGap: 16,
+  faqItem: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#e5e5e5",
   },
-  topicIconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#ffe3e3",
+  faqQuestion: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
-  topicTitle: {
+  faqQuestionText: {
+    flex: 1,
     fontSize: 15,
     fontWeight: "600",
     color: "#111",
+    marginRight: 12,
   },
-  topicDescription: {
-    fontSize: 13,
-    color: "#666",
-    lineHeight: 18,
-    marginTop: 4,
+  faqAnswer: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 0,
   },
-  footerCard: {
+  faqAnswerText: {
+    fontSize: 14,
+    color: "#555",
+    lineHeight: 20,
+  },
+  formCard: {
     backgroundColor: "#fafafa",
     borderRadius: 16,
     padding: 16,
-    rowGap: 8,
   },
-  footerTitle: {
+  formTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: "#111",
+    marginBottom: 8,
   },
-  footerDescription: {
+  formDescription: {
     fontSize: 13,
     color: "#555",
     lineHeight: 18,
+    marginBottom: 16,
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111",
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: "#111",
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+  },
+  textArea: {
+    minHeight: 100,
+    paddingTop: 12,
+  },
+  submitButton: {
+    backgroundColor: "#FF4D4F",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 24,
+    alignItems: "center" as const,
+    marginTop: 8,
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  submitButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  pickerContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+  },
+  picker: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  pickerText: {
+    fontSize: 14,
+    color: "#111",
+  },
+  signInCard: {
+    backgroundColor: "#fafafa",
+    borderRadius: 16,
+    padding: 16,
+    alignItems: "center" as const,
+  },
+  signInText: {
+    fontSize: 14,
+    color: "#666",
   },
 });
