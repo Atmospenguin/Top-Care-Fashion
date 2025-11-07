@@ -53,6 +53,10 @@ interface LandingContent {
   };
 }
 
+interface ReleaseLinks {
+  android: { version: string; url: string; releaseNotes: string | null } | null;
+}
+
 export default function Home() {
   const { isAuthenticated } = useAuth();
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
@@ -66,6 +70,7 @@ export default function Home() {
     aiFeatures: undefined,
   });
   const [loading, setLoading] = useState(true);
+  const [releaseLinks, setReleaseLinks] = useState<ReleaseLinks>({ android: null });
 
   const FILTERS = [
     { key: "all", label: "All Feedback" },
@@ -84,11 +89,12 @@ export default function Home() {
         setLoading(true);
         
         // Fetch all data in parallel
-        const [testimonialsRes, statsRes, plansRes, contentRes] = await Promise.all([
+        const [testimonialsRes, statsRes, plansRes, contentRes, releasesRes] = await Promise.all([
           fetch('/api/feedback'),
           fetch('/api/site-stats'),
           fetch('/api/pricing-plans'),
-          fetch('/api/landing-content')
+          fetch('/api/landing-content'),
+          fetch('/api/releases/current')
         ]);
 
         if (testimonialsRes.ok) {
@@ -110,6 +116,11 @@ export default function Home() {
           const contentData = await contentRes.json();
           setLandingContent(contentData);
         }
+
+        if (releasesRes.ok) {
+          const releasesData = await releasesRes.json();
+          setReleaseLinks({ android: releasesData?.android ?? null });
+        }
       } catch (error) {
         console.error('Error fetching homepage data:', error);
       } finally {
@@ -125,6 +136,7 @@ export default function Home() {
       ? true
       : t.tags.includes(filter as Testimonial["tags"][number])
   );
+  const androidRelease = releaseLinks.android;
   return (
     <div className="flex flex-col gap-24">
       {/* Hero with carousel */}
@@ -139,8 +151,16 @@ export default function Home() {
           <div className="mt-8 flex flex-wrap gap-3">
             {!isAuthenticated ? (
               <Link href="/register" className="inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-5 py-3 text-sm font-medium hover:opacity-90">Join for free</Link>
+            ) : androidRelease ? (
+              <a
+                href={androidRelease.url}
+                download
+                className="inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-5 py-3 text-sm font-medium hover:opacity-90"
+              >
+                Download the app
+              </a>
             ) : (
-              <a href="#download" className="inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-5 py-3 text-sm font-medium hover:opacity-90">Download the app</a>
+              <span className="inline-flex items-center rounded-md bg-black/10 px-5 py-3 text-sm text-black/60">Android download coming soon</span>
             )}
             <Link href="/faq" className="inline-flex items-center rounded-md border border-black/10 px-5 py-3 text-sm font-medium hover:bg-black/5">FAQ</Link>
           </div>
@@ -258,44 +278,69 @@ export default function Home() {
                     <li key={index}>• {feature}</li>
                   ))}
                 </ul>
-                {!isAuthenticated ? (
-                  <Link 
-                    href="/register" 
-                    className={`mt-6 inline-flex items-center rounded-md px-4 py-2 text-sm hover:opacity-90 ${
-                      plan.isPopular 
-                        ? 'bg-[var(--brand-color)] text-white' 
-                        : 'text-[var(--brand-color)] hover:underline'
-                    }`}
-                  >
-                    {plan.type === 'free' ? 'Get started' : 'Upgrade'}
-                  </Link>
-                ) : (
-                  <a 
-                    href="#download" 
-                    className={`mt-6 inline-flex items-center rounded-md px-4 py-2 text-sm hover:opacity-90 ${
-                      plan.isPopular 
-                        ? 'bg-[var(--brand-color)] text-white' 
-                        : 'text-[var(--brand-color)] hover:underline'
-                    }`}
-                  >
-                    Download the app
-                  </a>
-                )}
+                {(() => {
+                  const isFreePlan = plan.type?.toLowerCase() === "free";
+
+                  if (!isAuthenticated) {
+                    return (
+                      <Link
+                        href="/register"
+                        className={`mt-6 inline-flex items-center rounded-md px-4 py-2 text-sm hover:opacity-90 ${
+                          plan.isPopular
+                            ? 'bg-[var(--brand-color)] text-white'
+                            : 'text-[var(--brand-color)] hover:underline'
+                        }`}
+                      >
+                        {isFreePlan ? 'Get started' : 'Upgrade'}
+                      </Link>
+                    );
+                  }
+
+                  if (isFreePlan) {
+                    return <span className="mt-6 inline-flex items-center rounded-md px-4 py-2 text-sm text-black/60 bg-black/10">Included in your plan</span>;
+                  }
+
+                  if (androidRelease) {
+                    return (
+                      <a
+                        href={androidRelease.url}
+                        download
+                        className={`mt-6 inline-flex items-center rounded-md px-4 py-2 text-sm hover:opacity-90 ${
+                          plan.isPopular
+                            ? 'bg-[var(--brand-color)] text-white'
+                            : 'text-[var(--brand-color)] hover:underline'
+                        }`}
+                      >
+                        Download the app
+                      </a>
+                    );
+                  }
+
+                  return <span className="mt-6 inline-flex items-center rounded-md px-4 py-2 text-sm text-black/60 bg-black/10">Android download coming soon</span>;
+                })()}
               </div>
             ))}
           </div>
         )}
       </section>
 
-      {/* CTA */}
+      {/* CTA / Download */}
       <section id="download" className="text-center">
         <h2 className="text-2xl font-semibold">Ready to try?</h2>
         <p className="mt-2 text-black/70">Create your account and list your first item in minutes.</p>
         <div className="mt-6">
           {!isAuthenticated ? (
             <Link href="/register" className="inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-6 py-3 text-sm font-medium hover:opacity-90">Sign up now</Link>
+          ) : androidRelease ? (
+            <a
+              href={androidRelease.url}
+              download
+              className="inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-6 py-3 text-sm font-medium hover:opacity-90"
+            >
+                Download the app
+            </a>
           ) : (
-            <a href="#download" className="inline-flex items-center rounded-md bg-[var(--brand-color)] text-white px-6 py-3 text-sm font-medium hover:opacity-90">Download the app</a>
+            <span className="inline-flex items-center rounded-md bg-black/10 px-6 py-3 text-sm text-black/60">Android download coming soon</span>
           )}
         </div>
         <div className="mt-6">

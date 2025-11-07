@@ -64,6 +64,19 @@ interface PricingPlan {
   isPopular: boolean;
 }
 
+interface Release {
+  id: number;
+  version: string;
+  platform: string;
+  file_url: string;
+  file_name: string;
+  file_size: number;
+  release_notes: string | null;
+  is_current: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function ContentManagementPage() {
   const [stats, setStats] = useState<SiteStats>({ users: 0, listings: 0, sold: 0, rating: 0 });
   const [content, setContent] = useState<LandingContent>({ heroTitle: "", heroSubtitle: "", heroCarouselImages: [], featureCards: [], aiFeatures: {} });
@@ -76,6 +89,9 @@ export default function ContentManagementPage() {
   const [updatingFeedbackId, setUpdatingFeedbackId] = useState<number | null>(null);
   const [deletingFeedbackId, setDeletingFeedbackId] = useState<number | null>(null);
   const [feedbackQuery, setFeedbackQuery] = useState("");
+  const [releases, setReleases] = useState<Release[]>([]);
+  const [uploadingRelease, setUploadingRelease] = useState(false);
+  const [deletingReleaseId, setDeletingReleaseId] = useState<number | null>(null);
   const filteredFeedbacks = useMemo(() => {
     const term = feedbackQuery.trim().toLowerCase();
     if (!term) return feedbacks;
@@ -127,12 +143,13 @@ export default function ContentManagementPage() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [statsRes, contentRes, feedbackRes, pricingRes, tagsRes] = await Promise.all([
+      const [statsRes, contentRes, feedbackRes, pricingRes, tagsRes, releasesRes] = await Promise.all([
         fetch("/api/site-stats"),
         fetch("/api/landing-content"),
         fetch("/api/admin/feedback", { cache: "no-store" }),
         fetch("/api/pricing-plans"),
         fetch("/api/feedback/tags"),
+        fetch("/api/admin/releases", { cache: "no-store" }),
       ]);
 
       if (statsRes.ok) {
@@ -179,6 +196,10 @@ export default function ContentManagementPage() {
       if (tagsRes.ok) {
         const tagsData = await tagsRes.json();
         setAvailableTags(tagsData.tags || []);
+      }
+      if (releasesRes.ok) {
+        const releasesData = await releasesRes.json();
+        setReleases(releasesData.releases || []);
       }
     } finally {
       setLoading(false);
@@ -327,6 +348,87 @@ export default function ContentManagementPage() {
       setSaving(false);
     }
   }
+
+  async function uploadRelease(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    
+    try {
+      setUploadingRelease(true);
+      const response = await fetch("/api/admin/releases", {
+        method: "POST",
+        body: formData,
+      });
+      
+      if (response.ok) {
+        alert("Release uploaded successfully!");
+        form.reset();
+        fetchData();
+      } else {
+        const data = await response.json().catch(() => null);
+        alert(data?.error || "Failed to upload release");
+      }
+    } catch (error) {
+      console.error("Error uploading release:", error);
+      alert("Failed to upload release");
+    } finally {
+      setUploadingRelease(false);
+    }
+  }
+
+  async function toggleReleaseCurrent(release: Release) {
+    try {
+      const response = await fetch(`/api/admin/releases/${release.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isCurrent: !release.is_current }),
+      });
+      
+      if (response.ok) {
+        fetchData();
+      } else {
+        const data = await response.json().catch(() => null);
+        alert(data?.error || "Failed to update release");
+      }
+    } catch (error) {
+      console.error("Error updating release:", error);
+      alert("Failed to update release");
+    }
+  }
+
+  async function deleteRelease(id: number) {
+    if (!confirm("Delete this release? This action cannot be undone.")) {
+      return;
+    }
+    
+    try {
+      setDeletingReleaseId(id);
+      const response = await fetch(`/api/admin/releases/${id}`, {
+        method: "DELETE",
+      });
+      
+      if (response.ok) {
+        fetchData();
+      } else {
+        const data = await response.json().catch(() => null);
+        alert(data?.error || "Failed to delete release");
+      }
+    } catch (error) {
+      console.error("Error deleting release:", error);
+      alert("Failed to delete release");
+    } finally {
+      setDeletingReleaseId(null);
+    }
+  }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
 
   if (loading) {
     return (
@@ -889,6 +991,121 @@ export default function ContentManagementPage() {
             ))}
           </div>
           <button onClick={updatePricingPlans} disabled={saving} className="mt-4 w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50">{saving ? "Updating..." : "Update Pricing Plans"}</button>
+        </div>
+
+        {/* Release Management */}
+        <div className="lg:col-span-2 bg-white p-6 rounded-lg border border-gray-200">
+          <h2 className="text-xl font-semibold mb-4">App Release Management</h2>
+          <p className="text-sm text-gray-600 mb-6">Manage app releases for Android and iOS. Upload new versions and set which version users will download from the homepage.</p>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Upload Form */}
+            <div className="border border-gray-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold mb-3">Upload New Release</h3>
+              <form onSubmit={uploadRelease} className="space-y-3">
+                <div>
+                  <label htmlFor="release-version" className="block text-sm font-medium text-gray-700 mb-1">Version</label>
+                  <input 
+                    id="release-version" 
+                    name="version" 
+                    type="text" 
+                    required 
+                    placeholder="e.g., 1.0.0"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                  />
+                </div>
+                <div>
+                  <label htmlFor="release-file" className="block text-sm font-medium text-gray-700 mb-1">File</label>
+                  <input 
+                    id="release-file" 
+                    name="file" 
+                    type="file" 
+                    required
+                    accept=".apk"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Accepted: .apk files</p>
+                </div>
+                <div>
+                  <label htmlFor="release-notes" className="block text-sm font-medium text-gray-700 mb-1">Release Notes (optional)</label>
+                  <textarea 
+                    id="release-notes" 
+                    name="releaseNotes" 
+                    rows={3}
+                    placeholder="What's new in this version?"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
+                  />
+                </div>
+                <div className="flex items-center">
+                  <input 
+                    id="set-as-current" 
+                    name="setAsCurrent" 
+                    type="checkbox" 
+                    value="true"
+                    className="mr-2" 
+                  />
+                  <label htmlFor="set-as-current" className="text-sm font-medium text-gray-700">Set as current version</label>
+                </div>
+                <button 
+                  type="submit" 
+                  disabled={uploadingRelease}
+                  className="w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50"
+                >
+                  {uploadingRelease ? "Uploading..." : "Upload Release"}
+                </button>
+              </form>
+            </div>
+
+            {/* Android Releases */}
+            <div className="border border-gray-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <span className="text-green-600">🤖</span> Android Releases
+              </h3>
+              <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                {releases.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">No Android releases yet</p>
+                ) : (
+                  releases.map((release) => (
+                    <div key={release.id} className={`border rounded-lg p-3 ${release.is_current ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <div className="font-semibold text-sm">{release.version}</div>
+                          <div className="text-xs text-gray-500">{formatDate(release.created_at)}</div>
+                        </div>
+                        {release.is_current && (
+                          <span className="text-xs bg-green-600 text-white px-2 py-1 rounded-full">CURRENT</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-600 mb-2">
+                        <div>{release.file_name}</div>
+                        <div>{formatFileSize(release.file_size)}</div>
+                      </div>
+                      {release.release_notes && (
+                        <div className="text-xs text-gray-700 bg-white p-2 rounded border border-gray-200 mb-2">
+                          {release.release_notes}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => toggleReleaseCurrent(release)}
+                          className={`flex-1 text-xs px-2 py-1 rounded ${release.is_current ? 'bg-gray-300 text-gray-700' : 'bg-green-600 text-white hover:bg-green-700'}`}
+                        >
+                          {release.is_current ? 'Current' : 'Set Current'}
+                        </button>
+                        <button
+                          onClick={() => deleteRelease(release.id)}
+                          disabled={deletingReleaseId === release.id}
+                          className="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                        >
+                          {deletingReleaseId === release.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
