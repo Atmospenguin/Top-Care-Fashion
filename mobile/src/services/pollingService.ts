@@ -157,7 +157,10 @@ class PollingService {
    * 检查更新（新消息和新通知）
    */
   private async checkForUpdates(): Promise<void> {
-    if (!this.isRunning) return;
+    if (!this.isRunning) {
+      console.log('⏭️ PollingService not running, skipping check');
+      return;
+    }
 
     try {
       console.log('🔍 Checking for updates...');
@@ -176,11 +179,23 @@ class PollingService {
    * 检查新消息
    */
   private async checkForNewMessages(): Promise<void> {
+    // 🔥 再次检查服务是否仍在运行
+    if (!this.isRunning) {
+      console.log('⏭️ PollingService stopped, skipping message check');
+      return;
+    }
+
     try {
       // 获取所有对话
       const conversations = await messagesService.getConversations();
 
       for (const conversation of conversations) {
+        // 🔥 在每次循环中检查服务状态
+        if (!this.isRunning) {
+          console.log('⏭️ PollingService stopped during message check loop');
+          return;
+        }
+
         // 跳过当前打开的对话（避免重复通知）
         if (conversation.id === this.currentConversationId) {
           continue;
@@ -208,12 +223,18 @@ class PollingService {
               });
             }
           } catch (error) {
-            console.error(`❌ Error fetching messages for conversation ${conversation.id}:`, error);
+            // 🔥 只在服务运行时记录错误
+            if (this.isRunning) {
+              console.error(`❌ Error fetching messages for conversation ${conversation.id}:`, error);
+            }
           }
         }
       }
     } catch (error) {
-      console.error('❌ Error checking for new messages:', error);
+      // 🔥 只在服务运行时记录错误
+      if (this.isRunning) {
+        console.error('❌ Error checking for new messages:', error);
+      }
     }
   }
 
@@ -221,6 +242,11 @@ class PollingService {
    * 检查对话是否有新消息
    */
   private async checkConversationForNewMessages(conversationId: string): Promise<boolean> {
+    // 🔥 检查服务状态
+    if (!this.isRunning) {
+      return false;
+    }
+
     try {
       const conversationDetail = await messagesService.getMessages(conversationId);
       const messages = conversationDetail.messages || [];
@@ -253,7 +279,10 @@ class PollingService {
 
       return false;
     } catch (error) {
-      console.error(`❌ Error checking conversation ${conversationId}:`, error);
+      // 🔥 只在服务运行时记录错误
+      if (this.isRunning) {
+        console.error(`❌ Error checking conversation ${conversationId}:`, error);
+      }
       return false;
     }
   }
@@ -262,6 +291,12 @@ class PollingService {
    * 检查新通知
    */
   private async checkForNewNotifications(): Promise<void> {
+    // 🔥 检查服务状态
+    if (!this.isRunning) {
+      console.log('⏭️ PollingService stopped, skipping notification check');
+      return;
+    }
+
     try {
       const notifications = await notificationService.getNotifications();
       const unreadNotifications = notifications.filter(n => !n.isRead);
@@ -296,7 +331,10 @@ class PollingService {
         lastCheckTime: Date.now(),
       };
     } catch (error) {
-      console.error('❌ Error checking for new notifications:', error);
+      // 🔥 只在服务运行时记录错误
+      if (this.isRunning) {
+        console.error('❌ Error checking for new notifications:', error);
+      }
     }
   }
 

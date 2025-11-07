@@ -49,13 +49,16 @@ export async function GET(
       return NextResponse.json({ error: "Notification not found" }, { status: 404 });
     }
 
+    // 🔥 修复：优先使用 related_user 的头像（动态的），而不是 image_url（静态的）
+    const notificationImage = notification.related_user?.avatar_url || notification.image_url;
+
     // 格式化响应数据
     const formattedNotification = {
       id: notification.id.toString(),
       type: notification.type.toLowerCase(),
       title: notification.title,
       message: notification.message,
-      image: notification.image_url || notification.related_user?.avatar_url,
+      image: notificationImage,
       time: notification.created_at ? formatTime(notification.created_at) : null,
       isRead: notification.is_read,
       orderId: notification.order_id,
