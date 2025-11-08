@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   FlatList,
   Image,
@@ -32,6 +32,7 @@ import { likesService, messagesService, type LikedListing } from "../../../src/s
 import { authService } from "../../../src/services/authService";
 import { flagsService } from "../../../src/services/flagsService";
 import { listingsService } from "../../../src/services/listingsService";
+import { listingStatsService } from "../../../src/services/listingStatsService";
 import { sortCategories } from "../../../utils/categoryHelpers";
 import { ApiError } from "../../../src/config/api";
 
@@ -227,6 +228,7 @@ export default function UserProfileScreen() {
   const [shopSize, setShopSize] = useState<string>("All");
   const [shopCondition, setShopCondition] = useState<string>("All");
   const [shopGender, setShopGender] = useState<string>("All");
+  const viewedItemsRef = useRef<Set<string>>(new Set()); // 追踪已记录views的商品
   const [shopSortBy, setShopSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
 
   // Shop Filter Modal States
@@ -1279,6 +1281,21 @@ export default function UserProfileScreen() {
                 contentContainerStyle={styles.gridContent}
                 onEndReached={loadMoreListings}
                 onEndReachedThreshold={0.5}
+                viewabilityConfig={{
+                  itemVisiblePercentThreshold: 50, // 商品至少50%可见时才记录
+                }}
+                onViewableItemsChanged={({ viewableItems }: any) => {
+                  viewableItems.forEach((viewableItem: any) => {
+                    const itemId = String(viewableItem.item?.id);
+                    if (itemId && !viewedItemsRef.current.has(itemId) && !viewableItem.item?.empty) {
+                      viewedItemsRef.current.add(itemId);
+                      // 记录视图（静默失败，不影响用户体验）
+                      listingStatsService.recordView(itemId).catch((error) => {
+                        console.warn('Failed to record view:', error);
+                      });
+                    }
+                  });
+                }}
                 ListFooterComponent={() => {
                   if (isLoadingMore) {
                     return (

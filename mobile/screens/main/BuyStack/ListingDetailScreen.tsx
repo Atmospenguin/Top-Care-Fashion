@@ -30,6 +30,7 @@ import { likesService, cartService, messagesService } from "../../../src/service
 import { flagsService } from "../../../src/services/flagsService";
 import { useAuth } from "../../../contexts/AuthContext";
 import { apiClient } from "../../../src/services/api";
+import { listingStatsService } from "../../../src/services/listingStatsService";
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
@@ -97,6 +98,7 @@ export default function ListingDetailScreen() {
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1); // 🔥 购买数量
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [listingStats, setListingStats] = useState<{ views: number | null; likes: number; clicks: number | null } | null>(null);
 
   // ✅ 如果只有 listingId，通过 API 加载 listing 数据
   useEffect(() => {
@@ -104,6 +106,49 @@ export default function ListingDetailScreen() {
       loadListingById(listingId);
     }
   }, [listingId, itemParam]);
+
+  // ✅ 记录点击追踪（当用户点击进入详情页时）
+  useEffect(() => {
+    const recordClick = async () => {
+      const id = listingId || item?.id;
+      if (id) {
+        try {
+          await listingStatsService.recordClick(id.toString());
+        } catch (error) {
+          // 静默失败
+          console.warn('Failed to record click:', error);
+        }
+      }
+    };
+
+    if (item || (listingId && !itemParam)) {
+      // 记录点击（用户进入详情页）
+      recordClick();
+    }
+  }, [item, listingId, itemParam]);
+
+  // ✅ 加载统计信息（如果是卖家）
+  useEffect(() => {
+    const loadStats = async () => {
+      const id = listingId || item?.id;
+      if (!id) return;
+
+      // 检查是否为卖家
+      const isOwnListing = isOwnListingParam || (item?.sellerId && user?.id && item.sellerId === user.id);
+      if (isOwnListing) {
+        try {
+          const stats = await listingStatsService.getListingStats(id.toString());
+          setListingStats(stats.stats);
+        } catch (error) {
+          console.warn('Failed to load listing stats:', error);
+        }
+      }
+    };
+
+    if (item || listingId) {
+      loadStats();
+    }
+  }, [item, listingId, isOwnListingParam, user?.id]);
 
   const loadListingById = async (id: string) => {
     try {
@@ -830,6 +875,31 @@ export default function ListingDetailScreen() {
             </View>
           )}
 
+          {/* Statistics Section (for sellers) */}
+          {listingStats && (listingStats.views !== null || listingStats.clicks !== null) && (
+            <View style={styles.statsSection}>
+              <Text style={styles.statsHeading}>Statistics</Text>
+              <View style={styles.statsGrid}>
+                {listingStats.views !== null && (
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{listingStats.views}</Text>
+                    <Text style={styles.statLabel}>Views</Text>
+                  </View>
+                )}
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{listingStats.likes}</Text>
+                  <Text style={styles.statLabel}>Likes</Text>
+                </View>
+                {listingStats.clicks !== null && (
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{listingStats.clicks}</Text>
+                    <Text style={styles.statLabel}>Clicks</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
         </View>
 
         <View style={styles.sectionCard}>
@@ -1350,6 +1420,41 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 13,
     color: "#444",
+  },
+  statsSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+  },
+  statsHeading: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#666",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginBottom: 12,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    gap: 16,
+  },
+  statItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111",
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: "#666",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   sectionHeading: {
     fontSize: 16,

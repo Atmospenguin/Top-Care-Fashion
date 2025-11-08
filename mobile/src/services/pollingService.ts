@@ -163,7 +163,7 @@ class PollingService {
     }
 
     try {
-      console.log('🔍 Checking for updates...');
+      // console.log('🔍 Checking for updates...');
 
       // 并行检查新消息和新通知
       await Promise.all([

@@ -228,20 +228,20 @@ class ApiClient {
 
   // 获取认证头
   private async getAuthHeaders(): Promise<Record<string, string>> {
-    console.log("🔍 getAuthHeaders - accessToken in memory:", this.authToken ? "present" : "null");
+    // console.log("🔍 getAuthHeaders - accessToken in memory:", this.authToken ? "present" : "null");
 
     // 使用 Supabase access token
     if (this.authToken) {
-      console.log("🔑 Using JWT Token for API request:", this.previewToken(this.authToken));
+      // console.log("🔑 Using JWT Token for API request:", this.previewToken(this.authToken));
       return { Authorization: `Bearer ${this.authToken}` };
     }
 
     try {
       const storedToken = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
-      console.log("🔍 getAuthHeaders - stored access token:", storedToken ? "present" : "null");
+      // console.log("🔍 getAuthHeaders - stored access token:", storedToken ? "present" : "null");
       if (storedToken) {
         this.authToken = storedToken;
-        console.log("🔑 Using stored JWT Token for API request:", this.previewToken(storedToken));
+        // console.log("🔑 Using stored JWT Token for API request:", this.previewToken(storedToken));
         await this.ensureRefreshTokenLoaded();
         return { Authorization: `Bearer ${storedToken}` };
       }
@@ -249,7 +249,7 @@ class ApiClient {
       console.log('🔍 API Client - Error reading stored token:', e);
     }
 
-    console.log("❌ No auth token available, returning empty headers");
+    // console.log("❌ No auth token available, returning empty headers");
     return {};
   }
 
@@ -281,7 +281,7 @@ class ApiClient {
     }
 
     try {
-      console.log(`🔍 API Request -> ${options.method || 'GET'} ${url} (timeout: ${this.timeout}ms)`);
+      // console.log(`🔍 API Request -> ${options.method || 'GET'} ${url} (timeout: ${this.timeout}ms)`);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -295,10 +295,10 @@ class ApiClient {
       clearTimeout(timeoutId);
       
       const ct = response.headers.get('content-type') || '';
-      console.log(`🔍 API Response <- ${options.method || 'GET'} ${url} status=${response.status} time=${Date.now()}`);
-      if (!ct.includes('application/json')) {
-        console.log(`🔍 API Response Content-Type: ${ct}`);
-      }
+      // console.log(`🔍 API Response <- ${options.method || 'GET'} ${url} status=${response.status} time=${Date.now()}`);
+      // if (!ct.includes('application/json')) {
+      //   console.log(`🔍 API Response Content-Type: ${ct}`);
+      // }
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));

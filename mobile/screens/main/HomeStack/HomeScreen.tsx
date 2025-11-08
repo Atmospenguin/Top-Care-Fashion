@@ -27,6 +27,7 @@ import type { RootStackParamList } from "../../../App";
 import type { MyTopStackParamList } from "../MyTopStack";
 import type { ListingItem } from "../../../types/shop";
 import { useAuth } from "../../../contexts/AuthContext";
+import { listingStatsService } from "../../../src/services/listingStatsService";
 
 // ✅ bring in your API base if you have it; otherwise hardcode your dev URL
 import { API_BASE_URL } from "../../../src/config/api";
@@ -62,6 +63,7 @@ export default function HomeScreen() {
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const viewedItemsRef = useRef<Set<string>>(new Set()); // 追踪已记录views的商品
 
   const { isAuthenticated } = useAuth();
 
@@ -246,6 +248,24 @@ const nextHasMore = items.length === PAGE_SIZE; // simple heuristic
 
   useScrollToTop(scrollRef);
 
+  // ✅ 追踪商品视图（当商品出现在列表中时）
+  const handleViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    viewableItems.forEach((viewableItem: any) => {
+      const itemId = String(viewableItem.item?.id);
+      if (itemId && !viewedItemsRef.current.has(itemId)) {
+        viewedItemsRef.current.add(itemId);
+        // 记录视图（静默失败，不影响用户体验）
+        listingStatsService.recordView(itemId).catch((error) => {
+          console.warn('Failed to record view:', error);
+        });
+      }
+    });
+  }).current;
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50, // 商品至少50%可见时才记录
+  }).current;
+
   // -------- header (memoized) --------
   const listHeader = useMemo(
     () => (
@@ -354,6 +374,8 @@ const nextHasMore = items.length === PAGE_SIZE; // simple heuristic
         onEndReachedThreshold={0.5}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
         ListHeaderComponent={listHeader}
+        viewabilityConfig={viewabilityConfig}
+        onViewableItemsChanged={handleViewableItemsChanged}
         ListFooterComponent={() => {
           if (isLoadingMore) {
             return (

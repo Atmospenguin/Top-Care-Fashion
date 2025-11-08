@@ -58,7 +58,7 @@ class NotificationService {
   // 获取用户的所有通知
   async getNotifications(): Promise<Notification[]> {
     try {
-      console.log("🔔 Fetching notifications from API...");
+      // console.log("🔔 Fetching notifications from API...");
       
       const response = await apiClient.get<{
         success: boolean;
@@ -68,7 +68,7 @@ class NotificationService {
       }>('/api/notifications');
       
       if (response.data?.success) {
-        console.log("🔔 Loaded", response.data.notifications.length, "notifications from API");
+        // console.log("🔔 Loaded", response.data.notifications.length, "notifications from API");
         return response.data.notifications;
       }
       

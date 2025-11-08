@@ -1,6 +1,7 @@
 // 统一导出所有服务
 export { apiClient } from './api';
 export { listingsService, ListingsService } from './listingsService';
+export { listingStatsService } from './listingStatsService';
 export { authService, AuthService } from './authService';
 export { userService, UserService } from './userService';
 export { feedbackService } from './feedbackService';
