@@ -89,7 +89,7 @@ export async function GET() {
       }, 0);
 
     // Get top items by views
-    const topItems = await prisma.listings.findMany({
+    const topItemsRaw = await prisma.listings.findMany({
       select: {
         id: true,
         name: true,
@@ -102,6 +102,24 @@ export async function GET() {
       },
       take: 5,
     });
+
+    // Get bag counts for each top item
+    const topItems = await Promise.all(
+      topItemsRaw.map(async (item) => {
+        const bagCount = await prisma.cart_items.count({
+          where: {
+            listing_id: item.id,
+            quantity: {
+              gt: 0,
+            },
+          },
+        });
+        return {
+          ...item,
+          bag_count: bagCount,
+        };
+      })
+    );
 
     // Get top sellers
     const topSellersData = await prisma.orders.groupBy({
@@ -210,6 +228,7 @@ export async function GET() {
         views: item.views_count || 0,
         likes: item.likes_count || 0,
         clicks: item.clicks_count || 0,
+        bag: item.bag_count || 0,
       })),
       topSellers,
       recentTransactions,

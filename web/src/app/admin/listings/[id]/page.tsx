@@ -30,6 +30,7 @@ interface EnhancedListing extends Listing {
   viewsCount?: number;
   likesCount?: number;
   clicksCount?: number;
+  bagCount?: number;
   gender?: string | null;
   shippingOption?: string | null;
   shippingFee?: number | null;
@@ -355,6 +356,7 @@ export default function ListingDetailPage() {
             <InfoRow label="Views" value={listing.viewsCount?.toString() || '0'} />
             <InfoRow label="Likes" value={listing.likesCount?.toString() || '0'} />
             <InfoRow label="Clicks" value={listing.clicksCount?.toString() || '0'} />
+            <InfoRow label="Bag Adds" value={typeof listing.bagCount === "number" ? listing.bagCount.toString() : '0'} />
             <InfoRow label="Status" value={
               <div className="flex items-center gap-2">
                 <span className={`px-2 py-1 text-xs rounded-full ${

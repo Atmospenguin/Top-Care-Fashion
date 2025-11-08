@@ -39,11 +39,25 @@ export async function GET(
     // 检查权限
     const { canViewFull } = await checkStatsPermission(req, listingId);
 
+    // 统计当前加入购物车的次数（仅对有权限的用户计算）
+    let bagCount: number | null = null;
+    if (canViewFull) {
+      bagCount = await prisma.cart_items.count({
+        where: {
+          listing_id: listingId,
+          quantity: {
+            gt: 0,
+          },
+        },
+      });
+    }
+
     // 基础统计
     const baseStats = {
       views: canViewFull ? (listing.views_count ?? 0) : null,
       likes: listing.likes_count ?? 0, // 所有用户都可以看到likes
       clicks: canViewFull ? (listing.clicks_count ?? 0) : null,
+      bag: canViewFull ? bagCount ?? 0 : null,
     };
 
     // 时间序列统计（仅对有权查看完整统计的用户）
