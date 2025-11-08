@@ -11,12 +11,14 @@ import {
   Pressable,
   StatusBar,
   BackHandler,
+  Platform,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
 import Icon from "../../components/Icon";
 import { userService } from "../../src/services/userService";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 type OnboardingNav = NativeStackNavigationProp<RootStackParamList, "Main">;
 
@@ -103,12 +105,15 @@ export default function OnboardingPreferenceScreen() {
 
   // User preferences state
   const [selectedGender, setSelectedGender] = useState<string>("Prefer not to say");
+  const [birthday, setBirthday] = useState<Date | null>(null);
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [shoeSize, setShoeSize] = useState<string | null>(null);
   const [topSize, setTopSize] = useState<string | null>(null);
   const [bottomSize, setBottomSize] = useState<string | null>(null);
 
   // Modal states
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [tempBirthday, setTempBirthday] = useState<Date>(new Date(2000, 0, 1));
   const [showShoePicker, setShowShoePicker] = useState(false);
   const [showTopPicker, setShowTopPicker] = useState(false);
   const [showBottomPicker, setShowBottomPicker] = useState(false);
@@ -153,14 +158,20 @@ export default function OnboardingPreferenceScreen() {
         : selectedGender === "Male"
         ? "Male"
         : null;
+
+    // 格式化生日为 ISO 字符串
+    const dobValue = birthday ? birthday.toISOString().split('T')[0] : null;
+
     try {
       console.log("Saving preferences:", {
         gender: selectedGender,
+        birthday: dobValue,
         sizes: { shoe: shoeSize, top: topSize, bottom: bottomSize },
         styles: selectedStyles,
       });
       await userService.updateProfile({
-  gender: genderValue,
+        gender: genderValue,
+        dob: dobValue,
         preferredStyles: selectedStyles.length ? selectedStyles : [],
         preferredSizes: {
           shoe: shoeSize ?? null,
@@ -186,7 +197,7 @@ export default function OnboardingPreferenceScreen() {
   const canProceedCurrentStep = () => {
     switch (currentStep) {
       case 0:
-        return selectedGender !== null;
+        return selectedGender !== null && birthday !== null;
       case 1:
         return selectedStyles.length > 0;
       case 2:
@@ -246,46 +257,72 @@ export default function OnboardingPreferenceScreen() {
     </Modal>
   );
 
-  // Step 1: Gender
-  const renderGenderStep = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>What's your gender?</Text>
-      <Text style={styles.stepSubtitle}>
-        This helps us show you the right recommendations
-      </Text>
+  // Step 1: Gender & Birthday
+  const renderGenderStep = () => {
+    const formatDate = (date: Date | null) => {
+      if (!date) return "Select your birthday";
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    };
 
-      <View style={styles.genderContainer}>
-        {["Female", "Male", "Non-binary / Prefer not to say"].map((option) => (
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>Tell us about yourself</Text>
+        <Text style={styles.stepSubtitle}>
+          This helps us show you the right recommendations
+        </Text>
+
+        <View style={styles.genderContainer}>
+          <Text style={styles.sectionLabel}>Gender</Text>
+          {["Female", "Male", "Non-binary / Prefer not to say"].map((option) => (
+            <TouchableOpacity
+              key={option}
+              style={[
+                styles.genderCard,
+                selectedGender === option && styles.genderCardSelected,
+              ]}
+              onPress={() => setSelectedGender(option)}
+              activeOpacity={0.8}
+            >
+              <View
+                style={[
+                  styles.radioOuter,
+                  selectedGender === option && styles.radioOuterSelected,
+                ]}
+              >
+                {selectedGender === option && <View style={styles.radioInner} />}
+              </View>
+              <Text
+                style={[
+                  styles.genderText,
+                  selectedGender === option && styles.genderTextSelected,
+                ]}
+              >
+                {option}
+              </Text>
+            </TouchableOpacity>
+          ))}
+
+          <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Birthday</Text>
           <TouchableOpacity
-            key={option}
-            style={[
-              styles.genderCard,
-              selectedGender === option && styles.genderCardSelected,
-            ]}
-            onPress={() => setSelectedGender(option)}
-            activeOpacity={0.8}
+            style={styles.sizeButton}
+            onPress={() => {
+              setTempBirthday(birthday || new Date(2000, 0, 1));
+              setShowDatePicker(true);
+            }}
           >
-            <View
-              style={[
-                styles.radioOuter,
-                selectedGender === option && styles.radioOuterSelected,
-              ]}
-            >
-              {selectedGender === option && <View style={styles.radioInner} />}
-            </View>
-            <Text
-              style={[
-                styles.genderText,
-                selectedGender === option && styles.genderTextSelected,
-              ]}
-            >
-              {option}
+            <Text style={[styles.sizeButtonText, birthday && styles.sizeButtonTextSelected]}>
+              {formatDate(birthday)}
             </Text>
+            <Icon name="calendar-outline" size={20} color="#999" />
           </TouchableOpacity>
-        ))}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   // Step 2: Style Preferences
   const renderStyleStep = () => {
@@ -433,6 +470,50 @@ export default function OnboardingPreferenceScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Date Picker */}
+      {showDatePicker && (
+        <Modal transparent animationType="slide" visible={showDatePicker}>
+          <Pressable style={styles.sheetMask} onPress={() => setShowDatePicker(false)} />
+          <View style={styles.datePickerSheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Select Your Birthday</Text>
+
+            <DateTimePicker
+              value={tempBirthday}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={(event, selectedDate) => {
+                if (selectedDate) {
+                  setTempBirthday(selectedDate);
+                }
+              }}
+              maximumDate={new Date()}
+              minimumDate={new Date(1900, 0, 1)}
+              style={{ height: 200 }}
+            />
+
+            <View style={styles.datePickerButtons}>
+              <TouchableOpacity
+                style={styles.datePickerCancelButton}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <Text style={styles.datePickerCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.datePickerConfirmButton}
+                onPress={() => {
+                  setBirthday(tempBirthday);
+                  setShowDatePicker(false);
+                }}
+              >
+                <Text style={styles.datePickerConfirmText}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       {/* Size Pickers */}
       <OptionPicker
         title="Select Shoe Size"
@@ -511,6 +592,12 @@ const styles = StyleSheet.create({
   // Gender Step Styles
   genderContainer: {
     gap: 12,
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111",
+    marginBottom: 12,
   },
   genderCard: {
     flexDirection: "row",
@@ -700,6 +787,46 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "#F6F6F6",
     alignItems: "center",
+  },
+  // Date Picker Styles
+  datePickerSheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+  },
+  datePickerButtons: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 20,
+  },
+  datePickerCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#F6F6F6",
+    alignItems: "center",
+  },
+  datePickerConfirmButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#111",
+    alignItems: "center",
+  },
+  datePickerCancelText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111",
+  },
+  datePickerConfirmText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
   },
 });
 

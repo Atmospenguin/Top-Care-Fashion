@@ -55,7 +55,6 @@ export default function MyPremiumScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<PremiumStackParamList>>();
   const { user, updateUser } = useAuth();
-  const [loading, setLoading] = useState(false); // cancel/loading
   const [syncing, setSyncing] = useState(false); // fetch status
   const [benefits, setBenefits] = useState<UserBenefitsPayload["benefits"] | null>(null);
 
@@ -245,23 +244,6 @@ export default function MyPremiumScreen() {
         </View>
 
         <View style={styles.actionRow}>
-          <TouchableOpacity
-            style={styles.outlineButton}
-            disabled={loading || !user?.isPremium}
-            onPress={async () => {
-              try {
-                setLoading(true);
-                const res = await premiumService.cancel();
-                updateUser({ ...(user as any), isPremium: res.isPremium, premiumUntil: res.premiumUntil });
-              } catch (e) {
-                console.error('Cancel premium failed', e);
-              } finally {
-                setLoading(false);
-              }
-            }}
-          >
-            <Text style={styles.outlineText}>{loading ? 'Cancelling...' : 'Cancel Membership'}</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={styles.primaryButton} onPress={handleRenew}>
             <Text style={styles.primaryText}>Renew Membership</Text>
           </TouchableOpacity>
@@ -376,25 +358,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   actionRow: {
-    flexDirection: "row",
-    columnGap: 12,
-  },
-  outlineButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: "#111111",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  outlineText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#111111",
+    // Single button container
   },
   primaryButton: {
-    flex: 1,
     paddingVertical: 14,
     borderRadius: 26,
     backgroundColor: "#111111",
