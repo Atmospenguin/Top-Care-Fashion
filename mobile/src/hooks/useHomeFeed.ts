@@ -1,19 +1,25 @@
 // mobile/src/hooks/useHomeFeed.ts
-// Simple data hook for Home feed (pull-to-refresh + load more + dev toggles)
+// Home feed hook: pull-to-refresh, load more, optional client-side prefs,
+// aware of mode=foryou|trending and JWT handling.
 
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import {
   API_BASE_URL,
   API_CONFIG,
-  apiGet,
   type HomeFeedItem,
   type HomeFeedResponse,
+  fetchForYouFeed,
+  fetchTrendingFeed,
 } from "../config/api";
 
+export type FeedMode = "foryou" | "trending";
+
 export type FeedOptions = {
-  limit?: number;            // default 20
-  seedId?: number;           // for reproducibility during testing
-  tag?: string;              // optional filter
+  mode?: FeedMode;          // default 'foryou'
+  limit?: number;           // default 20
+  seedId?: number;          // reproducibility
+  tag?: string;             // optional server filter
+  authToken?: string | null;// required for 'foryou'
   preferImagesFirst?: boolean;
   hideUnknownBrand?: boolean;
 };
@@ -25,7 +31,11 @@ export function useHomeFeed(initial: FeedOptions = {}) {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
-  const optsRef = useRef<FeedOptions>({ limit: 20, ...initial });
+  const optsRef = useRef<FeedOptions>({
+    mode: "foryou",
+    limit: 20,
+    ...initial,
+  });
 
   // Ensure we start with a seed if none was provided
   useEffect(() => {
@@ -46,13 +56,16 @@ export function useHomeFeed(initial: FeedOptions = {}) {
       }
     ) => {
       const o = { ...optsRef.current, ...(overrides ?? {}) };
-      const params: Record<string, any> = { limit: o.limit ?? 20 };
-      if (o.seedId !== undefined) params.seedId = o.seedId;
-      if (o.tag) params.tag = o.tag;
-      if (overrides?.page) params.page = overrides.page; // harmless if backend ignores
-      if (overrides?.cacheBust) params.cacheBust = overrides.cacheBust; // server cache bypass
-      if (overrides?.noStore) params.noStore = overrides.noStore;       // server cache bypass
-      return params;
+      const params: Record<string, any> = {
+        limit: o.limit ?? 20,
+        seedId: o.seedId,
+        tag: o.tag,
+      };
+      // These are just passthroughs to your Next.js route (you already read them there)
+      if (overrides?.page) params.page = overrides.page;
+      if (overrides?.cacheBust) params.cacheBust = overrides.cacheBust;
+      if (overrides?.noStore) params.noStore = overrides.noStore;
+      return { o, params };
     },
     []
   );
@@ -91,20 +104,41 @@ export function useHomeFeed(initial: FeedOptions = {}) {
 
   const fetchPage = useCallback(
     async (pageNum: number, extra?: { cacheBust?: number; noStore?: 0 | 1 }) => {
-      const params = buildParams({ page: pageNum, ...extra });
+      const { o, params } = buildParams({ page: pageNum, ...extra });
+      const { mode = "foryou", limit = 20, seedId, tag, authToken } = o;
+
+      // Log the fully-resolved URL for visibility (nice in dev)
+      const qs = new URLSearchParams({
+        ...(mode ? { mode } : {}),
+        ...(limit ? { limit: String(limit) } : {}),
+        ...(seedId !== undefined ? { seedId: String(seedId) } : {}),
+        ...(tag ? { tag } : {}),
+        ...(extra?.cacheBust ? { cacheBust: String(extra.cacheBust) } : {}),
+        ...(extra?.noStore ? { noStore: String(extra.noStore) } : {}),
+        // NOTE: we keep "page" for logs; backend uses offset internally
+        ...(pageNum ? { page: String(pageNum) } : {}),
+      });
       const fullUrl =
         `${API_BASE_URL.replace(/\/+$/, "")}` +
         `${API_CONFIG.ENDPOINTS.FEED.HOME}` +
-        `${params ? `?${new URLSearchParams(params as any).toString()}` : ""}`;
+        `?${qs.toString()}`;
+      if (__DEV__) console.info("[feed] GET", fullUrl);
 
-      console.info("[feed] GET", fullUrl);
-      const data = await apiGet<HomeFeedResponse>(API_CONFIG.ENDPOINTS.FEED.HOME, params);
+      // Call proper helper (adds Authorization header for foryou)
+      let data: HomeFeedResponse;
+      if (mode === "trending") {
+        data = await fetchTrendingFeed({ limit, page: pageNum, seedId, tag });
+      } else {
+        if (!authToken) {
+          throw new Error("Authentication required for personalized feed.");
+        }
+        data = await fetchForYouFeed({ limit, page: pageNum, seedId, tag }, authToken);
+      }
 
-      // Debug IDs safely inside scope
-      if (process.env.NODE_ENV !== "production") {
+      if (__DEV__) {
         const ids = (data.items ?? []).map((x: HomeFeedItem) => x.id);
         console.info(
-          `[feed] page=${params.page ?? 1} seed=${params.seedId} ids:`,
+          `[feed] mode=${mode} page=${pageNum} seed=${seedId} ids:`,
           ids
         );
       }
