@@ -12,6 +12,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import Icon from '../../../components/Icon';
 import { outfitService } from '../../../src/services/outfitService';
 import { listingsService } from '../../../src/services/listingsService';
@@ -28,6 +29,7 @@ type OutfitWithItems = SavedOutfit & {
 
 export default function SavedOutfitsTab() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const [outfits, setOutfits] = useState<OutfitWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOutfit, setSelectedOutfit] = useState<OutfitWithItems | null>(null);
@@ -127,6 +129,42 @@ export default function SavedOutfitsTab() {
     ]);
   };
 
+  // ✅ 处理点击 listing 图片，导航到详情页
+  const handleListingPress = useCallback((item: ListingItem) => {
+    if (!item || !item.id) {
+      console.warn('⚠️ Cannot navigate: invalid listing item');
+      return;
+    }
+
+    // 获取根导航器
+    const rootNavigation = navigation
+      .getParent()
+      ?.getParent() as any;
+
+    // 准备 listing 数据，确保格式正确
+    const listingData = {
+      ...item,
+      // 确保 images 是数组格式
+      images: Array.isArray(item.images) ? item.images : 
+              (item.images ? [item.images] : []),
+      // 确保 seller 数据完整
+      seller: {
+        id: item.seller?.id || 0,
+        name: item.seller?.name || 'Seller',
+        avatar: item.seller?.avatar || '',
+        rating: item.seller?.rating || 0,
+        sales: item.seller?.sales || 0,
+        isPremium: item.seller?.isPremium || false,
+      },
+    };
+
+    console.log('🔍 Navigating to ListingDetail:', listingData.id);
+    rootNavigation?.navigate('Buy', {
+      screen: 'ListingDetail',
+      params: { item: listingData },
+    });
+  }, [navigation]);
+
   // ⭐ NEW: Helper to render match percentage badge
   const getMatchBadge = (score: number | undefined) => {
     if (!score || score === 0) return null;
@@ -161,7 +199,11 @@ export default function SavedOutfitsTab() {
     const displayScore = typeof matchScore === 'number' ? matchScore : undefined;
 
     return (
-      <View style={styles.itemContainer}>
+      <TouchableOpacity 
+        style={styles.itemContainer}
+        onPress={() => handleListingPress(item)}
+        activeOpacity={0.8}
+      >
         <View style={styles.imageWrapper}>
           <Image
             source={{ uri: primaryImage }}
@@ -179,7 +221,7 @@ export default function SavedOutfitsTab() {
         <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
         {/* ⭐ NEW: Show price */}
         <Text style={styles.itemPrice}>${item.price.toFixed(0)}</Text>
-      </View>
+      </TouchableOpacity>
     );
   };
 

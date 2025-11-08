@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -83,91 +83,92 @@ export default function ManageListingScreen() {
     }, [route.params?.listingId, navigation])
   );
 
-  useEffect(() => {
-    let isMounted = true;
-    const listingId = route.params?.listingId;
-    if (!listingId) {
-      setBoostInfo(null);
-      setLoadingBoostInfo(false);
+  // ✅ 获取 boost 信息 - 使用 useFocusEffect 以便在返回时刷新
+  useFocusEffect(
+    React.useCallback(() => {
+      let isMounted = true;
+      const listingId = route.params?.listingId;
+      if (!listingId) {
+        setBoostInfo(null);
+        setLoadingBoostInfo(false);
+        return;
+      }
+
+      const loadBoostInfo = async () => {
+        try {
+          setLoadingBoostInfo(true);
+          const boostedListings = await listingsService.getBoostedListings();
+          if (!isMounted) return;
+          const matched = boostedListings.find(
+            (item) => String(item.listingId) === String(listingId)
+          );
+          setBoostInfo(matched ?? null);
+        } catch (error) {
+          if (isMounted) {
+            console.error("❌ Error fetching boost status:", error);
+            setBoostInfo(null);
+          }
+        } finally {
+          if (isMounted) {
+            setLoadingBoostInfo(false);
+          }
+        }
+      };
+
+      loadBoostInfo();
+
       return () => {
         isMounted = false;
       };
-    }
+    }, [route.params?.listingId])
+  );
 
-    const loadBoostInfo = async () => {
-      try {
-        setLoadingBoostInfo(true);
-        const boostedListings = await listingsService.getBoostedListings();
-        if (!isMounted) return;
-        const matched = boostedListings.find(
-          (item) => String(item.listingId) === String(listingId)
-        );
-        setBoostInfo(matched ?? null);
-      } catch (error) {
-        if (isMounted) {
-          console.error("❌ Error fetching boost status:", error);
-          setBoostInfo(null);
-        }
-      } finally {
-        if (isMounted) {
-          setLoadingBoostInfo(false);
-        }
+  // ✅ 获取性能统计数据 - 使用 useFocusEffect 以便在返回时刷新
+  useFocusEffect(
+    React.useCallback(() => {
+      let isMounted = true;
+      const listingId = route.params?.listingId;
+      if (!listingId) {
+        setPerformance({ bag: 0, likes: 0, views: 0, clicks: 0 });
+        setLoadingPerformance(false);
+        return;
       }
-    };
 
-    loadBoostInfo();
+      const loadPerformanceStats = async () => {
+        try {
+          setLoadingPerformance(true);
+          console.log("📊 Fetching performance stats for listing:", listingId);
+          const stats = await listingStatsService.getListingStats(String(listingId));
+          
+          if (!isMounted) return;
+          
+          console.log("✅ Performance stats loaded:", stats);
+          setPerformance({
+            bag: stats.stats.bag ?? 0,
+            likes: stats.stats.likes ?? 0,
+            views: stats.stats.views ?? 0,
+            clicks: stats.stats.clicks ?? 0,
+          });
+        } catch (error) {
+          if (isMounted) {
+            console.error("❌ Error fetching performance stats:", error);
+            // Keep default values on error
+            setPerformance({ bag: 0, likes: 0, views: 0, clicks: 0 });
+          }
+        } finally {
+          if (isMounted) {
+            setLoadingPerformance(false);
+          }
+        }
+      };
 
-    return () => {
-      isMounted = false;
-    };
-  }, [route.params?.listingId]);
+      loadPerformanceStats();
 
-  // ✅ 获取性能统计数据
-  useEffect(() => {
-    let isMounted = true;
-    const listingId = route.params?.listingId;
-    if (!listingId) {
-      setPerformance({ bag: 0, likes: 0, views: 0, clicks: 0 });
-      setLoadingPerformance(false);
       return () => {
         isMounted = false;
       };
-    }
-
-    const loadPerformanceStats = async () => {
-      try {
-        setLoadingPerformance(true);
-        console.log("📊 Fetching performance stats for listing:", listingId);
-        const stats = await listingStatsService.getListingStats(String(listingId));
-        
-        if (!isMounted) return;
-        
-        console.log("✅ Performance stats loaded:", stats);
-        setPerformance({
-          bag: stats.stats.bag ?? 0,
-          likes: stats.stats.likes ?? 0,
-          views: stats.stats.views ?? 0,
-          clicks: stats.stats.clicks ?? 0,
-        });
-      } catch (error) {
-        if (isMounted) {
-          console.error("❌ Error fetching performance stats:", error);
-          // Keep default values on error
-          setPerformance({ bag: 0, likes: 0, views: 0, clicks: 0 });
-        }
-      } finally {
-        if (isMounted) {
-          setLoadingPerformance(false);
-        }
-      }
-    };
-
-    loadPerformanceStats();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [route.params?.listingId]);
+    }, [route.params?.listingId])
+  );
 
   const formatBoostDate = (isoDate: string | null | undefined) => {
     if (!isoDate) return null;
@@ -349,11 +350,18 @@ export default function ManageListingScreen() {
           <View style={styles.promoHeader}>
             <Icon name="gift-outline" size={20} color="#111" />
             <View style={{ flex: 1 }}>
-              <Text style={styles.promoTitle}>
-                {boostInfo
-                  ? "Your listing is currently boosted"
-                  : "Want more shoppers to see your listing?"}
-              </Text>
+              <View style={styles.promoTitleRow}>
+                <Text style={styles.promoTitle}>
+                  {boostInfo && boostInfo.status === 'ACTIVE'
+                    ? "Your listing is currently boosted"
+                    : "Want more shoppers to see your listing?"}
+                </Text>
+                {boostInfo && boostInfo.status === 'ACTIVE' && (
+                  <View style={[styles.statusBadge, styles.boostBadge]}>
+                    <Text style={[styles.statusBadgeText, styles.boostBadgeText]}>Boosted</Text>
+                  </View>
+                )}
+              </View>
               {boostInfo && (
                 <Text style={styles.promoSubtitle}>
                   {formatBoostStatus(boostInfo.status)}
@@ -363,11 +371,6 @@ export default function ManageListingScreen() {
                 </Text>
               )}
             </View>
-            {boostInfo && (
-              <View style={[styles.statusBadge, styles.boostBadge]}>
-                <Text style={[styles.statusBadgeText, styles.boostBadgeText]}>Boosted</Text>
-              </View>
-            )}
           </View>
 
           {loadingBoostInfo ? (
@@ -563,7 +566,8 @@ const styles = StyleSheet.create({
     elevation: 2,
     rowGap: 6,
   },
-  promoHeader: { flexDirection: "row", alignItems: "center", columnGap: 8 },
+  promoHeader: { flexDirection: "row", alignItems: "flex-start", columnGap: 8 },
+  promoTitleRow: { flexDirection: "row", alignItems: "flex-start", columnGap: 8, flex: 1 },
   promoLinkWrapper: { alignSelf: "flex-start", marginLeft: 28 },
   promoTitle: { fontSize: 14, fontWeight: "700", color: "#111", flex: 1, flexWrap: "wrap" },
   promoSubtitle: { marginTop: 2, color: "#555", fontSize: 13 },
