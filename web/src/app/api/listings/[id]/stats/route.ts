@@ -37,7 +37,7 @@ export async function GET(
     }
 
     // 检查权限
-    const { canViewFull, userId } = await checkStatsPermission(req, listingId);
+    const { canViewFull } = await checkStatsPermission(req, listingId);
 
     // 基础统计
     const baseStats = {
@@ -74,9 +74,7 @@ export async function GET(
       });
 
       timeSeriesData = dailyStats.map((stat) => ({
-        date: stat.date instanceof Date 
-          ? stat.date.toISOString().split("T")[0]
-          : stat.date.toString().split("T")[0],
+        date: stat.date.toISOString().split("T")[0],
         views: stat.views,
         likes: stat.likes,
         clicks: stat.clicks,
