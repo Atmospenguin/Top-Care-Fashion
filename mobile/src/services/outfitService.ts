@@ -14,6 +14,10 @@ export interface SavedOutfit {
   updated_at: string;
   ai_rating?: number | null;
   style_name?: string | null;
+  color_harmony_score?: number | null;
+  color_harmony_feedback?: string | null;
+  style_tips?: string | null;
+  vibe?: string | null;
   base_category?: string | null;
   top_match_score?: number | null;
   bottom_match_score?: number | null;
@@ -36,12 +40,20 @@ export interface CreateOutfitPayload {
   accessory_ids: Array<number | string>;
   ai_rating?: number | null;
   style_name?: string | null;
+  color_harmony_score?: number | null;
+  color_harmony_feedback?: string | null;
+  style_tips?: string | null;
+  vibe?: string | null;
 }
 
 export interface UpdateOutfitPayload {
   outfit_name?: string;
   ai_rating?: number | null;
   style_name?: string | null;
+  color_harmony_score?: number | null;
+  color_harmony_feedback?: string | null;
+  style_tips?: string | null;
+  vibe?: string | null;
 }
 
 class OutfitService {

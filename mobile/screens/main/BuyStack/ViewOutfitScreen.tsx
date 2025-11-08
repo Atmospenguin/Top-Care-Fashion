@@ -7,20 +7,42 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
+  Animated,
+  Easing,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Modal,
+  ActivityIndicator,
+  Dimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { LinearGradient } from "expo-linear-gradient";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Sharing from "expo-sharing";
 import { captureRef } from "react-native-view-shot";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import SaveOutfitModal from "../../../src/components/SaveOutfitModal";
-import AIOutfitFeedback from "../../../components/AIOutfitFeedback";
 import { outfitService } from "../../../src/services/outfitService";
+import { API_BASE_URL } from "../../../src/config/api";
 import type { BuyStackParamList } from "./index";
 import type { BagItem, ListingItem, ListingCategory } from "../../../types/shop";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+interface AIAnalysis {
+  rating: number;
+  styleName: string;
+  colorHarmony: {
+    score: number;
+    feedback: string;
+  };
+  feedback: string;
+  vibe: string;
+}
 
 const PLACEHOLDER_MESSAGE = "Select an item";
 
@@ -118,18 +140,59 @@ export default function ViewOutfitScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
   const route = useRoute<RouteProp<BuyStackParamList, "ViewOutfit">>();
-  const { baseItem, top, bottom, shoe, accessories, selection, outfitName } = route.params;
+  const { 
+    baseItem, 
+    top, 
+    bottom, 
+    shoe, 
+    accessories, 
+    selection, 
+    outfitName, 
+    outfitId, 
+    aiRating, 
+    styleName,
+    colorHarmonyScore,
+    colorHarmonyFeedback,
+    styleTips,
+    vibe,
+  } = route.params;
+  const insets = useSafeAreaInsets();
   const captureViewRef = useRef<View | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveOutfitModalVisible, setSaveOutfitModalVisible] = useState(false);
   const [isSavingOutfit, setIsSavingOutfit] = useState(false);
   
-  // ⭐ NEW: Store AI feedback rating and style name
-  const [aiRating, setAiRating] = useState<number | null>(null);
-  const [styleName, setStyleName] = useState<string | null>(null);
+  // ⭐ NEW: Store AI analysis in memory
+  // ✅ 如果从保存的 outfit 打开且有 AI 数据，从数据库加载完整的 aiAnalysis 对象
+  const initialAiAnalysis = useMemo<AIAnalysis | null>(() => {
+    if (aiRating !== null && aiRating !== undefined && styleName) {
+      // ✅ 从数据库加载完整的 AI Analysis 数据（不再硬编码）
+      return {
+        rating: aiRating,
+        styleName: styleName,
+        colorHarmony: {
+          score: colorHarmonyScore ?? Math.round((aiRating / 10) * 100), // 使用数据库中的值，如果没有则基于 rating 估算
+          feedback: colorHarmonyFeedback || "Color harmony analysis is available for newly generated outfits.",
+        },
+        feedback: styleTips || `This ${styleName} outfit has a rating of ${aiRating}/10.`,
+        vibe: vibe || styleName.toLowerCase(),
+      };
+    }
+    return null;
+  }, [aiRating, styleName, colorHarmonyScore, colorHarmonyFeedback, styleTips, vibe]);
+  
+  const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(initialAiAnalysis);
   
   // ✅ 如果传入了 outfitName，说明是从 Saved Outfits 打开的，不需要显示 Save 按钮
   const isSavedOutfit = !!outfitName;
+
+  // ✅ AI Toast 状态
+  // ✅ 如果是从保存的 outfit 打开或有 AI 分析，不显示 toast
+  const [aiToastVisible, setAiToastVisible] = useState(!isSavedOutfit && !initialAiAnalysis);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const composedSelection: BagItem[] = useMemo(() => {
     const unique = new Map<string, ListingItem>();
@@ -214,11 +277,119 @@ export default function ViewOutfitScreen() {
     navigation.navigate("Bag", { items: composedSelection });
   }, [navigation, composedSelection]);
 
-  // ⭐ NEW: Callback when AI analysis completes
-  const handleAIAnalysisComplete = useCallback((analysis: { rating: number; styleName: string }) => {
-    console.log('🤖 AI Analysis received:', analysis);
-    setAiRating(analysis.rating);
-    setStyleName(analysis.styleName);
+  // ✅ AI 分析函数
+  const analyzeOutfit = useCallback(async () => {
+    if (outfitItems.length === 0) {
+      setAnalysisError('No items to analyze');
+      return;
+    }
+
+    setLoadingAnalysis(true);
+    setAnalysisError(null);
+
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      console.log('🤖 Analyzing outfit with AI...');
+
+      const response = await fetch(`${API_BASE_URL}/api/outfits/analyze`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({ items: outfitItems }),
+      });
+
+      if (!response.ok) {
+        console.error('❌ AI API error:', response.status, response.statusText);
+        setAnalysisError(`AI analysis failed: ${response.status}`);
+        return;
+      }
+
+      let result;
+      try {
+        const text = await response.text();
+        result = JSON.parse(text);
+      } catch (parseError) {
+        console.error('❌ JSON parse error:', parseError);
+        setAnalysisError('Invalid response from AI service');
+        return;
+      }
+
+      if (result.success && result.analysis) {
+        console.log('✅ AI Analysis completed:', result.analysis);
+        setAiAnalysis(result.analysis);
+        setShowFeedbackModal(true);
+      } else {
+        setAnalysisError('Failed to analyze outfit');
+      }
+    } catch (error) {
+      console.error('❌ Error analyzing outfit:', error);
+      setAnalysisError('Network error. Please try again.');
+    } finally {
+      setLoadingAnalysis(false);
+    }
+  }, [outfitItems]);
+
+  // ✅ 显示 AI Toast
+  const showAiToast = useCallback(() => {
+    setAiToastVisible(true);
+  }, []);
+
+  // ✅ 隐藏 AI Toast
+  const hideAiToast = useCallback(() => {
+    setAiToastVisible(false);
+  }, []);
+
+  // ✅ 点击 Toast 触发分析
+  const handleAiToastPress = useCallback(() => {
+    hideAiToast();
+    analyzeOutfit();
+  }, [hideAiToast, analyzeOutfit]);
+
+  // ✅ 点击 Header 按钮打开已存储的 feedback
+  const handleHeaderButtonPress = useCallback(() => {
+    if (aiAnalysis) {
+      setShowFeedbackModal(true);
+    }
+  }, [aiAnalysis]);
+
+  // ✅ 滚动处理
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    // 滚动时隐藏 toast
+    if (aiToastVisible && !aiAnalysis && !isSavedOutfit) {
+      hideAiToast();
+    }
+    
+    // 清除之前的定时器
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    // 停止滚动 500ms 后显示 toast（如果还没有分析过）
+    scrollTimeoutRef.current = setTimeout(() => {
+      if (!aiAnalysis && !isSavedOutfit && !aiToastVisible) {
+        showAiToast();
+      }
+    }, 500);
+  }, [aiToastVisible, hideAiToast, aiAnalysis, isSavedOutfit, showAiToast]);
+
+  // ✅ 初始化：如果是保存的 outfit 或有分析结果，隐藏 toast
+  useEffect(() => {
+    if (isSavedOutfit || aiAnalysis) {
+      setAiToastVisible(false);
+    } else {
+      setAiToastVisible(true);
+    }
+  }, [isSavedOutfit, aiAnalysis]);
+
+  // ✅ 清理
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
   }, []);
 
   const handleSaveOutfit = async (outfitName: string) => {
@@ -233,9 +404,13 @@ export default function ViewOutfitScreen() {
         shoe_item_id: shoe?.id || null,
         accessory_ids: accessories.map(acc => acc.id),
         
-        // ⭐ NEW: Save AI rating and style name
-        ai_rating: aiRating,
-        style_name: styleName,
+        // ⭐ Save complete AI analysis from memory to database
+        ai_rating: aiAnalysis?.rating || null,
+        style_name: aiAnalysis?.styleName || null,
+        color_harmony_score: aiAnalysis?.colorHarmony?.score || null,
+        color_harmony_feedback: aiAnalysis?.colorHarmony?.feedback || null,
+        style_tips: aiAnalysis?.feedback || null,
+        vibe: aiAnalysis?.vibe || null,
       });
 
       Alert.alert('Success', `"${outfitName}" saved successfully!`);
@@ -248,6 +423,42 @@ export default function ViewOutfitScreen() {
     }
   };
 
+  // ✅ 获取星级评分
+  const getStarRating = (rating: number) => {
+    const fullStars = Math.floor(rating / 2);
+    const hasHalfStar = rating % 2 >= 1;
+    const stars = [];
+    
+    for (let i = 0; i < fullStars; i++) {
+      stars.push(<Icon key={`full-${i}`} name="star" size={16} color="#FFD700" />);
+    }
+    if (hasHalfStar) {
+      stars.push(<Icon key="half" name="star-half" size={16} color="#FFD700" />);
+    }
+    const emptyStars = 5 - stars.length;
+    for (let i = 0; i < emptyStars; i++) {
+      stars.push(<Icon key={`empty-${i}`} name="star-outline" size={16} color="#FFD700" />);
+    }
+    
+    return stars;
+  };
+
+  // ✅ 获取 Vibe Emoji
+  const getVibeEmoji = (vibe: string) => {
+    const vibeMap: Record<string, string> = {
+      'casual': '😎',
+      'formal': '👔',
+      'sporty': '⚽',
+      'elegant': '✨',
+      'edgy': '🔥',
+      'bohemian': '🌸',
+      'minimalist': '⚪',
+      'vintage': '🕰️',
+      'streetwear': '🛹',
+    };
+    return vibeMap[vibe.toLowerCase()] || '👕';
+  };
+
   const leftItems: Array<{ item: ListingItem | null }> = [
     { item: top || baseItem },
     { item: bottom || baseItem },
@@ -255,14 +466,166 @@ export default function ViewOutfitScreen() {
   
   const rightItems = shoe ? [shoe, ...accessories] : accessories;
 
+  // 计算 Toast 显示条件
+  const shouldShowToast = !aiAnalysis && !isSavedOutfit && aiToastVisible;
+
+  // ✅ Header 右侧按钮：AI Feedback
+  const headerRightAction = aiAnalysis ? (
+    <TouchableOpacity
+      onPress={handleHeaderButtonPress}
+      activeOpacity={0.7}
+      hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+    >
+      <Icon name="sparkles" size={24} color="#111" />
+    </TouchableOpacity>
+  ) : undefined;
+
   return (
     <View style={styles.container}>
-      <Header title={outfitName || "View Outfit"} showBack />
+      <Header 
+        title={outfitName || "View Outfit"} 
+        showBack 
+        rightAction={headerRightAction}
+      />
+      
+      {/* ✅ AI Toast - 底部显示 */}
+      {shouldShowToast && (
+        <View
+          style={[
+            styles.aiToast,
+            {
+              bottom: insets.bottom + 120, // Bottom bar 高度约 80px + padding，Toast 在其上方
+            },
+          ]}
+        >
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={handleAiToastPress}
+            style={styles.aiToastTouchable}
+            disabled={loadingAnalysis}
+          >
+            <LinearGradient
+              colors={["rgba(0,0,0,0.85)", "rgba(0,0,0,0.92)"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.aiToastGradient}
+            >
+              {loadingAnalysis ? (
+                <>
+                  <ActivityIndicator size="small" color="#FFD700" />
+                  <Text style={styles.aiToastText}>Analyzing...</Text>
+                </>
+              ) : (
+                <>
+                  <Icon name="sparkles" size={16} color="#FFD700" />
+                  <Text style={styles.aiToastText}>Tap for AI outfit analysis</Text>
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* ✅ AI Feedback Modal - 黑色半透明悬浮窗 */}
+      <Modal
+        visible={showFeedbackModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowFeedbackModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setShowFeedbackModal(false)}
+          />
+          <View
+            style={styles.feedbackPanelTouchable}
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={styles.feedbackPanel}>
+              {/* Header */}
+              <View style={styles.panelHeader}>
+                <View style={styles.panelHeaderLeft}>
+                  <Icon name="sparkles" size={24} color="#FFD700" />
+                  <Text style={styles.panelTitle}>AI Feedback</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowFeedbackModal(false)}
+                  style={styles.panelCloseButton}
+                >
+                  <Icon name="close" size={24} color="#fff" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Content - 使用 ScrollView 确保内容不被截断 */}
+              {aiAnalysis ? (
+                <ScrollView
+                  style={styles.panelScrollView}
+                  contentContainerStyle={styles.panelContent}
+                  showsVerticalScrollIndicator={false}
+                  bounces={false}
+                >
+                  {/* Rating */}
+                  <View style={styles.panelSection}>
+                    <Text style={styles.panelSectionTitle}>Outfit Rating</Text>
+                    <View style={styles.ratingRow}>
+                      <View style={styles.stars}>{getStarRating(aiAnalysis.rating)}</View>
+                      <Text style={styles.ratingScore}>{aiAnalysis.rating}/10</Text>
+                    </View>
+                  </View>
+
+                  {/* Style Name */}
+                  <View style={styles.panelSection}>
+                    <View style={styles.styleNameHeader}>
+                      <Text style={styles.panelSectionTitle}>Style Name</Text>
+                      <Text style={styles.vibe}>
+                        {getVibeEmoji(aiAnalysis.vibe)} {aiAnalysis.vibe}
+                      </Text>
+                    </View>
+                    <View style={styles.styleNameContainer}>
+                      <Text style={styles.styleName}>{aiAnalysis.styleName}</Text>
+                    </View>
+                  </View>
+
+                  {/* Color Harmony */}
+                  <View style={styles.panelSection}>
+                    <Text style={styles.panelSectionTitle}>Color Harmony</Text>
+                    <View style={styles.colorHarmonyRow}>
+                      <View style={styles.colorScore}>
+                        <Text style={styles.colorScoreText}>
+                          {aiAnalysis.colorHarmony.score}/10
+                        </Text>
+                      </View>
+                      <Text style={styles.colorFeedback}>
+                        {aiAnalysis.colorHarmony.feedback}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* General Feedback */}
+                  <View style={styles.panelSection}>
+                    <Text style={styles.panelSectionTitle}>Style Tips</Text>
+                    <Text style={styles.feedback}>{aiAnalysis.feedback}</Text>
+                  </View>
+                </ScrollView>
+              ) : (
+                <View style={styles.panelContent}>
+                  <Text style={styles.loadingText}>No analysis available</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <SafeAreaView style={styles.body} edges={["left", "right"]}>
         <ScrollView 
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
         >
           <View style={styles.content}>
             <View
@@ -283,17 +646,6 @@ export default function ViewOutfitScreen() {
               </View>
             </View>
 
-            {/* ✨ AI Feedback Component */}
-            <View style={styles.aiFeedbackWrapper}>
-              <AIOutfitFeedback 
-                items={outfitItems}
-                onStyleNameSelected={(name) => {
-                  console.log('AI suggested name:', name);
-                  setStyleName(name);
-                }}
-                onAnalysisComplete={handleAIAnalysisComplete}
-              />
-            </View>
           </View>
         </ScrollView>
 
@@ -339,6 +691,7 @@ export default function ViewOutfitScreen() {
             onClose={() => setSaveOutfitModalVisible(false)}
             onSave={handleSaveOutfit}
             isLoading={isSavingOutfit}
+            defaultName={aiAnalysis?.styleName} // ✅ 自动填入 AI 生成的 styleName
           />
         )}
       </SafeAreaView>
@@ -358,7 +711,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 140, // Space for bottom bar
+    paddingBottom: 180, // Space for bottom bar
   },
   content: {
     paddingHorizontal: 8,
@@ -372,9 +725,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 10,
     borderRadius: 24,
-  },
-  aiFeedbackWrapper: {
-    marginTop: 14, 
   },
   previewRow: {
     flexDirection: "row",
@@ -480,7 +830,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingTop: 16,
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 24,
     columnGap: 8,
   },
   saveOutfitButton: {
@@ -531,5 +881,163 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#fff",
+  },
+  // ✅ AI Toast - 底部显示
+  aiToast: {
+    position: "absolute",
+    alignSelf: "center",
+    zIndex: 9999,
+    left: 20,
+    right: 20,
+    elevation: 10, // Android shadow
+  },
+  aiToastTouchable: {
+    borderRadius: 24,
+  },
+  aiToastGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  aiToastText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  // ✅ AI Feedback Modal 样式
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  feedbackPanelTouchable: {
+    width: "100%",
+    maxWidth: 500,
+  },
+  feedbackPanel: {
+    width: "100%",
+    height: Math.min(SCREEN_HEIGHT * 0.75, 600),
+    backgroundColor: "rgba(17, 17, 17, 0.95)",
+    borderRadius: 20,
+    overflow: "hidden",
+    flexDirection: "column",
+    maxHeight: "85%",
+  },
+  panelScrollView: {
+    maxHeight: 400,
+  },
+  panelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+  },
+  panelHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  panelTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  panelCloseButton: {
+    padding: 4,
+  },
+  panelContent: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  loadingText: {
+    color: "#fff",
+    fontSize: 14,
+    textAlign: "center",
+    padding: 20,
+  },
+  panelSection: {
+    marginBottom: 24,
+  },
+  panelSectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 12,
+  },
+  ratingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  stars: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  ratingScore: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFD700",
+  },
+  styleNameHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  vibe: {
+    fontSize: 14,
+    color: "#999",
+  },
+  styleNameContainer: {
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  styleName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  colorHarmonyRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  colorScore: {
+    backgroundColor: "rgba(76, 175, 80, 0.2)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  colorScoreText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#4CAF50",
+  },
+  colorFeedback: {
+    flex: 1,
+    fontSize: 14,
+    color: "#ddd",
+    lineHeight: 20,
+  },
+  feedback: {
+    fontSize: 14,
+    color: "#ddd",
+    lineHeight: 22,
   },
 });

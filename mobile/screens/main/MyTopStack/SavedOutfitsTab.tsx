@@ -140,6 +140,13 @@ export default function SavedOutfitsTab() {
         accessories,
         selection,
         outfitName: outfit.outfit_name, // ✅ 传入 outfit name
+        outfitId: outfit.id, // ✅ 传入 outfit ID
+        aiRating: outfit.ai_rating, // ✅ 传入已保存的 AI rating
+        styleName: outfit.style_name, // ✅ 传入已保存的 style name
+        colorHarmonyScore: outfit.color_harmony_score, // ✅ 传入 color harmony score
+        colorHarmonyFeedback: outfit.color_harmony_feedback, // ✅ 传入 color harmony feedback
+        styleTips: outfit.style_tips, // ✅ 传入 style tips
+        vibe: outfit.vibe, // ✅ 传入 vibe
       },
     });
   }, [navigation]);

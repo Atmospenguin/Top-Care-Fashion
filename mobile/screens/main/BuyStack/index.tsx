@@ -24,6 +24,13 @@ export type BuyStackParamList = {
     accessories: ListingItem[];
     selection: BagItem[];
     outfitName?: string; // ✅ 可选的 outfit name（从 Saved Outfits 传入）
+    outfitId?: number; // ✅ 可选的 outfit ID（用于更新）
+    aiRating?: number | null; // ✅ 已保存的 AI rating
+    styleName?: string | null; // ✅ 已保存的 style name
+    colorHarmonyScore?: number | null; // ✅ 已保存的 color harmony score
+    colorHarmonyFeedback?: string | null; // ✅ 已保存的 color harmony feedback
+    styleTips?: string | null; // ✅ 已保存的 style tips
+    vibe?: string | null; // ✅ 已保存的 vibe
   };
   UserProfile: {
     username?: string;
