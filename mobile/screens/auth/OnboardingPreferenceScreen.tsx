@@ -113,6 +113,7 @@ export default function OnboardingPreferenceScreen() {
 
   // Modal states
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [tempBirthday, setTempBirthday] = useState<Date>(new Date(2000, 0, 1));
   const [showShoePicker, setShowShoePicker] = useState(false);
   const [showTopPicker, setShowTopPicker] = useState(false);
   const [showBottomPicker, setShowBottomPicker] = useState(false);
@@ -196,7 +197,7 @@ export default function OnboardingPreferenceScreen() {
   const canProceedCurrentStep = () => {
     switch (currentStep) {
       case 0:
-        return selectedGender !== null;
+        return selectedGender !== null && birthday !== null;
       case 1:
         return selectedStyles.length > 0;
       case 2:
@@ -305,10 +306,13 @@ export default function OnboardingPreferenceScreen() {
             </TouchableOpacity>
           ))}
 
-          <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Birthday (Optional)</Text>
+          <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Birthday</Text>
           <TouchableOpacity
             style={styles.sizeButton}
-            onPress={() => setShowDatePicker(true)}
+            onPress={() => {
+              setTempBirthday(birthday || new Date(2000, 0, 1));
+              setShowDatePicker(true);
+            }}
           >
             <Text style={[styles.sizeButtonText, birthday && styles.sizeButtonTextSelected]}>
               {formatDate(birthday)}
@@ -468,26 +472,46 @@ export default function OnboardingPreferenceScreen() {
 
       {/* Date Picker */}
       {showDatePicker && (
-        <DateTimePicker
-          value={birthday || new Date(2000, 0, 1)}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, selectedDate) => {
-            if (Platform.OS === 'android') {
-              setShowDatePicker(false);
-            }
-            if (event.type === 'set' && selectedDate) {
-              setBirthday(selectedDate);
-              if (Platform.OS === 'ios') {
-                setShowDatePicker(false);
-              }
-            } else if (event.type === 'dismissed') {
-              setShowDatePicker(false);
-            }
-          }}
-          maximumDate={new Date()}
-          minimumDate={new Date(1900, 0, 1)}
-        />
+        <Modal transparent animationType="slide" visible={showDatePicker}>
+          <Pressable style={styles.sheetMask} onPress={() => setShowDatePicker(false)} />
+          <View style={styles.datePickerSheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Select Your Birthday</Text>
+
+            <DateTimePicker
+              value={tempBirthday}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={(event, selectedDate) => {
+                if (selectedDate) {
+                  setTempBirthday(selectedDate);
+                }
+              }}
+              maximumDate={new Date()}
+              minimumDate={new Date(1900, 0, 1)}
+              style={{ height: 200 }}
+            />
+
+            <View style={styles.datePickerButtons}>
+              <TouchableOpacity
+                style={styles.datePickerCancelButton}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <Text style={styles.datePickerCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.datePickerConfirmButton}
+                onPress={() => {
+                  setBirthday(tempBirthday);
+                  setShowDatePicker(false);
+                }}
+              >
+                <Text style={styles.datePickerConfirmText}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       )}
 
       {/* Size Pickers */}
@@ -763,6 +787,46 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "#F6F6F6",
     alignItems: "center",
+  },
+  // Date Picker Styles
+  datePickerSheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+  },
+  datePickerButtons: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 20,
+  },
+  datePickerCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#F6F6F6",
+    alignItems: "center",
+  },
+  datePickerConfirmButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#111",
+    alignItems: "center",
+  },
+  datePickerCancelText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111",
+  },
+  datePickerConfirmText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
   },
 });
 
