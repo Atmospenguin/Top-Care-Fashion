@@ -27,6 +27,7 @@ interface TopItem {
   views: number;
   likes: number;
   clicks: number;
+  bag: number;
 }
 
 interface TopSeller {
@@ -273,7 +274,7 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between">
                     <div className="font-medium text-gray-900">{item.name}</div>
                     <div className="text-sm text-gray-600">
-                      👁 {item.views} | ❤ {item.likes} | 👆 {item.clicks}
+                      👁 {item.views} | ❤ {item.likes} | 👆 {item.clicks} | 🛒 {item.bag}
                     </div>
                   </div>
                 </Link>

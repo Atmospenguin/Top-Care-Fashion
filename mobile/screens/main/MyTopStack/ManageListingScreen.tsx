@@ -21,6 +21,7 @@ import type { MyTopStackParamList } from "./index";
 import type { RootStackParamList } from "../../../App";
 import type { PremiumStackParamList } from "../PremiumStack";
 import { listingsService, type BoostedListingSummary } from "../../../src/services/listingsService";
+import { listingStatsService } from "../../../src/services/listingStatsService";
 import type { ListingItem } from "../../../types/shop";
 
 export default function ManageListingScreen() {
@@ -37,6 +38,13 @@ export default function ManageListingScreen() {
   const [boostInfo, setBoostInfo] = useState<BoostedListingSummary | null>(null);
   const [loadingBoostInfo, setLoadingBoostInfo] = useState(true);
   const [updatingListed, setUpdatingListed] = useState(false);
+  const [performance, setPerformance] = useState({
+    bag: 0,
+    likes: 0,
+    views: 0,
+    clicks: 0,
+  });
+  const [loadingPerformance, setLoadingPerformance] = useState(true);
 
   // ✅ 获取listing数据 - 使用 useFocusEffect 以便在返回时刷新
   useFocusEffect(
@@ -108,6 +116,53 @@ export default function ManageListingScreen() {
     };
 
     loadBoostInfo();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [route.params?.listingId]);
+
+  // ✅ 获取性能统计数据
+  useEffect(() => {
+    let isMounted = true;
+    const listingId = route.params?.listingId;
+    if (!listingId) {
+      setPerformance({ bag: 0, likes: 0, views: 0, clicks: 0 });
+      setLoadingPerformance(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const loadPerformanceStats = async () => {
+      try {
+        setLoadingPerformance(true);
+        console.log("📊 Fetching performance stats for listing:", listingId);
+        const stats = await listingStatsService.getListingStats(String(listingId));
+        
+        if (!isMounted) return;
+        
+        console.log("✅ Performance stats loaded:", stats);
+        setPerformance({
+          bag: stats.stats.bag ?? 0,
+          likes: stats.stats.likes ?? 0,
+          views: stats.stats.views ?? 0,
+          clicks: stats.stats.clicks ?? 0,
+        });
+      } catch (error) {
+        if (isMounted) {
+          console.error("❌ Error fetching performance stats:", error);
+          // Keep default values on error
+          setPerformance({ bag: 0, likes: 0, views: 0, clicks: 0 });
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingPerformance(false);
+        }
+      }
+    };
+
+    loadPerformanceStats();
 
     return () => {
       isMounted = false;
@@ -216,13 +271,6 @@ export default function ManageListingScreen() {
     });
   };
 
-  // 模拟数据（你确认过的数字）
-  const performance = {
-    bag: 1,
-    likes: 2,
-    views: 178,
-    clicks: 32,
-  };
 
   if (loading) {
     return (
@@ -353,25 +401,41 @@ export default function ManageListingScreen() {
         <View style={styles.metricsRow}>
           <View style={styles.metricCell}>
             <Icon name="bag-outline" size={22} color="#111" />
-            <Text style={styles.metricNumber}>{performance.bag}</Text>
+            {loadingPerformance ? (
+              <ActivityIndicator size="small" color="#999" style={{ marginTop: 6 }} />
+            ) : (
+              <Text style={styles.metricNumber}>{performance.bag}</Text>
+            )}
             <Text style={styles.metricLabel}>Bag</Text>
           </View>
 
           <View style={styles.metricCell}>
             <Icon name="heart-outline" size={22} color="#111" />
-            <Text style={styles.metricNumber}>{performance.likes}</Text>
+            {loadingPerformance ? (
+              <ActivityIndicator size="small" color="#999" style={{ marginTop: 6 }} />
+            ) : (
+              <Text style={styles.metricNumber}>{performance.likes}</Text>
+            )}
             <Text style={styles.metricLabel}>Likes</Text>
           </View>
 
           <View style={styles.metricCell}>
             <Icon name="eye-outline" size={22} color="#111" />
-            <Text style={styles.metricNumber}>{performance.views}</Text>
+            {loadingPerformance ? (
+              <ActivityIndicator size="small" color="#999" style={{ marginTop: 6 }} />
+            ) : (
+              <Text style={styles.metricNumber}>{performance.views}</Text>
+            )}
             <Text style={styles.metricLabel}>Views</Text>
           </View>
 
           <View style={styles.metricCell}>
             <Icon name="sparkles-outline" size={22} color="#111" />
-            <Text style={styles.metricNumber}>{performance.clicks}</Text>
+            {loadingPerformance ? (
+              <ActivityIndicator size="small" color="#999" style={{ marginTop: 6 }} />
+            ) : (
+              <Text style={styles.metricNumber}>{performance.clicks}</Text>
+            )}
             <Text style={styles.metricLabel}>Clicks</Text>
           </View>
         </View>

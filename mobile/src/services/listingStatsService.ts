@@ -7,6 +7,7 @@ export interface ListingStats {
     views: number | null;
     likes: number;
     clicks: number | null;
+    bag: number | null;
   };
   timeSeries: Array<{
     date: string;
