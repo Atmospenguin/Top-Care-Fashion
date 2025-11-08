@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/components/AuthContext";
 
 export default function RegisterPage() {
@@ -11,9 +11,135 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [status, setStatus] = useState<string | null>(null);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  
+  const usernameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const emailTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Check username availability with debounce
+  useEffect(() => {
+    if (usernameTimeoutRef.current) {
+      clearTimeout(usernameTimeoutRef.current);
+    }
+
+    const trimmedUsername = username.trim();
+    if (trimmedUsername.length === 0) {
+      setUsernameError(null);
+      setIsCheckingUsername(false);
+      return;
+    }
+
+    if (trimmedUsername.length < 3) {
+      setUsernameError("Username must be at least 3 characters");
+      setIsCheckingUsername(false);
+      return;
+    }
+
+    setIsCheckingUsername(true);
+    setUsernameError(null);
+
+    usernameTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/auth/check-availability", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: trimmedUsername }),
+        });
+
+        const data = await res.json();
+        if (data.usernameAvailable === false) {
+          setUsernameError("Username is already taken");
+        } else {
+          setUsernameError(null);
+        }
+      } catch (error) {
+        console.error("Error checking username:", error);
+        // Don't show error on check failure, let backend handle it
+      } finally {
+        setIsCheckingUsername(false);
+      }
+    }, 500); // 500ms debounce
+
+    return () => {
+      if (usernameTimeoutRef.current) {
+        clearTimeout(usernameTimeoutRef.current);
+      }
+    };
+  }, [username]);
+
+  // Check email availability with debounce
+  useEffect(() => {
+    if (emailTimeoutRef.current) {
+      clearTimeout(emailTimeoutRef.current);
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+    if (trimmedEmail.length === 0) {
+      setEmailError(null);
+      setIsCheckingEmail(false);
+      return;
+    }
+
+    // Email format validation
+    const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z][A-Za-z0-9.-]*\.[A-Za-z]{2,}$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setEmailError("Invalid email format");
+      setIsCheckingEmail(false);
+      return;
+    }
+
+    setIsCheckingEmail(true);
+    setEmailError(null);
+
+    emailTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/auth/check-availability", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: trimmedEmail }),
+        });
+
+        const data = await res.json();
+        if (data.emailAvailable === false) {
+          setEmailError("Email is already registered");
+        } else {
+          setEmailError(null);
+        }
+      } catch (error) {
+        console.error("Error checking email:", error);
+        // Don't show error on check failure, let backend handle it
+      } finally {
+        setIsCheckingEmail(false);
+      }
+    }, 500); // 500ms debounce
+
+    return () => {
+      if (emailTimeoutRef.current) {
+        clearTimeout(emailTimeoutRef.current);
+      }
+    };
+  }, [email]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    
+    // Clear previous status
+    setStatus(null);
+
+    // Check for validation errors
+    if (usernameError || emailError) {
+      setStatus("Please fix the errors above before submitting");
+      return;
+    }
+
+    if (isCheckingUsername || isCheckingEmail) {
+      setStatus("Please wait while we verify your information...");
+      return;
+    }
+
     setStatus("Submitting...");
 
     // ding cheng input
@@ -85,22 +211,55 @@ export default function RegisterPage() {
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <input
-          type="text"
-          className="w-full border border-gray-300 rounded-md px-4 py-3 bg-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Username"
-          required
-        />
-        <input
-          type="email"
-          className="w-full border border-gray-300 rounded-md px-4 py-3 bg-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          required
-        />
+        <div>
+          <input
+            type="text"
+            className={`w-full border rounded-md px-4 py-3 bg-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 ${
+              usernameError
+                ? "border-red-500 focus:ring-red-300"
+                : "border-gray-300 focus:ring-gray-300"
+            }`}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Username"
+            required
+          />
+          {isCheckingUsername && (
+            <p className="mt-1 text-xs text-gray-500">Checking availability...</p>
+          )}
+          {usernameError && (
+            <p className="mt-1 text-xs text-red-600">{usernameError}</p>
+          )}
+          {!usernameError && username.trim().length >= 3 && !isCheckingUsername && (
+            <p className="mt-1 text-xs text-green-600">✓ Username available</p>
+          )}
+        </div>
+        <div>
+          <input
+            type="email"
+            className={`w-full border rounded-md px-4 py-3 bg-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 ${
+              emailError
+                ? "border-red-500 focus:ring-red-300"
+                : "border-gray-300 focus:ring-gray-300"
+            }`}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            required
+          />
+          {isCheckingEmail && (
+            <p className="mt-1 text-xs text-gray-500">Checking availability...</p>
+          )}
+          {emailError && (
+            <p className="mt-1 text-xs text-red-600">{emailError}</p>
+          )}
+          {!emailError && 
+           email.trim().length > 0 && 
+           !isCheckingEmail && 
+           /^[A-Za-z0-9._%+-]+@[A-Za-z][A-Za-z0-9.-]*\.[A-Za-z]{2,}$/.test(email.trim().toLowerCase()) && (
+            <p className="mt-1 text-xs text-green-600">✓ Email available</p>
+          )}
+        </div>
         <input
           type="password"
           className="w-full border border-gray-300 rounded-md px-4 py-3 bg-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
