@@ -4,7 +4,7 @@
 import Constants from "expo-constants";
 
 const expoExtra = (Constants?.expoConfig?.extra ?? {}) as Record<string, unknown>;
-const DEFAULT_PROD_API_BASE_URL = "https://top-care-fashion.vercel.app/";
+const DEFAULT_PROD_API_BASE_URL = "https://top-care-fashion.vercel.app";
 
 function readEnv(key: string): string | undefined {
   const envValue = process.env[key];

@@ -20,7 +20,7 @@ import SaveOutfitModal from "../../../src/components/SaveOutfitModal";
 import AIOutfitFeedback from "../../../components/AIOutfitFeedback";
 import { outfitService } from "../../../src/services/outfitService";
 import type { BuyStackParamList } from "./index";
-import type { BagItem, ListingItem } from "../../../types/shop";
+import type { BagItem, ListingItem, ListingCategory } from "../../../types/shop";
 
 const PLACEHOLDER_MESSAGE = "Select an item";
 
@@ -138,11 +138,14 @@ export default function ViewOutfitScreen() {
   const outfitItems = useMemo(() => {
     const items = [];
     
+    const normalizeCategory = (category?: ListingCategory | null) =>
+      category ? String(category) : undefined;
+
     if (top) {
       items.push({
         type: 'top' as const,
         title: top.title,
-        category: top.category,
+        category: normalizeCategory(top.category),
         tags: top.tags || [],
       });
     }
@@ -151,7 +154,7 @@ export default function ViewOutfitScreen() {
       items.push({
         type: 'bottom' as const,
         title: bottom.title,
-        category: bottom.category,
+        category: normalizeCategory(bottom.category),
         tags: bottom.tags || [],
       });
     }
@@ -160,7 +163,7 @@ export default function ViewOutfitScreen() {
       items.push({
         type: 'shoes' as const,
         title: shoe.title,
-        category: shoe.category,
+        category: normalizeCategory(shoe.category),
         tags: shoe.tags || [],
       });
     }
@@ -169,7 +172,7 @@ export default function ViewOutfitScreen() {
       items.push({
         type: 'accessory' as const,
         title: acc.title,
-        category: acc.category,
+        category: normalizeCategory(acc.category),
         tags: acc.tags || [],
       });
     });

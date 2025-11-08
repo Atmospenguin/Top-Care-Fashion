@@ -2,6 +2,7 @@
 // AI-powered outfit matching using Hugging Face
 
 import { API_BASE_URL } from '../src/config/api';
+import { filterItemsByOutfitType } from '../src/utils/categoryMapper';
 
 const API_URL = API_BASE_URL.replace(/\/+$/, ''); // 移除末尾的斜杠
 
@@ -45,20 +46,11 @@ export async function getAISuggestions(
   try {
     console.log('🤖 Getting AI suggestions for:', baseItem.title);
 
-    // Separate items by category
-    const tops = allItems.filter(item => 
-      item.category?.toLowerCase() === 'tops' && item.id !== baseItem.id
-    );
-    const bottoms = allItems.filter(item => 
-      item.category?.toLowerCase() === 'bottoms' && item.id !== baseItem.id
-    );
-    const shoes = allItems.filter(item => {
-      const cat = item.category?.toLowerCase() || '';
-      return (cat === 'shoes' || cat === 'footwear' || cat === 'shoe') && item.id !== baseItem.id;
-    });
-    const accessories = allItems.filter(item => 
-      item.category?.toLowerCase() === 'accessories' && item.id !== baseItem.id
-    );
+    // Separate items by category using dynamic mapping
+    const tops = filterItemsByOutfitType(allItems, 'tops', baseItem.id);
+    const bottoms = filterItemsByOutfitType(allItems, 'bottoms', baseItem.id);
+    const shoes = filterItemsByOutfitType(allItems, 'shoes', baseItem.id);
+    const accessories = filterItemsByOutfitType(allItems, 'accessories', baseItem.id);
 
     // Get AI scores for each category
     const [topScores, bottomScores, shoeScores, accessoryScores] = await Promise.all([
@@ -90,15 +82,12 @@ export async function getAISuggestions(
   } catch (error) {
     console.error('❌ AI suggestion error:', error);
     
-    // Fallback: return items in original order with empty scores
+    // Fallback: return items in original order with empty scores using dynamic mapping
     return {
-      tops: allItems.filter(item => item.category?.toLowerCase() === 'tops' && item.id !== baseItem.id),
-      bottoms: allItems.filter(item => item.category?.toLowerCase() === 'bottoms' && item.id !== baseItem.id),
-      shoes: allItems.filter(item => {
-        const cat = item.category?.toLowerCase() || '';
-        return (cat === 'shoes' || cat === 'footwear' || cat === 'shoe') && item.id !== baseItem.id;
-      }),
-      accessories: allItems.filter(item => item.category?.toLowerCase() === 'accessories' && item.id !== baseItem.id),
+      tops: filterItemsByOutfitType(allItems, 'tops', baseItem.id),
+      bottoms: filterItemsByOutfitType(allItems, 'bottoms', baseItem.id),
+      shoes: filterItemsByOutfitType(allItems, 'shoes', baseItem.id),
+      accessories: filterItemsByOutfitType(allItems, 'accessories', baseItem.id),
       topScores: new Map(),
       bottomScores: new Map(),
       shoeScores: new Map(),
