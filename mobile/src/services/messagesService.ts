@@ -247,6 +247,37 @@ class MessagesService {
     }
   }
 
+  // 轻量级检查：只获取每个对话的最后一条消息ID和时间戳
+  async checkConversationsForNewMessages(): Promise<Array<{
+    conversationId: string;
+    lastMessageId: string;
+    lastMessageTime: string;
+    isFromMe: boolean;
+    isUnread: boolean;
+    senderUsername: string;
+  }>> {
+    try {
+      const response = await apiClient.get<{
+        conversations: Array<{
+          conversationId: string;
+          lastMessageId: string;
+          lastMessageTime: string;
+          isFromMe: boolean;
+          isUnread: boolean;
+          senderUsername: string;
+        }>;
+      }>('/api/conversations/check');
+      return response.data?.conversations ?? [];
+    } catch (error: any) {
+      // 🔥 如果是 401 错误（未授权），静默处理（用户已登出）
+      if (error?.status === 401 || error?.message?.includes('401')) {
+        throw error;
+      }
+      console.error('Error checking conversations:', error);
+      throw error;
+    }
+  }
+
   // 创建新对话
   async createConversation(params: CreateConversationParams): Promise<any> {
     try {
