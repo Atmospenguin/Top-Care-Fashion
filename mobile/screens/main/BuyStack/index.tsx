@@ -23,6 +23,7 @@ export type BuyStackParamList = {
     shoe: ListingItem | null;
     accessories: ListingItem[];
     selection: BagItem[];
+    outfitName?: string; // ✅ 可选的 outfit name（从 Saved Outfits 传入）
   };
   UserProfile: {
     username?: string;

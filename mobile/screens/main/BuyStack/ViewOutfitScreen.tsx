@@ -118,7 +118,7 @@ export default function ViewOutfitScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
   const route = useRoute<RouteProp<BuyStackParamList, "ViewOutfit">>();
-  const { baseItem, top, bottom, shoe, accessories, selection } = route.params;
+  const { baseItem, top, bottom, shoe, accessories, selection, outfitName } = route.params;
   const captureViewRef = useRef<View | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveOutfitModalVisible, setSaveOutfitModalVisible] = useState(false);
@@ -127,6 +127,9 @@ export default function ViewOutfitScreen() {
   // ⭐ NEW: Store AI feedback rating and style name
   const [aiRating, setAiRating] = useState<number | null>(null);
   const [styleName, setStyleName] = useState<string | null>(null);
+  
+  // ✅ 如果传入了 outfitName，说明是从 Saved Outfits 打开的，不需要显示 Save 按钮
+  const isSavedOutfit = !!outfitName;
 
   const composedSelection: BagItem[] = useMemo(() => {
     const unique = new Map<string, ListingItem>();
@@ -254,7 +257,7 @@ export default function ViewOutfitScreen() {
 
   return (
     <View style={styles.container}>
-      <Header title="View Outfit" showBack />
+      <Header title={outfitName || "View Outfit"} showBack />
       <SafeAreaView style={styles.body} edges={["left", "right"]}>
         <ScrollView 
           style={styles.scrollView}
@@ -296,13 +299,15 @@ export default function ViewOutfitScreen() {
 
         <View style={styles.bottomSafe}>
           <View style={styles.bottomBar}>
-            <TouchableOpacity
-              style={styles.saveOutfitButton}
-              onPress={() => setSaveOutfitModalVisible(true)}
-            >
-              <Icon name="bookmark" size={20} color="#111" />
-              <Text style={styles.saveOutfitButtonText}>Save Outfit</Text>
-            </TouchableOpacity>
+            {!isSavedOutfit && (
+              <TouchableOpacity
+                style={styles.saveOutfitButton}
+                onPress={() => setSaveOutfitModalVisible(true)}
+              >
+                <Icon name="bookmark" size={20} color="#111" />
+                <Text style={styles.saveOutfitButtonText}>Save Outfit</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={styles.secondaryButton}
               onPress={handleShare}
@@ -328,12 +333,14 @@ export default function ViewOutfitScreen() {
           </View>
         </View>
 
-        <SaveOutfitModal
-          visible={saveOutfitModalVisible}
-          onClose={() => setSaveOutfitModalVisible(false)}
-          onSave={handleSaveOutfit}
-          isLoading={isSavingOutfit}
-        />
+        {!isSavedOutfit && (
+          <SaveOutfitModal
+            visible={saveOutfitModalVisible}
+            onClose={() => setSaveOutfitModalVisible(false)}
+            onSave={handleSaveOutfit}
+            isLoading={isSavingOutfit}
+          />
+        )}
       </SafeAreaView>
     </View>
   );
