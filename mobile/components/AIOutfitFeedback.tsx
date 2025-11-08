@@ -40,9 +40,11 @@ interface Props {
   autoAnalyze?: boolean;
   // ⭐ NEW: Callback when analysis completes with full data
   onAnalysisComplete?: (analysis: AIAnalysis) => void;
+  // ✅ NEW: Callback when user closes the feedback
+  onClose?: () => void;
 }
 
-export default function AIOutfitFeedback({ items, onStyleNameSelected, autoAnalyze = false, onAnalysisComplete }: Props) {
+export default function AIOutfitFeedback({ items, onStyleNameSelected, autoAnalyze = false, onAnalysisComplete, onClose }: Props) {
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -196,21 +198,32 @@ export default function AIOutfitFeedback({ items, onStyleNameSelected, autoAnaly
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <TouchableOpacity 
-        style={styles.header}
-        onPress={() => setExpanded(!expanded)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.headerLeft}>
-          <Icon name="sparkles" size={20} color="#FFD700" />
-          <Text style={styles.headerTitle}>AI Feedback</Text>
-        </View>
-        <Icon 
-          name={expanded ? "chevron-up" : "chevron-down"} 
-          size={20} 
-          color="#666" 
-        />
-      </TouchableOpacity>
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.headerTouchable}
+          onPress={() => setExpanded(!expanded)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.headerLeft}>
+            <Icon name="sparkles" size={20} color="#FFD700" />
+            <Text style={styles.headerTitle}>AI Feedback</Text>
+          </View>
+          <Icon 
+            name={expanded ? "chevron-up" : "chevron-down"} 
+            size={20} 
+            color="#666" 
+          />
+        </TouchableOpacity>
+        {onClose && (
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={onClose}
+            activeOpacity={0.7}
+          >
+            <Icon name="close" size={20} color="#999" />
+          </TouchableOpacity>
+        )}
+      </View>
 
       {expanded && (
         <View style={styles.content}>
@@ -298,6 +311,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
+  },
+  headerTouchable: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  closeButton: {
+    marginLeft: 8,
+    padding: 4,
   },
   headerLeft: {
     flexDirection: 'row',

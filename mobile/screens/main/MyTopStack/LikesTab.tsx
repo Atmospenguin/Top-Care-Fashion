@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import { View, Text, StyleSheet, Image, FlatList, TouchableOpacity, ActivityIndicator } from "react-native";
 import Icon from "../../../components/Icon";
 import { likesService, LikedListing } from "../../../src/services";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 
 // 保证三列对齐
 function formatData(data: any[], numColumns: number) {
@@ -25,11 +25,7 @@ export default function LikesTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadLikedListings();
-  }, []);
-
-  const loadLikedListings = async () => {
+  const loadLikedListings = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -41,7 +37,14 @@ export default function LikesTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // ✅ 使用 useFocusEffect 以便在返回时刷新
+  useFocusEffect(
+    React.useCallback(() => {
+      loadLikedListings();
+    }, [loadLikedListings])
+  );
 
   const handleItemPress = (likedListing: LikedListing) => {
     // 调试：查看原始数据

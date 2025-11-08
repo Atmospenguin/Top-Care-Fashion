@@ -19,6 +19,7 @@ interface SaveOutfitModalProps {
   onClose: () => void;
   onSave: (outfitName: string) => Promise<void>;
   isLoading?: boolean;
+  defaultName?: string; // ✅ 自动填入的默认名称
 }
 
 export default function SaveOutfitModal({
@@ -26,16 +27,25 @@ export default function SaveOutfitModal({
   onClose,
   onSave,
   isLoading = false,
+  defaultName,
 }: SaveOutfitModalProps) {
   const [outfitName, setOutfitName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!visible) {
+    if (visible) {
+      // ✅ 当 modal 打开时，如果有 defaultName，自动填入
+      if (defaultName) {
+        setOutfitName(defaultName);
+      } else {
+        setOutfitName('');
+      }
+      setIsSubmitting(false);
+    } else {
       setOutfitName('');
       setIsSubmitting(false);
     }
-  }, [visible]);
+  }, [visible, defaultName]);
 
   const handleSave = async () => {
     if (!outfitName.trim()) {

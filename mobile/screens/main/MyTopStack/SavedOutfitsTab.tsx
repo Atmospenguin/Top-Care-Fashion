@@ -8,10 +8,9 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  Modal,
   ScrollView,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from '../../../components/Icon';
 import { outfitService } from '../../../src/services/outfitService';
 import { listingsService } from '../../../src/services/listingsService';
@@ -27,11 +26,9 @@ type OutfitWithItems = SavedOutfit & {
 };
 
 export default function SavedOutfitsTab() {
-  const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const [outfits, setOutfits] = useState<OutfitWithItems[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedOutfit, setSelectedOutfit] = useState<OutfitWithItems | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
   const listingCache = useRef<Map<number, ListingItem | null>>(new Map());
 
   const fetchListingDetails = useCallback(async (listingId: number): Promise<ListingItem | null> => {
@@ -50,9 +47,14 @@ export default function SavedOutfitsTab() {
     }
   }, []);
 
-  const fetchSavedOutfits = useCallback(async () => {
+  const fetchSavedOutfits = useCallback(async (clearCache = false) => {
     try {
       setLoading(true);
+
+      // ✅ 如果 clearCache 为 true，清空缓存以确保获取最新数据
+      if (clearCache) {
+        listingCache.current.clear();
+      }
 
       const outfitsData = await outfitService.getSavedOutfits();
       console.log('📖 Fetched', outfitsData.length, 'outfits');
@@ -91,22 +93,72 @@ export default function SavedOutfitsTab() {
     }
   }, [fetchListingDetails]);
 
-  useEffect(() => {
-    fetchSavedOutfits();
-  }, [fetchSavedOutfits]);
+  // ✅ 使用 useFocusEffect 在页面获得焦点时刷新数据
+  useFocusEffect(
+    useCallback(() => {
+      // 当页面获得焦点时，清空缓存并刷新数据
+      fetchSavedOutfits(true);
+    }, [fetchSavedOutfits])
+  );
 
-  const handleViewOutfit = (outfit: OutfitWithItems) => {
-    console.log('👁️ Viewing outfit:', outfit.outfit_name);
-    console.log('👁️ Outfit items:', {
-      base: outfit.base_item?.title,
-      top: outfit.top_item?.title,
-      bottom: outfit.bottom_item?.title,
-      shoes: outfit.shoe_item?.title,
-      accessories: outfit.accessory_items?.length,
+  // ✅ 导航到 ViewOutfitScreen
+  const handleViewOutfit = useCallback((outfit: OutfitWithItems) => {
+    if (!outfit.base_item) {
+      Alert.alert('Error', 'Cannot view outfit: base item not found');
+      return;
+    }
+
+    // 准备 ViewOutfitScreen 需要的参数
+    const baseItem = outfit.base_item;
+    const top = outfit.top_item || null;
+    const bottom = outfit.bottom_item || null;
+    const shoe = outfit.shoe_item || null;
+    const accessories = outfit.accessory_items || [];
+
+    // 构建 selection（BagItem[]）
+    const allItems: ListingItem[] = [];
+    if (top) allItems.push(top);
+    if (bottom) allItems.push(bottom);
+    if (shoe) allItems.push(shoe);
+    allItems.push(...accessories);
+
+    const unique = new Map<string, ListingItem>();
+    allItems.forEach((item) => {
+      if (item) unique.set(item.id, item);
     });
-    setSelectedOutfit(outfit);
-    setModalVisible(true);
-  };
+    const selection = Array.from(unique.values()).map((item) => ({ item, quantity: 1 }));
+
+    // 获取根导航器
+    let rootNavigation: any = navigation;
+    let current: any = navigation;
+    while (current?.getParent?.()) {
+      current = current.getParent();
+      if (current) {
+        rootNavigation = current;
+      }
+    }
+
+    console.log('👁️ Navigating to ViewOutfit:', outfit.outfit_name);
+    rootNavigation?.navigate('Buy', {
+      screen: 'ViewOutfit',
+      params: {
+        baseItem,
+        top,
+        bottom,
+        shoe,
+        accessories,
+        selection,
+        outfitName: outfit.outfit_name, // ✅ 传入 outfit name
+        outfitId: outfit.id, // ✅ 传入 outfit ID
+        aiRating: outfit.ai_rating, // ✅ 传入已保存的 AI rating
+        styleName: outfit.style_name, // ✅ 传入已保存的 style name
+        colorHarmonyScore: outfit.color_harmony_score, // ✅ 传入 color harmony score
+        colorHarmonyFeedback: outfit.color_harmony_feedback, // ✅ 传入 color harmony feedback
+        styleTips: outfit.style_tips, // ✅ 传入 style tips
+        vibe: outfit.vibe, // ✅ 传入 vibe
+      },
+    });
+  }, [navigation]);
 
   const handleDeleteOutfit = async (outfitId: number) => {
     Alert.alert('Delete Outfit', 'Are you sure you want to delete this outfit?', [
@@ -126,6 +178,53 @@ export default function SavedOutfitsTab() {
       },
     ]);
   };
+
+  // ✅ 处理点击 listing 图片，导航到详情页
+  const handleListingPress = useCallback(
+    (item: ListingItem) => {
+      if (!item || !item.id) {
+        console.warn('⚠️ Cannot navigate: invalid listing item');
+        return;
+      }
+
+      // 向上查找根导航，保证可以跳转到 Buy 栈
+      let rootNavigation: any = navigation;
+      let current: any = navigation;
+      while (current?.getParent?.()) {
+        current = current.getParent();
+        if (current) {
+          rootNavigation = current;
+        }
+      }
+
+      // 规整 listing 数据，确保格式稳定
+      const listingData = {
+        ...item,
+        images: Array.isArray(item.images)
+          ? item.images
+          : item.images
+          ? [item.images]
+          : [],
+        seller: {
+          id: item.seller?.id || 0,
+          name: item.seller?.name || 'Seller',
+          avatar: item.seller?.avatar || '',
+          rating: item.seller?.rating || 0,
+          sales: item.seller?.sales || 0,
+          isPremium: item.seller?.isPremium || false,
+        },
+      };
+
+      console.log('🔍 Navigating to ListingDetail:', listingData.id);
+      requestAnimationFrame(() => {
+        rootNavigation?.navigate('Buy', {
+          screen: 'ListingDetail',
+          params: { item: listingData },
+        });
+      });
+    },
+    [navigation]
+  );
 
   // ⭐ NEW: Helper to render match percentage badge
   const getMatchBadge = (score: number | undefined) => {
@@ -161,7 +260,11 @@ export default function SavedOutfitsTab() {
     const displayScore = typeof matchScore === 'number' ? matchScore : undefined;
 
     return (
-      <View style={styles.itemContainer}>
+      <TouchableOpacity 
+        style={styles.itemContainer}
+        onPress={() => handleListingPress(item)}
+        activeOpacity={0.8}
+      >
         <View style={styles.imageWrapper}>
           <Image
             source={{ uri: primaryImage }}
@@ -179,9 +282,10 @@ export default function SavedOutfitsTab() {
         <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
         {/* ⭐ NEW: Show price */}
         <Text style={styles.itemPrice}>${item.price.toFixed(0)}</Text>
-      </View>
+      </TouchableOpacity>
     );
   };
+
 
   if (loading) {
     return (
@@ -217,7 +321,7 @@ export default function SavedOutfitsTab() {
             <View style={styles.outfitHeader}>
               <View style={styles.outfitInfo}>
                 <View style={styles.outfitNameRow}>
-                  <Text style={styles.outfitName}>
+                <Text style={styles.outfitName}>
                     {item.outfit_name || 'Unnamed Outfit'}
                   </Text>
                   {/* ⭐ NEW: Show AI rating if available */}
@@ -266,109 +370,6 @@ export default function SavedOutfitsTab() {
           </TouchableOpacity>
         )}
       />
-
-      {/* Full Outfit Modal */}
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => {
-          setModalVisible(false);
-          setSelectedOutfit(null);
-        }}
-      >
-        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
-          <View style={styles.modalHeader}>
-            <View style={styles.modalTitleContainer}>
-              <Text style={styles.modalTitle}>
-                {selectedOutfit?.outfit_name || 'Unnamed Outfit'}
-              </Text>
-              {/* ⭐ NEW: Show rating in modal */}
-              {selectedOutfit?.ai_rating && selectedOutfit.ai_rating > 0 && (
-                <View style={styles.modalRatingBadge}>
-                  <Icon name="star" size={14} color="#FFD700" />
-                  <Text style={styles.modalRatingText}>{selectedOutfit.ai_rating}/10</Text>
-                </View>
-              )}
-            </View>
-            <TouchableOpacity onPress={() => {
-              setModalVisible(false);
-              setSelectedOutfit(null);
-            }}>
-              <Icon name="close" size={24} color="#000" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            {!selectedOutfit ? (
-              <Text style={styles.emptyText}>Loading...</Text>
-            ) : (
-              <>
-                {/* ⭐ NEW: Show style name if available */}
-                {selectedOutfit.style_name && (
-                  <View style={styles.styleNameBanner}>
-                    <Icon name="sparkles" size={16} color="#8B5CF6" />
-                    <Text style={styles.styleNameText}>{selectedOutfit.style_name}</Text>
-                  </View>
-                )}
-                
-                {/* Don't show base_item since it's already included in top/bottom/shoe */}
-                
-                {selectedOutfit.top_item && (
-                  <View style={styles.modalSection}>
-                    <Text style={styles.sectionTitle}>Top</Text>
-                    {renderItemImage(selectedOutfit.top_item, undefined, selectedOutfit.top_match_score)}
-                  </View>
-                )}
-
-                {selectedOutfit.bottom_item && (
-                  <View style={styles.modalSection}>
-                    <Text style={styles.sectionTitle}>Bottom</Text>
-                    {renderItemImage(selectedOutfit.bottom_item, undefined, selectedOutfit.bottom_match_score)}
-                  </View>
-                )}
-
-                {selectedOutfit.shoe_item && (
-                  <View style={styles.modalSection}>
-                    <Text style={styles.sectionTitle}>Shoes</Text>
-                    {renderItemImage(selectedOutfit.shoe_item, undefined, selectedOutfit.shoe_match_score)}
-                  </View>
-                )}
-
-                {selectedOutfit.accessory_items && selectedOutfit.accessory_items.length > 0 && (
-                  <View style={styles.modalSection}>
-                    <Text style={styles.sectionTitle}>Accessories</Text>
-                    {selectedOutfit.accessory_items.map((item, idx) => (
-                      <View key={`modal-accessory-${item.id}-${idx}`} style={{ marginBottom: 12 }}>
-                        {renderItemImage(
-                          item,
-                          undefined,
-                          selectedOutfit.accessory_match_scores?.[String(item.id)]
-                        )}
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {/* ⭐ NEW: Show total price if available */}
-                {selectedOutfit.total_price && selectedOutfit.total_price > 0 && (
-                  <View style={styles.totalPriceSection}>
-                    <Text style={styles.totalPriceLabel}>💰 Total Price:</Text>
-                    <Text style={styles.totalPriceValue}>${selectedOutfit.total_price.toFixed(0)}</Text>
-                  </View>
-                )}
-
-                {!selectedOutfit.top_item && 
-                 !selectedOutfit.bottom_item && 
-                 !selectedOutfit.shoe_item && 
-                 (!selectedOutfit.accessory_items || selectedOutfit.accessory_items.length === 0) && (
-                  <Text style={styles.emptyText}>No items found in this outfit</Text>
-                )}
-              </>
-            )}
-          </ScrollView>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -449,16 +450,17 @@ const styles = StyleSheet.create({
   itemContainer: {
     marginRight: 12,
     width: 100,
+    paddingBottom: 8,
   },
   // ⭐ NEW: Wrapper for image with badge positioning
   imageWrapper: {
     position: 'relative',
-    width: 100,
-    height: 100,
+    width: '100%',
+    aspectRatio: 1,
   },
   itemImage: {
-    width: 100,
-    height: 100,
+    width: '100%',
+    height: '100%',
     borderRadius: 8,
     backgroundColor: '#f0f0f0',
   },
@@ -509,7 +511,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginTop: 8,
-    marginBottom: 24,
+    marginBottom: 8,
   },
   totalPriceLabel: {
     fontSize: 15,
@@ -520,76 +522,5 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#4CAF50',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  // ⭐ NEW: Container for modal title + rating
-  modalTitleContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  // ⭐ NEW: Rating badge in modal header
-  modalRatingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFF9E6',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#FFD700',
-  },
-  modalRatingText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#F59E0B',
-  },
-  // ⭐ NEW: Style name banner in modal
-  styleNameBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#F3E8FF',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#8B5CF6',
-  },
-  styleNameText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#6B21A8',
-    flex: 1,
-  },
-  modalContent: {
-    flex: 1,
-    padding: 16,
-  },
-  modalSection: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
   },
 });

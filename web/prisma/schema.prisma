@@ -566,6 +566,10 @@ model saved_outfits {
   updated_at                                      DateTime? @default(now()) @db.Timestamptz(6)
   ai_rating                                       Int?
   style_name                                      String?   @db.VarChar(100)
+  color_harmony_score                             Int?
+  color_harmony_feedback                          String?   @db.Text
+  style_tips                                      String?   @db.Text
+  vibe                                            String?   @db.VarChar(50)
   listings_saved_outfits_base_item_idTolistings   listings? @relation("saved_outfits_base_item_idTolistings", fields: [base_item_id], references: [id], onUpdate: NoAction)
   listings_saved_outfits_bottom_item_idTolistings listings? @relation("saved_outfits_bottom_item_idTolistings", fields: [bottom_item_id], references: [id], onUpdate: NoAction)
   listings_saved_outfits_shoe_item_idTolistings   listings? @relation("saved_outfits_shoe_item_idTolistings", fields: [shoe_item_id], references: [id], onUpdate: NoAction)

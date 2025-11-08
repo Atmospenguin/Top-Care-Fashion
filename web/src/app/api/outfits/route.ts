@@ -22,9 +22,13 @@ export async function POST(req: NextRequest) {
       shoe_item_id,
       accessory_ids = [],
       
-      // ⭐ NEW: AI rating fields
+      // ⭐ NEW: AI analysis fields
       ai_rating,
       style_name,
+      color_harmony_score,
+      color_harmony_feedback,
+      style_tips,
+      vibe,
     } = body;
 
     // ✨ BANDAID FIX: Better ID conversion with validation
@@ -102,9 +106,13 @@ export async function POST(req: NextRequest) {
         shoe_item_id: shoeId ?? null,
         accessory_ids: processedAccessoryIds.length > 0 ? processedAccessoryIds : [],
         
-        // ⭐ NEW: Save AI rating and style name
+        // ⭐ NEW: Save complete AI analysis data
         ai_rating: ai_rating ?? null,
         style_name: style_name ?? null,
+        color_harmony_score: color_harmony_score ?? null,
+        color_harmony_feedback: color_harmony_feedback ?? null,
+        style_tips: style_tips ?? null,
+        vibe: vibe ?? null,
       },
     });
 
@@ -175,9 +183,13 @@ export async function GET(req: NextRequest) {
         created_at: true,
         updated_at: true,
         
-        // ⭐ NEW: Include AI rating fields
+        // ⭐ NEW: Include complete AI analysis fields
         ai_rating: true,
         style_name: true,
+        color_harmony_score: true,
+        color_harmony_feedback: true,
+        style_tips: true,
+        vibe: true,
       },
     });
 
