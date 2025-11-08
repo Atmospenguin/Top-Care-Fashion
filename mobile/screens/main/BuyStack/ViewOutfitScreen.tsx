@@ -251,9 +251,14 @@ export default function ViewOutfitScreen() {
     
     try {
       setIsSaving(true);
+      
+      // 等待布局完成，确保内容已完全渲染
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       const uri = await captureRef(captureViewRef, {
         format: "png",
         quality: 0.95,
+        result: "tmpfile", // 使用临时文件，更可靠
       });
 
       const canShare = await Sharing.isAvailableAsync();
@@ -462,9 +467,10 @@ export default function ViewOutfitScreen() {
   const leftItems: Array<{ item: ListingItem | null }> = [
     { item: top || baseItem },
     { item: bottom || baseItem },
+    ...(shoe ? [{ item: shoe }] : []),
   ];
   
-  const rightItems = shoe ? [shoe, ...accessories] : accessories;
+  const rightItems = accessories;
 
   // 计算 Toast 显示条件
   const shouldShowToast = !aiAnalysis && !isSavedOutfit && aiToastVisible;
@@ -711,7 +717,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 180, // Space for bottom bar
+    paddingBottom: 240, // Space for bottom bar
   },
   content: {
     paddingHorizontal: 8,
@@ -720,15 +726,16 @@ const styles = StyleSheet.create({
   },
   captureCanvas: {
     width: "100%",
-    aspectRatio: 9 / 16,
     backgroundColor: "#fff",
     paddingVertical: 16,
     paddingHorizontal: 10,
     borderRadius: 24,
+    minHeight: 400, // 最小高度确保基本显示
   },
   previewRow: {
     flexDirection: "row",
     columnGap: 20,
+    alignItems: "flex-start", // 顶部对齐，让内容自然扩展
   },
   leftColumn: {
     flex: 3,
