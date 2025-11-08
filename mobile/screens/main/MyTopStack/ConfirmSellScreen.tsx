@@ -333,23 +333,6 @@ export default function ConfirmSellScreen() {
     }, [])
   );
 
-  useEffect(() => {
-    const parentNavigator = (navigation as any)?.getParent?.();
-    if (!parentNavigator?.addListener) {
-      return;
-    }
-
-    const unsubscribe = parentNavigator.addListener("tabPress", (event: any) => {
-      if (!navigation.isFocused?.()) {
-        return;
-      }
-      event?.preventDefault?.();
-      returnToMyTopHome();
-    });
-
-    return unsubscribe;
-  }, [navigation, returnToMyTopHome]);
-
   const returnToMyTopHome = useCallback(() => {
     if (homeNavigationLockedRef.current) {
       return;
@@ -391,7 +374,28 @@ export default function ConfirmSellScreen() {
     }
 
     navigation.navigate("MyTopMain");
+
+    setTimeout(() => {
+      homeNavigationLockedRef.current = false;
+    }, 400);
   }, [navigation]);
+
+  useEffect(() => {
+    const parentNavigator = (navigation as any)?.getParent?.();
+    if (!parentNavigator?.addListener) {
+      return;
+    }
+
+    const unsubscribe = parentNavigator.addListener("tabPress", (event: any) => {
+      if (!navigation.isFocused?.()) {
+        return;
+      }
+      event?.preventDefault?.();
+      returnToMyTopHome();
+    });
+
+    return unsubscribe;
+  }, [navigation, returnToMyTopHome]);
 
   const handleConfirmSell = async () => {
     if (processing) {

@@ -35,8 +35,14 @@ import type {
 import { MOCK_LISTINGS } from "../../../mocks/shop";
 import type { BuyStackParamList } from "./index";
 // ✨ NEW: Import AI matching service
-import { getAISuggestions, type SuggestedOutfit } from "../../../services/aiMatchingService";
+import { getAISuggestions, type ListingItem as AiListingItem } from "../../../services/aiMatchingService";
 import { benefitsService } from "../../../src/services";
+// ✨ NEW: Import dynamic category mapping
+import { 
+  mapCategoryToOutfitType, 
+  filterItemsByOutfitType,
+  type OutfitCategoryType 
+} from "../../../src/utils/categoryMapper";
 
 const { width } = Dimensions.get("window");
 const GAP = 12; // gap between cards
@@ -56,16 +62,8 @@ const ACC_W = Math.floor(
 );
 const ACC_H = Math.floor(ACC_W * 1.08);
 
-const CATEGORY_KEYWORDS: Record<ListingCategory, RegExp> = {
-  Accessories: /bag|belt|bracelet|earring|necklace|ring|scarf|hat|watch/i,
-  Bottoms: /skirt|pant|trouser|jean|legging|short|bottom/i,
-  Footwear: /shoe|sneaker|boot|heel|loafer|flat|footwear|sandal/i,
-  Outerwear: /coat|jacket|blazer|outerwear|vest/i,
-  Tops: /dress|top|shirt|tee|sweater|hoodie|blouse|cardigan|turtleneck/i,
-};
-
 type MatchResult = {
-  baseCategory: ListingCategory | "other";
+  baseCategory: OutfitCategoryType;
   tops: ListingItem[];
   bottoms: ListingItem[];
   footwear: ListingItem[];
@@ -73,39 +71,121 @@ type MatchResult = {
   fallback: ListingItem[];
 };
 
-function categorizeItem(item: ListingItem): ListingCategory | "other" {
-  if (item.category) {
-    if (item.category === "Outerwear") {
-      return "Tops";
-    }
-    return item.category;
-  }
-  const entry = Object.entries(CATEGORY_KEYWORDS).find(([, regex]) =>
-    regex.test(item.title)
-  );
-  if (entry) {
-    const [category] = entry;
-    return category === "Outerwear" ? "Tops" : (category as ListingCategory);
-  }
-  return "other";
+/**
+ * 将Outfit类型转换为ListingCategory（用于兼容旧代码）
+ */
+function outfitTypeToCategory(type: OutfitCategoryType): ListingCategory {
+  const mapping: Record<OutfitCategoryType, ListingCategory> = {
+    'tops': 'Tops',
+    'bottoms': 'Bottoms',
+    'shoes': 'Footwear',
+    'accessories': 'Accessories',
+    'dresses': 'Tops', // Dresses可以归类为Tops用于显示
+    'other': 'Tops', // 默认
+  };
+  return mapping[type] || 'Tops';
 }
 
-// ✅ FIXED: Now accepts allListings parameter instead of using MOCK_LISTINGS
+// ✅ 使用动态category mapping，不再硬编码
 function findMatches(base: ListingItem, allListings: ListingItem[]): MatchResult {
-  const baseCategory = categorizeItem(base);
+  const baseOutfitType = mapCategoryToOutfitType(base.category);
   const others = allListings.filter((item) => item.id !== base.id);
-  const byCategory = (category: ListingCategory) =>
-    others.filter((item) => categorizeItem(item) === category);
   const fallback = others.length ? others : [base];
+  
   return {
-    baseCategory,
-    tops: byCategory("Tops"),
-    bottoms: byCategory("Bottoms"),
-    footwear: byCategory("Footwear"),
-    accessories: byCategory("Accessories"),
+    baseCategory: baseOutfitType,
+    tops: filterItemsByOutfitType(others, 'tops'),
+    bottoms: filterItemsByOutfitType(others, 'bottoms'),
+    footwear: filterItemsByOutfitType(others, 'shoes'),
+    accessories: filterItemsByOutfitType(others, 'accessories'),
     fallback,
   };
 }
+
+/**
+ * 标准化category用于AI服务（保持兼容性）
+ */
+const normalizeCategoryForAI = (item: ListingItem): string => {
+  const outfitType = mapCategoryToOutfitType(item.category);
+  // 将outfit type转换回category名称用于AI
+  const categoryMap: Record<OutfitCategoryType, string> = {
+    'tops': 'tops',
+    'bottoms': 'bottoms',
+    'shoes': 'shoes',
+    'accessories': 'accessories',
+    'dresses': 'tops', // Dresses可以作为tops处理
+    'other': item.category?.toLowerCase() || 'tops',
+  };
+  return categoryMap[outfitType] || 'tops';
+};
+
+const toAiListingItem = (item: ListingItem): AiListingItem => ({
+  id: item.id,
+  title: item.title,
+  category: normalizeCategoryForAI(item),
+  price: item.price ?? 0,
+  images: Array.isArray(item.images) ? item.images : item.images ? [item.images] : [],
+  tags: item.tags ?? [],
+  color: item.material ?? undefined,
+  material: item.material ?? undefined,
+  style: item.gender ?? undefined,
+});
+
+const mapAiCategoryToListingCategory = (category?: string): ListingCategory | null => {
+  if (!category) return null;
+  const outfitType = mapCategoryToOutfitType(category);
+  return outfitTypeToCategory(outfitType);
+};
+
+const createFallbackSeller = (image?: string) => ({
+  id: undefined,
+  name: "TOP Seller",
+  avatar: image ?? "",
+  rating: 0,
+  sales: 0,
+});
+
+const enrichSuggestionFromSource = (
+  suggestion: AiListingItem,
+  source: ListingItem[]
+): ListingItem => {
+  const existing = source.find((item) => item.id === suggestion.id);
+  if (existing) {
+    return existing;
+  }
+
+  return {
+    id: suggestion.id,
+    title: suggestion.title,
+    price: suggestion.price ?? 0,
+    description: "",
+    brand: null,
+    size: null,
+    condition: null,
+    material: suggestion.material ?? null,
+    gender: null,
+    tags: suggestion.tags ?? [],
+    images: suggestion.images ?? [],
+    category: mapAiCategoryToListingCategory(suggestion.category),
+    shippingOption: null,
+    shippingFee: null,
+    location: null,
+    likesCount: 0,
+    createdAt: undefined,
+    updatedAt: undefined,
+    listed: undefined,
+    sold: undefined,
+    quantity: null,
+    availableQuantity: undefined,
+    seller: createFallbackSeller(suggestion.images?.[0]),
+    orderStatus: null,
+    orderId: null,
+    orderQuantity: null,
+    buyerId: null,
+    sellerId: null,
+    conversationId: null,
+  };
+};
 
 export default function MixMatchScreen() {
   const navigation =
@@ -250,22 +330,56 @@ export default function MixMatchScreen() {
         console.log('✅ Fetched', listings.length, 'listings for Mix & Match');
 
         // Convert to ListingItem format
-        const formatted: ListingItem[] = listings.map((item: any) => ({
-          id: String(item.id),
-          title: item.title || item.name || 'Unknown Item',
-          price: item.price || 0,
-          images: item.images || item.image_urls || (item.image_url ? [item.image_url] : []),
-          category: item.category as ListingCategory,
-          condition: item.condition,
-          size: item.size,
-          brand: item.brand,
-          seller: item.seller,
-          gender: item.gender,
-          tags: item.tags || [],
-          likesCount: item.likesCount || 0,
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt,
-        }));
+        const formatted: ListingItem[] = listings.map((item: any) => {
+          const images: string[] =
+            item.images ??
+            item.image_urls ??
+            (item.image_url ? [item.image_url] : []);
+
+          const seller =
+            item.seller && typeof item.seller === "object"
+              ? {
+                  id: item.seller.id,
+                  name: item.seller.name ?? "Seller",
+                  avatar: item.seller.avatar ?? "",
+                  rating: item.seller.rating ?? 0,
+                  sales: item.seller.sales ?? 0,
+                  isPremium: item.seller.isPremium,
+                }
+              : createFallbackSeller(images[0]);
+
+          return {
+            id: String(item.id),
+            title: item.title || item.name || "Unknown Item",
+            price: Number(item.price) || 0,
+            description: item.description ?? "",
+            brand: item.brand ?? null,
+            size: item.size ?? null,
+            condition: item.condition ?? null,
+            material: item.material ?? null,
+            gender: item.gender ?? null,
+            tags: item.tags ?? [],
+            images,
+            category: (item.category as ListingCategory) ?? null,
+            shippingOption: item.shippingOption ?? null,
+            shippingFee: item.shippingFee ?? null,
+            location: item.location ?? null,
+            likesCount: item.likesCount ?? 0,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+            listed: item.listed,
+            sold: item.sold,
+            quantity: item.quantity ?? null,
+            availableQuantity: item.availableQuantity,
+            seller,
+            orderStatus: item.orderStatus ?? null,
+            orderId: item.orderId ?? null,
+            orderQuantity: item.orderQuantity ?? null,
+            buyerId: item.buyerId ?? null,
+            sellerId: item.sellerId ?? null,
+            conversationId: item.conversationId ?? null,
+          };
+        });
 
         setRealListings(formatted);
       } catch (error) {
@@ -290,12 +404,18 @@ export default function MixMatchScreen() {
     console.log('🤖 Getting AI suggestions for:', baseItem.title);
 
     try {
-      const suggestions = await getAISuggestions(baseItem, realListings);
-      
-      setSuggestedTops(suggestions.tops);
-      setSuggestedBottoms(suggestions.bottoms);
-      setSuggestedShoes(suggestions.shoes);
-      setSuggestedAccessories(suggestions.accessories);
+      const suggestions = await getAISuggestions(
+        toAiListingItem(baseItem),
+        realListings.map(toAiListingItem)
+      );
+
+      const convertSuggestions = (items: AiListingItem[]) =>
+        items.map((item) => enrichSuggestionFromSource(item, realListings));
+
+      setSuggestedTops(convertSuggestions(suggestions.tops));
+      setSuggestedBottoms(convertSuggestions(suggestions.bottoms));
+      setSuggestedShoes(convertSuggestions(suggestions.shoes));
+      setSuggestedAccessories(convertSuggestions(suggestions.accessories));
       
       // ⭐ NEW: Save the match scores for display
       setTopScores(suggestions.topScores);
@@ -430,13 +550,13 @@ export default function MixMatchScreen() {
     pool.length ? pool[index % pool.length] : undefined;
 
   const pickedTop =
-    baseCategory === "Tops" ? baseItem : pickFromPool(topPool, topIndex);
+    (baseCategory === "tops" || baseCategory === "dresses") ? baseItem : pickFromPool(topPool, topIndex);
   const pickedBottom =
-    baseCategory === "Bottoms"
+    baseCategory === "bottoms"
       ? baseItem
       : pickFromPool(bottomPool, bottomIndex);
   const pickedShoe =
-    baseCategory === "Footwear" ? baseItem : pickFromPool(shoePool, shoeIndex);
+    baseCategory === "shoes" ? baseItem : pickFromPool(shoePool, shoeIndex);
 
   const baseOutfitItems = useMemo<ListingItem[]>(() => {
     const ordered = [pickedTop, pickedBottom, pickedShoe];
@@ -456,9 +576,12 @@ export default function MixMatchScreen() {
     );
   }, [displayAccessories, selectedAccessoryIds]);
 
-  const viewTop = baseCategory === "Tops" ? baseItem : pickedTop;
-  const viewBottom = baseCategory === "Bottoms" ? baseItem : pickedBottom;
-  const viewShoe = baseCategory === "Footwear" ? baseItem : pickedShoe;
+  const viewTop: ListingItem | null =
+    ((baseCategory === "tops" || baseCategory === "dresses") ? baseItem : pickedTop) ?? null;
+  const viewBottom: ListingItem | null =
+    (baseCategory === "bottoms" ? baseItem : pickedBottom) ?? null;
+  const viewShoe: ListingItem | null =
+    (baseCategory === "shoes" ? baseItem : pickedShoe) ?? null;
 
   const selection = useMemo<BagItem[]>(() => {
     const allItems = [...baseOutfitItems, ...selectedAccessoryItems];
@@ -478,17 +601,6 @@ export default function MixMatchScreen() {
       accessories: selectedAccessoryItems,
       selection,
       // ⭐ NEW: Pass match scores for saving
-      matchScores: {
-        topScore: viewTop && viewTop.id !== baseItem.id ? topScores.get(viewTop.id) || 0 : 0,
-        bottomScore: viewBottom && viewBottom.id !== baseItem.id ? bottomScores.get(viewBottom.id) || 0 : 0,
-        shoeScore: viewShoe && viewShoe.id !== baseItem.id ? shoeScores.get(viewShoe.id) || 0 : 0,
-        accessoryScores: new Map(
-          selectedAccessoryItems.map(item => [
-            item.id,
-            accessoryScores.get(item.id) || 0
-          ])
-        ),
-      },
     });
   }, [
     navigation,
@@ -556,7 +668,7 @@ export default function MixMatchScreen() {
   }, []);
 
   const renderTop = useCallback(() => {
-    if (baseCategory === "Tops") {
+    if (baseCategory === "tops" || baseCategory === "dresses") {
       return (
         <View style={styles.topSection}>
           <View style={styles.topFrame}>
@@ -612,7 +724,7 @@ export default function MixMatchScreen() {
   }, [baseCategory, baseItem, pickedTop, handleTopChange, getMatchBadge]);
 
   const renderBottom = useCallback(() => {
-    if (baseCategory === "Bottoms") {
+    if (baseCategory === "bottoms") {
       return (
         <View style={styles.bottomSection}>
           <View style={styles.bottomFrame}>
@@ -668,7 +780,7 @@ export default function MixMatchScreen() {
   }, [baseCategory, baseItem, pickedBottom, handleBottomChange, getMatchBadge]);
 
   const renderShoe = useCallback(() => {
-    if (baseCategory === "Footwear") {
+    if (baseCategory === "shoes") {
       return (
         <View style={styles.shoeSection}>
           <View style={styles.shoeFrame}>

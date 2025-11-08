@@ -18,6 +18,7 @@ export { addressService } from './addressService';
 export { NotificationHelper } from './notificationHelper';
 export { localNotificationService } from './localNotificationService';
 export { pollingService } from './pollingService';
+export { categoryService } from './categoryService';
 
 // 导出类型
 export type { ApiResponse, ApiError } from '../config/api';

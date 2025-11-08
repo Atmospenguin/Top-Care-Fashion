@@ -8,6 +8,9 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
+    // expo-notifications >=0.32 需要额外字段
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
