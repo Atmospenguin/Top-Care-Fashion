@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   Alert,
   Dimensions,
@@ -30,6 +30,7 @@ import { likesService, cartService, messagesService } from "../../../src/service
 import { flagsService } from "../../../src/services/flagsService";
 import { useAuth } from "../../../contexts/AuthContext";
 import { apiClient } from "../../../src/services/api";
+import { listingStatsService } from "../../../src/services/listingStatsService";
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
@@ -97,6 +98,14 @@ export default function ListingDetailScreen() {
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1); // 🔥 购买数量
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [listingStats, setListingStats] = useState<{ views: number | null; likes: number; clicks: number | null } | null>(null);
+  const recordedClickIdRef = useRef<string | null>(null);
+
+  // ✅ 统一获取 listing ID 的辅助函数
+  // 优先使用路由参数中的 listingId（更稳定），如果没有则从 itemParam 中获取
+  const getListingId = useMemo(() => {
+    return listingId?.toString() || itemParam?.id?.toString() || null;
+  }, [listingId, itemParam?.id]);
 
   // ✅ 如果只有 listingId，通过 API 加载 listing 数据
   useEffect(() => {
@@ -104,6 +113,66 @@ export default function ListingDetailScreen() {
       loadListingById(listingId);
     }
   }, [listingId, itemParam]);
+
+  // ✅ 记录点击追踪（当用户点击进入详情页时）
+  useEffect(() => {
+    // 使用最稳定的ID：优先使用路由参数中的listingId
+    const stableId = listingId?.toString() || itemParam?.id?.toString();
+    if (!stableId) {
+      return;
+    }
+
+    // 如果已经记录过这个ID，直接跳过（防止React StrictMode重复调用）
+    if (recordedClickIdRef.current === stableId) {
+      console.log(`[Click] Already recorded for listing ${stableId}, skipping`);
+      return;
+    }
+
+    // 立即设置ref，防止并发调用（必须在同步阶段完成）
+    recordedClickIdRef.current = stableId;
+
+    console.log(`[Click] Recording click for listing ${stableId}`);
+    
+    // 异步记录点击（不阻塞渲染）
+    const recordClick = async () => {
+      try {
+        await listingStatsService.recordClick(stableId);
+        console.log(`[Click] Successfully recorded click for listing ${stableId}`);
+      } catch (error) {
+        console.warn(`[Click] Failed to record click for listing ${stableId}:`, error);
+        // 如果失败，重置ref以便重试（但只在ref还是这个ID时才重置）
+        if (recordedClickIdRef.current === stableId) {
+          recordedClickIdRef.current = null;
+        }
+      }
+    };
+
+    recordClick();
+  }, [listingId, itemParam?.id]); // 只依赖路由参数，不依赖getListingId（避免useMemo变化导致重复触发）
+
+  // ✅ 加载统计信息（如果是卖家）
+  useEffect(() => {
+    const loadStats = async () => {
+      // 优先使用 getListingId，如果不存在则使用 item?.id（item 可能是异步加载的）
+      const id = getListingId || item?.id?.toString();
+      if (!id) return;
+
+      // 检查是否为卖家
+      const isOwnListing = isOwnListingParam || (item?.sellerId && user?.id && item.sellerId === user.id);
+      if (isOwnListing) {
+        try {
+          const stats = await listingStatsService.getListingStats(id);
+          setListingStats(stats.stats);
+        } catch (error) {
+          console.warn('Failed to load listing stats:', error);
+        }
+      }
+    };
+
+    if (getListingId || item) {
+      loadStats();
+    }
+  }, [getListingId, item, isOwnListingParam, user?.id]);
 
   const loadListingById = async (id: string) => {
     try {
@@ -830,6 +899,31 @@ export default function ListingDetailScreen() {
             </View>
           )}
 
+          {/* Statistics Section (for sellers) */}
+          {listingStats && (listingStats.views !== null || listingStats.clicks !== null) && (
+            <View style={styles.statsSection}>
+              <Text style={styles.statsHeading}>Statistics</Text>
+              <View style={styles.statsGrid}>
+                {listingStats.views !== null && (
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{listingStats.views}</Text>
+                    <Text style={styles.statLabel}>Views</Text>
+                  </View>
+                )}
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{listingStats.likes}</Text>
+                  <Text style={styles.statLabel}>Likes</Text>
+                </View>
+                {listingStats.clicks !== null && (
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{listingStats.clicks}</Text>
+                    <Text style={styles.statLabel}>Clicks</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
         </View>
 
         <View style={styles.sectionCard}>
@@ -1350,6 +1444,41 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 13,
     color: "#444",
+  },
+  statsSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+  },
+  statsHeading: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#666",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginBottom: 12,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    gap: 16,
+  },
+  statItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111",
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: "#666",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   sectionHeading: {
     fontSize: 16,

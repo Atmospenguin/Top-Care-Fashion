@@ -19,6 +19,7 @@ import FilterModal from "../../../components/FilterModal";
 import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
 import { listingsService, type CategoryData } from "../../../src/services/listingsService";
+import { listingStatsService } from "../../../src/services/listingStatsService";
 
 type SearchResultRoute = RouteProp<BuyStackParamList, "SearchResult">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
@@ -96,6 +97,7 @@ export default function SearchResultScreen() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const PAGE_SIZE = 20;
+  const viewedItemsRef = useRef<Set<string>>(new Set()); // 追踪已记录views的商品
 
   useEffect(() => {
     setSelectedGender(normalizedInitialGender);
@@ -410,6 +412,24 @@ export default function SearchResultScreen() {
     lastScrollY.current = currentScrollY;
   };
 
+  // ✅ 追踪商品视图（当商品出现在列表中时）
+  const handleViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    viewableItems.forEach((viewableItem: any) => {
+      const itemId = String(viewableItem.item?.id);
+      if (itemId && !viewedItemsRef.current.has(itemId)) {
+        viewedItemsRef.current.add(itemId);
+        // 记录视图（静默失败，不影响用户体验）
+        listingStatsService.recordView(itemId).catch((error) => {
+          console.warn('Failed to record view:', error);
+        });
+      }
+    });
+  }).current;
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50, // 商品至少50%可见时才记录
+  }).current;
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Animated.View
@@ -451,6 +471,8 @@ export default function SearchResultScreen() {
         scrollEventThrottle={16}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
+        viewabilityConfig={viewabilityConfig}
+        onViewableItemsChanged={handleViewableItemsChanged}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.gridItem}

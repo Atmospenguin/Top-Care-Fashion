@@ -120,6 +120,16 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // 🔥 实时更新likes_count
+      await prisma.listings.update({
+        where: { id: parseInt(listing_id) },
+        data: {
+          likes_count: {
+            increment: 1,
+          },
+        },
+      });
+
       // 🔔 创建like notification
       try {
         // 获取商品信息
@@ -163,6 +173,16 @@ export async function POST(request: NextRequest) {
         where: {
           user_id: user.id,
           listing_id: parseInt(listing_id),
+        },
+      });
+
+      // 🔥 实时更新likes_count
+      await prisma.listings.update({
+        where: { id: parseInt(listing_id) },
+        data: {
+          likes_count: {
+            decrement: 1,
+          },
         },
       });
 
