@@ -27,6 +27,7 @@ import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import SaveOutfitModal from "../../../src/components/SaveOutfitModal";
 import { outfitService } from "../../../src/services/outfitService";
+import { cartService } from "../../../src/services/cartService";
 import { API_BASE_URL } from "../../../src/config/api";
 import type { BuyStackParamList } from "./index";
 import type { BagItem, ListingItem, ListingCategory } from "../../../types/shop";
@@ -49,9 +50,11 @@ const PLACEHOLDER_MESSAGE = "Select an item";
 function PreviewCard({
   item,
   imageMode = "contain",
+  onPress,
 }: {
   item: ListingItem | null;
   imageMode?: "contain" | "cover";
+  onPress?: (item: ListingItem) => void;
 }) {
   const [aspect, setAspect] = useState(3 / 4);
 
@@ -79,8 +82,19 @@ function PreviewCard({
     );
   }
 
+  const handlePress = () => {
+    if (onPress && item) {
+      onPress(item);
+    }
+  };
+
   return (
-    <View style={styles.previewBlock}>
+    <TouchableOpacity 
+      style={styles.previewBlock} 
+      onPress={handlePress}
+      activeOpacity={0.8}
+      disabled={!onPress}
+    >
       <View style={styles.previewImageWrap}>
         <Image
           source={{ uri: item.images[0] }}
@@ -94,14 +108,16 @@ function PreviewCard({
       <Text style={styles.previewItemTitle}>
         {item.title}
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
 function AccessoryGrid({
   items,
+  onItemPress,
 }: {
   items: ListingItem[];
+  onItemPress?: (item: ListingItem) => void;
 }) {
   if (!items.length) {
     return (
@@ -116,7 +132,13 @@ function AccessoryGrid({
   return (
     <View style={styles.accessoryColumn}>
       {items.map((item) => (
-        <View key={item.id} style={styles.accessoryBlock}>
+        <TouchableOpacity
+          key={item.id}
+          style={styles.accessoryBlock}
+          onPress={() => onItemPress?.(item)}
+          activeOpacity={0.8}
+          disabled={!onItemPress}
+        >
           <View style={styles.accessoryImageWrap}>
             <Image
               source={{ uri: item.images[0] }}
@@ -130,7 +152,7 @@ function AccessoryGrid({
           <Text style={styles.accessoryTitle}>
             {item.title}
           </Text>
-        </View>
+        </TouchableOpacity>
       ))}
     </View>
   );
@@ -161,6 +183,7 @@ export default function ViewOutfitScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveOutfitModalVisible, setSaveOutfitModalVisible] = useState(false);
   const [isSavingOutfit, setIsSavingOutfit] = useState(false);
+  const [isAddingToBag, setIsAddingToBag] = useState(false);
   
   // ⭐ NEW: Store AI analysis in memory
   // ✅ 如果从保存的 outfit 打开且有 AI 数据，从数据库加载完整的 aiAnalysis 对象
@@ -278,9 +301,86 @@ export default function ViewOutfitScreen() {
     }
   }, []);
 
-  const handleAddToBag = useCallback(() => {
-    navigation.navigate("Bag", { items: composedSelection });
-  }, [navigation, composedSelection]);
+  // ✅ 真正将商品添加到购物车
+  const handleAddToBag = useCallback(async () => {
+    if (isAddingToBag || composedSelection.length === 0) return;
+
+    try {
+      setIsAddingToBag(true);
+
+      // 获取当前购物车中的商品
+      const cartItems = await cartService.getCartItems();
+      const cartItemIds = new Set(
+        cartItems.map(cartItem => 
+          cartItem.item.id.toString() || 
+          cartItem.item.listing_id?.toString()
+        ).filter(Boolean)
+      );
+
+      // 收集要添加的商品和已存在的商品
+      const itemsToAdd: ListingItem[] = [];
+      const alreadyInCart: ListingItem[] = [];
+
+      composedSelection.forEach(({ item }) => {
+        const itemId = item.id.toString();
+        if (cartItemIds.has(itemId)) {
+          alreadyInCart.push(item);
+        } else {
+          itemsToAdd.push(item);
+        }
+      });
+
+      // 如果有商品已在购物车中，提示用户
+      if (alreadyInCart.length > 0 && itemsToAdd.length === 0) {
+        Alert.alert(
+          'Already in Cart',
+          'All items are already in your cart.',
+          [{ text: 'OK', style: 'default' }]
+        );
+        setIsAddingToBag(false);
+        return;
+      }
+
+      // 添加新商品到购物车
+      const addPromises = itemsToAdd.map((item) =>
+        cartService.addToCart(item.id.toString(), 1).catch((error) => {
+          console.error(`Error adding item ${item.id} to cart:`, error);
+          return null;
+        })
+      );
+
+      const results = await Promise.all(addPromises);
+      const successful = results.filter(r => r !== null).length;
+      const failed = itemsToAdd.length - successful;
+
+      // 显示结果提示
+      if (successful > 0) {
+        let message = `${successful} item(s) added to cart successfully!`;
+        if (alreadyInCart.length > 0) {
+          message += ` ${alreadyInCart.length} item(s) were already in your cart.`;
+        }
+        if (failed > 0) {
+          message += ` ${failed} item(s) failed to add.`;
+        }
+
+        Alert.alert('Success', message, [
+          { text: 'Continue Shopping', style: 'cancel' },
+          {
+            text: 'View Cart',
+            style: 'default',
+            onPress: () => navigation.navigate('Bag'),
+          },
+        ]);
+      } else {
+        Alert.alert('Error', 'Failed to add items to cart. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error adding items to cart:', error);
+      Alert.alert('Error', 'Failed to add items to cart. Please try again.');
+    } finally {
+      setIsAddingToBag(false);
+    }
+  }, [navigation, composedSelection, isAddingToBag]);
 
   // ✅ AI 分析函数
   const analyzeOutfit = useCallback(async () => {
@@ -483,6 +583,11 @@ export default function ViewOutfitScreen() {
   
   const rightItems = accessories;
 
+  // ✅ 处理商品卡片点击，导航到商品详情页
+  const handleItemPress = useCallback((item: ListingItem) => {
+    navigation.navigate("ListingDetail", { item });
+  }, [navigation]);
+
   // 计算 Toast 显示条件
   const shouldShowToast = !aiAnalysis && !isSavedOutfit && aiToastVisible;
 
@@ -653,12 +758,19 @@ export default function ViewOutfitScreen() {
               <View style={styles.previewRow}>
                 <View style={styles.leftColumn}>
                   {leftItems.map((section, index) => (
-                    <PreviewCard key={index} item={section.item} />
+                    <PreviewCard 
+                      key={index} 
+                      item={section.item} 
+                      onPress={section.item ? handleItemPress : undefined}
+                    />
                   ))}
                 </View>
                 <View style={styles.rightColumn}>
                   <Text style={styles.sectionLabel}>ACCESSORIES</Text>
-                  <AccessoryGrid items={rightItems} />
+                  <AccessoryGrid 
+                    items={rightItems} 
+                    onItemPress={handleItemPress}
+                  />
                 </View>
               </View>
             </View>
@@ -693,11 +805,22 @@ export default function ViewOutfitScreen() {
               )}
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.primaryButton}
+              style={[
+                styles.primaryButton,
+                (isAddingToBag || composedSelection.length === 0) && styles.primaryButtonDisabled,
+              ]}
               onPress={handleAddToBag}
               activeOpacity={0.9}
+              disabled={isAddingToBag || composedSelection.length === 0}
             >
-              <Text style={styles.primaryText}>Add All To Bag</Text>
+              {isAddingToBag ? (
+                <>
+                  <ActivityIndicator size="small" color="#fff" />
+                  <Text style={styles.primaryText}>Adding...</Text>
+                </>
+              ) : (
+                <Text style={styles.primaryText}>Add All To Bag</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -893,6 +1016,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 16,
+    flexDirection: "row",
+    gap: 8,
+    opacity: 1,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.5,
   },
   primaryText: {
     fontSize: 16,

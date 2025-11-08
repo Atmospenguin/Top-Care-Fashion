@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from '../../../components/Icon';
 import { outfitService } from '../../../src/services/outfitService';
 import { listingsService } from '../../../src/services/listingsService';
@@ -47,9 +47,14 @@ export default function SavedOutfitsTab() {
     }
   }, []);
 
-  const fetchSavedOutfits = useCallback(async () => {
+  const fetchSavedOutfits = useCallback(async (clearCache = false) => {
     try {
       setLoading(true);
+
+      // ✅ 如果 clearCache 为 true，清空缓存以确保获取最新数据
+      if (clearCache) {
+        listingCache.current.clear();
+      }
 
       const outfitsData = await outfitService.getSavedOutfits();
       console.log('📖 Fetched', outfitsData.length, 'outfits');
@@ -88,9 +93,13 @@ export default function SavedOutfitsTab() {
     }
   }, [fetchListingDetails]);
 
-  useEffect(() => {
-    fetchSavedOutfits();
-  }, [fetchSavedOutfits]);
+  // ✅ 使用 useFocusEffect 在页面获得焦点时刷新数据
+  useFocusEffect(
+    useCallback(() => {
+      // 当页面获得焦点时，清空缓存并刷新数据
+      fetchSavedOutfits(true);
+    }, [fetchSavedOutfits])
+  );
 
   // ✅ 导航到 ViewOutfitScreen
   const handleViewOutfit = useCallback((outfit: OutfitWithItems) => {
