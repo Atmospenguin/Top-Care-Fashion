@@ -464,6 +464,17 @@ export default function ViewOutfitScreen() {
     return vibeMap[vibe.toLowerCase()] || '👕';
   };
 
+  // ✅ 动态计算底部 padding：底栏高度 + SafeArea bottom inset + 额外间距
+  const bottomBarHeight = useMemo(() => {
+    // 底栏 paddingTop: 16
+    // 按钮高度：paddingVertical(16*2) + 文字高度(约14-16) = 约46-48px
+    const barPaddingTop = 16;
+    const buttonHeight = 16 * 2 + 16; // paddingVertical * 2 + 文字高度估算
+    const barPaddingBottom = insets.bottom; // paddingBottom 已包含 SafeArea inset
+    // 底栏总高度 = paddingTop + 按钮高度 + paddingBottom + 额外安全间距
+    return barPaddingTop + buttonHeight + barPaddingBottom + 12; // 额外12px作为安全间距
+  }, [insets.bottom]);
+
   const leftItems: Array<{ item: ListingItem | null }> = [
     { item: top || baseItem },
     { item: bottom || baseItem },
@@ -628,7 +639,7 @@ export default function ViewOutfitScreen() {
       <SafeAreaView style={styles.body} edges={["left", "right"]}>
         <ScrollView 
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomBarHeight }]}
           showsVerticalScrollIndicator={false}
           onScroll={handleScroll}
           scrollEventThrottle={16}
@@ -656,7 +667,7 @@ export default function ViewOutfitScreen() {
         </ScrollView>
 
         <View style={styles.bottomSafe}>
-          <View style={styles.bottomBar}>
+          <View style={[styles.bottomBar, { paddingBottom: insets.bottom }]}>
             {!isSavedOutfit && (
               <TouchableOpacity
                 style={styles.saveOutfitButton}
@@ -717,7 +728,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 240, // Space for bottom bar
+    // paddingBottom 现在通过动态计算设置
   },
   content: {
     paddingHorizontal: 8,
@@ -837,7 +848,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingTop: 16,
     paddingHorizontal: 16,
-    paddingBottom: 24,
     columnGap: 8,
   },
   saveOutfitButton: {
