@@ -176,7 +176,7 @@ class PollingService {
   }
 
   /**
-   * 检查新消息
+   * 检查新消息（使用轻量级API）
    */
   private async checkForNewMessages(): Promise<void> {
     // 🔥 再次检查服务是否仍在运行
@@ -186,10 +186,10 @@ class PollingService {
     }
 
     try {
-      // 获取所有对话
-      const conversations = await messagesService.getConversations();
+      // 🔥 使用轻量级API一次性获取所有对话的最后消息信息（包含发送者信息和未读状态）
+      const conversations = await messagesService.checkConversationsForNewMessages();
 
-      for (const conversation of conversations) {
+      for (const conv of conversations) {
         // 🔥 在每次循环中检查服务状态
         if (!this.isRunning) {
           console.log('⏭️ PollingService stopped during message check loop');
@@ -197,35 +197,63 @@ class PollingService {
         }
 
         // 跳过当前打开的对话（避免重复通知）
-        if (conversation.id === this.currentConversationId) {
+        if (conv.conversationId === this.currentConversationId) {
+          continue;
+        }
+
+        // 跳过自己发送的消息（不需要通知）
+        if (conv.isFromMe) {
+          // 更新记录但不通知
+          this.lastCheckData.conversations[conv.conversationId] = {
+            lastMessageId: conv.lastMessageId,
+            lastMessageTime: new Date(conv.lastMessageTime).getTime(),
+          };
+          continue;
+        }
+
+        const lastCheck = this.lastCheckData.conversations[conv.conversationId];
+
+        // 如果是第一次检查，记录当前状态但不通知
+        if (!lastCheck) {
+          this.lastCheckData.conversations[conv.conversationId] = {
+            lastMessageId: conv.lastMessageId,
+            lastMessageTime: new Date(conv.lastMessageTime).getTime(),
+          };
           continue;
         }
 
         // 检查是否有新消息
-        const hasNewMessage = await this.checkConversationForNewMessages(conversation.id);
+        if (conv.lastMessageId !== lastCheck.lastMessageId) {
+          // 更新记录
+          this.lastCheckData.conversations[conv.conversationId] = {
+            lastMessageId: conv.lastMessageId,
+            lastMessageTime: new Date(conv.lastMessageTime).getTime(),
+          };
 
-        if (hasNewMessage && conversation.unread) {
-          // 获取对话的最新消息详情
-          try {
-            const conversationDetail = await messagesService.getMessages(conversation.id);
-            const messages = conversationDetail.messages || [];
-            
-            if (messages.length > 0) {
-              const lastMessage = messages[messages.length - 1];
+          // 检查对话是否有未读消息（仅在有新消息且未读时才获取完整消息详情并通知）
+          if (conv.isUnread) {
+            // 获取对话的最新消息详情（仅在有新消息且未读时才调用）
+            try {
+              const conversationDetail = await messagesService.getMessages(conv.conversationId);
+              const messages = conversationDetail.messages || [];
               
-              // 显示通知
-              await localNotificationService.showMessageNotification({
-                title: conversation.sender,
-                body: lastMessage.text || '新消息',
-                conversationId: conversation.id,
-                userId: lastMessage.senderInfo?.id?.toString(),
-                username: lastMessage.senderInfo?.username,
-              });
-            }
-          } catch (error) {
-            // 🔥 只在服务运行时记录错误
-            if (this.isRunning) {
-              console.error(`❌ Error fetching messages for conversation ${conversation.id}:`, error);
+              if (messages.length > 0) {
+                const lastMessage = messages[messages.length - 1];
+                
+                // 显示通知
+                await localNotificationService.showMessageNotification({
+                  title: conv.senderUsername,
+                  body: lastMessage.text || '新消息',
+                  conversationId: conv.conversationId,
+                  userId: lastMessage.senderInfo?.id?.toString(),
+                  username: lastMessage.senderInfo?.username || conv.senderUsername,
+                });
+              }
+            } catch (error) {
+              // 🔥 只在服务运行时记录错误
+              if (this.isRunning) {
+                console.error(`❌ Error fetching messages for conversation ${conv.conversationId}:`, error);
+              }
             }
           }
         }
@@ -238,54 +266,8 @@ class PollingService {
     }
   }
 
-  /**
-   * 检查对话是否有新消息
-   */
-  private async checkConversationForNewMessages(conversationId: string): Promise<boolean> {
-    // 🔥 检查服务状态
-    if (!this.isRunning) {
-      return false;
-    }
-
-    try {
-      const conversationDetail = await messagesService.getMessages(conversationId);
-      const messages = conversationDetail.messages || [];
-
-      if (messages.length === 0) {
-        return false;
-      }
-
-      const lastMessage = messages[messages.length - 1];
-      const lastCheck = this.lastCheckData.conversations[conversationId];
-
-      // 如果是第一次检查，记录当前状态
-      if (!lastCheck) {
-        this.lastCheckData.conversations[conversationId] = {
-          lastMessageId: lastMessage.id,
-          lastMessageTime: new Date(lastMessage.time || Date.now()).getTime(),
-        };
-        return false; // 首次检查不通知
-      }
-
-      // 检查是否有新消息
-      if (lastMessage.id !== lastCheck.lastMessageId) {
-        // 更新记录
-        this.lastCheckData.conversations[conversationId] = {
-          lastMessageId: lastMessage.id,
-          lastMessageTime: new Date(lastMessage.time || Date.now()).getTime(),
-        };
-        return true;
-      }
-
-      return false;
-    } catch (error) {
-      // 🔥 只在服务运行时记录错误
-      if (this.isRunning) {
-        console.error(`❌ Error checking conversation ${conversationId}:`, error);
-      }
-      return false;
-    }
-  }
+  // 🔥 已移除：checkConversationForNewMessages 方法
+  // 现在使用轻量级API一次性检查所有对话，不再需要单独检查每个对话
 
   /**
    * 检查新通知

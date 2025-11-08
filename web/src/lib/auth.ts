@@ -61,10 +61,10 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
     // 如果有 Request 对象，尝试从 Authorization header 获取 token
     if (req) {
       const authHeader = req.headers.get('authorization');
-      console.log("🔍 Auth header:", authHeader);
+      // console.log("🔍 Auth header:", authHeader);
       if (authHeader?.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
-        console.log("🔍 Bearer token:", token.substring(0, 20) + "...");
+        // console.log("🔍 Bearer token:", token.substring(0, 20) + "...");
         // 先尝试 legacy JWT（移动端兜底）
         try {
           const legacy = verifyLegacyToken(token);
@@ -103,24 +103,24 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
             }
           }
         } catch (e) {
-          console.log("❌ Legacy token auth failed:", e);
+          // console.log("❌ Legacy token auth failed:", e);
         }
         try {
           const { data: { user: supabaseUser }, error } = await supabase.auth.getUser(token);
-          console.log("🔍 Supabase user:", supabaseUser?.id);
-          console.log("🔍 Supabase error:", error);
+          // console.log("🔍 Supabase user:", supabaseUser?.id);
+          // console.log("🔍 Supabase error:", error);
           if (supabaseUser && !error) {
             const dbUser = await findUserBySupabaseId(supabaseUser.id);
-            console.log("🔍 DB user found:", dbUser?.username);
+            // console.log("🔍 DB user found:", dbUser?.username);
             return dbUser;
           }
         } catch (error) {
-          console.log("❌ Bearer token auth failed:", error);
+          // console.log("❌ Bearer token auth failed:", error);
         }
 
         // 如果提供了 Authorization header 但验证失败，不要 fallback 到 cookie
         // 直接返回 null，让 API 返回 401
-        console.log("🔍 Bearer token provided but invalid, skipping cookie fallback");
+        // console.log("🔍 Bearer token provided but invalid, skipping cookie fallback");
         return null;
       }
     }
