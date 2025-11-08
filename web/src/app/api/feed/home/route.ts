@@ -1,162 +1,247 @@
 // web/src/app/api/feed/home/route.ts
 import { NextResponse, NextRequest } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { cookies as nextCookies } from "next/headers";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || ""; // server-only
 
-// In-memory cache (clears on server restart)
-const cache = new Map<string, { data: { items: any[]; meta: any }; timestamp: number }>();
-const CACHE_TTL_MS = 20_000; // 20s
-const INT32_MAX = 2_147_483_647;
+type FeedRow = {
+  id: number;
+  title: string | null;
+  image_url: string | null;
+  price_cents: number | null;
+  brand: string | null;
+  tags: string[] | null;
+  source: "trending" | "brand" | "tag" | "brand&tag" | "affinity";
+  fair_score: number | null;
+  final_score: number | null;
+};
 
-const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+// ---------------- In-memory cache ----------------
+const cache = new Map<string, { data: { items: FeedRow[]; meta: any }; ts: number }>();
+const CACHE_TTL_MS = 20_000;
 
-export async function GET(req: NextRequest) {
-  // Normalize Next cookies into the object shape expected by older/newer @supabase/ssr APIs
+function parseIntSafe(v: string | null, d: number) {
+  const n = v ? parseInt(v, 10) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : d;
+}
+function parseSeed(v: string | null, d: number) {
+  const n = v ? parseInt(v, 10) : NaN;
+  return Number.isFinite(n) ? n : d;
+}
+function okJson(data: any, init?: number | ResponseInit) {
+  // Allow shorthand okJson(data, 401) or okJson(data, { status: 401 })
+  const opts: ResponseInit | undefined = typeof init === "number" ? { status: init } : init;
+  return NextResponse.json(data, opts);
+}
+
+// ---------------- Auth extraction ----------------
+async function getSupabaseUserIdFromRequest(req: NextRequest): Promise<string | null> {
+  // 1) Try mobile Bearer token
+  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+
+  if (token) {
+    const tmp = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data, error } = await tmp.auth.getUser(token);
+    if (!error && data?.user?.id) return data.user.id;
+  }
+
+  // 2) Fallback: SSR cookie session (Next.js web)
+try {
+  // In your setup cookies() is typed async → await it.
   const cookieStore = await (nextCookies() as any);
-  const cookieShim = {
-    get(name: string) {
-      return cookieStore.get?.(name)?.value as string | undefined;
-    },
-    set(name: string, value: string, options: CookieOptions) {
-      cookieStore.set?.({ name, value, ...options });
-    },
-    remove(name: string, options: CookieOptions) {
-      cookieStore.set?.({ name, value: "", ...options, maxAge: 0 });
-    },
-  } satisfies {
-    get(name: string): string | undefined;
-    set(name: string, value: string, options: CookieOptions): void;
-    remove(name: string, options: CookieOptions): void;
-  };
 
-  const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    cookies: cookieShim as any, // cast for cross-version compatibility
+  const ssr = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    cookies: {
+      get(name: string) {
+        return cookieStore.get(name)?.value;
+      },
+      set(name: string, value: string, options: CookieOptions) {
+        // In Route Handlers, request cookies are mutable
+        cookieStore.set({ name, value, ...options });
+      },
+      remove(name: string, options: CookieOptions) {
+        cookieStore.delete({ name, ...options });
+      },
+    },
   });
 
-  // --- Query params ---
-  const { searchParams } = new URL(req.url);
-  const limit = Math.max(1, Number(searchParams.get("limit") ?? 20));
-  const page = Math.max(1, Number(searchParams.get("page") ?? 1));
-  const tag = (searchParams.get("tag") ?? null) || null;
+  const { data, error } = await ssr.auth.getUser();
+  if (!error && data?.user?.id) return data.user.id;
+} catch {
+  // ignore
+}
 
-  // seedId: clamp to int32
-  const seedParam = searchParams.get("seedId");
-  let seedId: number | null = null;
-  if (seedParam && !Number.isNaN(Number(seedParam))) {
-    const n = Math.trunc(Number(seedParam));
-    seedId = Math.max(0, Math.min(INT32_MAX, n));
+  return null;
+}
+
+// ---------------- TRENDING (no auth) ----------------
+async function fetchTrending(limit: number, offset: number): Promise<{ items: FeedRow[]; meta: any }> {
+  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY);
+
+  const { data: recs, error: recErr } = await admin
+    .from("listing_recommendations_main_fair")
+    .select("listing_id,fair_score")
+    .order("fair_score", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (recErr) {
+    return { items: [], meta: { error: recErr.message, mode: "trending", limit, offset } };
   }
 
-  // cache bypass toggles for testing
-  const noStore = searchParams.get("noStore") === "1" || Boolean(searchParams.get("cacheBust"));
+  const ids = (recs ?? []).map((r) => r.listing_id);
+  if (ids.length === 0) {
+    return { items: [], meta: { mode: "trending", limit, offset, seedId: null, cached: false } };
+  }
+
+  const { data: cards, error: cardErr } = await admin
+    .from("listing_card_v")
+    .select("id,title,image_url,price_cents,brand,tags")
+    .in("id", ids as number[]);
+
+  if (cardErr) {
+    return { items: [], meta: { error: cardErr.message, mode: "trending", limit, offset } };
+  }
+
+  // Preserve rec order
+  const byId = new Map<number, any>((cards ?? []).map((c: any) => [c.id, c]));
+  const items: FeedRow[] = ids
+    .map((id) => {
+      const card = byId.get(id);
+      const fair = recs?.find((r) => r.listing_id === id)?.fair_score ?? null;
+      if (!card) return null;
+      return {
+        id,
+        title: card.title ?? "",
+        image_url: card.image_url ?? null,
+        price_cents: Number(card.price_cents ?? 0),
+        brand: card.brand ?? "",
+        tags: Array.isArray(card.tags) ? card.tags : [],
+        source: "trending",
+        fair_score: fair,
+        final_score: fair,
+      } as FeedRow;
+    })
+    .filter(Boolean) as FeedRow[];
+
+  return {
+    items,
+    meta: { mode: "trending", page: Math.floor(offset / limit) + 1, limit, cached: false },
+  };
+}
+
+// ---------------- FOR YOU (auth required) ----------------
+async function fetchForYou(
+  supabaseUserId: string,
+  limit: number,
+  offset: number,
+  seedId: number,
+  gender: string | null
+): Promise<{ items: FeedRow[]; meta: any; status?: number }> {
+  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY);
+
+  const { data, error } = await admin.rpc("get_feed_v2", {
+    p_supabase_user_id: supabaseUserId,
+    p_mode: "foryou",
+    p_limit: limit,
+    p_offset: offset,
+    p_seed: seedId,
+    p_gender: gender ?? "unisex",
+  });
+
+  if (error) {
+    return {
+      items: [],
+      meta: { mode: "foryou", limit, page: Math.floor(offset / limit) + 1, seedId, error: error.message },
+      status: 500,
+    };
+  }
+
+  const rows = Array.isArray(data) ? (data as any[]) : [];
+  const items: FeedRow[] = rows.map((r) => ({
+    id: Number(r.id),
+    title: r.title ?? "",
+    image_url: r.image_url ?? null,
+    price_cents: Number(r.price_cents ?? 0),
+    brand: r.brand ?? "",
+    tags: Array.isArray(r.tags) ? r.tags : [],
+    source: (r.source ?? "brand") as FeedRow["source"],
+    fair_score: r.fair_score === null ? null : Number(r.fair_score),
+    final_score: r.final_score === null ? null : Number(r.final_score),
+  }));
+
+  return {
+    items,
+    meta: { mode: "foryou", page: Math.floor(offset / limit) + 1, limit, seedId, cached: false },
+  };
+}
+
+// ---------------- Route Handler ----------------
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+
+  const modeParam = (url.searchParams.get("mode") || "").toLowerCase(); // "foryou" | "trending"
+  const page = Math.max(1, parseIntSafe(url.searchParams.get("page"), 1));
+  const limit = Math.min(50, parseIntSafe(url.searchParams.get("limit"), 20));
+  const seedId = parseSeed(url.searchParams.get("seedId"), Date.now() | 0);
+  const gender = url.searchParams.get("gender");
+  const noStore = url.searchParams.get("noStore") === "1";
+
   const offset = (page - 1) * limit;
-  const trendingLimit = Math.min(limit, 20);
 
-  const cacheKey = `seed:${seedId ?? "none"}|tag:${tag ?? "none"}|limit:${limit}|page:${page}`;
+  const supabaseUserId = await getSupabaseUserIdFromRequest(req);
+  const effectiveMode =
+    modeParam === "foryou"
+      ? "foryou"
+      : modeParam === "trending"
+      ? "trending"
+      : supabaseUserId
+      ? "foryou"
+      : "trending";
 
-  // --- Memory cache (20s) ---
-  const cached = !noStore ? cache.get(cacheKey) : undefined;
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    const res = NextResponse.json(
-      { items: cached.data.items, meta: cached.data.meta, cached: true },
-      { status: 200 }
-    );
-    res.headers.set(
-      "Cache-Control",
-      noStore ? "no-store" : "public, s-maxage=20, stale-while-revalidate=10"
-    );
-    res.headers.set("Vary", "seedId, page, tag");
-    if (process.env.NODE_ENV !== "production") {
-      console.log("[feed/home]", {
-        cache: "hit",
-        seedId,
-        page,
-        tag,
-        firstIds: (cached.data.items || []).slice(0, 5).map((x: any) => x.id),
-      });
-    }
-    return res;
-  }
+  const cacheKey = `${effectiveMode}|p=${page}|l=${limit}|seed=${seedId}|g=${gender ?? ""}`;
 
-  // --- Call RPC with retry on transient errors ---
-  let data: any[] | null = null;
-  let rpcError: Error | null = null;
-  const MAX_ATTEMPTS = 3;
-
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const result = await supabase.rpc("get_home_feed", {
-      p_listing_id: null,            // home is not anchored to a listing
-      p_limit: limit,
-      p_tag: tag,
-      p_trending_limit: trendingLimit,
-      p_seed: seedId,                // <-- NEW: seed drives tie-breaks
-      p_offset: offset,              // <-- NEW: pagination
-    });
-
-    if (!result.error && result.data) {
-      data = result.data;
-      break;
-    }
-
-    rpcError = (result.error as any) ?? new Error("Unknown Supabase error");
-    const transient = /overloaded|timeout|rate|too\s+many/i.test(
-      String((rpcError as any)?.message || "")
-    );
-    if (!transient) break;
-
-    console.warn(`[feed/home] Retry ${attempt}/${MAX_ATTEMPTS}:`, (rpcError as any).message);
-    await sleep(500 * attempt);
-  }
-
-  if (!data) {
-    console.error("[feed/home] RPC failed:", rpcError);
-    return NextResponse.json(
-      {
-        items: [],
-        meta: { buckets: { trending: 0, brand: 0, tag: 0 }, page, limit, seedId, cached: false },
-        error: "Feed temporarily unavailable. Please try again shortly.",
-      },
-      { status: 503 }
-    );
-  }
-
-  // --- Build meta (bucket counts) ---
-  const buckets = {
-    trending: data.filter((x: any) => x.source === "trending").length,
-    brand: data.filter((x: any) => x.source === "brand").length,
-    tag: data.filter((x: any) => x.source === "tag").length,
-  };
-
-  const payload = {
-    items: data,
-    meta: { buckets, page, limit, seedId, cached: false },
-  };
-
-  // --- Memory cache set ---
   if (!noStore) {
-    cache.set(cacheKey, { data: payload, timestamp: Date.now() });
+    const hit = cache.get(cacheKey);
+    if (hit && Date.now() - hit.ts < CACHE_TTL_MS) {
+      return okJson({ ...hit.data, meta: { ...hit.data.meta, cached: true } });
+    }
   }
 
-  const res = NextResponse.json(payload, { status: 200 });
-  res.headers.set(
-    "Cache-Control",
-    noStore ? "no-store" : "public, s-maxage=20, stale-while-revalidate=10"
-  );
-  res.headers.set("Vary", "seedId, page, tag");
+  try {
+    let result: { items: FeedRow[]; meta: any; status?: number };
 
-  if (process.env.NODE_ENV !== "production") {
-    console.log("[feed/home]", {
-      cache: "miss",
-      seedId,
-      page,
-      tag,
-      buckets,
-      firstIds: data.slice(0, 5).map((x: any) => x.id),
-    });
+    if (effectiveMode === "foryou") {
+      if (!supabaseUserId) {
+        return okJson({ items: [], meta: { mode: "foryou", error: "Unauthorized" } }, { status: 401 });
+      }
+      result = await fetchForYou(supabaseUserId, limit, offset, seedId, gender);
+      if (result.status) {
+        const { status, ...rest } = result as any;
+        return okJson(rest, { status });
+      }
+    } else {
+      result = await fetchTrending(limit, offset);
+    }
+
+    const data = { items: result.items, meta: { ...(result.meta || {}), cached: false } };
+
+    if (!noStore) {
+      cache.set(cacheKey, { data, ts: Date.now() });
+    }
+
+    return okJson(data);
+  } catch (e: any) {
+    return okJson(
+      { items: [], meta: { error: e?.message ?? "Internal error", mode: "trending", cached: false } },
+      { status: 500 }
+    );
   }
-
-  return res;
 }
