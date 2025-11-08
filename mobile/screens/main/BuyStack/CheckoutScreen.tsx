@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View, TextInput, Alert, Modal } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, CommonActions } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 
@@ -42,13 +42,15 @@ export default function CheckoutScreen() {
   const { user } = useAuth();
 
   // 🔥 状态管理 - 地址和付款方式
-  const [shippingAddress, setShippingAddress] = useState(DEFAULT_SHIPPING_ADDRESS);
+  const [shippingAddress, setShippingAddress] = useState<ShippingAddress | null>(null);
   const [paymentMethod, setPaymentMethod] = useState(DEFAULT_PAYMENT_METHOD);
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(null);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   
   // 🔥 地址管理状态
   const [defaultAddress, setDefaultAddress] = useState<ShippingAddress | null>(null);
+  const [allAddresses, setAllAddresses] = useState<ShippingAddress[]>([]);
+  const [showAddressSelector, setShowAddressSelector] = useState(false);
   const [showAddAddressForm, setShowAddAddressForm] = useState(false);
   const [addressForm, setAddressForm] = useState<CreateAddressRequest>({
     name: '',
@@ -64,6 +66,7 @@ export default function CheckoutScreen() {
   
   // 🔥 编辑状态管理
   const [editingField, setEditingField] = useState<'personal' | 'payment' | null>(null);
+  const [editingAddress, setEditingAddress] = useState<ShippingAddress | null>(null);
   const [editForm, setEditForm] = useState({
     name: '',
     phone: '',
@@ -114,6 +117,16 @@ export default function CheckoutScreen() {
   );
   const deliveryEstimate = useMemo(() => getDeliveryEstimate(), []);
 
+  // 🔥 加载所有地址
+  const loadAllAddresses = async () => {
+    try {
+      const addresses = await addressService.getAddresses();
+      setAllAddresses(addresses);
+    } catch (err) {
+      console.warn('Failed to load addresses', err);
+    }
+  };
+
   // 🔥 从后端加载用户默认支付方式和地址
   useEffect(() => {
     let mounted = true;
@@ -132,21 +145,16 @@ export default function CheckoutScreen() {
           });
         }
         
-        // 加载默认地址
-        const defAddress = await addressService.getDefaultAddress();
+        // 加载所有地址
+        const addresses = await addressService.getAddresses();
         if (!mounted) return;
+        setAllAddresses(addresses);
+        
+        // 加载默认地址
+        const defAddress = addresses.find(addr => addr.isDefault) || null;
         if (defAddress) {
           setDefaultAddress(defAddress);
-          setShippingAddress({
-            name: defAddress.name,
-            phone: defAddress.phone,
-            line1: defAddress.line1,
-            line2: defAddress.line2 || '',
-            city: defAddress.city,
-            state: defAddress.state,
-            postalCode: defAddress.postalCode,
-            country: defAddress.country,
-          });
+          setShippingAddress(defAddress);
         }
       } catch (err) {
         console.warn('Failed to load defaults', err);
@@ -159,6 +167,7 @@ export default function CheckoutScreen() {
 
   // 🔥 格式化地址函数
   const formatCurrentAddress = () => {
+    if (!shippingAddress) return '';
     const parts = [shippingAddress.line1];
     if (shippingAddress.line2) parts.push(shippingAddress.line2);
     parts.push(
@@ -168,41 +177,116 @@ export default function CheckoutScreen() {
     return parts.join("\n");
   };
 
-  // 🔥 编辑功能
-  const handleEditField = (field: 'personal' | 'payment') => {
-    setEditingField(field);
-    // 初始化表单数据
-    setEditForm({
-      name: shippingAddress.name,
-      phone: shippingAddress.phone,
-      line1: shippingAddress.line1,
-      line2: shippingAddress.line2 || '',
-      city: shippingAddress.city,
-      state: shippingAddress.state,
-      postalCode: shippingAddress.postalCode,
-      country: shippingAddress.country,
-    });
+  // 🔥 打开地址选择器
+  const handleOpenAddressSelector = async () => {
+    await loadAllAddresses();
+    setShowAddressSelector(true);
   };
 
-  const handleSaveEdit = () => {
-    if (editingField === 'personal') {
-      setShippingAddress({
-        ...shippingAddress,
-        name: editForm.name,
-        phone: editForm.phone,
-        line1: editForm.line1,
-        line2: editForm.line2,
-        city: editForm.city,
-        state: editForm.state,
-        postalCode: editForm.postalCode,
-        country: editForm.country
-      });
+  // 🔥 选择地址
+  const handleSelectAddress = (address: ShippingAddress) => {
+    setDefaultAddress(address);
+    setShippingAddress(address);
+    setShowAddressSelector(false);
+  };
+
+  // 🔥 编辑地址
+  const handleEditAddress = (address: ShippingAddress) => {
+    setEditingAddress(address);
+    setEditForm({
+      name: address.name,
+      phone: address.phone,
+      line1: address.line1,
+      line2: address.line2 || '',
+      city: address.city,
+      state: address.state,
+      postalCode: address.postalCode,
+      country: address.country,
+    });
+    setShowAddressSelector(false);
+    setEditingField('personal');
+  };
+
+  // 🔥 删除地址
+  const handleDeleteAddress = async (addressId: number) => {
+    Alert.alert(
+      'Delete Address',
+      'Are you sure you want to delete this address?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await addressService.deleteAddress(addressId);
+              await loadAllAddresses();
+              
+              // 如果删除的是当前选中的地址，清除选择
+              if (defaultAddress?.id === addressId) {
+                const remainingAddresses = allAddresses.filter(a => a.id !== addressId);
+                const newDefault = remainingAddresses.find(a => a.isDefault) || remainingAddresses[0] || null;
+                setDefaultAddress(newDefault);
+                setShippingAddress(newDefault);
+              }
+            } catch (error) {
+              console.error('Failed to delete address:', error);
+              Alert.alert('Error', 'Failed to delete address');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // 🔥 编辑功能（仅用于支付方式）
+  const handleEditField = (field: 'personal' | 'payment') => {
+    if (field === 'personal') {
+      handleOpenAddressSelector();
+      return;
+    }
+    setEditingField(field);
+  };
+
+  const handleSaveEdit = async () => {
+    if (editingField === 'personal' && editingAddress) {
+      try {
+        // 调用 API 更新地址
+        const updatedAddress = await addressService.updateAddress(editingAddress.id, {
+          name: editForm.name,
+          phone: editForm.phone,
+          line1: editForm.line1,
+          line2: editForm.line2,
+          city: editForm.city,
+          state: editForm.state,
+          postalCode: editForm.postalCode,
+          country: editForm.country
+        });
+        
+        // 更新地址列表
+        await loadAllAddresses();
+        
+        // 如果更新的是当前选中的地址，更新状态
+        if (defaultAddress?.id === editingAddress.id) {
+          setDefaultAddress(updatedAddress);
+          setShippingAddress(updatedAddress);
+        }
+        
+        setEditingAddress(null);
+        Alert.alert('Success', 'Address updated successfully');
+      } catch (error) {
+        console.error('Failed to update address:', error);
+        Alert.alert('Error', 'Failed to update address');
+        return;
+      }
     }
     setEditingField(null);
+    setEditingAddress(null);
   };
 
   const handleCancelEdit = () => {
     setEditingField(null);
+    setEditingAddress(null);
   };
 
   // 🔥 处理添加地址
@@ -233,19 +317,13 @@ export default function CheckoutScreen() {
     try {
       const newAddress = await addressService.createAddress(addressForm);
       
+      // 重新加载地址列表
+      await loadAllAddresses();
+      
       // 如果这是第一个地址或设置为默认，使用它
       if (!defaultAddress || addressForm.isDefault) {
         setDefaultAddress(newAddress);
-        setShippingAddress({
-          name: newAddress.name,
-          phone: newAddress.phone,
-          line1: newAddress.line1,
-          line2: newAddress.line2 || '',
-          city: newAddress.city,
-          state: newAddress.state,
-          postalCode: newAddress.postalCode,
-          country: newAddress.country,
-        });
+        setShippingAddress(newAddress);
       }
       
       setShowAddAddressForm(false);
@@ -264,6 +342,46 @@ export default function CheckoutScreen() {
   const handlePlaceOrder = async () => {
     if (!user) {
       Alert.alert("Error", "Please log in to place an order");
+      return;
+    }
+
+    // 🔥 验证地址 - 必须要有真实地址
+    if (!defaultAddress || !shippingAddress) {
+      Alert.alert(
+        "Missing Shipping Address", 
+        "Please add a shipping address before placing an order",
+        [
+          {
+            text: "Add Address",
+            onPress: () => handleAddAddress(),
+          },
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+        ]
+      );
+      return;
+    }
+
+    // 🔥 验证地址字段完整性
+    if (!shippingAddress.name || !shippingAddress.phone || !shippingAddress.line1 || 
+        !shippingAddress.city || !shippingAddress.state || !shippingAddress.postalCode || 
+        !shippingAddress.country) {
+      Alert.alert(
+        "Invalid Address", 
+        "Please complete all required address fields",
+        [
+          {
+            text: "Edit Address",
+            onPress: () => handleEditField('personal'),
+          },
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+        ]
+      );
       return;
     }
 
@@ -375,25 +493,80 @@ export default function CheckoutScreen() {
                     
                     console.log("🔍 Navigating to Chat with order data:", orderData);
                     
-                    rootNavigation.navigate("Main", {
-                      screen: "Inbox",
-                      params: {
-                        screen: "Chat",
-                        params: {
-                          sender: orderData.seller.name,
-                          kind: "order",
-                          order: orderData,
-                          conversationId: conversationId || null,
-                          autoSendPaidMessage: false
-                        }
-                      }
-                    });
+                    // 🔥 重置导航栈，确保不能返回到 CheckoutScreen
+                    // 直接导航到 Inbox -> Chat，并重置导航历史
+                    rootNavigation.dispatch(
+                      CommonActions.reset({
+                        index: 0,
+                        routes: [
+                          {
+                            name: "Main",
+                            state: {
+                              routes: [
+                                { name: "Home" },
+                                { name: "Discover" },
+                                { name: "Sell" },
+                                {
+                                  name: "Inbox",
+                                  state: {
+                                    routes: [
+                                      { name: "InboxMain" },
+                                      {
+                                        name: "Chat",
+                                        params: {
+                                          sender: orderData.seller.name,
+                                          kind: "order",
+                                          order: orderData,
+                                          conversationId: conversationId || null,
+                                          autoSendPaidMessage: false
+                                        }
+                                      }
+                                    ],
+                                    index: 1
+                                  }
+                                },
+                                { name: "My TOP" }
+                              ],
+                              index: 3
+                            }
+                          }
+                        ]
+                      })
+                    );
                   } catch (error) {
                     console.error("❌ Error navigating to Chat:", error);
-                    (navigation as any).goBack();
+                    // 🔥 导航出错时，也重置到 Inbox，避免回到 CheckoutScreen
+                    const rootNav = (navigation as any).getParent?.();
+                    if (rootNav) {
+                      rootNav.dispatch(
+                        CommonActions.reset({
+                          index: 0,
+                          routes: [
+                            {
+                              name: "Main",
+                              params: { screen: "Inbox" }
+                            }
+                          ]
+                        })
+                      );
+                    }
                   }
                 } else {
-                  (navigation as any).goBack();
+                  // 🔥 如果没有订单ID，也重置到 Inbox
+                  const rootNav = (navigation as any).getParent?.();
+                  if (rootNav) {
+                    rootNav.dispatch(
+                      CommonActions.reset({
+                        index: 0,
+                        routes: [
+                          {
+                            name: "Main",
+                            params: { screen: "Inbox" }
+                          }
+                        ]
+                      })
+                    );
+                  }
                 }
               }
             }
@@ -401,7 +574,21 @@ export default function CheckoutScreen() {
         );
       } else {
         Alert.alert("Success", "Order created successfully!");
-        navigation.goBack();
+        // 🔥 重置到 Inbox，避免回到 CheckoutScreen
+        const rootNav = (navigation as any).getParent?.();
+        if (rootNav) {
+          rootNav.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [
+                {
+                  name: "Main",
+                  params: { screen: "Inbox" }
+                }
+              ]
+            })
+          );
+        }
       }
       
     } catch (error) {
@@ -438,14 +625,16 @@ export default function CheckoutScreen() {
           {defaultAddress ? (
             <>
               {/* 显示默认地址 */}
-              <View style={styles.defaultAddressCard}>
-                <Text style={styles.addressName}>{shippingAddress.name}</Text>
-                <Text style={styles.addressPhone}>{shippingAddress.phone}</Text>
-                <Text style={styles.addressBody}>{formatCurrentAddress()}</Text>
-                <View style={styles.defaultBadge}>
-                  <Text style={styles.defaultBadgeText}>Default</Text>
+              {shippingAddress && (
+                <View style={styles.defaultAddressCard}>
+                  <Text style={styles.addressName}>{shippingAddress.name}</Text>
+                  <Text style={styles.addressPhone}>{shippingAddress.phone}</Text>
+                  <Text style={styles.addressBody}>{formatCurrentAddress()}</Text>
+                  <View style={styles.defaultBadge}>
+                    <Text style={styles.defaultBadgeText}>Default</Text>
+                  </View>
                 </View>
-              </View>
+              )}
               
               {/* Add Address 按钮 */}
               <TouchableOpacity 
@@ -515,15 +704,117 @@ export default function CheckoutScreen() {
 
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={[styles.primaryButton, isCreatingOrder && styles.primaryButtonDisabled]}
+          style={[
+            styles.primaryButton, 
+            (isCreatingOrder || !defaultAddress || !shippingAddress) && styles.primaryButtonDisabled
+          ]}
           onPress={handlePlaceOrder}
-          disabled={isCreatingOrder}
+          disabled={isCreatingOrder || !defaultAddress || !shippingAddress}
         >
           <Text style={styles.primaryText}>
             {isCreatingOrder ? "Creating Order..." : "Place order"}
           </Text>
         </TouchableOpacity>
+        {(!defaultAddress || !shippingAddress) && (
+          <Text style={styles.helperText}>Please add a shipping address to continue</Text>
+        )}
       </View>
+
+      {/* 🔥 地址选择器模态框 */}
+      <Modal
+        visible={showAddressSelector}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowAddressSelector(false)}>
+              <Text style={styles.modalCancel}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Select Address</Text>
+            <TouchableOpacity onPress={() => {
+              setShowAddressSelector(false);
+              handleAddAddress();
+            }}>
+              <Text style={styles.modalSave}>Add New</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {allAddresses.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>No addresses saved</Text>
+                <TouchableOpacity 
+                  style={styles.addAddressButtonPrimary}
+                  onPress={() => {
+                    setShowAddressSelector(false);
+                    handleAddAddress();
+                  }}
+                >
+                  <Icon name="add-circle" size={20} color="#fff" />
+                  <Text style={styles.addAddressTextPrimary}>Add your first address</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              allAddresses.map((address) => {
+                const isSelected = defaultAddress?.id === address.id;
+                const formatAddress = () => {
+                  const parts = [address.line1];
+                  if (address.line2) parts.push(address.line2);
+                  parts.push(`${address.city}, ${address.state} ${address.postalCode}`);
+                  parts.push(address.country);
+                  return parts.join('\n');
+                };
+
+                return (
+                  <TouchableOpacity
+                    key={address.id}
+                    style={[
+                      styles.addressCard,
+                      isSelected && styles.addressCardSelected
+                    ]}
+                    onPress={() => handleSelectAddress(address)}
+                  >
+                    <View style={styles.addressCardHeader}>
+                      <View style={styles.addressCardInfo}>
+                        <Text style={styles.addressCardName}>{address.name}</Text>
+                        {address.isDefault && (
+                          <View style={styles.defaultBadge}>
+                            <Text style={styles.defaultBadgeText}>Default</Text>
+                          </View>
+                        )}
+                      </View>
+                      {isSelected && (
+                        <Icon name="checkmark-circle" size={24} color="#0066FF" />
+                      )}
+                    </View>
+                    <Text style={styles.addressCardPhone}>{address.phone}</Text>
+                    <Text style={styles.addressCardBody}>{formatAddress()}</Text>
+                    <View style={styles.addressCardActions}>
+                      <TouchableOpacity
+                        style={styles.addressActionButton}
+                        onPress={() => handleEditAddress(address)}
+                      >
+                        <Icon name="create-outline" size={18} color="#0066FF" />
+                        <Text style={styles.addressActionText}>Edit</Text>
+                      </TouchableOpacity>
+                      {allAddresses.length > 1 && (
+                        <TouchableOpacity
+                          style={[styles.addressActionButton, styles.addressActionButtonDanger]}
+                          onPress={() => handleDeleteAddress(address.id)}
+                        >
+                          <Icon name="trash-outline" size={18} color="#FF6B6B" />
+                          <Text style={[styles.addressActionText, styles.addressActionTextDanger]}>Delete</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
 
       {/* 🔥 编辑模态框 */}
       <Modal
@@ -1017,5 +1308,86 @@ const styles = StyleSheet.create({
   checkboxActive: {
     backgroundColor: '#0066FF',
     borderColor: '#0066FF',
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#FF6B6B',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  // 🔥 地址选择器样式
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: '#888',
+    marginBottom: 20,
+  },
+  addressCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  addressCardSelected: {
+    borderColor: '#0066FF',
+    borderWidth: 2,
+    backgroundColor: '#F0F7FF',
+  },
+  addressCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  addressCardInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  addressCardName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  addressCardPhone: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+  },
+  addressCardBody: {
+    fontSize: 14,
+    color: '#444',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  addressCardActions: {
+    flexDirection: 'row',
+    gap: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  addressActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  addressActionButtonDanger: {
+    marginLeft: 'auto',
+  },
+  addressActionText: {
+    fontSize: 14,
+    color: '#0066FF',
+    fontWeight: '500',
+  },
+  addressActionTextDanger: {
+    color: '#FF6B6B',
   },
 });
