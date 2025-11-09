@@ -412,7 +412,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: 4,
   },
-  tagsContainer: { flexDirection: "row", flexWrap: "wrap", flex: 1 },
+  tagsContainer: { 
+    flexDirection: "row", 
+    flexWrap: "wrap", 
+    flex: 1,
+    alignItems: "center",
+    alignContent: "center",
+  },
   boostBadge: {
     marginLeft: 4,
     alignItems: "center",
