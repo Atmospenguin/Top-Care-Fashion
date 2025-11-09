@@ -213,19 +213,6 @@ export default function ContentManagementPage() {
     fetchData();
   }, [fetchData]);
 
-  async function updateStats() {
-    try {
-      setSaving(true);
-      const response = await fetch("/api/admin/site-stats", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(stats),
-      });
-      alert(response.ok ? "Site stats updated successfully!" : "Failed to update site stats");
-    } finally {
-      setSaving(false);
-    }
-  }
 
   async function updateLandingContent() {
     try {
@@ -1037,24 +1024,40 @@ export default function ContentManagementPage() {
         {/* Site Statistics (moved after feedback) */}
         <div className="bg-white p-6 rounded-lg border border-gray-200">
           <h2 className="text-xl font-semibold mb-4">Site Statistics</h2>
+          <p className="text-sm text-gray-600 mb-4">Real-time statistics calculated from the database. Ratings are from user feedback.</p>
           <div className="space-y-4">
             <div>
-              <label htmlFor="users" className="block text-sm font-medium text-gray-700 mb-1">Total Users</label>
-              <input id="users" type="number" value={stats.users} onChange={(e) => setStats({ ...stats, users: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Total Users</label>
+              <div className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-900 font-semibold text-lg">
+                {stats.users.toLocaleString()}
+              </div>
             </div>
             <div>
-              <label htmlFor="listings" className="block text-sm font-medium text-gray-700 mb-1">Total Listings</label>
-              <input id="listings" type="number" value={stats.listings} onChange={(e) => setStats({ ...stats, listings: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Total Listings</label>
+              <div className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-900 font-semibold text-lg">
+                {stats.listings.toLocaleString()}
+              </div>
             </div>
             <div>
-              <label htmlFor="sold" className="block text-sm font-medium text-gray-700 mb-1">Items Sold</label>
-              <input id="sold" type="number" value={stats.sold} onChange={(e) => setStats({ ...stats, sold: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Items Sold</label>
+              <div className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-900 font-semibold text-lg">
+                {stats.sold.toLocaleString()}
+              </div>
             </div>
             <div>
-              <label htmlFor="rating" className="block text-sm font-medium text-gray-700 mb-1">Average Rating</label>
-              <input id="rating" type="number" step="0.1" min="0" max="5" value={stats.rating} onChange={(e) => setStats({ ...stats, rating: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Average Rating (from Feedback)</label>
+              <div className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-900 font-semibold text-lg flex items-center gap-2">
+                <span>{stats.rating.toFixed(1)}</span>
+                <span className="text-yellow-500">{"★".repeat(Math.round(stats.rating))}</span>
+              </div>
             </div>
-            <button onClick={updateStats} disabled={saving} className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50">{saving ? "Updating..." : "Update Statistics"}</button>
+            <button
+              onClick={fetchData}
+              disabled={loading}
+              className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? "Refreshing..." : "Refresh Statistics"}
+            </button>
           </div>
         </div>
 
