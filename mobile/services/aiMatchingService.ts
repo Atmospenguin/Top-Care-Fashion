@@ -16,6 +16,8 @@ export interface ListingItem {
   color?: string;
   material?: string;
   style?: string;
+  is_boosted?: boolean;
+  boost_weight?: number;
 }
 
 export interface MatchScore {

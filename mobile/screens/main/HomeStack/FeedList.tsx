@@ -80,6 +80,8 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
       brand: x.brand ?? null,
       description: x.description ?? "",
       condition: x.condition ?? "Good",
+      is_boosted: x.is_boosted ?? false,
+      boost_weight: x.boost_weight ? Number(x.boost_weight) : undefined,
       seller: typeof x.seller === "object" && x.seller !== null
         ? {
             id: x.seller.id ?? 0,
@@ -339,7 +341,14 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
             onPress={() => handleListingPress(item)}
             activeOpacity={0.7}
           >
-            <Image source={{ uri: primaryImage }} style={styles.gridImage} />
+            <View style={styles.imageContainer}>
+              <Image source={{ uri: primaryImage }} style={styles.gridImage} />
+              {item.is_boosted && (
+                <View style={styles.boostBadge}>
+                  <Text style={styles.boostText}>⚡ Promoted</Text>
+                </View>
+              )}
+            </View>
             <View style={styles.itemInfo}>
               <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
               <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
@@ -380,7 +389,30 @@ const styles = StyleSheet.create({
   },
   row: { justifyContent: "space-between" },
   gridItem: { width: "48%", marginBottom: 16, borderRadius: 12, overflow: "hidden", backgroundColor: "#f9f9f9" },
-  gridImage: { width: "100%", aspectRatio: 1 },
+  imageContainer: { position: "relative", width: "100%", aspectRatio: 1 },
+  gridImage: { width: "100%", height: "100%" },
+  boostBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    backgroundColor: "rgba(255, 215, 0, 0.95)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255, 200, 0, 1)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  boostText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#000",
+    letterSpacing: 0.3,
+  },
   itemInfo: { padding: 10 },
   itemTitle: { fontSize: 14, fontWeight: "600", color: "#111", marginBottom: 4 },
   itemPrice: { fontSize: 15, fontWeight: "700", color: "#111", marginBottom: 6 },
