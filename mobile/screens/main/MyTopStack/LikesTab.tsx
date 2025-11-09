@@ -55,6 +55,11 @@ export default function LikesTab() {
     loadLikedListings(true);
   }, [loadLikedListings]);
 
+  // 重试按钮处理
+  const handleRetry = useCallback(() => {
+    loadLikedListings(false);
+  }, [loadLikedListings]);
+
   const handleItemPress = (likedListing: LikedListing) => {
     if (!likedListing?.listing?.id) {
       console.warn('⚠️ Cannot navigate: invalid listing item');
@@ -151,7 +156,7 @@ export default function LikesTab() {
       <View style={styles.errorContainer}>
         <Icon name="alert-circle-outline" size={48} color="#FF6B6B" />
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={loadLikedListings}>
+        <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>
