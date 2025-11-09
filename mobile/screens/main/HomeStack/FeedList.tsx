@@ -344,25 +344,27 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
           >
             <View style={styles.imageContainer}>
               <Image source={{ uri: primaryImage }} style={styles.gridImage} />
-              {/* Temporarily show on all items for testing */}
-              {(item.is_boosted || true) && (
-                <View style={styles.boostBadge}>
-                  <Ionicons name="flash-outline" size={14} color="#000" />
-                </View>
-              )}
             </View>
             <View style={styles.itemInfo}>
               <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
               <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
-              {displayTags.length > 0 && (
-                <View style={styles.tagsContainer}>
-                  {displayTags.map((tag, index) => (
-                    <View key={index} style={styles.tagChip}>
-                      <Text style={styles.tagText} numberOfLines={1}>{tag}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
+              <View style={styles.bottomRow}>
+                {displayTags.length > 0 && (
+                  <View style={styles.tagsContainer}>
+                    {displayTags.map((tag, index) => (
+                      <View key={index} style={styles.tagChip}>
+                        <Text style={styles.tagText} numberOfLines={1}>{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                {/* Temporarily show on all items for testing */}
+                {(item.is_boosted || true) && (
+                  <View style={styles.boostBadge}>
+                    <Ionicons name="flash-outline" size={16} color="#FFD700" />
+                  </View>
+                )}
+              </View>
             </View>
           </TouchableOpacity>
         );
@@ -400,31 +402,23 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: "100%",
     aspectRatio: 1,
-    position: "relative",
   },
   gridImage: { width: "100%", height: "100%" },
-  boostBadge: {
-    position: "absolute",
-    bottom: 6,
-    right: 6,
-    backgroundColor: "rgba(255, 215, 0, 0.95)",
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: "rgba(255, 200, 0, 1)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3,
-    elevation: 4,
-  },
   itemInfo: { padding: 10 },
   itemTitle: { fontSize: 14, fontWeight: "600", color: "#111", marginBottom: 4 },
   itemPrice: { fontSize: 15, fontWeight: "700", color: "#111", marginBottom: 6 },
-  tagsContainer: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 },
+  bottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  tagsContainer: { flexDirection: "row", flexWrap: "wrap", flex: 1 },
+  boostBadge: {
+    marginLeft: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   tagChip: {
     backgroundColor: "#f0f0f0",
     borderRadius: 12,
