@@ -108,7 +108,24 @@ export default function HomeScreen() {
     // 🟢 add default fallbacks for missing ListingItem props
     description: x.description ?? "",
     condition: x.condition ?? "Good",
-    seller: x.seller ?? "Unknown",
+    // Construct seller object (feed API doesn't return seller info, so use defaults)
+    seller: typeof x.seller === "object" && x.seller !== null
+      ? {
+          id: x.seller.id ?? 0,
+          name: x.seller.name ?? "Seller",
+          avatar: x.seller.avatar ?? "",
+          rating: x.seller.rating ?? 5.0,
+          sales: x.seller.sales ?? 0,
+          isPremium: x.seller.isPremium ?? false,
+        }
+      : {
+          id: 0,
+          name: "Seller",
+          avatar: "",
+          rating: 5.0,
+          sales: 0,
+          isPremium: false,
+        },
   };
 };
 
@@ -180,6 +197,39 @@ export default function HomeScreen() {
   }, [hasMore, isLoadingMore, loading, page, fetchFeedPage]);
 
   useScrollToTop(scrollRef);
+
+  // ---------- navigation handler ----------
+  const handleListingPress = useCallback(
+    (item: ListingItem) => {
+      if (!item || !item.id) {
+        console.warn("⚠️ Cannot navigate: invalid listing item");
+        return;
+      }
+
+      // Navigate to root level, then to Buy stack -> ListingDetail
+      // Find root navigation by traversing up the navigation hierarchy
+      let rootNavigation: any = navigation;
+      let current: any = navigation;
+      while (current?.getParent?.()) {
+        current = current.getParent();
+        if (current) {
+          rootNavigation = current;
+        }
+      }
+
+      // ✅ Use lazy loading: only pass listingId, let ListingDetailScreen fetch full data
+      // This ensures we get complete, up-to-date data from the API (including seller info, etc.)
+      const listingId = String(item.id);
+      console.log("🔍 Navigating to ListingDetail with lazy loading, listingId:", listingId);
+      requestAnimationFrame(() => {
+        rootNavigation?.navigate("Buy", {
+          screen: "ListingDetail",
+          params: { listingId },
+        });
+      });
+    },
+    [navigation]
+  );
 
   // ---------- header ----------
   const listHeader = useMemo(
@@ -311,7 +361,11 @@ export default function HomeScreen() {
             "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
           const displayTags = item.tags && item.tags.length > 0 ? item.tags.slice(0, 2) : [];
           return (
-            <TouchableOpacity style={styles.gridItem}>
+            <TouchableOpacity
+              style={styles.gridItem}
+              onPress={() => handleListingPress(item)}
+              activeOpacity={0.7}
+            >
               <Image source={{ uri: primaryImage }} style={styles.gridImage} />
               <View style={styles.itemInfo}>
                 <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>

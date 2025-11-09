@@ -585,7 +585,12 @@ export default function ViewOutfitScreen() {
 
   // ✅ 处理商品卡片点击，导航到商品详情页
   const handleItemPress = useCallback((item: ListingItem) => {
-    navigation.navigate("ListingDetail", { item });
+    // ✅ Use lazy loading: only pass listingId
+    if (!item?.id) {
+      console.warn("⚠️ Cannot navigate: invalid listing item");
+      return;
+    }
+    navigation.navigate("ListingDetail", { listingId: String(item.id) });
   }, [navigation]);
 
   // 计算 Toast 显示条件

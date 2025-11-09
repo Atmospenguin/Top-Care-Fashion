@@ -197,29 +197,14 @@ export default function SavedOutfitsTab() {
         }
       }
 
-      // 规整 listing 数据，确保格式稳定
-      const listingData = {
-        ...item,
-        images: Array.isArray(item.images)
-          ? item.images
-          : item.images
-          ? [item.images]
-          : [],
-        seller: {
-          id: item.seller?.id || 0,
-          name: item.seller?.name || 'Seller',
-          avatar: item.seller?.avatar || '',
-          rating: item.seller?.rating || 0,
-          sales: item.seller?.sales || 0,
-          isPremium: item.seller?.isPremium || false,
-        },
-      };
-
-      console.log('🔍 Navigating to ListingDetail:', listingData.id);
+      // ✅ Use lazy loading: only pass listingId, let ListingDetailScreen fetch full data
+      // This ensures we get complete, up-to-date data from the API
+      const listingId = String(item.id);
+      console.log('🔍 Navigating to ListingDetail with lazy loading, listingId:', listingId);
       requestAnimationFrame(() => {
         rootNavigation?.navigate('Buy', {
           screen: 'ListingDetail',
-          params: { item: listingData },
+          params: { listingId },
         });
       });
     },

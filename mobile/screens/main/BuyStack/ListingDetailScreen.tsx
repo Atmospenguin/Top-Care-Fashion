@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import {
   Alert,
   Dimensions,
@@ -83,11 +83,11 @@ export default function ListingDetailScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
   const route = useRoute<RouteProp<BuyStackParamList, "ListingDetail">>();
-  const { item: itemParam, listingId, isOwnListing: isOwnListingParam = false } = route.params || {};
+  const { listingId, isOwnListing: isOwnListingParam = false } = route.params || {};
   
   const { user } = useAuth();
-  const [item, setItem] = useState<ListingItem | null>(itemParam || null);
-  const [isLoadingListing, setIsLoadingListing] = useState(!itemParam && !!listingId);
+  const [item, setItem] = useState<ListingItem | null>(null);
+  const [isLoadingListing, setIsLoadingListing] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
   const [flagModalVisible, setFlagModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -101,23 +101,49 @@ export default function ListingDetailScreen() {
   const [listingStats, setListingStats] = useState<{ views: number | null; likes: number; clicks: number | null } | null>(null);
   const recordedClickIdRef = useRef<string | null>(null);
 
-  // ✅ 统一获取 listing ID 的辅助函数
-  // 优先使用路由参数中的 listingId（更稳定），如果没有则从 itemParam 中获取
+  // ✅ 获取 listing ID
   const getListingId = useMemo(() => {
-    return listingId?.toString() || itemParam?.id?.toString() || null;
-  }, [listingId, itemParam?.id]);
+    return listingId ? String(listingId) : null;
+  }, [listingId]);
 
-  // ✅ 如果只有 listingId，通过 API 加载 listing 数据
-  useEffect(() => {
-    if (!itemParam && listingId) {
-      loadListingById(listingId);
+  // ✅ 加载 listing 数据的函数
+  const loadListingById = useCallback(async (id: string) => {
+    try {
+      setIsLoadingListing(true);
+      console.log("🔍 Loading listing by ID:", id);
+      
+      const response = await apiClient.get<{ listing: ListingItem }>(`/api/listings/${id}`);
+      if (response.data?.listing) {
+        setItem(response.data.listing);
+        console.log("✅ Listing loaded successfully:", response.data.listing);
+      } else {
+        console.error("❌ No listing data in response");
+        Alert.alert("Error", "Failed to load listing details");
+        navigation.goBack();
+      }
+    } catch (error) {
+      console.error("❌ Error loading listing:", error);
+      Alert.alert("Error", "Failed to load listing details");
+      navigation.goBack();
+    } finally {
+      setIsLoadingListing(false);
     }
-  }, [listingId, itemParam]);
+  }, [navigation]);
+
+  // ✅ 通过 API 加载 listing 数据
+  useEffect(() => {
+    if (!listingId) {
+      console.error("❌ ListingDetailScreen: listingId is required");
+      Alert.alert("Error", "Listing ID is required");
+      return;
+    }
+    
+    loadListingById(String(listingId));
+  }, [listingId, loadListingById]);
 
   // ✅ 记录点击追踪（当用户点击进入详情页时）
   useEffect(() => {
-    // 使用最稳定的ID：优先使用路由参数中的listingId
-    const stableId = listingId?.toString() || itemParam?.id?.toString();
+    const stableId = listingId ? String(listingId) : null;
     if (!stableId) {
       return;
     }
@@ -148,7 +174,7 @@ export default function ListingDetailScreen() {
     };
 
     recordClick();
-  }, [listingId, itemParam?.id]); // 只依赖路由参数，不依赖getListingId（避免useMemo变化导致重复触发）
+  }, [listingId]); // 只依赖 listingId
 
   // ✅ 加载统计信息（如果是卖家）
   useEffect(() => {
@@ -173,31 +199,13 @@ export default function ListingDetailScreen() {
       loadStats();
     }
   }, [getListingId, item, isOwnListingParam, user?.id]);
-
-  const loadListingById = async (id: string) => {
-    try {
-      setIsLoadingListing(true);
-      console.log("🔍 Loading listing by ID:", id);
-      
-      const response = await apiClient.get<{ listing: ListingItem }>(`/api/listings/${id}`);
-      if (response.data?.listing) {
-        setItem(response.data.listing);
-        console.log("✅ Listing loaded successfully:", response.data.listing);
-      }
-    } catch (error) {
-      console.error("❌ Error loading listing:", error);
-      Alert.alert("Error", "Failed to load listing details");
-      navigation.goBack();
-    } finally {
-      setIsLoadingListing(false);
-    }
-  };
   
-  // 调试：查看传递的 item 数据
-  console.log("🔍 ListingDetailScreen - Received item:", item);
-  console.log("🔍 ListingDetailScreen - Item ID:", item?.id);
-  console.log("🔍 ListingDetailScreen - Item title:", item?.title);
-  console.log("🔍 ListingDetailScreen - Item seller:", item?.seller);
+  // 调试：查看加载的 item 数据
+  if (__DEV__) {
+    console.log("🔍 ListingDetailScreen - ListingId:", listingId);
+    console.log("🔍 ListingDetailScreen - Item:", item);
+    console.log("🔍 ListingDetailScreen - Loading:", isLoadingListing);
+  }
 
   // 安全处理 item 数据，兼容 images 和 imageUrls 字段
   const safeItem = useMemo(() => {

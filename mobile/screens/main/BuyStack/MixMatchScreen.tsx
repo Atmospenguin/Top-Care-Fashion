@@ -729,7 +729,12 @@ export default function MixMatchScreen() {
 
   const openListing = useCallback(
     (item: ListingItem) => {
-      navigation.navigate("ListingDetail", { item });
+      // ✅ Use lazy loading: only pass listingId
+      if (!item?.id) {
+        console.warn("⚠️ Cannot navigate: invalid listing item");
+        return;
+      }
+      navigation.navigate("ListingDetail", { listingId: String(item.id) });
     },
     [navigation]
   );

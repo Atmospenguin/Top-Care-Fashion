@@ -14,7 +14,7 @@ import UserProfileScreen from "./UserProfileScreen";
 import FollowListScreen from "../MyTopStack/FollowListScreen";
   
 export type BuyStackParamList = {
-  ListingDetail: { item?: ListingItem; listingId?: string; isOwnListing?: boolean }; // ✅ 支持通过 listingId 导航
+  ListingDetail: { listingId: string; isOwnListing?: boolean }; // ✅ 只支持通过 listingId 导航（懒加载）
   MixMatch: { baseItem: ListingItem };
   ViewOutfit: {
     baseItem: ListingItem;
