@@ -132,10 +132,10 @@ export async function GET() {
       .filter((feedback) => feedback.featured && feedback.rating !== null)
       .map((feedback) => ({
         id: Number(feedback.id),
-        user: feedback.userName,
+        user: feedback.userName || 'Anonymous',
         text: feedback.description,
         rating: feedback.rating ?? 0,
-        tags: feedback.tags,
+        tags: Array.isArray(feedback.tags) ? feedback.tags : [],
         ts: new Date(feedback.createdAt).getTime(),
       }));
 

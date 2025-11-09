@@ -92,6 +92,9 @@ export default function ContentManagementPage() {
   const [releases, setReleases] = useState<Release[]>([]);
   const [uploadingRelease, setUploadingRelease] = useState(false);
   const [deletingReleaseId, setDeletingReleaseId] = useState<number | null>(null);
+  const [newTag, setNewTag] = useState("");
+  const [addingTag, setAddingTag] = useState(false);
+  const [deletingTag, setDeletingTag] = useState<string | null>(null);
   const filteredFeedbacks = useMemo(() => {
     const term = feedbackQuery.trim().toLowerCase();
     if (!term) return feedbacks;
@@ -430,6 +433,82 @@ export default function ContentManagementPage() {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
+  async function addTag() {
+    const trimmedTag = newTag.trim().toLowerCase();
+    if (!trimmedTag) {
+      alert("Tag cannot be empty");
+      return;
+    }
+    if (availableTags.includes(trimmedTag)) {
+      alert("Tag already exists");
+      return;
+    }
+
+    try {
+      setAddingTag(true);
+      const response = await fetch("/api/admin/feedback/tags", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tag: trimmedTag }),
+      });
+
+      if (response.ok) {
+        setNewTag("");
+        // Refresh tags list
+        const tagsRes = await fetch("/api/feedback/tags");
+        if (tagsRes.ok) {
+          const tagsData = await tagsRes.json();
+          setAvailableTags(tagsData.tags || []);
+        }
+      } else {
+        const data = await response.json().catch(() => null);
+        alert(data?.error || "Failed to add tag");
+      }
+    } catch (error) {
+      console.error("Error adding tag:", error);
+      alert("Failed to add tag");
+    } finally {
+      setAddingTag(false);
+    }
+  }
+
+  async function deleteTag(tag: string) {
+    if (!confirm(`Delete tag "${tag}"? This will only remove it from available tags if it's not in use.`)) {
+      return;
+    }
+
+    try {
+      setDeletingTag(tag);
+      const response = await fetch(`/api/admin/feedback/tags?tag=${encodeURIComponent(tag)}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        // Refresh tags list
+        const tagsRes = await fetch("/api/feedback/tags");
+        if (tagsRes.ok) {
+          const tagsData = await tagsRes.json();
+          setAvailableTags(tagsData.tags || []);
+          // Also remove from newFeedback if it's selected
+          if (newFeedback.tags.includes(tag)) {
+            setNewFeedback({
+              ...newFeedback,
+              tags: newFeedback.tags.filter((t) => t !== tag),
+            });
+          }
+        }
+      } else {
+        const data = await response.json().catch(() => null);
+        alert(data?.error || "Failed to delete tag");
+      }
+    } catch (error) {
+      console.error("Error deleting tag:", error);
+      alert("Failed to delete tag");
+    } finally {
+      setDeletingTag(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-6 py-8">
@@ -696,11 +775,11 @@ export default function ContentManagementPage() {
                 </div>
                 <div>
                   <div className="block text-sm font-medium text-gray-700 mb-1">Tags</div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 mb-2">
                     {availableTags.map((tag) => {
                       const checked = newFeedback.tags.includes(tag);
                       return (
-                        <label key={tag} className={`text-xs px-2 py-1 rounded-full cursor-pointer border ${checked ? 'bg-[var(--brand-color)] text-white border-[var(--brand-color)]' : 'bg-white text-black border-black/10'}`}>
+                        <label key={tag} className={`group relative inline-flex items-center gap-1 text-xs px-2 py-1 pr-1 rounded-full cursor-pointer border transition-colors ${checked ? 'bg-[var(--brand-color)] text-white border-[var(--brand-color)]' : 'bg-white text-black border-black/10 hover:border-gray-300'}`}>
                           <input type="checkbox" className="hidden" checked={checked} onChange={(e) => {
                             setNewFeedback({
                               ...newFeedback,
@@ -708,9 +787,46 @@ export default function ContentManagementPage() {
                             });
                           }} />
                           <span>#{tag}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              deleteTag(tag);
+                            }}
+                            disabled={deletingTag === tag}
+                            className={`ml-1 w-4 h-4 flex items-center justify-center rounded-full transition-colors disabled:opacity-50 text-xs font-bold ${checked ? 'hover:bg-white/20 text-white' : 'hover:bg-red-100 text-gray-500 hover:text-red-600'}`}
+                            title="Delete tag"
+                          >
+                            {deletingTag === tag ? "..." : "×"}
+                          </button>
                         </label>
                       );
                     })}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addTag();
+                        }
+                      }}
+                      placeholder="Add new tag"
+                      className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={addTag}
+                      disabled={addingTag || !newTag.trim()}
+                      className="px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Add tag"
+                    >
+                      {addingTag ? "..." : "+"}
+                    </button>
                   </div>
                 </div>
                 <div className="flex items-center">
