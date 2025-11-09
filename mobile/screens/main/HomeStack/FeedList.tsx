@@ -1,5 +1,5 @@
 // mobile/screens/main/HomeStack/FeedList.tsx
-import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, Image, RefreshControl, FlatList,
@@ -11,7 +11,20 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { HomeStackParamList } from "./index";
 import type { ListingItem } from "../../../types/shop";
 import { useAuth } from "../../../contexts/AuthContext";
-import { API_BASE_URL } from "../../../src/config/api";
+import { apiClient } from "../../../src/services/api";
+
+type HomeFeedResponse = {
+  items: Array<{
+    id: number;
+    title: string | null;
+    image_url: string | null;
+    price_cents: number;
+    brand: string | null;
+    tags: string[];
+    source: string;
+  }>;
+  meta?: Record<string, any>;
+};
 
 const PAGE_SIZE = 20;
 const INT32_MAX = 2_147_483_647;
@@ -43,35 +56,12 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
   const [hasMore, setHasMore] = useState(true);
 
   const auth = useAuth() as any;
-  const isAuthenticated: boolean = !!auth?.isAuthenticated;
-  const accessToken: string | undefined =
-    auth?.accessToken ??
-    auth?.session?.access_token ??
-    auth?.session?.accessToken ??
-    (globalThis as any).__SUPABASE_TOKEN;
+  const authReady: boolean = useMemo(() => {
+    return (typeof auth?.initialized === "boolean" ? auth.initialized : undefined) ??
+      (typeof auth?.isAuthenticated === "boolean");
+  }, [auth?.initialized, auth?.isAuthenticated]);
 
-  const authReady: boolean =
-    (typeof auth?.initialized === "boolean" ? auth.initialized : undefined) ??
-    (typeof auth?.isAuthenticated === "boolean");
-
-  const buildFeedUrl = useCallback(
-    (opts: { page: number; seedId: number; noStore?: boolean }) => {
-      const base = API_BASE_URL.replace(/\/+$/, "");
-      const u = new URL(`${base}/api/feed/home`);
-      u.searchParams.set("mode", mode);
-      u.searchParams.set("limit", String(PAGE_SIZE));
-      u.searchParams.set("page", String(opts.page));
-      u.searchParams.set("seedId", String(opts.seedId));
-      if (opts.noStore) {
-        u.searchParams.set("noStore", "1");
-        u.searchParams.set("cacheBust", String(Date.now()));
-      }
-      return u.toString();
-    },
-    [mode]
-  );
-
-  const mapApiItem = (x: any): ListingItem => {
+  const mapApiItem = useCallback((x: any): ListingItem => {
     const idNum = typeof x.id === "number" ? x.id : Number(x.id);
     const cents = typeof x.price_cents === "number" ? x.price_cents : Number(x.price_cents ?? 0);
     const price = Number.isFinite(cents) ? cents / 100 : 0;
@@ -108,7 +98,7 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
             isPremium: false,
           },
     };
-  };
+  }, []);
 
   const dedupe = (arr: ListingItem[]) => {
     const seen = new Set<string>();
@@ -122,18 +112,23 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
 
   const fetchFeedPage = useCallback(
     async (pageToLoad: number, { bypassCache = false } = {}) => {
-      const url = buildFeedUrl({ page: pageToLoad, seedId: seedRef.current, noStore: bypassCache });
-      const headers: Record<string, string> = { Accept: "application/json" };
-      if (isAuthenticated && accessToken) headers.Authorization = `Bearer ${accessToken}`;
-      if (bypassCache) headers["Cache-Control"] = "no-store";
+      const params: Record<string, any> = {
+        mode,
+        limit: PAGE_SIZE,
+        page: pageToLoad,
+        seedId: seedRef.current,
+      };
 
-      const res = await fetch(url, { headers });
-      if (!res.ok) throw new Error(`Feed HTTP ${res.status}`);
-      const json = await res.json();
-      const items = Array.isArray(json.items) ? json.items.map(mapApiItem) : [];
+      if (bypassCache) {
+        params.noStore = "1";
+        params.cacheBust = Date.now();
+      }
+
+      const response = await apiClient.get<HomeFeedResponse>("/api/feed/home", params);
+      const items = Array.isArray(response.data?.items) ? response.data.items.map(mapApiItem) : [];
       return { items, hasMore: items.length === PAGE_SIZE };
     },
-    [buildFeedUrl, isAuthenticated, accessToken]
+    [mode, mapApiItem]
   );
 
   const loadInitial = useCallback(async () => {
