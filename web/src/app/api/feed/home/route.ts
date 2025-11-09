@@ -21,6 +21,8 @@ type FeedRow = {
   source: "trending" | "brand" | "tag" | "brand&tag" | "affinity";
   fair_score: number | null;
   final_score: number | null;
+  is_boosted?: boolean;
+  boost_weight?: number;
 };
 
 // ---------------- In-memory cache ----------------
@@ -86,10 +88,11 @@ try {
 async function fetchTrending(limit: number, offset: number): Promise<{ items: FeedRow[]; meta: any }> {
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY);
 
+  // Use the new view that includes boost information
   const { data: recs, error: recErr } = await admin
-    .from("listing_recommendations_main_fair")
-    .select("listing_id,fair_score")
-    .order("fair_score", { ascending: false })
+    .from("listing_recommendations_with_boost")
+    .select("listing_id,fair_score,final_score,is_boosted,boost_weight")
+    .order("final_score", { ascending: false })  // Order by final_score (includes boost)
     .range(offset, offset + limit - 1);
 
   if (recErr) {
@@ -110,12 +113,12 @@ async function fetchTrending(limit: number, offset: number): Promise<{ items: Fe
     return { items: [], meta: { error: cardErr.message, mode: "trending", limit, offset } };
   }
 
-  // Preserve rec order
+  // Preserve rec order (sorted by final_score)
   const byId = new Map<number, any>((cards ?? []).map((c: any) => [c.id, c]));
   const items: FeedRow[] = ids
     .map((id) => {
       const card = byId.get(id);
-      const fair = recs?.find((r) => r.listing_id === id)?.fair_score ?? null;
+      const rec = recs?.find((r) => r.listing_id === id);
       if (!card) return null;
       return {
         id,
@@ -125,8 +128,10 @@ async function fetchTrending(limit: number, offset: number): Promise<{ items: Fe
         brand: card.brand ?? "",
         tags: Array.isArray(card.tags) ? card.tags : [],
         source: "trending",
-        fair_score: fair,
-        final_score: fair,
+        fair_score: rec?.fair_score ?? null,
+        final_score: rec?.final_score ?? rec?.fair_score ?? null,
+        is_boosted: rec?.is_boosted ?? false,
+        boost_weight: rec?.boost_weight ? Number(rec.boost_weight) : undefined,
       } as FeedRow;
     })
     .filter(Boolean) as FeedRow[];
@@ -175,6 +180,8 @@ async function fetchForYou(
     source: (r.source ?? "brand") as FeedRow["source"],
     fair_score: r.fair_score === null ? null : Number(r.fair_score),
     final_score: r.final_score === null ? null : Number(r.final_score),
+    is_boosted: r.is_boosted ?? false,
+    boost_weight: r.boost_weight ? Number(r.boost_weight) : undefined,
   }));
 
   return {
