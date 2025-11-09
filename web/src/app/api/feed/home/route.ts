@@ -15,6 +15,7 @@ type FeedRow = {
   id: number;
   title: string | null;
   image_url: string | null;
+  image_urls: unknown; // JSON array or null
   price_cents: number | null;
   brand: string | null;
   tags: string[] | null;
@@ -41,6 +42,41 @@ function okJson(data: any, init?: number | ResponseInit) {
   // Allow shorthand okJson(data, 401) or okJson(data, { status: 401 })
   const opts: ResponseInit | undefined = typeof init === "number" ? { status: init } : init;
   return NextResponse.json(data, opts);
+}
+
+// Helper function to extract image URLs from image_urls (JSON) or image_url (string)
+function extractImageUrls(imageUrls: unknown, imageUrl: string | null): string[] {
+  // First try image_urls (JSON array)
+  if (imageUrls) {
+    if (Array.isArray(imageUrls)) {
+      const urls = imageUrls.filter((item): item is string => typeof item === "string" && item.length > 0);
+      if (urls.length > 0) {
+        return urls;
+      }
+    } else if (typeof imageUrls === "string") {
+      try {
+        const parsed = JSON.parse(imageUrls);
+        if (Array.isArray(parsed)) {
+          const urls = parsed.filter((item): item is string => typeof item === "string" && item.length > 0);
+          if (urls.length > 0) {
+            return urls;
+          }
+        }
+      } catch {
+        // If parsing fails, treat as single URL if it starts with http
+        if (imageUrls.startsWith("http")) {
+          return [imageUrls];
+        }
+      }
+    }
+  }
+  
+  // Fallback to image_url
+  if (imageUrl && typeof imageUrl === "string" && imageUrl.trim().length > 0) {
+    return [imageUrl];
+  }
+  
+  return [];
 }
 
 // ---------------- Auth extraction ----------------
@@ -104,6 +140,7 @@ async function fetchTrending(limit: number, offset: number): Promise<{ items: Fe
     return { items: [], meta: { mode: "trending", limit, offset, seedId: null, cached: false } };
   }
 
+  // Fetch card data and image_urls from listings table
   const { data: cards, error: cardErr } = await admin
     .from("listing_card_v")
     .select("id,title,image_url,price_cents,brand,tags")
@@ -113,6 +150,25 @@ async function fetchTrending(limit: number, offset: number): Promise<{ items: Fe
     return { items: [], meta: { error: cardErr.message, mode: "trending", limit, offset } };
   }
 
+  // Fetch image_urls from listings table
+  const { data: listings, error: listingsErr } = await admin
+    .from("listings")
+    .select("id,image_url,image_urls")
+    .in("id", ids as number[]);
+
+  if (listingsErr) {
+    console.warn("⚠️ Failed to fetch image_urls from listings table:", listingsErr.message);
+  }
+
+  // Create a map of listing ID to image data
+  const imageMap = new Map<number, { image_url: string | null; image_urls: unknown }>();
+  (listings ?? []).forEach((listing: any) => {
+    imageMap.set(listing.id, {
+      image_url: listing.image_url ?? null,
+      image_urls: listing.image_urls ?? null,
+    });
+  });
+
   // Preserve rec order (sorted by final_score)
   const byId = new Map<number, any>((cards ?? []).map((c: any) => [c.id, c]));
   const items: FeedRow[] = ids
@@ -120,10 +176,16 @@ async function fetchTrending(limit: number, offset: number): Promise<{ items: Fe
       const card = byId.get(id);
       const rec = recs?.find((r) => r.listing_id === id);
       if (!card) return null;
+      
+      const imageData = imageMap.get(id);
+      const imageUrls = extractImageUrls(imageData?.image_urls, imageData?.image_url ?? card.image_url ?? null);
+      const primaryImageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
+      
       return {
         id,
         title: card.title ?? "",
-        image_url: card.image_url ?? null,
+        image_url: primaryImageUrl,
+        image_urls: imageData?.image_urls ?? null,
         price_cents: Number(card.price_cents ?? 0),
         brand: card.brand ?? "",
         tags: Array.isArray(card.tags) ? card.tags : [],
@@ -178,14 +240,40 @@ async function fetchForYou(
     console.log("   Sample row keys:", Object.keys(rows[0]));
     console.log("   Sample row:", JSON.stringify(rows[0], null, 2).substring(0, 200));
   }
+
+  // Fetch image_urls from listings table for all items
+  const listingIds = rows.map((r) => Number(r.id)).filter((id) => !isNaN(id));
+  const { data: listings, error: listingsErr } = await admin
+    .from("listings")
+    .select("id,image_url,image_urls")
+    .in("id", listingIds);
+
+  if (listingsErr) {
+    console.warn("⚠️ Failed to fetch image_urls from listings table:", listingsErr.message);
+  }
+
+  // Create a map of listing ID to image data
+  const imageMap = new Map<number, { image_url: string | null; image_urls: unknown }>();
+  (listings ?? []).forEach((listing: any) => {
+    imageMap.set(listing.id, {
+      image_url: listing.image_url ?? null,
+      image_urls: listing.image_urls ?? null,
+    });
+  });
   
   const items: FeedRow[] = [];
   for (const r of rows) {
     try {
+      const listingId = Number(r.id);
+      const imageData = imageMap.get(listingId);
+      const imageUrls = extractImageUrls(imageData?.image_urls, imageData?.image_url ?? r.image_url ?? null);
+      const primaryImageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
+      
       items.push({
-        id: Number(r.id),
+        id: listingId,
         title: r.title ?? "",
-        image_url: r.image_url ?? null,
+        image_url: primaryImageUrl,
+        image_urls: imageData?.image_urls ?? null,
         price_cents: r.price_cents !== null && r.price_cents !== undefined ? Number(r.price_cents) : null,
         brand: r.brand ?? "",
         tags: Array.isArray(r.tags) ? r.tags : [],

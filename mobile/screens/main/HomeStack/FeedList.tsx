@@ -19,6 +19,7 @@ type HomeFeedResponse = {
     id: number;
     title: string | null;
     image_url: string | null;
+    image_urls?: unknown; // JSON array or null
     price_cents: number;
     brand: string | null;
     tags: string[];
@@ -69,7 +70,37 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
     const idNum = typeof x.id === "number" ? x.id : Number(x.id);
     const cents = typeof x.price_cents === "number" ? x.price_cents : Number(x.price_cents ?? 0);
     const price = Number.isFinite(cents) ? cents / 100 : 0;
-    const images = x.image_url ? [String(x.image_url)] : [];
+    
+    // Extract images from image_urls (JSON array) or image_url (string)
+    let images: string[] = [];
+    if (x.image_urls) {
+      // Try image_urls first (JSON array)
+      if (Array.isArray(x.image_urls)) {
+        images = x.image_urls
+          .filter((item: any) => typeof item === "string" && item.length > 0)
+          .map(String);
+      } else if (typeof x.image_urls === "string") {
+        try {
+          const parsed = JSON.parse(x.image_urls);
+          if (Array.isArray(parsed)) {
+            images = parsed
+              .filter((item: any) => typeof item === "string" && item.length > 0)
+              .map(String);
+          }
+        } catch {
+          // If parsing fails and it looks like a URL, treat as single URL
+          if (x.image_urls.startsWith("http")) {
+            images = [String(x.image_urls)];
+          }
+        }
+      }
+    }
+    
+    // Fallback to image_url if image_urls is empty
+    if (images.length === 0 && x.image_url && typeof x.image_url === "string" && x.image_url.trim().length > 0) {
+      images = [String(x.image_url)];
+    }
+    
     const title = String(x.title ?? "");
     const tags = Array.isArray(x.tags) ? x.tags.map(String) : [];
 
