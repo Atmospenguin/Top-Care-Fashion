@@ -7,6 +7,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 import type { HomeStackParamList } from "./index";
 import type { ListingItem } from "../../../types/shop";
@@ -345,7 +346,7 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
               <Image source={{ uri: primaryImage }} style={styles.gridImage} />
               {item.is_boosted && (
                 <View style={styles.boostBadge}>
-                  <Text style={styles.boostText}>⚡ Promoted</Text>
+                  <Ionicons name="flash-outline" size={14} color="#000" />
                 </View>
               )}
             </View>
@@ -393,25 +394,21 @@ const styles = StyleSheet.create({
   gridImage: { width: "100%", height: "100%" },
   boostBadge: {
     position: "absolute",
-    top: 8,
-    left: 8,
+    bottom: 8,
+    right: 8,
     backgroundColor: "rgba(255, 215, 0, 0.95)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
     borderColor: "rgba(255, 200, 0, 1)",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-  boostText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#000",
-    letterSpacing: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 4,
   },
   itemInfo: { padding: 10 },
   itemTitle: { fontSize: 14, fontWeight: "600", color: "#111", marginBottom: 4 },
