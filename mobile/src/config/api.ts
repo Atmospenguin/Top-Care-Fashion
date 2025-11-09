@@ -140,9 +140,11 @@ export type HomeFeedItem = {
   price_cents: number;
   brand: string | null;
   tags: string[];
-  source: "trending" | "brand" | "tag" | "brand+tag" | "affinity";
+  source: "trending" | "brand" | "tag" | "brand&tag" | "affinity";
   fair_score: number; // 0..1
-  // final_score?: number; // uncomment if your API returns it
+  final_score?: number | null;
+  is_boosted?: boolean;
+  boost_weight?: number | null;
 };
 
 export type HomeFeedResponse = {

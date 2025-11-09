@@ -7,6 +7,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 import type { HomeStackParamList } from "./index";
 import type { ListingItem } from "../../../types/shop";
@@ -47,6 +48,9 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
   const seedRef = useRef<number>((Date.now() % INT32_MAX) | 0);
   const insets = useSafeAreaInsets();
 
+  // Track which boosted items have been viewed (to avoid duplicate tracking)
+  const viewedBoostedItemsRef = useRef<Set<string>>(new Set());
+
   const [featuredItems, setFeaturedItems] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -80,6 +84,8 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
       brand: x.brand ?? null,
       description: x.description ?? "",
       condition: x.condition ?? "Good",
+      is_boosted: x.is_boosted ?? false,
+      boost_weight: x.boost_weight ? Number(x.boost_weight) : undefined,
       seller: typeof x.seller === "object" && x.seller !== null
         ? {
             id: x.seller.id ?? 0,
@@ -109,6 +115,19 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
       return true;
     });
   };
+
+  // Track promotion events (view/click)
+  const trackPromotion = useCallback(async (listingId: string, eventType: "view" | "click") => {
+    try {
+      await apiClient.post("/api/promotions/track", {
+        listingId: Number(listingId),
+        eventType,
+      });
+    } catch (error) {
+      // Silently fail - tracking errors shouldn't disrupt user experience
+      console.warn(`Failed to track ${eventType} for listing ${listingId}:`, error);
+    }
+  }, []);
 
   const fetchFeedPage = useCallback(
     async (pageToLoad: number, { bypassCache = false } = {}) => {
@@ -157,6 +176,7 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
   const refresh = useCallback(async () => {
     setRefreshing(true);
     seedRef.current = (Date.now() % INT32_MAX) | 0;
+    viewedBoostedItemsRef.current.clear(); // Reset view tracking on refresh
     await loadInitial();
     setRefreshing(false);
   }, [loadInitial]);
@@ -193,6 +213,11 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
         return;
       }
 
+      // Track click for boosted items
+      if (item.is_boosted) {
+        trackPromotion(item.id, "click");
+      }
+
       let rootNavigation: any = navigation;
       let current: any = navigation;
       while (current?.getParent?.()) {
@@ -210,7 +235,7 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
         });
       });
     },
-    [navigation]
+    [navigation, trackPromotion]
   );
 
   // All hooks must be at the top, before any conditional returns
@@ -231,6 +256,23 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
       </Text>
     </View>
   ) : null;
+
+  // Viewability tracking for boosted items
+  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    viewableItems.forEach((viewableItem: any) => {
+      const item = viewableItem.item as ListingItem;
+      if (item.is_boosted && !viewedBoostedItemsRef.current.has(item.id)) {
+        // Mark as viewed and track
+        viewedBoostedItemsRef.current.add(item.id);
+        trackPromotion(item.id, "view");
+      }
+    });
+  }).current;
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50, // 50% of item must be visible
+    minimumViewTime: 500, // Must be visible for at least 500ms
+  }).current;
 
   // Premium Banner component - only for For You tab
   const isPremium = auth?.user?.isPremium ?? false;
@@ -296,6 +338,8 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
         onScroll?.(offset);
       }}
       scrollEventThrottle={16}
+      onViewableItemsChanged={onViewableItemsChanged}
+      viewabilityConfig={viewabilityConfig}
       ListFooterComponent={() => {
         if (isLoadingMore) {
           return (
@@ -339,19 +383,28 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
             onPress={() => handleListingPress(item)}
             activeOpacity={0.7}
           >
-            <Image source={{ uri: primaryImage }} style={styles.gridImage} />
+            <View style={styles.imageContainer}>
+              <Image source={{ uri: primaryImage }} style={styles.gridImage} />
+            </View>
             <View style={styles.itemInfo}>
               <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
               <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
-              {displayTags.length > 0 && (
-                <View style={styles.tagsContainer}>
-                  {displayTags.map((tag, index) => (
-                    <View key={index} style={styles.tagChip}>
-                      <Text style={styles.tagText} numberOfLines={1}>{tag}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
+              <View style={styles.bottomRow}>
+                {displayTags.length > 0 && (
+                  <View style={styles.tagsContainer}>
+                    {displayTags.map((tag, index) => (
+                      <View key={index} style={styles.tagChip}>
+                        <Text style={styles.tagText} numberOfLines={1}>{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                {item.is_boosted && (
+                  <View style={styles.boostBadge}>
+                    <Ionicons name="flash-outline" size={16} color="#FFD700" />
+                  </View>
+                )}
+              </View>
             </View>
           </TouchableOpacity>
         );
@@ -379,12 +432,39 @@ const styles = StyleSheet.create({
     paddingBottom: 60,
   },
   row: { justifyContent: "space-between" },
-  gridItem: { width: "48%", marginBottom: 16, borderRadius: 12, overflow: "hidden", backgroundColor: "#f9f9f9" },
-  gridImage: { width: "100%", aspectRatio: 1 },
+  gridItem: {
+    width: "48%",
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#f9f9f9",
+  },
+  imageContainer: {
+    width: "100%",
+    aspectRatio: 1,
+  },
+  gridImage: { width: "100%", height: "100%" },
   itemInfo: { padding: 10 },
   itemTitle: { fontSize: 14, fontWeight: "600", color: "#111", marginBottom: 4 },
   itemPrice: { fontSize: 15, fontWeight: "700", color: "#111", marginBottom: 6 },
-  tagsContainer: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 },
+  bottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  tagsContainer: { 
+    flexDirection: "row", 
+    flexWrap: "wrap", 
+    flex: 1,
+    alignItems: "center",
+    alignContent: "center",
+  },
+  boostBadge: {
+    marginLeft: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   tagChip: {
     backgroundColor: "#f0f0f0",
     borderRadius: 12,
