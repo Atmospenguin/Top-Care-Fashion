@@ -19,6 +19,15 @@ interface DashboardStats {
   newUsersThisWeek: number;
   newListingsThisWeek: number;
   transactionsThisWeek: number;
+  // Promotion stats
+  totalPromotions: number;
+  activePromotions: number;
+  expiredPromotions: number;
+  promotionsThisWeek: number;
+  promotionTotalViews: number;
+  promotionTotalClicks: number;
+  promotionAvgViewUplift: number;
+  promotionAvgClickUplift: number;
 }
 
 interface TopItem {
@@ -48,11 +57,23 @@ interface RecentTransaction {
   createdAt: string;
 }
 
+interface TopBoostedListing {
+  id: string;
+  listingId: string;
+  listingName: string;
+  views: number;
+  clicks: number;
+  viewUplift: number;
+  clickUplift: number;
+  ctr: string;
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [topItems, setTopItems] = useState<TopItem[]>([]);
   const [topSellers, setTopSellers] = useState<TopSeller[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
+  const [topBoostedListings, setTopBoostedListings] = useState<TopBoostedListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,6 +89,7 @@ export default function DashboardPage() {
         setTopItems(data.topItems || []);
         setTopSellers(data.topSellers || []);
         setRecentTransactions(data.recentTransactions || []);
+        setTopBoostedListings(data.topBoostedListings || []);
       } catch (error) {
         console.error('Error loading dashboard data:', error);
         setError(error instanceof Error ? error.message : "Failed to load dashboard");
@@ -257,6 +279,93 @@ export default function DashboardPage() {
           color="purple"
         />
       </div>
+
+      {/* Boost/Promotion Overview */}
+      <div className="bg-white border rounded-lg p-6">
+        <h3 className="text-lg font-semibold mb-4">Boost Overview</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="text-center p-4 bg-blue-50 rounded-lg">
+            <div className="text-2xl font-bold text-blue-700">{stats.activePromotions}</div>
+            <div className="text-sm text-blue-600 mt-1">Active Boosts</div>
+            <div className="text-xs text-gray-500 mt-1">
+              {stats.totalPromotions} total • {stats.expiredPromotions} expired
+            </div>
+          </div>
+          <div className="text-center p-4 bg-green-50 rounded-lg">
+            <div className="text-2xl font-bold text-green-700">{stats.promotionTotalViews.toLocaleString()}</div>
+            <div className="text-sm text-green-600 mt-1">Total Views</div>
+            <div className="text-xs text-gray-500 mt-1">
+              {stats.promotionTotalClicks.toLocaleString()} clicks
+            </div>
+          </div>
+          <div className="text-center p-4 bg-purple-50 rounded-lg">
+            <div className="text-2xl font-bold text-purple-700">
+              {stats.promotionAvgViewUplift >= 0 ? '+' : ''}{stats.promotionAvgViewUplift}%
+            </div>
+            <div className="text-sm text-purple-600 mt-1">Avg View Uplift</div>
+            <div className="text-xs text-gray-500 mt-1">vs baseline period</div>
+          </div>
+          <div className="text-center p-4 bg-orange-50 rounded-lg">
+            <div className="text-2xl font-bold text-orange-700">
+              {stats.promotionAvgClickUplift >= 0 ? '+' : ''}{stats.promotionAvgClickUplift}%
+            </div>
+            <div className="text-sm text-orange-600 mt-1">Avg CTR Uplift</div>
+            <div className="text-xs text-gray-500 mt-1">vs baseline period</div>
+          </div>
+        </div>
+        <div className="mt-4 pt-4 border-t">
+          <div className="text-sm text-gray-600">
+            <span className="font-semibold">{stats.promotionsThisWeek}</span> new boosts this week
+          </div>
+        </div>
+      </div>
+
+      {/* Top Boosted Listings */}
+      {topBoostedListings.length > 0 && (
+        <div className="bg-white border rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-4">Top Boosted Listings</h3>
+          <div className="space-y-3">
+            {topBoostedListings.map((item) => (
+              <Link
+                key={item.id}
+                href={`/admin/listings/${item.listingId}`}
+                className="block p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg hover:from-blue-100 hover:to-purple-100 transition"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">{item.listingName}</div>
+                    <div className="flex gap-4 mt-2 text-sm">
+                      <span className="text-gray-600">
+                        👁 {item.views} views
+                      </span>
+                      <span className="text-gray-600">
+                        👆 {item.clicks} clicks
+                      </span>
+                      <span className="text-gray-600">
+                        CTR {item.ctr}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 ml-4">
+                    <div className="text-center px-3 py-2 bg-white rounded-lg shadow-sm">
+                      <div className={`text-lg font-bold ${item.viewUplift >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {item.viewUplift >= 0 ? '+' : ''}{item.viewUplift}%
+                      </div>
+                      <div className="text-xs text-gray-500">Views</div>
+                    </div>
+                    <div className="text-center px-3 py-2 bg-white rounded-lg shadow-sm">
+                      <div className={`text-lg font-bold ${item.clickUplift >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {item.clickUplift >= 0 ? '+' : ''}{item.clickUplift}%
+                      </div>
+                      <div className="text-xs text-gray-500">CTR</div>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Top Items & Top Sellers */}
       <div className="grid md:grid-cols-2 gap-6">

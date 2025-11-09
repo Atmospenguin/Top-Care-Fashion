@@ -376,12 +376,58 @@ export default function ManageListingScreen() {
           {loadingBoostInfo ? (
             <Text style={styles.promoLoadingText}>Checking boost status…</Text>
           ) : boostInfo ? (
-            <View style={styles.boostMetaRow}>
-              {typeof boostInfo.views === "number" && boostInfo.views > 0 && (
-                <Text style={styles.boostMetaText}>Views {boostInfo.views}</Text>
-              )}
-              {typeof boostInfo.clicks === "number" && boostInfo.clicks > 0 && (
-                <Text style={styles.boostMetaText}>Clicks {boostInfo.clicks}</Text>
+            <View>
+              <View style={styles.boostMetaRow}>
+                {typeof boostInfo.views === "number" && boostInfo.views > 0 && (
+                  <Text style={styles.boostMetaText}>Views {boostInfo.views}</Text>
+                )}
+                {typeof boostInfo.clicks === "number" && boostInfo.clicks > 0 && (
+                  <Text style={styles.boostMetaText}>Clicks {boostInfo.clicks}</Text>
+                )}
+              </View>
+
+              {/* Uplift Stats */}
+              {boostInfo.status === 'ACTIVE' && (
+                boostInfo.viewUpliftPercent !== undefined ||
+                boostInfo.clickUpliftPercent !== undefined
+              ) && (
+                <View style={styles.upliftContainer}>
+                  <Text style={styles.upliftTitle}>Performance vs Baseline</Text>
+                  <View style={styles.upliftRow}>
+                    {typeof boostInfo.viewUpliftPercent === "number" && (
+                      <View style={styles.upliftCell}>
+                        <Icon
+                          name={boostInfo.viewUpliftPercent >= 0 ? "trending-up-outline" : "trending-down-outline"}
+                          size={18}
+                          color={boostInfo.viewUpliftPercent >= 0 ? "#16a34a" : "#dc2626"}
+                        />
+                        <Text style={[
+                          styles.upliftValue,
+                          boostInfo.viewUpliftPercent >= 0 ? styles.upliftPositive : styles.upliftNegative
+                        ]}>
+                          {boostInfo.viewUpliftPercent >= 0 ? '+' : ''}{boostInfo.viewUpliftPercent}%
+                        </Text>
+                        <Text style={styles.upliftLabel}>Views</Text>
+                      </View>
+                    )}
+                    {typeof boostInfo.clickUpliftPercent === "number" && (
+                      <View style={styles.upliftCell}>
+                        <Icon
+                          name={boostInfo.clickUpliftPercent >= 0 ? "trending-up-outline" : "trending-down-outline"}
+                          size={18}
+                          color={boostInfo.clickUpliftPercent >= 0 ? "#16a34a" : "#dc2626"}
+                        />
+                        <Text style={[
+                          styles.upliftValue,
+                          boostInfo.clickUpliftPercent >= 0 ? styles.upliftPositive : styles.upliftNegative
+                        ]}>
+                          {boostInfo.clickUpliftPercent >= 0 ? '+' : ''}{boostInfo.clickUpliftPercent}%
+                        </Text>
+                        <Text style={styles.upliftLabel}>Click Rate</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
               )}
             </View>
           ) : (
@@ -583,6 +629,48 @@ const styles = StyleSheet.create({
   promoLink: { color: "#2563eb", fontWeight: "600", marginTop: 0 },
   boostBadge: { backgroundColor: "#DBEAFE" },
   boostBadgeText: { color: "#1D4ED8" },
+
+  upliftContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#e6e6e6",
+  },
+  upliftTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#666",
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  upliftRow: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  upliftCell: {
+    flex: 1,
+    alignItems: "center",
+    padding: 8,
+    backgroundColor: "#f9fafb",
+    borderRadius: 8,
+  },
+  upliftValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  upliftPositive: {
+    color: "#16a34a",
+  },
+  upliftNegative: {
+    color: "#dc2626",
+  },
+  upliftLabel: {
+    fontSize: 11,
+    color: "#666",
+    marginTop: 2,
+  },
 
   metricsRow: {
     marginTop: 12,

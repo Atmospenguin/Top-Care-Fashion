@@ -14,11 +14,12 @@ export async function GET() {
       const arr = Array.isArray(r.tags) ? r.tags : parseJson<string[]>(r.tags);
       if (Array.isArray(arr)) {
         arr.forEach((t) => {
-          if (typeof t === "string") set.add(t);
+          if (typeof t === "string" && t.trim()) set.add(t.trim());
         });
       }
     }
 
+    // Add default tags
     ["mixmatch", "ailisting", "premium", "buyer", "seller"].forEach((t) => set.add(t));
 
     return NextResponse.json({ tags: Array.from(set).sort() });
