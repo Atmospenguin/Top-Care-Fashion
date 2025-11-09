@@ -1,395 +1,201 @@
 // mobile/screens/main/HomeStack/HomeScreen.tsx
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
-  View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Image, RefreshControl, FlatList,
+  View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Animated,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  useNavigation, useRoute, useScrollToTop,
-  type NavigatorScreenParams, type RouteProp,
-} from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { TabView } from "react-native-tab-view";
 
 import Icon from "../../../components/Icon";
 import type { HomeStackParamList } from "./index";
-import type { RootStackParamList } from "../../../App";
-import type { MyTopStackParamList } from "../MyTopStack";
-import type { ListingItem } from "../../../types/shop";
-import { useAuth } from "../../../contexts/AuthContext";
-
-// ✅ bring in your API base if you have it; otherwise hardcode your dev URL
-import { API_BASE_URL } from "../../../src/config/api";
+import FeedList, { type FeedListRef } from "./FeedList";
 
 type MainTabParamList = {
   Home: undefined;
   Discover: undefined;
   Sell: undefined;
   Inbox: undefined;
-  "My TOP": NavigatorScreenParams<MyTopStackParamList> | undefined;
+  "My TOP": any;
 };
-
-const PAGE_SIZE = 20;
-const INT32_MAX = 2_147_483_647;
 
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const route = useRoute<RouteProp<HomeStackParamList, "HomeMain">>();
+  const layout = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
-  const scrollRef = useRef<FlatList<ListingItem> | null>(null);
-  const scrollOffsetRef = useRef(0);
-  const seedRef = useRef<number>((Date.now() % INT32_MAX) | 0);
+  const [index, setIndex] = useState(0);
+  const [routes] = useState([
+    { key: "foryou", title: "For You" },
+    { key: "trending", title: "Trending" },
+  ]);
 
-  const [featuredItems, setFeaturedItems] = useState<ListingItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  // Refs for both feed lists
+  const forYouRef = useRef<FeedListRef>(null);
+  const trendingRef = useRef<FeedListRef>(null);
 
-  // 🔵 NEW: track active mode
-  const [mode, setMode] = useState<"foryou" | "trending">("foryou");
+  // Animation for hiding/showing top bar
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const prevScrollY = useRef(0);
+  const [topBarVisible, setTopBarVisible] = useState(true);
 
-  // 🔐 Auth
-  const auth = useAuth() as any;
-  const isAuthenticated: boolean = !!auth?.isAuthenticated;
-  const accessToken: string | undefined =
-    auth?.accessToken ??
-    auth?.session?.access_token ??
-    auth?.session?.accessToken ??
-    (globalThis as any).__SUPABASE_TOKEN;
+  // Handle scroll position changes
+  const handleScroll = (offset: number) => {
+    const diff = offset - prevScrollY.current;
 
-  const authReady: boolean =
-    (typeof auth?.initialized === "boolean" ? auth.initialized : undefined) ??
-    (typeof auth?.isAuthenticated === "boolean");
+    // Scrolling down - hide top bar
+    if (diff > 0 && offset > 100 && topBarVisible) {
+      setTopBarVisible(false);
+      Animated.timing(scrollY, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+    // Scrolling up - show top bar
+    else if (diff < 0 && !topBarVisible) {
+      setTopBarVisible(true);
+      Animated.timing(scrollY, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+    // At top - always show
+    else if (offset < 50 && !topBarVisible) {
+      setTopBarVisible(true);
+      Animated.timing(scrollY, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
 
-  // ---------- helpers ----------
-  const buildFeedUrl = useCallback(
-    (opts: { page: number; seedId: number; noStore?: boolean }) => {
-      const base = API_BASE_URL.replace(/\/+$/, "");
-      const u = new URL(`${base}/api/feed/home`);
-      u.searchParams.set("mode", mode); // 🔵 changed
-      u.searchParams.set("limit", String(PAGE_SIZE));
-      u.searchParams.set("page", String(opts.page));
-      u.searchParams.set("seedId", String(opts.seedId));
-      if (opts.noStore) {
-        u.searchParams.set("noStore", "1");
-        u.searchParams.set("cacheBust", String(Date.now()));
-      }
-      const url = u.toString();
-      if (__DEV__) console.info("[HomeScreen] url:", url);
-      return url;
-    },
-    [mode]
-  );
-
-  const mapApiItem = (x: any): ListingItem => {
-  const idNum = typeof x.id === "number" ? x.id : Number(x.id);
-  const cents = typeof x.price_cents === "number" ? x.price_cents : Number(x.price_cents ?? 0);
-  const price = Number.isFinite(cents) ? cents / 100 : 0;
-  const images = x.image_url ? [String(x.image_url)] : [];
-  const title = String(x.title ?? "");
-  const tags = Array.isArray(x.tags) ? x.tags.map(String) : [];
-
-  return {
-    id: String(idNum),
-    title,
-    price,
-    images,
-    size: x.size ?? null,
-    material: x.material ?? null,
-    tags,
-    brand: x.brand ?? null,
-
-    // 🟢 add default fallbacks for missing ListingItem props
-    description: x.description ?? "",
-    condition: x.condition ?? "Good",
-    // Construct seller object (feed API doesn't return seller info, so use defaults)
-    seller: typeof x.seller === "object" && x.seller !== null
-      ? {
-          id: x.seller.id ?? 0,
-          name: x.seller.name ?? "Seller",
-          avatar: x.seller.avatar ?? "",
-          rating: x.seller.rating ?? 5.0,
-          sales: x.seller.sales ?? 0,
-          isPremium: x.seller.isPremium ?? false,
-        }
-      : {
-          id: 0,
-          name: "Seller",
-          avatar: "",
-          rating: 5.0,
-          sales: 0,
-          isPremium: false,
-        },
-  };
-};
-
-  const dedupe = (arr: ListingItem[]) => {
-    const seen = new Set<string>();
-    return arr.filter((it) => {
-      const id = String(it.id);
-      if (seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    });
+    prevScrollY.current = offset;
   };
 
-  const fetchFeedPage = useCallback(
-    async (pageToLoad: number, { bypassCache = false } = {}) => {
-      const url = buildFeedUrl({ page: pageToLoad, seedId: seedRef.current, noStore: bypassCache });
-      const headers: Record<string, string> = { Accept: "application/json" };
-      if (isAuthenticated && accessToken) headers.Authorization = `Bearer ${accessToken}`;
-      if (bypassCache) headers["Cache-Control"] = "no-store";
+  // Calculate exact top bar height: paddingVertical(8*2) + text(~20) + border(1) + tabIndicator(3+6) + some margin
+  const TOP_BAR_HEIGHT = 63;
+  const TOTAL_HIDE_DISTANCE = TOP_BAR_HEIGHT + insets.top; // Hide completely above notch
 
-      const res = await fetch(url, { headers });
-      if (!res.ok) throw new Error(`Feed HTTP ${res.status}`);
-      const json = await res.json();
-      const items = Array.isArray(json.items) ? json.items.map(mapApiItem) : [];
-      return { items, hasMore: items.length === PAGE_SIZE };
-    },
-    [buildFeedUrl, isAuthenticated, accessToken]
-  );
+  const topBarTranslateY = scrollY.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -TOTAL_HIDE_DISTANCE],
+  });
 
-  // ---------- load ----------
-  const loadInitial = useCallback(async () => {
-    if (!authReady) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const { items, hasMore } = await fetchFeedPage(1, { bypassCache: true });
-      setFeaturedItems(dedupe(items));
-      setHasMore(hasMore);
-      setPage(1);
-    } catch (e: any) {
-      setError(e.message || "Failed to load");
-      setFeaturedItems([]);
-    } finally {
-      setLoading(false);
+  // Handle tab press: refresh if at top, scroll to top if not
+  useEffect(() => {
+    const tabPressTS = (route.params as any)?.tabPressTS;
+    if (!tabPressTS) return;
+
+    const currentRef = index === 0 ? forYouRef : trendingRef;
+    const scrollOffset = currentRef.current?.getScrollOffset() ?? 0;
+    const isAtTop = scrollOffset < 50;
+
+    if (isAtTop) {
+      // At top, refresh data
+      currentRef.current?.refresh();
+    } else {
+      // Not at top, scroll to top
+      currentRef.current?.scrollToTop();
     }
-  }, [authReady, fetchFeedPage]);
+  }, [(route.params as any)?.tabPressTS]);
 
-  useEffect(() => { loadInitial(); }, [loadInitial, mode]); // 🔵 reload when mode changes
-
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
-    seedRef.current = (Date.now() % INT32_MAX) | 0;
-    await loadInitial();
-    setRefreshing(false);
-  }, [loadInitial]);
-
-  const loadMore = useCallback(async () => {
-    if (!hasMore || isLoadingMore || loading) return;
-    setIsLoadingMore(true);
-    try {
-      const nextPage = page + 1;
-      const { items } = await fetchFeedPage(nextPage);
-      setFeaturedItems((prev) => dedupe([...prev, ...items]));
-      setPage(nextPage);
-      if (items.length < PAGE_SIZE) setHasMore(false);
-    } finally {
-      setIsLoadingMore(false);
+  const renderScene = ({ route }: any) => {
+    switch (route.key) {
+      case "foryou":
+        return <FeedList ref={forYouRef} mode="foryou" onScroll={handleScroll} />;
+      case "trending":
+        return <FeedList ref={trendingRef} mode="trending" onScroll={handleScroll} />;
+      default:
+        return null;
     }
-  }, [hasMore, isLoadingMore, loading, page, fetchFeedPage]);
-
-  useScrollToTop(scrollRef);
-
-  // ---------- navigation handler ----------
-  const handleListingPress = useCallback(
-    (item: ListingItem) => {
-      if (!item || !item.id) {
-        console.warn("⚠️ Cannot navigate: invalid listing item");
-        return;
-      }
-
-      // Navigate to root level, then to Buy stack -> ListingDetail
-      // Find root navigation by traversing up the navigation hierarchy
-      let rootNavigation: any = navigation;
-      let current: any = navigation;
-      while (current?.getParent?.()) {
-        current = current.getParent();
-        if (current) {
-          rootNavigation = current;
-        }
-      }
-
-      // ✅ Use lazy loading: only pass listingId, let ListingDetailScreen fetch full data
-      // This ensures we get complete, up-to-date data from the API (including seller info, etc.)
-      const listingId = String(item.id);
-      console.log("🔍 Navigating to ListingDetail with lazy loading, listingId:", listingId);
-      requestAnimationFrame(() => {
-        rootNavigation?.navigate("Buy", {
-          screen: "ListingDetail",
-          params: { listingId },
-        });
-      });
-    },
-    [navigation]
-  );
-
-  // ---------- header ----------
-  const listHeader = useMemo(
-    () => (
-      <View>
-        {/* Premium Banner */}
-        <View style={styles.banner}>
-          <Text style={styles.bannerTitle}>Style smarter with AI Mix & Match</Text>
-          <Text style={styles.bannerSubtitle}>
-            Unlimited styling, free boosts, lower fees
-          </Text>
-        </View>
-
-        {loading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#000" />
-            <Text style={styles.loadingText}>Loading items...</Text>
-          </View>
-        )}
-        {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-      </View>
-    ),
-    [mode, loading, error]
-  );
-
-  // ---------- render ----------
-  const emptyState =
-    !loading && !error && featuredItems.length === 0 ? (
-      <View style={{ padding: 32, alignItems: "center" }}>
-        <Text style={{ fontSize: 15, color: "#666", textAlign: "center" }}>
-          {mode === "foryou"
-            ? "No suggestions yet. Try pulling to refresh."
-            : "No trending items available."}
-        </Text>
-      </View>
-    ) : null;
+  };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
-      {/* TikTok-style Top Navigation */}
-      <View style={styles.topNav}>
-        <View style={styles.tabsContainer}>
-          <TouchableOpacity
-            style={styles.tabButton}
-            onPress={() => setMode("foryou")}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.tabText, mode === "foryou" && styles.tabTextActive]}>
-              For You
-            </Text>
-            {mode === "foryou" && <View style={styles.tabIndicator} />}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.tabButton}
-            onPress={() => setMode("trending")}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.tabText, mode === "trending" && styles.tabTextActive]}>
-              Trending
-            </Text>
-            {mode === "trending" && <View style={styles.tabIndicator} />}
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity
-          style={styles.searchButton}
-          onPress={() => {
-            // TODO: Navigate to search screen
-            console.log("Search pressed");
+    <View style={{ flex: 1, backgroundColor: "#fff" }}>
+      <View style={{ flex: 1 }}>
+        {/* Animated white background for notch area - moves with top bar */}
+        <Animated.View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: insets.top,
+            backgroundColor: "#fff",
+            zIndex: 9,
+            transform: [{ translateY: topBarTranslateY }],
           }}
-          activeOpacity={0.7}
+        />
+
+        {/* Custom Tab Bar - Animated and absolute positioned */}
+        <Animated.View
+          style={[
+            styles.topNav,
+            {
+              top: insets.top,
+              transform: [{ translateY: topBarTranslateY }],
+            },
+          ]}
         >
-          <Icon name="search" size={24} color="#000" />
-        </TouchableOpacity>
+          <View style={styles.tabsContainer}>
+            {routes.map((route, i) => {
+              const isActive = index === i;
+              return (
+                <TouchableOpacity
+                  key={route.key}
+                  style={styles.tabButton}
+                  onPress={() => setIndex(i)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                    {route.title}
+                  </Text>
+                  {isActive && <View style={styles.tabIndicator} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <TouchableOpacity
+            style={styles.searchButton}
+            onPress={() => {
+              const parent = navigation.getParent<BottomTabNavigationProp<MainTabParamList>>();
+              parent?.navigate("Discover");
+            }}
+            activeOpacity={0.7}
+          >
+            <Icon name="search" size={24} color="#000" />
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Tab Content - No default tab bar */}
+        <TabView
+          navigationState={{ index, routes }}
+          renderScene={renderScene}
+          renderTabBar={() => null}
+          onIndexChange={setIndex}
+          initialLayout={{ width: layout.width }}
+          swipeEnabled={true}
+          lazy={true}
+          lazyPreloadDistance={0}
+          style={{ flex: 1 }}
+        />
       </View>
-
-      <FlatList
-        ref={scrollRef as any}
-        data={featuredItems}
-        numColumns={2}
-        keyExtractor={(item) => String(item.id)}
-        columnWrapperStyle={styles.row}
-        contentContainerStyle={styles.gridContainer}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
-        ListHeaderComponent={listHeader}
-        ListEmptyComponent={emptyState}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={() => {
-          if (isLoadingMore) {
-            return (
-              <View style={{ padding: 20, alignItems: "center" }}>
-                <ActivityIndicator size="small" color="#000" />
-                <Text style={{ marginTop: 8, color: "#666", fontSize: 14 }}>
-                  Loading more...
-                </Text>
-              </View>
-            );
-          }
-
-          if (!hasMore && featuredItems.length > 0) {
-            const displayCount = featuredItems.length;
-            return (
-              <View style={styles.footerContainer}>
-                <View style={styles.footerDivider} />
-                <Text style={styles.footerText}>
-                  You've reached the end • {displayCount} {displayCount === 1 ? "item" : "items"} found
-                </Text>
-                <Text style={styles.footerSubtext}>
-                  {mode === "foryou"
-                    ? "Pull to refresh for new suggestions"
-                    : "Pull to refresh for more trending items"}
-                </Text>
-              </View>
-            );
-          }
-
-          return null;
-        }}
-        // 👇 force rerender of list rows when seed or mode changes
-        extraData={`${seedRef.current}-${mode}-${featuredItems.length}`}
-        renderItem={({ item }) => {
-          const primaryImage =
-            item.images?.[0] ??
-            "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
-          const displayTags = item.tags && item.tags.length > 0 ? item.tags.slice(0, 2) : [];
-          return (
-            <TouchableOpacity
-              style={styles.gridItem}
-              onPress={() => handleListingPress(item)}
-              activeOpacity={0.7}
-            >
-              <Image source={{ uri: primaryImage }} style={styles.gridImage} />
-              <View style={styles.itemInfo}>
-                <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
-                <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
-                {displayTags.length > 0 && (
-                  <View style={styles.tagsContainer}>
-                    {displayTags.map((tag, index) => (
-                      <View key={index} style={styles.tagChip}>
-                        <Text style={styles.tagText} numberOfLines={1}>{tag}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity>
-          );
-        }}
-      />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-
-  // TikTok-style Top Navigation
   topNav: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -398,6 +204,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 3,
   },
   tabsContainer: {
     flexDirection: "row",
@@ -429,64 +240,5 @@ const styles = StyleSheet.create({
     padding: 8,
     position: "absolute",
     right: 12,
-  },
-
-  banner: { backgroundColor: "#fff", borderRadius: 12, padding: 16, marginBottom: 20 },
-  bannerTitle: { fontSize: 18, fontWeight: "700", marginBottom: 6 },
-  bannerSubtitle: { fontSize: 14, color: "#555" },
-
-  gridContainer: { paddingHorizontal: 16 },
-  row: { justifyContent: "space-between" },
-  gridItem: { width: "48%", marginBottom: 16, borderRadius: 12, overflow: "hidden", backgroundColor: "#f9f9f9" },
-  gridImage: { width: "100%", aspectRatio: 1 },
-  itemInfo: { padding: 10 },
-  itemTitle: { fontSize: 14, fontWeight: "600", color: "#111", marginBottom: 4 },
-  itemPrice: { fontSize: 15, fontWeight: "700", color: "#111", marginBottom: 6 },
-  tagsContainer: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 },
-  tagChip: {
-    backgroundColor: "#f0f0f0",
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    maxWidth: "100%",
-    marginRight: 4,
-    marginBottom: 4,
-  },
-  tagText: {
-    fontSize: 10,
-    color: "#666",
-    fontWeight: "500",
-  },
-
-  loadingContainer: { alignItems: "center", paddingVertical: 40 },
-  loadingText: { marginTop: 10, fontSize: 14, color: "#666" },
-  errorContainer: { alignItems: "center", paddingVertical: 40 },
-  errorText: { color: "#FF3B30" },
-  footerContainer: {
-    alignItems: "center",
-    paddingVertical: 40,
-    paddingHorizontal: 32,
-    rowGap: 8,
-  },
-  footerDivider: {
-    width: 60,
-    height: 3,
-    backgroundColor: "#e5e5e5",
-    borderRadius: 999,
-    marginBottom: 16,
-  },
-  footerText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#666",
-    textAlign: "center",
-  },
-  footerSubtext: {
-    fontSize: 13,
-    color: "#999",
-    textAlign: "center",
-    marginTop: 4,
   },
 });
