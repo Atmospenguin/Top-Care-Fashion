@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -68,6 +68,7 @@ export default function DiscoverMainScreen() {
   const [brandsLoading, setBrandsLoading] = useState(true);
   const [brandsError, setBrandsError] = useState<string | null>(null);
   const [preferredBrands, setPreferredBrands] = useState<string[]>([]);
+  const searchInputRef = useRef<TextInput>(null);
 
   const loadBrands = useCallback(async () => {
     try {
@@ -126,6 +127,17 @@ export default function DiscoverMainScreen() {
     }
   }, [route.params, loadPreferred, loadBrands]);
 
+  // Focus search input when focusSearch param is passed
+  useEffect(() => {
+    if (route.params?.focusSearch) {
+      // Small delay to ensure navigation is complete
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [route.params?.focusSearch]);
+
   const handleBrandPress = useCallback(
     (brand: string) => {
       if (!brand) return;
@@ -143,6 +155,7 @@ export default function DiscoverMainScreen() {
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
       {/* 搜索栏 */}
       <TextInput
+        ref={searchInputRef}
         style={styles.searchBar}
         placeholder="Search for Anything"
         placeholderTextColor="#666"
