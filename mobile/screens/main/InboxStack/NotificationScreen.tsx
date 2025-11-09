@@ -187,46 +187,33 @@ export default function NotificationScreen() {
       // ✅ 根据通知类型进行导航
       const notifType = notification.type?.toLowerCase();
 
-      // 获取根导航器（提前获取，避免重复代码）
-      let rootNav: any = navigation;
-      while (rootNav.getParent && typeof rootNav.getParent === 'function') {
-        const parent = rootNav.getParent();
-        if (!parent) break;
-        rootNav = parent;
-      }
-
       switch (notifType) {
         case 'order':
         case 'review': {
           const { conversationId, orderId } = await resolveConversationContext(notification);
 
-          // ✅ 导航到 ChatScreen（InboxStack → Chat）
-          if (conversationId && orderId) {
-            console.log("📱 Navigating to ChatScreen:", {
+          // ✅ 使用 ChatStandalone（根 Stack）- 避免嵌套导航导致的返回问题
+          if (conversationId) {
+            console.log("📱 Navigating to ChatStandalone:", {
               conversationId,
-              orderId,
             });
             try {
-              rootNav.navigate("Main", {
-                screen: "Inbox",
-                params: {
-                  screen: "Chat",
-                  params: {
-                    conversationId,
-                    orderId,
-                  },
-                },
+              // 🔥 使用 ChatStandalone 确保返回时回到 NotificationScreen
+              navigation.navigate("ChatStandalone", {
+                conversationId,
+                sender: notification.username || "User",
+                kind: "order",
               });
             } catch (err) {
-              console.error("❌ Failed to navigate to ChatScreen:", err);
+              console.error("❌ Failed to navigate to ChatStandalone:", err);
               Alert.alert("Error", "Failed to open conversation");
             }
           } else if (notification.listingId) {
-            // ⚠️ 降级方案：如果缺少 conversationId/orderId，但有 listingId，跳转到商品详情
-            console.warn("⚠️ Missing conversationId or orderId, fallback to ListingDetail");
+            // ⚠️ 降级方案：如果缺少 conversationId，但有 listingId，跳转到商品详情
+            console.warn("⚠️ Missing conversationId, fallback to ListingDetail");
             console.log("📱 Navigating to ListingDetail (fallback):", notification.listingId);
             try {
-              rootNav.navigate("Buy", {
+              navigation.navigate("Buy", {
                 screen: "ListingDetail",
                 params: { listingId: notification.listingId }
               });
@@ -236,7 +223,7 @@ export default function NotificationScreen() {
             }
           } else {
             // ❌ 完全缺少必要信息，显示提示
-            console.error("❌ Cannot navigate: missing conversationId, orderId, and listingId");
+            console.error("❌ Cannot navigate: missing conversationId and listingId");
             Alert.alert(
               "Notice",
               "This is an old notification. The related conversation may no longer be available."
@@ -250,7 +237,7 @@ export default function NotificationScreen() {
           if (notification.listingId) {
             console.log("📱 Navigating to ListingDetail:", notification.listingId);
             try {
-              rootNav.navigate("Buy", {
+              navigation.navigate("Buy", {
                 screen: "ListingDetail",
                 params: { listingId: notification.listingId }
               });
@@ -267,7 +254,7 @@ export default function NotificationScreen() {
             // 优先使用 username
             console.log("📱 Navigating to UserProfile (username):", notification.username);
             try {
-              rootNav.navigate("Buy", {
+              navigation.navigate("Buy", {
                 screen: "UserProfile",
                 params: { username: notification.username }
               });
@@ -279,7 +266,7 @@ export default function NotificationScreen() {
             // 降级方案：使用 userId
             console.warn("⚠️ No username, using userId:", notification.related_user_id);
             try {
-              rootNav.navigate("Buy", {
+              navigation.navigate("Buy", {
                 screen: "UserProfile",
                 params: { userId: notification.related_user_id }
               });
