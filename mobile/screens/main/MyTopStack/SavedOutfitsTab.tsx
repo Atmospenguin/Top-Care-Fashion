@@ -9,8 +9,9 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  RefreshControl,
 } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import Icon from '../../../components/Icon';
 import { outfitService } from '../../../src/services/outfitService';
 import { listingsService } from '../../../src/services/listingsService';
@@ -29,6 +30,7 @@ export default function SavedOutfitsTab() {
   const navigation = useNavigation();
   const [outfits, setOutfits] = useState<OutfitWithItems[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const listingCache = useRef<Map<number, ListingItem | null>>(new Map());
 
   const fetchListingDetails = useCallback(async (listingId: number): Promise<ListingItem | null> => {
@@ -47,9 +49,13 @@ export default function SavedOutfitsTab() {
     }
   }, []);
 
-  const fetchSavedOutfits = useCallback(async (clearCache = false) => {
+  const fetchSavedOutfits = useCallback(async (isRefresh = false, clearCache = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
 
       // ✅ 如果 clearCache 为 true，清空缓存以确保获取最新数据
       if (clearCache) {
@@ -90,16 +96,19 @@ export default function SavedOutfitsTab() {
       Alert.alert('Error', 'Failed to load saved outfits');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [fetchListingDetails]);
 
-  // ✅ 使用 useFocusEffect 在页面获得焦点时刷新数据
-  useFocusEffect(
-    useCallback(() => {
-      // 当页面获得焦点时，清空缓存并刷新数据
-      fetchSavedOutfits(true);
-    }, [fetchSavedOutfits])
-  );
+  // 组件挂载时加载数据（仅一次）
+  useEffect(() => {
+    fetchSavedOutfits(false, false);
+  }, [fetchSavedOutfits]);
+
+  // 下拉刷新处理
+  const onRefresh = useCallback(() => {
+    fetchSavedOutfits(true, true);
+  }, [fetchSavedOutfits]);
 
   // ✅ 导航到 ViewOutfitScreen
   const handleViewOutfit = useCallback((outfit: OutfitWithItems) => {
@@ -297,6 +306,14 @@ export default function SavedOutfitsTab() {
       <FlatList
         data={outfits}
         keyExtractor={item => item.id.toString()}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#000"
+            colors={["#000"]}
+          />
+        }
         renderItem={({ item }) => (
           <TouchableOpacity 
             style={styles.outfitCard}

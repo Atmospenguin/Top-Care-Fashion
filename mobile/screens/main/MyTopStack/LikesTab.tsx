@@ -1,8 +1,8 @@
-import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, Image, FlatList, TouchableOpacity, ActivityIndicator } from "react-native";
+import React, { useState, useCallback, useEffect } from "react";
+import { View, Text, StyleSheet, Image, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
 import Icon from "../../../components/Icon";
 import { likesService, LikedListing } from "../../../src/services";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 
 // 保证三列对齐
 function formatData(data: any[], numColumns: number) {
@@ -23,11 +23,16 @@ export default function LikesTab() {
   const navigation = useNavigation();
   const [likedListings, setLikedListings] = useState<LikedListing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadLikedListings = useCallback(async () => {
+  const loadLikedListings = useCallback(async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
       const data = await likesService.getLikedListings();
       setLikedListings(data);
@@ -36,15 +41,19 @@ export default function LikesTab() {
       setError('Failed to load liked listings');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
-  // ✅ 使用 useFocusEffect 以便在返回时刷新
-  useFocusEffect(
-    React.useCallback(() => {
-      loadLikedListings();
-    }, [loadLikedListings])
-  );
+  // 组件挂载时加载数据（仅一次）
+  useEffect(() => {
+    loadLikedListings(false);
+  }, [loadLikedListings]);
+
+  // 下拉刷新处理
+  const onRefresh = useCallback(() => {
+    loadLikedListings(true);
+  }, [loadLikedListings]);
 
   const handleItemPress = (likedListing: LikedListing) => {
     if (!likedListing?.listing?.id) {
@@ -131,7 +140,7 @@ export default function LikesTab() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90E2" />
+        <ActivityIndicator size="large" color="#000" />
         <Text style={styles.loadingText}>Loading your likes...</Text>
       </View>
     );
@@ -163,6 +172,14 @@ export default function LikesTab() {
         numColumns={3}
         renderItem={renderItem}
         contentContainerStyle={styles.listContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#000"
+            colors={["#000"]}
+          />
+        }
       />
     </View>
   );
