@@ -48,6 +48,9 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
   const seedRef = useRef<number>((Date.now() % INT32_MAX) | 0);
   const insets = useSafeAreaInsets();
 
+  // Track which boosted items have been viewed (to avoid duplicate tracking)
+  const viewedBoostedItemsRef = useRef<Set<string>>(new Set());
+
   const [featuredItems, setFeaturedItems] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -113,6 +116,19 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
     });
   };
 
+  // Track promotion events (view/click)
+  const trackPromotion = useCallback(async (listingId: string, eventType: "view" | "click") => {
+    try {
+      await apiClient.post("/api/promotions/track", {
+        listingId: Number(listingId),
+        eventType,
+      });
+    } catch (error) {
+      // Silently fail - tracking errors shouldn't disrupt user experience
+      console.warn(`Failed to track ${eventType} for listing ${listingId}:`, error);
+    }
+  }, []);
+
   const fetchFeedPage = useCallback(
     async (pageToLoad: number, { bypassCache = false } = {}) => {
       const params: Record<string, any> = {
@@ -160,6 +176,7 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
   const refresh = useCallback(async () => {
     setRefreshing(true);
     seedRef.current = (Date.now() % INT32_MAX) | 0;
+    viewedBoostedItemsRef.current.clear(); // Reset view tracking on refresh
     await loadInitial();
     setRefreshing(false);
   }, [loadInitial]);
@@ -196,6 +213,11 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
         return;
       }
 
+      // Track click for boosted items
+      if (item.is_boosted) {
+        trackPromotion(item.id, "click");
+      }
+
       let rootNavigation: any = navigation;
       let current: any = navigation;
       while (current?.getParent?.()) {
@@ -213,7 +235,7 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
         });
       });
     },
-    [navigation]
+    [navigation, trackPromotion]
   );
 
   // All hooks must be at the top, before any conditional returns
@@ -234,6 +256,23 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
       </Text>
     </View>
   ) : null;
+
+  // Viewability tracking for boosted items
+  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    viewableItems.forEach((viewableItem: any) => {
+      const item = viewableItem.item as ListingItem;
+      if (item.is_boosted && !viewedBoostedItemsRef.current.has(item.id)) {
+        // Mark as viewed and track
+        viewedBoostedItemsRef.current.add(item.id);
+        trackPromotion(item.id, "view");
+      }
+    });
+  }).current;
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50, // 50% of item must be visible
+    minimumViewTime: 500, // Must be visible for at least 500ms
+  }).current;
 
   // Premium Banner component - only for For You tab
   const isPremium = auth?.user?.isPremium ?? false;
@@ -299,6 +338,8 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
         onScroll?.(offset);
       }}
       scrollEventThrottle={16}
+      onViewableItemsChanged={onViewableItemsChanged}
+      viewabilityConfig={viewabilityConfig}
       ListFooterComponent={() => {
         if (isLoadingMore) {
           return (
