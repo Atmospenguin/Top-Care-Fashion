@@ -44,26 +44,15 @@ export default function NotificationHandler() {
         try {
           // 根据通知类型进行导航
           if (data.type === 'message' && data.conversationId) {
-            // 导航到聊天页面
-            navigation.navigate('Main', {
-              screen: 'Inbox',
-              params: {
-                screen: 'Chat',
-                params: {
-                  conversationId: data.conversationId,
-                  sender: data.username || 'User',
-                },
-              },
+            // ✅ 使用 ChatStandalone 避免嵌套导航问题
+            navigation.navigate('ChatStandalone', {
+              conversationId: data.conversationId,
+              sender: data.username || 'User',
+              kind: 'order',
             });
           } else if (data.type === 'notification') {
             // 导航到通知页面
-            if (data.notificationType === 'order' && data.orderId) {
-              // 如果是订单通知，可以导航到订单详情
-              // navigation.navigate('OrderDetail', { orderId: data.orderId });
-              navigation.navigate('Notification');
-            } else {
-              navigation.navigate('Notification');
-            }
+            navigation.navigate('Notification');
           }
         } catch (error) {
           console.error('❌ Error handling notification click:', error);
