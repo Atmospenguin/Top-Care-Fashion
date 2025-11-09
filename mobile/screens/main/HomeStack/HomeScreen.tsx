@@ -259,7 +259,7 @@ export default function HomeScreen() {
     ) : null;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
       <FlatList
         ref={scrollRef as any}
         data={featuredItems}
@@ -277,31 +277,54 @@ export default function HomeScreen() {
             return (
               <View style={{ padding: 20, alignItems: "center" }}>
                 <ActivityIndicator size="small" color="#007AFF" />
-                <Text style={styles.loadingText}>Loading more...</Text>
+                <Text style={{ marginTop: 8, color: "#666", fontSize: 14 }}>
+                  Loading more...
+                </Text>
               </View>
             );
           }
+
           if (!hasMore && featuredItems.length > 0) {
+            const displayCount = featuredItems.length;
             return (
-              <View style={{ padding: 20, alignItems: "center" }}>
-                <Text style={{ color: "#999", fontSize: 14 }}>You've reached the end</Text>
+              <View style={styles.footerContainer}>
+                <View style={styles.footerDivider} />
+                <Text style={styles.footerText}>
+                  You've reached the end • {displayCount} {displayCount === 1 ? "item" : "items"} found
+                </Text>
+                <Text style={styles.footerSubtext}>
+                  {mode === "foryou" 
+                    ? "Pull to refresh for new suggestions" 
+                    : "Pull to refresh for more trending items"}
+                </Text>
               </View>
             );
           }
-          return <View style={{ height: 60 }} />;
+
+          return null;
         }}
-        // 👇 force rerender of list rows when seed changes
-        extraData={seedRef.current}
+        // 👇 force rerender of list rows when seed or mode changes
+        extraData={`${seedRef.current}-${mode}-${featuredItems.length}`}
         renderItem={({ item }) => {
           const primaryImage =
             item.images?.[0] ??
             "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
+          const displayTags = item.tags && item.tags.length > 0 ? item.tags.slice(0, 2) : [];
           return (
             <TouchableOpacity style={styles.gridItem}>
               <Image source={{ uri: primaryImage }} style={styles.gridImage} />
               <View style={styles.itemInfo}>
                 <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
                 <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
+                {displayTags.length > 0 && (
+                  <View style={styles.tagsContainer}>
+                    {displayTags.map((tag, index) => (
+                      <View key={index} style={styles.tagChip}>
+                        <Text style={styles.tagText} numberOfLines={1}>{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
             </TouchableOpacity>
           );
@@ -338,11 +361,53 @@ const styles = StyleSheet.create({
   gridItem: { width: "48%", marginBottom: 16, borderRadius: 12, overflow: "hidden", backgroundColor: "#f9f9f9" },
   gridImage: { width: "100%", aspectRatio: 1 },
   itemInfo: { padding: 10 },
-  itemTitle: { fontSize: 14, fontWeight: "600", color: "#111" },
-  itemPrice: { fontSize: 15, fontWeight: "700", color: "#111" },
+  itemTitle: { fontSize: 14, fontWeight: "600", color: "#111", marginBottom: 4 },
+  itemPrice: { fontSize: 15, fontWeight: "700", color: "#111", marginBottom: 6 },
+  tagsContainer: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 },
+  tagChip: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    maxWidth: "100%",
+    marginRight: 4,
+    marginBottom: 4,
+  },
+  tagText: {
+    fontSize: 10,
+    color: "#666",
+    fontWeight: "500",
+  },
 
   loadingContainer: { alignItems: "center", paddingVertical: 40 },
   loadingText: { marginTop: 10, fontSize: 14, color: "#666" },
   errorContainer: { alignItems: "center", paddingVertical: 40 },
   errorText: { color: "#FF3B30" },
+  footerContainer: {
+    alignItems: "center",
+    paddingVertical: 40,
+    paddingHorizontal: 32,
+    rowGap: 8,
+  },
+  footerDivider: {
+    width: 60,
+    height: 3,
+    backgroundColor: "#e5e5e5",
+    borderRadius: 999,
+    marginBottom: 16,
+  },
+  footerText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#666",
+    textAlign: "center",
+  },
+  footerSubtext: {
+    fontSize: 13,
+    color: "#999",
+    textAlign: "center",
+    marginTop: 4,
+  },
 });
