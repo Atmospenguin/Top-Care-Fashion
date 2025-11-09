@@ -344,7 +344,8 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
           >
             <View style={styles.imageContainer}>
               <Image source={{ uri: primaryImage }} style={styles.gridImage} />
-              {item.is_boosted && (
+              {/* Temporarily show on all items for testing */}
+              {(item.is_boosted || true) && (
                 <View style={styles.boostBadge}>
                   <Ionicons name="flash-outline" size={14} color="#000" />
                 </View>
@@ -389,13 +390,23 @@ const styles = StyleSheet.create({
     paddingBottom: 60,
   },
   row: { justifyContent: "space-between" },
-  gridItem: { width: "48%", marginBottom: 16, borderRadius: 12, overflow: "hidden", backgroundColor: "#f9f9f9" },
-  imageContainer: { position: "relative", width: "100%", aspectRatio: 1 },
+  gridItem: {
+    width: "48%",
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#f9f9f9",
+  },
+  imageContainer: {
+    width: "100%",
+    aspectRatio: 1,
+    position: "relative",
+  },
   gridImage: { width: "100%", height: "100%" },
   boostBadge: {
     position: "absolute",
-    bottom: 8,
-    right: 8,
+    bottom: 6,
+    right: 6,
     backgroundColor: "rgba(255, 215, 0, 0.95)",
     width: 28,
     height: 28,
