@@ -1,7 +1,7 @@
 // mobile/screens/main/HomeStack/HomeScreen.tsx
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
-  View, Text, TextInput, StyleSheet, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, Image, RefreshControl, FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -39,10 +39,8 @@ export default function HomeScreen() {
 
   const scrollRef = useRef<FlatList<ListingItem> | null>(null);
   const scrollOffsetRef = useRef(0);
-  const searchInputRef = useRef<TextInput>(null);
   const seedRef = useRef<number>((Date.now() % INT32_MAX) | 0);
 
-  const [searchText, setSearchText] = useState("");
   const [featuredItems, setFeaturedItems] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -235,19 +233,6 @@ export default function HomeScreen() {
   const listHeader = useMemo(
     () => (
       <View>
-        {/* Search Bar */}
-        <View style={styles.searchRow}>
-          <TextInput
-            ref={searchInputRef}
-            style={styles.searchBar}
-            placeholder="Search for anything"
-            placeholderTextColor="#666"
-            value={searchText}
-            onChangeText={setSearchText}
-            returnKeyType="search"
-          />
-        </View>
-
         {/* Premium Banner */}
         <View style={styles.banner}>
           <Text style={styles.bannerTitle}>Style smarter with AI Mix & Match</Text>
@@ -256,33 +241,9 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        {/* 🔵 Mode Toggle Buttons */}
-        <View style={styles.toggleRow}>
-          <TouchableOpacity
-            style={[styles.toggleBtn, mode === "foryou" && styles.toggleBtnActive]}
-            onPress={() => setMode("foryou")}
-          >
-            <Text style={[styles.toggleText, mode === "foryou" && styles.toggleTextActive]}>
-              For You
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toggleBtn, mode === "trending" && styles.toggleBtnActive]}
-            onPress={() => setMode("trending")}
-          >
-            <Text style={[styles.toggleText, mode === "trending" && styles.toggleTextActive]}>
-              Trending
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.sectionTitle}>
-          {mode === "foryou" ? "Suggested for you" : "Trending now"}
-        </Text>
-
         {loading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" />
+            <ActivityIndicator size="large" color="#000" />
             <Text style={styles.loadingText}>Loading items...</Text>
           </View>
         )}
@@ -293,7 +254,7 @@ export default function HomeScreen() {
         )}
       </View>
     ),
-    [searchText, mode, loading, error]
+    [mode, loading, error]
   );
 
   // ---------- render ----------
@@ -310,6 +271,42 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
+      {/* TikTok-style Top Navigation */}
+      <View style={styles.topNav}>
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={styles.tabButton}
+            onPress={() => setMode("foryou")}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.tabText, mode === "foryou" && styles.tabTextActive]}>
+              For You
+            </Text>
+            {mode === "foryou" && <View style={styles.tabIndicator} />}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.tabButton}
+            onPress={() => setMode("trending")}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.tabText, mode === "trending" && styles.tabTextActive]}>
+              Trending
+            </Text>
+            {mode === "trending" && <View style={styles.tabIndicator} />}
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity
+          style={styles.searchButton}
+          onPress={() => {
+            // TODO: Navigate to search screen
+            console.log("Search pressed");
+          }}
+          activeOpacity={0.7}
+        >
+          <Icon name="search" size={24} color="#000" />
+        </TouchableOpacity>
+      </View>
+
       <FlatList
         ref={scrollRef as any}
         data={featuredItems}
@@ -326,7 +323,7 @@ export default function HomeScreen() {
           if (isLoadingMore) {
             return (
               <View style={{ padding: 20, alignItems: "center" }}>
-                <ActivityIndicator size="small" color="#007AFF" />
+                <ActivityIndicator size="small" color="#000" />
                 <Text style={{ marginTop: 8, color: "#666", fontSize: 14 }}>
                   Loading more...
                 </Text>
@@ -343,8 +340,8 @@ export default function HomeScreen() {
                   You've reached the end • {displayCount} {displayCount === 1 ? "item" : "items"} found
                 </Text>
                 <Text style={styles.footerSubtext}>
-                  {mode === "foryou" 
-                    ? "Pull to refresh for new suggestions" 
+                  {mode === "foryou"
+                    ? "Pull to refresh for new suggestions"
                     : "Pull to refresh for more trending items"}
                 </Text>
               </View>
@@ -390,26 +387,54 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
-  searchRow: { flexDirection: "row", alignItems: "center", marginBottom: 16, paddingHorizontal: 16 },
-  searchBar: {
-    flex: 1, height: 44, borderRadius: 22, backgroundColor: "#f3f3f3",
-    paddingHorizontal: 16, fontSize: 15,
+
+  // TikTok-style Top Navigation
+  topNav: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
   },
+  tabsContainer: {
+    flexDirection: "row",
+    flex: 1,
+    justifyContent: "center",
+    gap: 32,
+  },
+  tabButton: {
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  tabText: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#999",
+  },
+  tabTextActive: {
+    color: "#000",
+    fontWeight: "700",
+  },
+  tabIndicator: {
+    marginTop: 6,
+    width: 32,
+    height: 3,
+    backgroundColor: "#000",
+    borderRadius: 1.5,
+  },
+  searchButton: {
+    padding: 8,
+    position: "absolute",
+    right: 12,
+  },
+
   banner: { backgroundColor: "#fff", borderRadius: 12, padding: 16, marginBottom: 20 },
   bannerTitle: { fontSize: 18, fontWeight: "700", marginBottom: 6 },
   bannerSubtitle: { fontSize: 14, color: "#555" },
 
-  // 🔵 Toggle Buttons
-  toggleRow: { flexDirection: "row", justifyContent: "center", marginBottom: 16 },
-  toggleBtn: {
-    flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 8,
-    borderWidth: 1, borderColor: "#ddd", marginHorizontal: 8,
-  },
-  toggleBtnActive: { backgroundColor: "#000" },
-  toggleText: { color: "#111", fontWeight: "600" },
-  toggleTextActive: { color: "#fff" },
-
-  sectionTitle: { fontSize: 16, fontWeight: "700", marginHorizontal: 16, marginBottom: 12 },
   gridContainer: { paddingHorizontal: 16 },
   row: { justifyContent: "space-between" },
   gridItem: { width: "48%", marginBottom: 16, borderRadius: 12, overflow: "hidden", backgroundColor: "#f9f9f9" },
