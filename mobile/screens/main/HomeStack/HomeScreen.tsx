@@ -4,18 +4,19 @@ import {
   View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, type RouteProp, type NavigatorScreenParams } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { TabView } from "react-native-tab-view";
 
 import Icon from "../../../components/Icon";
 import type { HomeStackParamList } from "./index";
+import type { DiscoverStackParamList } from "../DiscoverStack/index";
 import FeedList, { type FeedListRef } from "./FeedList";
 
 type MainTabParamList = {
   Home: undefined;
-  Discover: undefined;
+  Discover: NavigatorScreenParams<DiscoverStackParamList> | undefined;
   Sell: undefined;
   Inbox: undefined;
   "My TOP": any;
@@ -164,7 +165,10 @@ export default function HomeScreen() {
             style={styles.searchButton}
             onPress={() => {
               const parent = navigation.getParent<BottomTabNavigationProp<MainTabParamList>>();
-              parent?.navigate("Discover");
+              parent?.navigate("Discover", {
+                screen: "DiscoverMain",
+                params: { focusSearch: Date.now() },
+              });
             }}
             activeOpacity={0.7}
           >

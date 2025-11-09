@@ -5,7 +5,7 @@ import DiscoverMainScreen from "./DiscoverMainScreen";
 import DiscoverCategoryScreen from "./DiscoverCategoryScreen";
 
 export type DiscoverStackParamList = {
-  DiscoverMain: { refreshTS?: number } | undefined;
+  DiscoverMain: { refreshTS?: number; focusSearch?: number } | undefined;
   DiscoverCategory: { gender: "men" | "women" | "unisex" };
 };
 

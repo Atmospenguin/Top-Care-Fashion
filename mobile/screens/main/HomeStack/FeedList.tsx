@@ -222,7 +222,7 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
   const contentStyle = useMemo(
     () => ({
       ...styles.gridContainer,
-      paddingTop: insets.top + 60 + 8, // Safe area top + top bar height (60) + extra margin (8)
+      paddingTop: insets.top + 60 + 16, // Safe area top + top bar height (60) + extra margin (16)
     }),
     [insets.top]
   );
