@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "db:check": "node scripts/check-db-connection.js"
   },
   "dependencies": {
     "@google-cloud/vision": "^5.3.4",

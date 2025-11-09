@@ -41,6 +41,8 @@ export type ListingItem = {
   buyerId?: number | null;
   sellerId?: number | null;
   conversationId?: string | null;
+  is_boosted?: boolean;
+  boost_weight?: number | null;
 };
 
 export type BagItem = {

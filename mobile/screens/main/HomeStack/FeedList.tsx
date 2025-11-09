@@ -358,8 +358,7 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
                     ))}
                   </View>
                 )}
-                {/* Temporarily show on all items for testing */}
-                {(item.is_boosted || true) && (
+                {item.is_boosted && (
                   <View style={styles.boostBadge}>
                     <Ionicons name="flash-outline" size={16} color="#FFD700" />
                   </View>
