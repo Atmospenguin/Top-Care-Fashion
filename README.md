@@ -74,7 +74,7 @@ A modern fashion marketplace platform built with Next.js, React Native, and Supa
 - **Framework**: Next.js with App Router
 - **Styling**: TailwindCSS 4
 - **Database**: Prisma ORM with Supabase PostgreSQL
-- **Authentication**: Supabase Auth + local user sync
+- **Authentication**: Supabase Auth with email validations
 
 ### Mobile App
 - **Framework**: React Native with Expo 54
@@ -84,36 +84,58 @@ A modern fashion marketplace platform built with Next.js, React Native, and Supa
 
 ## 📱 Features
 
-### Current Implementation
+### Features
 - ✅ User authentication (login/register)
 - ✅ Product listings display
 - ✅ User profiles
 - ✅ Shopping cart functionality
 - ✅ Mix & Match outfit builder
 - ✅ Premium subscription plans
-
-### Planned Features
-- 🔄 Real-time chat
-- 🔄 Push notifications
-- 🔄 AI-powered outfit recommendations
-- 🔄 Advanced search & filters
-- 🔄 Payment processing
+- ✅ Real-time chat
+- ✅ Push notifications
+- ✅ AI-powered outfit recommendations
+- ✅ Advanced search & filters
+- ✅ Payment processing
 
 ## 🗄️ Database
 
 ### Schema Overview
-- **Users**: Authentication, profiles, premium status
-- **Listings**: Product catalog with categories
-- **Transactions**: Order management
-- **Reviews**: User feedback system
-- **Feedback**: Customer testimonials
 
-### Sample Data
-The database includes comprehensive test data:
-- 10 user accounts with different roles
-- 15+ product listings
-- Sample transactions and reviews
-- FAQ entries and site statistics
+#### Core Models
+- **Users**: Authentication, profiles, premium status, preferences
+- **Listings**: Product catalog with categories, tags, and analytics
+- **Listing Categories**: Hierarchical category system with AI keywords
+- **Orders**: Order management with status tracking
+- **Order Items**: Order line items
+- **Transactions**: Transaction records and payment tracking
+- **Cart Items**: Shopping cart functionality
+
+#### User Features
+- **User Addresses**: Shipping addresses management
+- **User Payment Methods**: Payment method storage
+- **User Follows**: User following system
+- **User Likes**: Listing likes and favorites
+- **Saved Outfits**: Mix & Match outfit builder with AI ratings
+
+#### Communication & Engagement
+- **Conversations**: Real-time chat conversations
+- **Messages**: Chat messages with read status
+- **Notifications**: Push notifications system
+- **Reviews**: User reviews and ratings
+- **Feedback**: Customer testimonials and feedback
+
+#### Commerce Features
+- **Listing Promotions**: Product promotion system with analytics
+- **Pricing Plans**: Subscription plans and premium features
+- **Listing Clicks**: Click analytics and tracking
+- **Listing Stats Daily**: Daily statistics aggregation
+
+#### Content & Support
+- **FAQ**: Frequently asked questions
+- **Landing Content**: Landing page content management
+- **Site Stats**: Site-wide statistics
+- **Reports**: Content and user reporting system
+- **Releases**: App release version management
 
 ## 🚀 Deployment
 
@@ -130,12 +152,9 @@ The database includes comprehensive test data:
 
 ## 📚 Documentation
 
-- [Development Guide](development.md) - Setup, architecture, and workflows
 - [Mobile Documentation](mobile/README.md) - React Native app details
 - [Test Accounts](docs/TEST_ACCOUNTS.md) - Sample user credentials
 - [Plans & Pricing](docs/Plans%20&%20Pricing.md) - Subscription details
-
-- [Operational Lessons & Checklist](development.md#16-operational-lessons--quick-fixes-2025-10-25) - Quick fixes and API hygiene checklist (added 2025-10-25)
 
 ## 🔐 Security
 
@@ -145,12 +164,10 @@ The database includes comprehensive test data:
 - Input validation and sanitization
 - HTTPS enforcement
 
-
-
 ## 🆘 Support
 
-- **Issues**: [GitHub Issues](https://github.com/your-org/top-care-fashion/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-org/top-care-fashion/discussions)
+- **Issues**: [GitHub Issues](https://github.com/atmospenguin/top-care-fashion/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/atmospenguin/top-care-fashion/discussions)
 - **Email**: atmospenguin@qq.com
 
 ## 🎨 Brand
@@ -159,7 +176,3 @@ The database includes comprehensive test data:
 - **Logo**: Available in SVG format (brand color, white, icon)
 - **Typography**: Geist font family
 - **Design System**: TailwindCSS with custom brand tokens
-
----
-
-Built with ❤️ by the Top Care Fashion team
