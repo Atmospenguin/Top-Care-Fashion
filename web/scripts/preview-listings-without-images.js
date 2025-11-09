@@ -91,12 +91,12 @@ async function main() {
         listed: true,
         created_at: true,
         seller_id: true,
-        categories: {
+        category: {
           select: {
             name: true
           }
         },
-        users: {
+        seller: {
           select: {
             username: true,
             email: true
@@ -125,10 +125,10 @@ async function main() {
     listingsWithoutImages.forEach((listing, index) => {
       console.log(`${index + 1}. ID: ${listing.id} | ${listing.name}`);
       console.log(`   价格: ${formatPrice(listing.price)} | 品牌: ${listing.brand || 'N/A'} | 尺码: ${listing.size || 'N/A'}`);
-      console.log(`   分类: ${listing.categories?.name || 'N/A'} | 状态: ${listing.condition_type}`);
+      console.log(`   分类: ${listing.category?.name || 'N/A'} | 状态: ${listing.condition_type}`);
       console.log(`   库存: ${listing.inventory_count || 0} | 浏览: ${listing.views_count || 0} | 点赞: ${listing.likes_count || 0}`);
       console.log(`   已售出: ${listing.sold ? '是' : '否'} | 已上架: ${listing.listed ? '是' : '否'}`);
-      console.log(`   卖家: ${listing.users?.username || 'N/A'} (ID: ${listing.seller_id || 'N/A'})`);
+      console.log(`   卖家: ${listing.seller?.username || 'N/A'} (ID: ${listing.seller_id || 'N/A'})`);
       console.log(`   创建时间: ${formatDate(listing.created_at)}`);
 
       // 显示图片字段的原始值
