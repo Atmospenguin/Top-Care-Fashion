@@ -202,6 +202,70 @@ export async function GET() {
       createdAt: order.created_at.toISOString(),
     }));
 
+    // Get promotion stats
+    const [
+      totalPromotions,
+      activePromotions,
+      expiredPromotions,
+      promotionsThisWeek,
+    ] = await Promise.all([
+      prisma.listing_promotions.count(),
+      prisma.listing_promotions.count({
+        where: {
+          status: "ACTIVE",
+          ends_at: { gt: now },
+        },
+      }),
+      prisma.listing_promotions.count({
+        where: { status: "EXPIRED" },
+      }),
+      prisma.listing_promotions.count({
+        where: { created_at: { gte: startOfWeek } },
+      }),
+    ]);
+
+    // Get promotion performance stats
+    const promotionPerformance = await prisma.listing_promotions.aggregate({
+      where: {
+        status: "ACTIVE",
+        ends_at: { gt: now },
+      },
+      _sum: {
+        views: true,
+        clicks: true,
+      },
+      _avg: {
+        view_uplift_percent: true,
+        click_uplift_percent: true,
+      },
+    });
+
+    // Get top boosted listings by performance
+    const topBoostedListings = await prisma.listing_promotions.findMany({
+      where: {
+        status: "ACTIVE",
+        ends_at: { gt: now },
+        views: { gt: 0 },
+      },
+      select: {
+        id: true,
+        listing_id: true,
+        views: true,
+        clicks: true,
+        view_uplift_percent: true,
+        click_uplift_percent: true,
+        listing: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        views: "desc",
+      },
+      take: 5,
+    });
+
     const stats = {
       totalUsers,
       activeUsers,
@@ -218,6 +282,19 @@ export async function GET() {
       newUsersThisWeek,
       newListingsThisWeek,
       transactionsThisWeek,
+      // Promotion stats
+      totalPromotions,
+      activePromotions,
+      expiredPromotions,
+      promotionsThisWeek,
+      promotionTotalViews: promotionPerformance._sum.views ?? 0,
+      promotionTotalClicks: promotionPerformance._sum.clicks ?? 0,
+      promotionAvgViewUplift: promotionPerformance._avg.view_uplift_percent
+        ? Math.round(promotionPerformance._avg.view_uplift_percent)
+        : 0,
+      promotionAvgClickUplift: promotionPerformance._avg.click_uplift_percent
+        ? Math.round(promotionPerformance._avg.click_uplift_percent)
+        : 0,
     };
 
     return NextResponse.json({
@@ -232,6 +309,16 @@ export async function GET() {
       })),
       topSellers,
       recentTransactions,
+      topBoostedListings: topBoostedListings.map((promo) => ({
+        id: String(promo.id),
+        listingId: String(promo.listing_id),
+        listingName: promo.listing?.name || `Listing ${promo.listing_id}`,
+        views: promo.views ?? 0,
+        clicks: promo.clicks ?? 0,
+        viewUplift: promo.view_uplift_percent ?? 0,
+        clickUplift: promo.click_uplift_percent ?? 0,
+        ctr: promo.views > 0 ? ((promo.clicks / promo.views) * 100).toFixed(2) : "0",
+      })),
     });
   } catch (error) {
     console.error("Error loading dashboard data:", error);
