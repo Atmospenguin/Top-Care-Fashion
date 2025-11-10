@@ -261,19 +261,6 @@ export default function Home() {
             <div className="text-xs text-black/60">Avg. rating</div>
           </div>
         </div>
-
-        {/* Admin Quick Links */}
-        {user?.actor === "Admin" && (
-          <div className="mt-6 flex justify-center">
-            <Link
-              href="/admin/promotions"
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm text-[var(--brand-color)] border border-[var(--brand-color)] rounded-lg hover:bg-[var(--brand-color)] hover:text-white transition"
-            >
-              <span>📈</span>
-              <span>Manage Boosted Listings</span>
-            </Link>
-          </div>
-        )}
       </section>
 
 
