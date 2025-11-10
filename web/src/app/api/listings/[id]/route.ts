@@ -295,12 +295,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       console.log("📝 Gender field received:", { raw: body.gender, type: typeof body.gender });
       const resolvedGender = mapGenderToEnum(body.gender);
       console.log("📝 Gender after mapping:", { resolved: resolvedGender });
-      if (resolvedGender) {
-        updateData.gender = resolvedGender;
-      } else {
-        // If resolvedGender is null, explicitly set gender to null (for Unisex or invalid values)
-        updateData.gender = null;
-      }
+      // Always update gender field. If invalid input, default to Unisex enum
+      updateData.gender = resolvedGender || "Unisex";
+      console.log("📝 Gender to be saved:", updateData.gender);
     }
     // Prisma expects Json type fields as JavaScript arrays/objects, not JSON strings
     if (body.tags !== undefined) updateData.tags = body.tags;
@@ -343,6 +340,11 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     updateData.updated_at = new Date();
 
     console.log("📝 Update data prepared:", JSON.stringify(updateData, null, 2));
+    console.log("📝 Gender in updateData:", {
+      gender: updateData.gender,
+      type: typeof updateData.gender,
+      hasGender: 'gender' in updateData
+    });
 
     const updatedListing = await prisma.listings.update({
       where: { id: listingId },
@@ -368,6 +370,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     });
 
     console.log("✅ Listing updated successfully:", updatedListing.id);
+    console.log("✅ Gender in database after update:", {
+      gender: (updatedListing as any).gender,
+      type: typeof (updatedListing as any).gender
+    });
 
     const images = (() => {
       const parsed = parseJsonArray(updatedListing.image_urls);
