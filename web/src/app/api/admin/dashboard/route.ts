@@ -237,10 +237,6 @@ export async function GET() {
     const totalBoostRevenue = boostRevenueThisMonthStats._sum.paid_amount
       ? Number(boostRevenueThisMonthStats._sum.paid_amount)
       : 0;
-
-    const boostRevenueThisMonth = boostRevenueThisMonthStats._sum.paid_amount
-      ? Number(boostRevenueThisMonthStats._sum.paid_amount)
-      : 0;
     const paidPromotionsThisMonth = boostRevenueThisMonthStats._count.id;
 
     // Get premium subscription stats

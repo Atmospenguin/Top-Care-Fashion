@@ -77,7 +77,8 @@ export default function StatsPage() {
     if (period !== "custom" || (startDate && endDate)) {
       loadStats();
     }
-  }, [period]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, startDate, endDate]);
 
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString("en-US", {
