@@ -76,6 +76,13 @@ export default function AdminHomePage() {
       stat: stats?.listings,
     },
     {
+      title: "Boosted Listings",
+      description: "Manage promotional boosts",
+      href: "/admin/promotions",
+      icon: "🚀",
+      color: "bg-gradient-to-br from-purple-50 to-pink-50 border-purple-300",
+    },
+    {
       title: "Transactions",
       description: "View and manage orders",
       href: "/admin/transactions",

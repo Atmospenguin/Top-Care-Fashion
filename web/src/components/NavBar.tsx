@@ -69,6 +69,7 @@ export default function NavBar() {
                       <Link href="/admin/support" className="block px-3 py-2 text-sm hover:bg-black/5">TOP Support</Link>
                       <Link href="/admin/categories" className="block px-3 py-2 text-sm hover:bg-black/5">Categories</Link>
                       <Link href="/admin/listings" className="block px-3 py-2 text-sm hover:bg-black/5">Listings</Link>
+                      <Link href="/admin/promotions" className="block px-3 py-2 text-sm hover:bg-black/5">🚀 Boosted Listings</Link>
                       <Link href="/admin/transactions" className="block px-3 py-2 text-sm hover:bg-black/5">Transactions</Link>
                       <Link href="/admin/reports" className="block px-3 py-2 text-sm hover:bg-black/5">Flags</Link>
                       <Link href="/admin/feedback" className="block px-3 py-2 text-sm hover:bg-black/5">Feedback</Link>
@@ -139,6 +140,7 @@ export default function NavBar() {
                         <Link href="/admin/support" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>TOP Support</Link>
                         <Link href="/admin/categories" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Categories</Link>
                         <Link href="/admin/listings" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Listings</Link>
+                        <Link href="/admin/promotions" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>🚀 Boosted Listings</Link>
                         <Link href="/admin/transactions" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Transactions</Link>
                         <Link href="/admin/reports" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Flags</Link>
                         <Link href="/admin/feedback" className="block py-2 hover:opacity-90" onClick={() => setMobileMenuOpen(false)}>Feedback</Link>
