@@ -33,6 +33,11 @@ drop policy if exists "Seller manage own listings" on public.listings;
 create policy "Seller manage own listings" on public.listings
   for all using (auth.uid() = (select supabase_user_id from users where id = listings.seller_id));
 
+-- Backend full access
+drop policy if exists "Backend full access listings" on public.listings;
+create policy "Backend full access listings" on public.listings
+  for all using (auth.role() = 'service_role');
+
 -- =============================
 -- TRANSACTIONS TABLE
 alter table public.transactions enable row level security;
