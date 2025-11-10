@@ -29,6 +29,7 @@ import SaveOutfitModal from "../../../src/components/SaveOutfitModal";
 import { outfitService } from "../../../src/services/outfitService";
 import { cartService } from "../../../src/services/cartService";
 import { API_BASE_URL } from "../../../src/config/api";
+import { useAuth } from "../../../contexts/AuthContext";
 import type { BuyStackParamList } from "./index";
 import type { BagItem, ListingItem, ListingCategory } from "../../../types/shop";
 
@@ -162,6 +163,7 @@ export default function ViewOutfitScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
   const route = useRoute<RouteProp<BuyStackParamList, "ViewOutfit">>();
+  const { user } = useAuth();
   const { 
     baseItem, 
     top, 
@@ -323,21 +325,46 @@ export default function ViewOutfitScreen() {
       // 收集要添加的商品和已存在的商品
       const itemsToAdd: ListingItem[] = [];
       const alreadyInCart: ListingItem[] = [];
+      const ownListingItems: ListingItem[] = [];
 
       composedSelection.forEach(({ item }) => {
         const itemId = item.id.toString();
+        const sellerId = (item as ListingItem).sellerId ?? item.seller?.id;
+        const userId = user?.id;
+        const sellerIdNumber = sellerId !== undefined && sellerId !== null ? Number(sellerId) : null;
+        const userIdNumber = userId !== undefined && userId !== null ? Number(userId) : null;
+
+        if (
+          sellerIdNumber !== null &&
+          userIdNumber !== null &&
+          !Number.isNaN(sellerIdNumber) &&
+          !Number.isNaN(userIdNumber) &&
+          sellerIdNumber === userIdNumber
+        ) {
+          ownListingItems.push(item);
+          return;
+        }
+
         if (cartItemIds.has(itemId)) {
           alreadyInCart.push(item);
-        } else {
-          itemsToAdd.push(item);
+          return;
         }
+
+        itemsToAdd.push(item);
       });
 
-      // 如果有商品已在购物车中，提示用户
-      if (alreadyInCart.length > 0 && itemsToAdd.length === 0) {
+      if (itemsToAdd.length === 0) {
+        const noticeParts: string[] = [];
+        if (alreadyInCart.length > 0) {
+          noticeParts.push(`${alreadyInCart.length} item(s) are already in your cart.`);
+        }
+        if (ownListingItems.length > 0) {
+          noticeParts.push(`${ownListingItems.length} item(s) are your own listings and cannot be added.`);
+        }
+
         Alert.alert(
-          'Already in Cart',
-          'All items are already in your cart.',
+          noticeParts.length > 0 ? 'Heads up' : 'Notice',
+          noticeParts.join(' ') || 'No items available to add to your cart.',
           [{ text: 'OK', style: 'default' }]
         );
         setIsAddingToBag(false);
@@ -362,6 +389,9 @@ export default function ViewOutfitScreen() {
         if (alreadyInCart.length > 0) {
           message += ` ${alreadyInCart.length} item(s) were already in your cart.`;
         }
+        if (ownListingItems.length > 0) {
+          message += ` ${ownListingItems.length} item(s) are your own listings and were skipped.`;
+        }
         if (failed > 0) {
           message += ` ${failed} item(s) failed to add.`;
         }
@@ -383,7 +413,7 @@ export default function ViewOutfitScreen() {
     } finally {
       setIsAddingToBag(false);
     }
-  }, [navigation, composedSelection, isAddingToBag]);
+  }, [navigation, composedSelection, isAddingToBag, user?.id]);
 
   // ✅ AI 分析函数
   const analyzeOutfit = useCallback(async () => {
