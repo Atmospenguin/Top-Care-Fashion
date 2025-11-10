@@ -31,7 +31,12 @@ create policy "Listings public read" on public.listings
 -- Sellers can manage their own listings
 drop policy if exists "Seller manage own listings" on public.listings;
 create policy "Seller manage own listings" on public.listings
-  for all using (auth.uid() = seller_id::text);
+  for all using (auth.uid() = (select supabase_user_id from users where id = listings.seller_id));
+
+-- Backend full access
+drop policy if exists "Backend full access listings" on public.listings;
+create policy "Backend full access listings" on public.listings
+  for all using (auth.role() = 'service_role');
 
 -- =============================
 -- TRANSACTIONS TABLE
@@ -40,7 +45,8 @@ alter table public.transactions enable row level security;
 -- Buyers and sellers can read their transactions
 drop policy if exists "Transactions read own" on public.transactions;
 create policy "Transactions read own" on public.transactions
-  for select using (auth.uid() = buyer_id::text or auth.uid() = seller_id::text);
+  for select using (auth.uid() = (select supabase_user_id from users where id = transactions.buyer_id) or
+                   auth.uid() = (select supabase_user_id from users where id = transactions.seller_id));
 
 -- Backend full access
 drop policy if exists "Backend manage transactions" on public.transactions;
@@ -57,7 +63,7 @@ create policy "Reviews public read" on public.reviews
 
 drop policy if exists "Reviews authored update" on public.reviews;
 create policy "Reviews authored update" on public.reviews
-  for all using (auth.uid() = reviewer_id::text);
+  for all using (auth.uid() = (select supabase_user_id from users where id = reviews.reviewer_id));
 
 -- Backend full access
 drop policy if exists "Backend manage reviews" on public.reviews;
