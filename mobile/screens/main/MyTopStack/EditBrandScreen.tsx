@@ -7,6 +7,7 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import Header from "../../../components/Header";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -202,6 +203,7 @@ export default function EditBrandScreen() {
             onChangeText={setSearchText}
             autoCorrect={false}
             autoCapitalize="none"
+            textAlignVertical="center"
           />
         </View>
 
@@ -310,9 +312,11 @@ const styles = StyleSheet.create({
   searchInput: {
     backgroundColor: "#f5f5f5",
     borderRadius: 10,
-    paddingVertical: 10,
+    paddingVertical: Platform.OS === "android" ? 0 : 10,
     paddingHorizontal: 12,
     fontSize: 15,
+    minHeight: 44,
+    includeFontPadding: false,
   },
   loadingRow: {
     flexDirection: "row",

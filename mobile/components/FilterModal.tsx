@@ -107,6 +107,7 @@ function FilterModal({
                           value={String(section.minValue)}
                           onChangeText={section.onMinChange}
                           keyboardType="decimal-pad"
+                          textAlignVertical="center"
                         />
                         <Text style={styles.rangeSeparator}>-</Text>
                         <TextInput
@@ -116,6 +117,7 @@ function FilterModal({
                           value={String(section.maxValue)}
                           onChangeText={section.onMaxChange}
                           keyboardType="decimal-pad"
+                          textAlignVertical="center"
                         />
                       </View>
                     </View>
@@ -257,10 +259,11 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
     borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: Platform.OS === "android" ? 0 : 10,
     fontSize: 14,
     color: "#111",
     backgroundColor: "#f9f9f9",
+    minHeight: 44,
   },
   rangeSeparator: {
     fontSize: 16,

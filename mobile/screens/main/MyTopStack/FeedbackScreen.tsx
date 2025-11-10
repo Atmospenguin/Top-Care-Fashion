@@ -228,6 +228,7 @@ export default function FeedbackScreen() {
                 style={styles.input}
                 returnKeyType="next"
                 editable={!submitting}
+              textAlignVertical="center"
               />
             </View>
 
@@ -261,6 +262,7 @@ export default function FeedbackScreen() {
                   editable={!submitting}
                   onSubmitEditing={handleAddTag}
                   returnKeyType="done"
+                textAlignVertical="center"
                 />
                 <TouchableOpacity
                   style={[
@@ -391,9 +393,11 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#e5e5ea",
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Platform.OS === "android" ? 0 : 12,
     fontSize: 15,
     color: "#111",
+    minHeight: 46,
+    includeFontPadding: false,
   },
   multilineInput: {
     minHeight: 132,

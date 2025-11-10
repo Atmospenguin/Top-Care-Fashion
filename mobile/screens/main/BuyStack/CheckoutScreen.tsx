@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, TextInput, Alert, Modal } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, TextInput, Alert, Modal, Platform } from "react-native";
 import { useNavigation, useRoute, CommonActions } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
@@ -845,6 +845,7 @@ export default function CheckoutScreen() {
                   value={editForm.name}
                   onChangeText={(text) => setEditForm({ ...editForm, name: text })}
                   placeholder="Enter your full name"
+                  textAlignVertical="center"
                 />
 
                 <Text style={styles.inputLabel}>Phone Number</Text>
@@ -854,6 +855,7 @@ export default function CheckoutScreen() {
                   onChangeText={(text) => setEditForm({ ...editForm, phone: text })}
                   placeholder="Enter your phone number"
                   keyboardType="phone-pad"
+                  textAlignVertical="center"
                 />
 
                 <Text style={styles.inputLabel}>Street Address</Text>
@@ -862,6 +864,7 @@ export default function CheckoutScreen() {
                   value={editForm.line1}
                   onChangeText={(text) => setEditForm({ ...editForm, line1: text })}
                   placeholder="Enter your street address"
+                  textAlignVertical="center"
                 />
 
                 <Text style={styles.inputLabel}>Apartment, suite, etc. (Optional)</Text>
@@ -870,6 +873,7 @@ export default function CheckoutScreen() {
                   value={editForm.line2}
                   onChangeText={(text) => setEditForm({ ...editForm, line2: text })}
                   placeholder="Apartment, suite, unit, building, floor, etc."
+                  textAlignVertical="center"
                 />
 
                 <Text style={styles.inputLabel}>City</Text>
@@ -878,6 +882,7 @@ export default function CheckoutScreen() {
                   value={editForm.city}
                   onChangeText={(text) => setEditForm({ ...editForm, city: text })}
                   placeholder="City"
+                  textAlignVertical="center"
                 />
 
                 <Text style={styles.inputLabel}>State</Text>
@@ -886,6 +891,7 @@ export default function CheckoutScreen() {
                   value={editForm.state}
                   onChangeText={(text) => setEditForm({ ...editForm, state: text })}
                   placeholder="State"
+                  textAlignVertical="center"
                 />
 
                 <Text style={styles.inputLabel}>Postal Code</Text>
@@ -895,6 +901,7 @@ export default function CheckoutScreen() {
                   onChangeText={(text) => setEditForm({ ...editForm, postalCode: text })}
                   placeholder="Postal Code"
                   keyboardType="numeric"
+                  textAlignVertical="center"
                 />
 
                 <Text style={styles.inputLabel}>Country</Text>
@@ -903,6 +910,7 @@ export default function CheckoutScreen() {
                   value={editForm.country}
                   onChangeText={(text) => setEditForm({ ...editForm, country: text })}
                   placeholder="Country"
+                  textAlignVertical="center"
                 />
               </View>
             )}
@@ -951,6 +959,7 @@ export default function CheckoutScreen() {
                 value={addressForm.name}
                 onChangeText={(text) => setAddressForm({ ...addressForm, name: text })}
                 placeholder="Enter your full name"
+            textAlignVertical="center"
               />
 
               <Text style={styles.inputLabel}>Phone Number</Text>
@@ -960,6 +969,7 @@ export default function CheckoutScreen() {
                 onChangeText={(text) => setAddressForm({ ...addressForm, phone: text })}
                 placeholder="+1 (555) 123-4567"
                 keyboardType="phone-pad"
+            textAlignVertical="center"
               />
 
               <Text style={styles.inputLabel}>Street Address</Text>
@@ -968,6 +978,7 @@ export default function CheckoutScreen() {
                 value={addressForm.line1}
                 onChangeText={(text) => setAddressForm({ ...addressForm, line1: text })}
                 placeholder="Street Address"
+            textAlignVertical="center"
               />
 
               <Text style={styles.inputLabel}>Apartment, suite, etc. (Optional)</Text>
@@ -976,6 +987,7 @@ export default function CheckoutScreen() {
                 value={addressForm.line2}
                 onChangeText={(text) => setAddressForm({ ...addressForm, line2: text })}
                 placeholder="Apt/Suite"
+            textAlignVertical="center"
               />
 
               <Text style={styles.inputLabel}>City</Text>
@@ -984,6 +996,7 @@ export default function CheckoutScreen() {
                 value={addressForm.city}
                 onChangeText={(text) => setAddressForm({ ...addressForm, city: text })}
                 placeholder="City"
+            textAlignVertical="center"
               />
 
               <Text style={styles.inputLabel}>State/Province</Text>
@@ -992,6 +1005,7 @@ export default function CheckoutScreen() {
                 value={addressForm.state}
                 onChangeText={(text) => setAddressForm({ ...addressForm, state: text })}
                 placeholder="State"
+            textAlignVertical="center"
               />
 
               <Text style={styles.inputLabel}>Postal Code</Text>
@@ -1001,6 +1015,7 @@ export default function CheckoutScreen() {
                 onChangeText={(text) => setAddressForm({ ...addressForm, postalCode: text })}
                 placeholder="12345"
                 keyboardType="numeric"
+            textAlignVertical="center"
               />
 
               <Text style={styles.inputLabel}>Country</Text>
@@ -1009,6 +1024,7 @@ export default function CheckoutScreen() {
                 value={addressForm.country}
                 onChangeText={(text) => setAddressForm({ ...addressForm, country: text })}
                 placeholder="Country"
+            textAlignVertical="center"
               />
 
               <View style={styles.checkboxRow}>
@@ -1175,9 +1191,11 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingVertical: Platform.OS === "android" ? 0 : 12,
     fontSize: 16,
     backgroundColor: "#f9f9f9",
+    minHeight: 46,
+    includeFontPadding: false,
   },
   // 🔥 地址编辑布局样式
   addressRow: {

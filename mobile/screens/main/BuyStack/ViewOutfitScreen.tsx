@@ -212,6 +212,9 @@ export default function ViewOutfitScreen() {
   // ✅ AI Toast 状态
   // ✅ 如果是从保存的 outfit 打开或有 AI 分析，不显示 toast
   const [aiToastVisible, setAiToastVisible] = useState(!isSavedOutfit && !initialAiAnalysis);
+  // ✨ 对齐 MixMatchScreen 的悬浮窗动画
+  const aiToastOpacity = useRef(new Animated.Value(0)).current;
+  const aiToastTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -438,13 +441,42 @@ export default function ViewOutfitScreen() {
 
   // ✅ 显示 AI Toast
   const showAiToast = useCallback(() => {
+    if (aiToastTimerRef.current) {
+      clearTimeout(aiToastTimerRef.current);
+      aiToastTimerRef.current = null;
+    }
     setAiToastVisible(true);
-  }, []);
+    Animated.parallel([
+      Animated.timing(aiToastOpacity, {
+        toValue: 1,
+        duration: 220,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [aiToastOpacity]);
 
   // ✅ 隐藏 AI Toast
-  const hideAiToast = useCallback(() => {
-    setAiToastVisible(false);
-  }, []);
+  const hideAiToast = useCallback(
+    ({ delay = 240 }: { delay?: number } = {}) => {
+    if (aiToastTimerRef.current) {
+      clearTimeout(aiToastTimerRef.current);
+      aiToastTimerRef.current = null;
+    }
+      aiToastTimerRef.current = setTimeout(() => {
+        Animated.timing(aiToastOpacity, {
+          toValue: 0,
+          duration: 220,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }).start(() => {
+          setAiToastVisible(false);
+        });
+        aiToastTimerRef.current = null;
+      }, delay);
+    },
+    [aiToastOpacity]
+  );
 
   // ✅ 点击 Toast 触发分析
   const handleAiToastPress = useCallback(() => {
@@ -482,17 +514,20 @@ export default function ViewOutfitScreen() {
   // ✅ 初始化：如果是保存的 outfit 或有分析结果，隐藏 toast
   useEffect(() => {
     if (isSavedOutfit || aiAnalysis) {
-      setAiToastVisible(false);
+      hideAiToast();
     } else {
-      setAiToastVisible(true);
+      showAiToast();
     }
-  }, [isSavedOutfit, aiAnalysis]);
+  }, [isSavedOutfit, aiAnalysis, showAiToast, hideAiToast]);
 
   // ✅ 清理
   useEffect(() => {
     return () => {
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
+      }
+      if (aiToastTimerRef.current) {
+        clearTimeout(aiToastTimerRef.current);
       }
     };
   }, []);
@@ -603,7 +638,7 @@ export default function ViewOutfitScreen() {
       activeOpacity={0.7}
       hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
     >
-      <Icon name="sparkles" size={24} color="#111" />
+      <Icon name="sparkles" size={24} color="#FFD700" />
     </TouchableOpacity>
   ) : undefined;
 
@@ -617,11 +652,12 @@ export default function ViewOutfitScreen() {
       
       {/* ✅ AI Toast - 底部显示 */}
       {shouldShowToast && (
-        <View
+        <Animated.View
           style={[
             styles.aiToast,
             {
-              bottom: insets.bottom + 120, // Bottom bar 高度约 80px + padding，Toast 在其上方
+              bottom: insets.bottom + 96, // Bottom bar 高度约 80px + padding，Toast 在其上方
+              opacity: aiToastOpacity,
             },
           ]}
         >
@@ -650,7 +686,7 @@ export default function ViewOutfitScreen() {
               )}
             </LinearGradient>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       )}
 
       {/* ✅ AI Feedback Modal - 黑色半透明悬浮窗 */}
@@ -791,7 +827,7 @@ export default function ViewOutfitScreen() {
                 onPress={() => setSaveOutfitModalVisible(true)}
               >
                 <Icon name="bookmark" size={20} color="#111" />
-                <Text style={styles.saveOutfitButtonText}>Save Outfit</Text>
+                <Text style={styles.saveOutfitButtonText}>Save</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -824,7 +860,7 @@ export default function ViewOutfitScreen() {
                   <Text style={styles.primaryText}>Adding...</Text>
                 </>
               ) : (
-                <Text style={styles.primaryText}>Add All To Bag</Text>
+                <Text style={styles.primaryText}>Add To Bag</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -1077,15 +1113,16 @@ const styles = StyleSheet.create({
   },
   feedbackPanel: {
     width: "100%",
-    height: Math.min(SCREEN_HEIGHT * 0.75, 600),
     backgroundColor: "rgba(17, 17, 17, 0.95)",
     borderRadius: 20,
     overflow: "hidden",
     flexDirection: "column",
-    maxHeight: "85%",
+    alignSelf: "center",
+    maxHeight: Math.min(SCREEN_HEIGHT * 0.8, 600),
   },
   panelScrollView: {
-    maxHeight: 400,
+    flexGrow: 0,
+    maxHeight: Math.min(SCREEN_HEIGHT * 0.6, 480),
   },
   panelHeader: {
     flexDirection: "row",
@@ -1112,7 +1149,7 @@ const styles = StyleSheet.create({
   panelContent: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 24,
+    paddingBottom: 0,
   },
   loadingText: {
     color: "#fff",

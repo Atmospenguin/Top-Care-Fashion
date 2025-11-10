@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "../../../components/Icon";
@@ -162,6 +163,7 @@ export default function DiscoverMainScreen() {
         value={searchText}
         onChangeText={setSearchText}
         returnKeyType="search"
+        textAlignVertical="center"
         onSubmitEditing={() => {
           // Navigate to SearchResult in Buy stack (allow empty string)
           // Use parent/root navigator to reach the Buy stack
@@ -264,12 +266,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", padding: 16 },
 
   searchBar: {
-    height: 44,
+    minHeight: 44,
     borderRadius: 22,
     backgroundColor: "#f3f3f3",
     paddingHorizontal: 16,
+    paddingVertical: Platform.OS === "android" ? 0 : 12,
     fontSize: 15,
     marginBottom: 20,
+    includeFontPadding: false,
   },
 
   sectionTitle: {

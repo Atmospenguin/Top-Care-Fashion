@@ -407,6 +407,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
+    includeFontPadding: false,
   },
   detailCard: {
     marginTop: 4,
@@ -426,11 +427,13 @@ const styles = StyleSheet.create({
   detailLabel: {
     fontSize: 14,
     color: "rgba(255,255,255,0.85)",
+    includeFontPadding: false,
   },
   detailValue: {
     fontSize: 15,
     fontWeight: "700",
     color: "#FFFFFF",
+    includeFontPadding: false,
   },
   memberHint: {
     marginTop: 12,
@@ -462,14 +465,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#FFFFFF",
+    includeFontPadding: false,
   },
   selectionSubtitle: {
     fontSize: 13,
     color: "rgba(255,255,255,0.9)",
+    includeFontPadding: false,
   },
   selectionMeta: {
     fontSize: 12,
     color: "rgba(255,255,255,0.7)",
+    includeFontPadding: false,
   },
   ctaButton: {
     marginTop: 18,

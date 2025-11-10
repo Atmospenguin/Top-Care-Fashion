@@ -1408,6 +1408,7 @@ export default function SellScreen({
             value={title}
             onChangeText={setTitle}
             maxLength={60}
+            textAlignVertical="center"
           />
           <Text style={styles.charCount}>{title.length}/60</Text>
 
@@ -1422,6 +1423,7 @@ export default function SellScreen({
             value={description}
             onChangeText={setDescription}
             maxLength={500}
+            textAlignVertical="top"
           />
           <Text style={styles.charCount}>{description.length}/500</Text>
           <TouchableOpacity style={styles.aiGenBtn} onPress={generateDescription}>
@@ -1481,6 +1483,7 @@ export default function SellScreen({
             value={price}
             onChangeText={setPrice}
             keyboardType="numeric"
+            textAlignVertical="center"
           />
 
           {/* 🔥 Quantity / Stock */}
@@ -1493,6 +1496,7 @@ export default function SellScreen({
             value={quantity}
             onChangeText={setQuantity}
             keyboardType="numeric"
+            textAlignVertical="center"
           />
           <Text style={styles.helperText}>
             How many items are available for sale? (Minimum: 1)
@@ -1516,6 +1520,7 @@ export default function SellScreen({
               keyboardType="numeric"
               value={shippingFee}
               onChangeText={setShippingFee}
+              textAlignVertical="center"
             />
           )}
 
@@ -1528,6 +1533,7 @@ export default function SellScreen({
                 placeholderTextColor="#999"
                 value={location}
                 onChangeText={setLocation}
+                textAlignVertical="center"
               />
             </>
           )}
@@ -1548,6 +1554,7 @@ export default function SellScreen({
               placeholder="Enter brand (eg. Nike, Zara)"
               value={brandCustom}
               onChangeText={setBrandCustom}
+              textAlignVertical="center"
             />
           )}
 
@@ -1566,6 +1573,7 @@ export default function SellScreen({
               value={customSize}
               onChangeText={setCustomSize}
               returnKeyType="done"
+              textAlignVertical="center"
             />
           )}
 
@@ -1584,6 +1592,7 @@ export default function SellScreen({
               value={customMaterial}
               onChangeText={setCustomMaterial}
               returnKeyType="done"
+              textAlignVertical="center"
             />
           )}
 
@@ -1881,7 +1890,13 @@ function TagPickerModal({
           </TouchableOpacity>
         </View>
 
-        <TextInput style={styles.tagSearch} placeholder="Search tags..." value={search} onChangeText={setSearch} />
+        <TextInput
+          style={styles.tagSearch}
+          placeholder="Search tags..."
+          value={search}
+          onChangeText={setSearch}
+          textAlignVertical="center"
+        />
 
         <ScrollView style={{ maxHeight: 360 }}>
           <View style={styles.tagGrid}>
@@ -1906,6 +1921,7 @@ function TagPickerModal({
             placeholder="Other..."
             value={customTag}
             onChangeText={setCustomTag}
+          textAlignVertical="center"
           />
           <TouchableOpacity
             style={styles.customTagAddBtn}
@@ -2076,7 +2092,18 @@ const styles = StyleSheet.create({
   requiredMark: { color: "#F54B3D", fontWeight: "700" },
   fieldLabel: { fontSize: 14, fontWeight: "500", color: "#333", marginBottom: 6, marginTop: 8 },
   charCount: { fontSize: 12, color: "#999", textAlign: "right", marginTop: -8, marginBottom: 8 },
-  input: { borderWidth: 1, borderColor: "#ddd", borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 15, backgroundColor: "#fafafa" },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "android" ? 0 : 10,
+    marginBottom: 12,
+    fontSize: 15,
+    backgroundColor: "#fafafa",
+    minHeight: 46,
+    includeFontPadding: false,
+  },
   helperText: { fontSize: 12, color: "#666", marginTop: -8, marginBottom: 12 }, // 🔥 Helper text style
 
   aiGenBtn: { alignSelf: "flex-start", paddingVertical: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: "#5B21B6", borderRadius: 20, marginBottom: 12 },
@@ -2195,10 +2222,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 8,
-    padding: 10,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "android" ? 0 : 10,
     fontSize: 15,
     backgroundColor: "#fafafa",
     marginBottom: 10,
+    minHeight: 46,
+    includeFontPadding: false,
   },
   tagGrid: {
     flexDirection: "row",
@@ -2231,9 +2261,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "android" ? 0 : 8,
     fontSize: 15,
+    minHeight: 46,
+    includeFontPadding: false,
   },
   customTagAddBtn: {
     backgroundColor: "#F54B3D",

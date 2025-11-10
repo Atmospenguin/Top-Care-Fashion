@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, ViewStyle } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, ViewStyle, Platform } from 'react-native';
 
 export type PaymentBrand = 'Visa' | 'Mastercard' | 'Amex' | 'Discover' | 'Other';
 
@@ -56,6 +56,7 @@ export default function PaymentMethodForm({
             value={value.label}
             onChangeText={(text) => set({ label: text })}
             placeholder="e.g., My Visa Card"
+            textAlignVertical="center"
           />
         </>
       )}
@@ -85,6 +86,7 @@ export default function PaymentMethodForm({
         placeholder="1234"
         keyboardType="numeric"
         maxLength={4}
+        textAlignVertical="center"
       />
 
       <Text style={styles.inputLabel}>Expiry Date (MM/YY)</Text>
@@ -95,6 +97,7 @@ export default function PaymentMethodForm({
         placeholder="MM/YY"
         keyboardType="numeric"
         maxLength={5}
+        textAlignVertical="center"
       />
 
       <Text style={styles.inputLabel}>CVV (for verification only)</Text>
@@ -106,6 +109,7 @@ export default function PaymentMethodForm({
         keyboardType="numeric"
         maxLength={3}
         secureTextEntry
+        textAlignVertical="center"
       />
 
       {showNote && (
@@ -135,9 +139,11 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingVertical: Platform.OS === 'android' ? 0 : 12,
+    minHeight: 46,
     fontSize: 16,
     backgroundColor: '#f9f9f9',
+    includeFontPadding: false,
   },
   paymentOptions: {
     flexDirection: 'row',

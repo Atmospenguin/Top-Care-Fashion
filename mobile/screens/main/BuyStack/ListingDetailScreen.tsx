@@ -19,6 +19,7 @@ import {
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
@@ -84,6 +85,7 @@ export default function ListingDetailScreen() {
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
   const route = useRoute<RouteProp<BuyStackParamList, "ListingDetail">>();
   const { listingId, isOwnListing: isOwnListingParam = false } = route.params || {};
+  const insets = useSafeAreaInsets();
   
   const { user } = useAuth();
   const [item, setItem] = useState<ListingItem | null>(null);
@@ -777,7 +779,7 @@ export default function ListingDetailScreen() {
           </View>
         </View>
       </Modal>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 120 + insets.bottom }]}>
         <ScrollView
           horizontal
           pagingEnabled
@@ -1090,7 +1092,7 @@ export default function ListingDetailScreen() {
 
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: 12 + insets.bottom }]}>
         {!isOwnListingFinal && (
           <>
             {/* 🔥 数量选择器 */}
@@ -1241,7 +1243,6 @@ export default function ListingDetailScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#fff" },
   container: {
-    paddingBottom: 120,
     rowGap: 16,
   },
   imageCarousel: {
@@ -1561,7 +1562,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     flexDirection: "column", // 🔥 改为垂直布局以支持数量选择器
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
     backgroundColor: "#fff",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#ddd",
@@ -1738,6 +1739,7 @@ const styles = StyleSheet.create({
     color: "#111",
     minHeight: 120,
     backgroundColor: "#f9f9f9",
+    includeFontPadding: false,
   },
   modalFooter: {
     flexDirection: "row",

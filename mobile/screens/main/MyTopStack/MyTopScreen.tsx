@@ -8,6 +8,15 @@ import {
   FlatList,
   Alert,
   ActivityIndicator,
+  ScrollView,
+  Animated,
+  useWindowDimensions,
+} from "react-native";
+import type {
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  ScrollView as ScrollViewType,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
@@ -30,6 +39,9 @@ import type { UserListingsQueryParams } from "../../../src/services/listingsServ
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
 const SHOP_CONDITIONS = ["All", "Brand New", "Like New", "Good", "Fair"] as const;
 const GENDER_OPTIONS = ["All", "Men", "Women", "Unisex"] as const;
+
+const TAB_KEYS = ["Shop", "Sold", "Purchases", "Likes"] as const;
+type TabKey = typeof TAB_KEYS[number];
 
 const mapGenderOptionToApiParam = (
   value: string,
@@ -63,8 +75,141 @@ export default function MyTopScreen() {
   const lastRefreshRef = useRef<number | null>(null);
   const brandPickerHandledTsRef = useRef<number | null>(null);
   const isRefreshingRef = useRef<boolean>(false);
-  const [activeTab, setActiveTab] =
-    useState<"Shop" | "Sold" | "Purchases" | "Likes">("Shop");
+  const [activeTab, setActiveTab] = useState<TabKey>("Shop");
+  const { width: screenWidth } = useWindowDimensions();
+  const pagerRef = useRef<ScrollViewType>(null);
+
+  const tabAnimationsRef = useRef<Record<TabKey, Animated.Value>>();
+  if (!tabAnimationsRef.current) {
+    tabAnimationsRef.current = TAB_KEYS.reduce(
+      (acc, key) => {
+        acc[key] = new Animated.Value(key === "Shop" ? 1 : 0);
+        return acc;
+      },
+      {} as Record<TabKey, Animated.Value>,
+    );
+  }
+  const tabAnimations = tabAnimationsRef.current;
+
+  const [tabLayouts, setTabLayouts] = useState<Record<TabKey, { x: number; width: number }>>({});
+  const [tabTextWidths, setTabTextWidths] = useState<Record<TabKey, number>>({});
+  const indicatorLeft = useRef(new Animated.Value(0)).current;
+  const indicatorWidth = useRef(new Animated.Value(0)).current;
+  const listRef = useRef<FlatList<any>>(null);
+  const listOffsetRef = useRef(0);
+
+  const updateIndicator = useCallback(() => {
+    const layout = tabLayouts[activeTab];
+    const textWidth = tabTextWidths[activeTab];
+    if (!layout || !textWidth) return;
+
+    const left = layout.x + layout.width / 2 - textWidth / 2;
+
+    Animated.spring(indicatorLeft, {
+      toValue: left,
+      stiffness: 260,
+      damping: 24,
+      mass: 0.9,
+      useNativeDriver: false,
+    }).start();
+
+    Animated.spring(indicatorWidth, {
+      toValue: textWidth,
+      stiffness: 260,
+      damping: 24,
+      mass: 0.9,
+      useNativeDriver: false,
+    }).start();
+  }, [activeTab, tabLayouts, tabTextWidths, indicatorLeft, indicatorWidth]);
+
+  useEffect(() => {
+    updateIndicator();
+  }, [updateIndicator]);
+
+  useEffect(() => {
+    TAB_KEYS.forEach((tab) => {
+      Animated.spring(tabAnimations[tab], {
+        toValue: tab === activeTab ? 1 : 0,
+        stiffness: 300,
+        damping: 26,
+        mass: 0.9,
+        useNativeDriver: false,
+      }).start();
+    });
+  }, [activeTab, tabAnimations]);
+
+  const handleTabLayout = useCallback((tab: TabKey, event: LayoutChangeEvent) => {
+    const { x, width } = event.nativeEvent.layout;
+    setTabLayouts((prev) => {
+      const current = prev[tab];
+      if (current && Math.abs(current.x - x) < 0.5 && Math.abs(current.width - width) < 0.5) {
+        return prev;
+      }
+      return { ...prev, [tab]: { x, width } };
+    });
+  }, []);
+
+  const handleTabTextLayout = useCallback((tab: TabKey, event: LayoutChangeEvent) => {
+    const { width } = event.nativeEvent.layout;
+    setTabTextWidths((prev) => {
+      const current = prev[tab];
+      if (current && Math.abs(current - width) < 0.5) {
+        return prev;
+      }
+      return { ...prev, [tab]: width };
+    });
+  }, []);
+
+  const handleTabPress = useCallback(
+    (tab: TabKey) => {
+      if (tab === activeTab) {
+        if (tab === "Shop") {
+          requestAnimationFrame(() => {
+            listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+          });
+          listOffsetRef.current = 0;
+        }
+        return;
+      }
+      setActiveTab(tab);
+    },
+    [activeTab],
+  );
+
+  useEffect(() => {
+    const index = TAB_KEYS.indexOf(activeTab);
+    if (index < 0) return;
+
+    pagerRef.current?.scrollTo({
+      x: index * screenWidth,
+      animated: true,
+    });
+
+    if (activeTab === "Shop") {
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+      });
+      listOffsetRef.current = 0;
+    }
+  }, [activeTab, screenWidth]);
+
+  const handlePagerMomentumEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const offsetX = event.nativeEvent.contentOffset.x;
+      const pageIndex = Math.round(offsetX / screenWidth);
+      const targetTab = TAB_KEYS[pageIndex] ?? "Shop";
+
+      if (targetTab !== activeTab) {
+        setActiveTab(targetTab);
+      } else if (targetTab === "Shop") {
+        requestAnimationFrame(() => {
+          listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+        });
+        listOffsetRef.current = 0;
+      }
+    },
+    [activeTab, screenWidth],
+  );
 
   // ✅ 添加真实数据状态
   const [shopListings, setShopListings] = useState<ListingItem[]>([]);
@@ -433,8 +578,6 @@ export default function MyTopScreen() {
   // （移除初次挂载时的重复加载，统一在获得焦点时刷新）
 
   // 为 Tab 单击滚动到顶部提供支持
-  const listRef = useRef<FlatList<any>>(null);
-  const listOffsetRef = useRef(0);
   useScrollToTop(listRef);
 
   // 监听 refreshTS 参数变化（用于在已聚焦状态下通过双击 Tab 触发显式刷新）
@@ -458,6 +601,7 @@ export default function MyTopScreen() {
       requestAnimationFrame(() => {
         listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
       });
+      listOffsetRef.current = 0;
       navigation.setParams({ scrollToTopTS: undefined });
     }
   }, [scrollToTopTrigger, activeTab, navigation]);
@@ -471,6 +615,7 @@ export default function MyTopScreen() {
         refreshAll({ useSpinner: true });
       } else {
         listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+        listOffsetRef.current = 0;
       }
       navigation.setParams({ tabPressTS: undefined });
     }
@@ -562,13 +707,6 @@ export default function MyTopScreen() {
     navigation.navigate("ActiveListingDetail", { listingId: listing.id });
   };
 
-  const tabs: Array<"Shop" | "Sold" | "Purchases" | "Likes"> = [
-    "Shop",
-    "Sold",
-    "Purchases",
-    "Likes",
-  ];
-
   const handleOpenFollowList = (type: "followers" | "following") => {
     navigation.navigate("FollowList", { type });
   };
@@ -590,219 +728,276 @@ export default function MyTopScreen() {
 
       {/* Tabs */}
       <View style={styles.tabs}>
-        {tabs.map((tab) => (
-          <View key={tab} style={{ alignItems: "center" }}>
-            <TouchableOpacity onPress={() => setActiveTab(tab)}>
-              <Text style={[styles.tab, activeTab === tab && styles.activeTab]}>
+        {TAB_KEYS.map((tab) => {
+          const animation = tabAnimations[tab];
+          const translateY = animation.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, -6],
+          });
+          const scale = animation.interpolate({
+            inputRange: [0, 1],
+            outputRange: [1, 1.05],
+          });
+          const color = animation.interpolate({
+            inputRange: [0, 1],
+            outputRange: ["#666666", "#000000"],
+          });
+
+          return (
+            <TouchableOpacity
+              key={tab}
+              onPress={() => handleTabPress(tab)}
+              activeOpacity={0.85}
+              style={styles.tabPressable}
+              onLayout={(event) => handleTabLayout(tab, event)}
+            >
+              <Animated.Text
+                onLayout={(event) => handleTabTextLayout(tab, event)}
+                style={[
+                  styles.tab,
+                  activeTab === tab && styles.activeTab,
+                  {
+                    transform: [{ translateY }, { scale }],
+                    color,
+                  },
+                ]}
+              >
                 {tab}
-              </Text>
+              </Animated.Text>
             </TouchableOpacity>
-            {activeTab === tab && <View style={styles.tabIndicator} />}
-          </View>
-        ))}
+          );
+        })}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.tabIndicator,
+            {
+              width: indicatorWidth,
+              transform: [{ translateX: indicatorLeft }],
+            },
+          ]}
+        />
       </View>
 
       {/* 内容区 */}
-      <View style={{ flex: 1 }}>
-        {activeTab === "Shop" && (
-          <FlatList
-            ref={listRef}
-            data={
-              displayUser.activeListings.length
-                ? formatData(displayUser.activeListings, 3)
-                : []
-            }
-            keyExtractor={(item) => String(item.id)}
-            numColumns={3}
-            showsVerticalScrollIndicator={false}
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            onScroll={(e) => {
-              listOffsetRef.current = e.nativeEvent.contentOffset.y;
-            }}
-            scrollEventThrottle={16}
-            onEndReached={loadMore}
-            onEndReachedThreshold={0.5}
-            ListHeaderComponent={
-              <View style={styles.headerContent}>
-                {/* Profile 区 */}
-                <View style={styles.profileRow}>
-                  <Avatar
-                    source={
-                      user?.avatar_url && typeof user.avatar_url === "string" && user.avatar_url.startsWith("http")
-                        ? { uri: user.avatar_url }
-                        : DEFAULT_AVATAR
-                    }
-                    style={styles.avatar}
-                    isPremium={user?.isPremium}
-                    self
-                  />
-                  <View style={styles.statsRow}>
-                    <TouchableOpacity
-                      onPress={() => handleOpenFollowList("followers")}
-                      hitSlop={{ top: 8, left: 8, bottom: 8, right: 8 }}
-                    >
-                      <Text style={styles.stats}>{displayUser.followers} followers</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleOpenFollowList("following")}
-                      hitSlop={{ top: 8, left: 8, bottom: 8, right: 8 }}
-                    >
-                      <Text style={styles.stats}>{displayUser.following} following</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={handleOpenReviews}
-                      hitSlop={{ top: 8, left: 8, bottom: 8, right: 8 }}
-                    >
-                      <Text style={styles.stats}>{displayUser.reviews} reviews</Text>
-                    </TouchableOpacity>
+      <ScrollView
+        ref={pagerRef}
+        horizontal
+        pagingEnabled
+        bounces={false}
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handlePagerMomentumEnd}
+        scrollEventThrottle={16}
+        style={styles.pager}
+        contentContainerStyle={{ flexGrow: 1 }}
+      >
+        {TAB_KEYS.map((tab) => (
+          <View key={tab} style={[styles.tabPage, { width: screenWidth }]}>
+            {tab === "Shop" ? (
+              <FlatList
+                ref={listRef}
+                style={styles.shopList}
+                data={
+                  displayUser.activeListings.length
+                    ? formatData(displayUser.activeListings, 3)
+                    : []
+                }
+                keyExtractor={(item) => String(item.id)}
+                numColumns={3}
+                showsVerticalScrollIndicator={false}
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                onScroll={(e) => {
+                  listOffsetRef.current = e.nativeEvent.contentOffset.y;
+                }}
+                nestedScrollEnabled
+                scrollEventThrottle={16}
+                onEndReached={loadMore}
+                onEndReachedThreshold={0.5}
+                ListHeaderComponent={
+                  <View style={styles.headerContent}>
+                    {/* Profile 区 */}
+                    <View style={styles.profileRow}>
+                      <Avatar
+                        source={
+                          user?.avatar_url && typeof user.avatar_url === "string" && user.avatar_url.startsWith("http")
+                            ? { uri: user.avatar_url }
+                            : DEFAULT_AVATAR
+                        }
+                        style={styles.avatar}
+                        isPremium={user?.isPremium}
+                        self
+                      />
+                      <View style={styles.statsRow}>
+                        <TouchableOpacity
+                          onPress={() => handleOpenFollowList("followers")}
+                          hitSlop={{ top: 8, left: 8, bottom: 8, right: 8 }}
+                        >
+                          <Text style={styles.stats}>{displayUser.followers} followers</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleOpenFollowList("following")}
+                          hitSlop={{ top: 8, left: 8, bottom: 8, right: 8 }}
+                        >
+                          <Text style={styles.stats}>{displayUser.following} following</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={handleOpenReviews}
+                          hitSlop={{ top: 8, left: 8, bottom: 8, right: 8 }}
+                        >
+                          <Text style={styles.stats}>{displayUser.reviews} reviews</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Bio */}
+                    <View style={styles.bioRow}>
+                      <Text style={styles.bio}>{displayUser.bio}</Text>
+                      <TouchableOpacity
+                        style={styles.editBtn}
+                        onPress={() => navigation.navigate("EditProfile")}
+                      >
+                        <Text style={styles.editBtnText}>Edit Profile</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Active Title */}
+                    <View style={styles.activeRow}>
+                      <Text style={styles.activeTitle}>
+                        Active ({listedCount})
+                      </Text>
+                      <TouchableOpacity 
+                        onPress={() => {
+                          setTempCategory(selectedCategory);
+                          setTempCondition(selectedCondition);
+                          setTempGender(selectedGender);
+                          setTempMinPrice(minPrice);
+                          setTempMaxPrice(maxPrice);
+                          setTempSortBy(sortBy);
+                          setFilterModalVisible(true);
+                        }}
+                        style={styles.filterButtonContainer}
+                      >
+                        <Icon name="filter" size={24} color="#111" />
+                        {(selectedCategory !== "All" || selectedCondition !== "All" || selectedGender !== "All" || minPrice || maxPrice || sortBy !== "Latest") && (
+                          <View style={styles.filterBadge}>
+                            <Text style={styles.filterBadgeText}>
+                              {(selectedCategory !== "All" ? 1 : 0) +
+                                (selectedCondition !== "All" ? 1 : 0) +
+                                (selectedGender !== "All" ? 1 : 0) +
+                                (minPrice ? 1 : 0) +
+                                (maxPrice ? 1 : 0) +
+                                (sortBy !== "Latest" ? 1 : 0)}
+                            </Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
+                }
+                ListHeaderComponentStyle={{ paddingHorizontal: 0 }} // ✅ 防止默认 padding
+                contentContainerStyle={{
+                  paddingBottom: 60,
+                }}
+                renderItem={({ item }) => {
+                  if (item.empty) {
+                    return <View style={[styles.itemBox, styles.itemInvisible]} />;
+                  }
 
-                {/* Bio */}
-                <View style={styles.bioRow}>
-                  <Text style={styles.bio}>{displayUser.bio}</Text>
-                  <TouchableOpacity
-                    style={styles.editBtn}
-                    onPress={() => navigation.navigate("EditProfile")}
-                  >
-                    <Text style={styles.editBtnText}>Edit Profile</Text>
-                  </TouchableOpacity>
-                </View>
+                  const listing = item as ListingItem;
+                  const imageUri = listing.images && listing.images.length > 0
+                    ? listing.images[0]
+                    : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
 
-                {/* Active Title */}
-                <View style={styles.activeRow}>
-                  <Text style={styles.activeTitle}>
-                    Active ({listedCount})
-                  </Text>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      setTempCategory(selectedCategory);
-                      setTempCondition(selectedCondition);
-                      setTempGender(selectedGender);
-                      setTempMinPrice(minPrice);
-                      setTempMaxPrice(maxPrice);
-                      setTempSortBy(sortBy);
-                      setFilterModalVisible(true);
-                    }}
-                    style={styles.filterButtonContainer}
-                  >
-                    <Icon name="filter" size={24} color="#111" />
-                    {(selectedCategory !== "All" || selectedCondition !== "All" || selectedGender !== "All" || minPrice || maxPrice || sortBy !== "Latest") && (
-                      <View style={styles.filterBadge}>
-                        <Text style={styles.filterBadgeText}>
-                          {(selectedCategory !== "All" ? 1 : 0) +
-                            (selectedCondition !== "All" ? 1 : 0) +
-                            (selectedGender !== "All" ? 1 : 0) +
-                            (minPrice ? 1 : 0) +
-                            (maxPrice ? 1 : 0) +
-                            (sortBy !== "Latest" ? 1 : 0)}
+                  return (
+                    <TouchableOpacity
+                      style={styles.itemBox}
+                      onPress={() => handleListingPress(listing)}
+                      activeOpacity={0.85}
+                    >
+                      <Image source={{ uri: imageUri }} style={styles.itemImage} />
+                    </TouchableOpacity>
+                  );
+                }}
+                ListFooterComponent={
+                  <>
+                    {inactiveListings.length > 0 && (
+                      <View style={styles.inactiveSection}>
+                        <Text style={styles.inactiveTitle}>
+                          Inactive ({inactiveTotalCount > 0 ? inactiveTotalCount : inactiveListings.length})
+                        </Text>
+                        <FlatList
+                          data={formatData(inactiveListings, 3)}
+                          keyExtractor={(item) => String(item.id)}
+                          numColumns={3}
+                          scrollEnabled={false}
+                          contentContainerStyle={styles.inactiveListContent}
+                          renderItem={({ item: footerItem }) => {
+                            if ((footerItem as any).empty) {
+                              return <View style={[styles.itemBox, styles.itemInvisible]} />;
+                            }
+                            const listing = footerItem as ListingItem;
+                            const imageUri = listing.images && listing.images.length > 0
+                              ? listing.images[0]
+                              : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
+                            return (
+                              <TouchableOpacity
+                                style={styles.itemBox}
+                                onPress={() => handleListingPress(listing)}
+                                activeOpacity={0.85}
+                              >
+                                <Image source={{ uri: imageUri }} style={styles.itemImage} />
+                                <View style={styles.unlistedOverlay}>
+                                  <Text style={styles.unlistedOverlayText}>UNLISTED</Text>
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          }}
+                        />
+                      </View>
+                    )}
+                    {isLoadingMore && (
+                      <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                        <ActivityIndicator size="small" color="#111" />
+                      </View>
+                    )}
+                    {!hasMore && !isLoadingMore && listedCount > 0 && (
+                      <View style={styles.footerContainer}>
+                        <View style={styles.footerDivider} />
+                        <Text style={styles.footerText}>
+                          You've reached the end • {listedCount} {listedCount === 1 ? 'item' : 'items'} found
+                        </Text>
+                        <Text style={styles.footerSubtext}>
+                          All your active listings are shown above
                         </Text>
                       </View>
                     )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            }
-            ListHeaderComponentStyle={{ paddingHorizontal: 0 }} // ✅ 防止默认 padding
-            contentContainerStyle={{
-              paddingBottom: 60,
-            }}
-            renderItem={({ item }) => {
-              if (item.empty) {
-                return <View style={[styles.itemBox, styles.itemInvisible]} />;
-              }
-
-              const listing = item as ListingItem;
-              const imageUri = listing.images && listing.images.length > 0
-                ? listing.images[0]
-                : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
-
-              return (
-                <TouchableOpacity
-                  style={styles.itemBox}
-                  onPress={() => handleListingPress(listing)}
-                  activeOpacity={0.85}
-                >
-                  <Image source={{ uri: imageUri }} style={styles.itemImage} />
-                </TouchableOpacity>
-              );
-            }}
-            ListFooterComponent={
-              <>
-                {inactiveListings.length > 0 && (
-                  <View style={styles.inactiveSection}>
-                    <Text style={styles.inactiveTitle}>
-                      Inactive ({inactiveTotalCount > 0 ? inactiveTotalCount : inactiveListings.length})
-                    </Text>
-                    <FlatList
-                      data={formatData(inactiveListings, 3)}
-                      keyExtractor={(item) => String(item.id)}
-                      numColumns={3}
-                      scrollEnabled={false}
-                      contentContainerStyle={styles.inactiveListContent}
-                      renderItem={({ item: footerItem }) => {
-                        if ((footerItem as any).empty) {
-                          return <View style={[styles.itemBox, styles.itemInvisible]} />;
-                        }
-                        const listing = footerItem as ListingItem;
-                        const imageUri = listing.images && listing.images.length > 0
-                          ? listing.images[0]
-                          : "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
-                        return (
-                          <TouchableOpacity
-                            style={styles.itemBox}
-                            onPress={() => handleListingPress(listing)}
-                            activeOpacity={0.85}
-                          >
-                            <Image source={{ uri: imageUri }} style={styles.itemImage} />
-                            <View style={styles.unlistedOverlay}>
-                              <Text style={styles.unlistedOverlayText}>UNLISTED</Text>
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      }}
-                    />
-                  </View>
-                )}
-                {isLoadingMore && (
-                  <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                    <ActivityIndicator size="small" color="#111" />
-                  </View>
-                )}
-                {!hasMore && !isLoadingMore && listedCount > 0 && (
-                  <View style={styles.footerContainer}>
-                    <View style={styles.footerDivider} />
-                    <Text style={styles.footerText}>
-                      You've reached the end • {listedCount} {listedCount === 1 ? 'item' : 'items'} found
-                    </Text>
-                    <Text style={styles.footerSubtext}>
-                      All your active listings are shown above
-                    </Text>
-                  </View>
-                )}
-              </>
-            }
-            ListEmptyComponent={
-              loading ? (
-                <View style={[styles.emptyBox]}>
-                  <Text style={styles.emptyText}>Loading...</Text>
-                </View>
-              ) : (
-                <View style={[styles.emptyBox]}>
-                  <Text style={styles.emptyText}>
-                    You haven't listed anything for sale yet.{"\n"}Tap + below to get started.
-                  </Text>
-                </View>
-              )
-            }
-          />
-        )}
-
-        {activeTab === "Sold" && <SoldTab />}
-        {activeTab === "Purchases" && <PurchasesTab />}
-    {activeTab === "Likes" && <LikesTabs />}
-      </View>
+                  </>
+                }
+                ListEmptyComponent={
+                  loading ? (
+                    <View style={[styles.emptyBox]}>
+                      <Text style={styles.emptyText}>Loading...</Text>
+                    </View>
+                  ) : (
+                    <View style={[styles.emptyBox]}>
+                      <Text style={styles.emptyText}>
+                        You haven't listed anything for sale yet.{"\n"}Tap + below to get started.
+                      </Text>
+                    </View>
+                  )
+                }
+              />
+            ) : tab === "Sold" ? (
+              <SoldTab />
+            ) : tab === "Purchases" ? (
+              <PurchasesTab />
+            ) : (
+              <LikesTabs />
+            )}
+          </View>
+        ))}
+      </ScrollView>
 
       <FilterModal
         visible={filterModalVisible}
@@ -922,18 +1117,35 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "flex-end",
+    position: "relative",
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#ddd",
-    paddingVertical: 4,
+    paddingVertical: 6,
   },
-  tab: { fontSize: 18, color: "#666", paddingVertical: 6 },
-  activeTab: { color: "#000", fontWeight: "800" },
+  tabPressable: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tab: { fontSize: 18, color: "#666" },
+  activeTab: { fontWeight: "800" },
   tabIndicator: {
-    marginTop: 2,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
     height: 3,
-    width: 36,
     borderRadius: 999,
     backgroundColor: "#000",
+  },
+  pager: {
+    flex: 1,
+  },
+  tabPage: {
+    flex: 1,
+  },
+  shopList: {
+    flex: 1,
   },
 
   // Header 内容

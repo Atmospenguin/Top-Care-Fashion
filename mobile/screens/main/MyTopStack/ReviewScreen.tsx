@@ -255,6 +255,7 @@ export default function ReviewScreen() {
             onChangeText={setReview}
             multiline
             maxLength={300}
+            textAlignVertical="top"
           />
           <Text style={styles.counter}>{review.length}/300</Text>
 
@@ -334,10 +335,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 8,
-    padding: 10,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "android" ? 0 : 10,
     fontSize: 14,
     minHeight: 100,
     textAlignVertical: "top",
+    includeFontPadding: false,
   },
   counter: { textAlign: "right", fontSize: 12, color: "#999", marginTop: 4 },
   uploadSection: {
