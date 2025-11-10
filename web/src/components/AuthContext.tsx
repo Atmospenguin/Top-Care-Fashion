@@ -67,7 +67,42 @@ const [isLoading, setIsLoading] = useState(true);
     (async () => {
       try {
         const r = await fetch("/api/auth/me", { cache: "no-store" });
-        const j = await r.json();
+        
+        // Check if response is OK and has JSON content type
+        if (!r.ok) {
+          console.warn(`AuthContext: /api/auth/me returned status ${r.status}`);
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
+
+        // Check content type before parsing JSON
+        const contentType = r.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          console.error("AuthContext: Response is not JSON, content-type:", contentType);
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
+
+        // Safely parse JSON
+        let j;
+        try {
+          const text = await r.text();
+          if (!text || text.trim().length === 0) {
+            console.warn("AuthContext: Empty response from /api/auth/me");
+            setUser(null);
+            setIsLoading(false);
+            return;
+          }
+          j = JSON.parse(text);
+        } catch (parseError) {
+          console.error("AuthContext: Failed to parse JSON response:", parseError);
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
+
         ////
         console.log("/api/auth/me response:", j);
 

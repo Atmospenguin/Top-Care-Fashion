@@ -51,82 +51,103 @@ function toUserResponse(user: {
 }
 
 export async function GET() {
-  //double check if the pathof auth/me is being accessed by system
-  console.log(" The route of /api/auth/me is accessed ");
-  const supabase = await createSupabaseServer();
+  try {
+    //double check if the pathof auth/me is being accessed by system
+    console.log(" The route of /api/auth/me is accessed ");
+    const supabase = await createSupabaseServer();
 
-  // addition of safety measure against getUser errors
- const { data, error } = await supabase.auth.getUser();
-  if (error) {
-    console.error(" getUser failed from supabase: ", error.message);
-  }
-  const sUser = data?.user;
-
-  const cookieStore = await cookies();
-  const sid = cookieStore.get("tc_session")?.value;
-
-  if (sUser?.id) {
-    const user = await prisma.users.findUnique({
-      where: { supabase_user_id: sUser.id },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        role: true,
-        status: true,
-        is_premium: true,
-        premium_until: true,
-        dob: true,
-        gender: true,
-        avatar_url: true, // ✅ 添加头像字段
-        likes_visibility: true,
-        follows_visibility: true,
-      },
-    });
-
-    if (user) {
-      // add console log for checking auth again
-      console.log("Successfully authenticated through supabase:", user.email);
-      return NextResponse.json({ user: toUserResponse(user), source: "supabase" });
-    } else {
-      // add warning of user ID not being local db but found 
-      console.warn(" user ID from supabase found but not in local DB:", sUser.id);
+    // addition of safety measure against getUser errors
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      console.error(" getUser failed from supabase: ", error.message);
     }
-  }
+    const sUser = data?.user;
 
-  if (sid) {
-    const numericId = Number(sid);
-    if (!Number.isNaN(numericId)) {
-      const user = await prisma.users.findUnique({
-        where: { id: numericId },
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          role: true,
-        status: true,
-        is_premium: true,
-        premium_until: true,
-        dob: true,
-        gender: true,
-        avatar_url: true, // ✅ 添加头像字段
-        likes_visibility: true,
-        follows_visibility: true,
-      },
-    });
+    const cookieStore = await cookies();
+    const sid = cookieStore.get("tc_session")?.value;
 
-      //mitigation measures and checks against potential cookies errors/bugs
-      if (user) {
-        //add console log for checking auth in regards to cookie
-        console.log("Authenticated through legacy cookie:", user.email);
-        return NextResponse.json({ user: toUserResponse(user), source: "legacy-cookie" });
-      } else {
-        console.warn(" user ID from legacy cookie entry not found in DB:", numericId);
+    if (sUser?.id) {
+      try {
+        const user = await prisma.users.findUnique({
+          where: { supabase_user_id: sUser.id },
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            role: true,
+            status: true,
+            is_premium: true,
+            premium_until: true,
+            dob: true,
+            gender: true,
+            avatar_url: true, // ✅ 添加头像字段
+            likes_visibility: true,
+            follows_visibility: true,
+          },
+        });
+
+        if (user) {
+          // add console log for checking auth again
+          console.log("Successfully authenticated through supabase:", user.email);
+          return NextResponse.json({ user: toUserResponse(user), source: "supabase" });
+        } else {
+          // add warning of user ID not being local db but found 
+          console.warn(" user ID from supabase found but not in local DB:", sUser.id);
+        }
+      } catch (dbError: any) {
+        console.error("Database error when fetching user by supabase_user_id:", dbError?.message);
+        // Return null user instead of throwing error
+        return NextResponse.json({ user: null, source: "none", error: "Database unavailable" });
       }
     }
-  }
 
-  // path when valid session cannot be found
-  console.log("returning null, unable to find authenticated user");
-  return NextResponse.json({ user: null, source: "none" });
+    if (sid) {
+      const numericId = Number(sid);
+      if (!Number.isNaN(numericId)) {
+        try {
+          const user = await prisma.users.findUnique({
+            where: { id: numericId },
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              role: true,
+              status: true,
+              is_premium: true,
+              premium_until: true,
+              dob: true,
+              gender: true,
+              avatar_url: true, // ✅ 添加头像字段
+              likes_visibility: true,
+              follows_visibility: true,
+            },
+          });
+
+          //mitigation measures and checks against potential cookies errors/bugs
+          if (user) {
+            //add console log for checking auth in regards to cookie
+            console.log("Authenticated through legacy cookie:", user.email);
+            return NextResponse.json({ user: toUserResponse(user), source: "legacy-cookie" });
+          } else {
+            console.warn(" user ID from legacy cookie entry not found in DB:", numericId);
+          }
+        } catch (dbError: any) {
+          console.error("Database error when fetching user by cookie ID:", dbError?.message);
+          // Return null user instead of throwing error
+          return NextResponse.json({ user: null, source: "none", error: "Database unavailable" });
+        }
+      }
+    }
+
+    // path when valid session cannot be found
+    console.log("returning null, unable to find authenticated user");
+    return NextResponse.json({ user: null, source: "none" });
+  } catch (error: any) {
+    // Catch any unexpected errors and always return JSON
+    console.error("Unexpected error in /api/auth/me:", error?.message);
+    return NextResponse.json(
+      { user: null, source: "none", error: "Internal server error" },
+      { status: 500 }
+    );
+  }
 }

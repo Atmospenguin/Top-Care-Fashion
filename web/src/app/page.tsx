@@ -303,7 +303,7 @@ export default function Home() {
                   <div className="absolute -top-3 right-4 text-[10px] px-2 py-1 rounded-full bg-[var(--brand-color)] text-white shadow">POPULAR</div>
                 )}
                 <div className="text-xs font-medium tracking-wide text-black/60">
-                  {plan.type === 'free' ? 'Starter' : 'Pro'}
+                  {plan.type === 'FREE' ? 'Starter' : 'Pro'}
                 </div>
                 <h3 className="mt-1 text-xl font-semibold">{plan.name}</h3>
                 <p className="mt-1 text-sm">{plan.description}</p>
