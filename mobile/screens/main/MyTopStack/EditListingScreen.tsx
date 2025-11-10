@@ -783,6 +783,7 @@ export default function EditListingScreen() {
             onChangeText={setTitle}
             placeholder="Enter a catchy title for your item"
             maxLength={60}
+            includeFontPadding={false}
           />
           <Text style={styles.charCount}>{title.length}/60</Text>
 
@@ -795,6 +796,7 @@ export default function EditListingScreen() {
             onChangeText={setDescription}
             placeholder="Describe your item in detail..."
             maxLength={500}
+            includeFontPadding={false}
           />
           <Text style={styles.charCount}>{description.length}/500</Text>
 
@@ -814,6 +816,7 @@ export default function EditListingScreen() {
             onChangeText={setPrice}
             keyboardType="numeric"
             placeholder="Enter price (e.g. 25.00)"
+            includeFontPadding={false}
           />
 
           {/* 🔥 Quantity / Stock - 必填 */}
@@ -824,6 +827,7 @@ export default function EditListingScreen() {
             onChangeText={setQuantity}
             keyboardType="numeric"
             placeholder="Enter stock quantity (e.g. 1)"
+            includeFontPadding={false}
           />
           <Text style={styles.helperText}>
             How many items are available for sale? (Minimum: 1)
@@ -845,6 +849,7 @@ export default function EditListingScreen() {
               keyboardType="numeric"
               value={shippingFee}
               onChangeText={setShippingFee}
+              includeFontPadding={false}
             />
           )}
 
@@ -857,6 +862,7 @@ export default function EditListingScreen() {
                 placeholderTextColor="#999"
                 value={location}
                 onChangeText={setLocation}
+                includeFontPadding={false}
               />
             </>
           )}
@@ -881,6 +887,7 @@ export default function EditListingScreen() {
               placeholder="Enter brand (eg. Nike, Zara)"
               value={brandCustom}
               onChangeText={setBrandCustom}
+              includeFontPadding={false}
             />
           )}
 
@@ -910,6 +917,7 @@ export default function EditListingScreen() {
               value={customSize}
               onChangeText={setCustomSize}
               returnKeyType="done"
+              includeFontPadding={false}
             />
           )}
 
@@ -932,6 +940,7 @@ export default function EditListingScreen() {
               value={customMaterial}
               onChangeText={setCustomMaterial}
               returnKeyType="done"
+              includeFontPadding={false}
             />
           )}
 
@@ -1235,6 +1244,7 @@ function TagPickerModal({
           placeholder="Search tags..."
           value={search}
           onChangeText={setSearch}
+          includeFontPadding={false}
         />
 
         {/* Tag grid */}
@@ -1276,6 +1286,7 @@ function TagPickerModal({
             placeholder="Other..."
             value={customTag}
             onChangeText={setCustomTag}
+            includeFontPadding={false}
           />
           <TouchableOpacity
             style={styles.customTagAddBtn}

@@ -273,14 +273,14 @@ export default function PromotionPlansScreen() {
             <Text style={styles.heading}>Boost Plans</Text>
 
             <View style={styles.selectionCard}>
-              <Text style={styles.selectionTitle}>
+              <Text style={styles.selectionTitle} includeFontPadding={false}>
                 {selectionCount} listing{selectionCount === 1 ? "" : "s"} selected
               </Text>
-              <Text style={styles.selectionSubtitle}>
+              <Text style={styles.selectionSubtitle} includeFontPadding={false}>
                 3-day boost • {isSelectingPremium ? "Premium pricing applies" : "Standard pricing"}
               </Text>
               {selectedListings.length > 0 ? (
-                <Text style={styles.selectionMeta} numberOfLines={2}>
+                <Text style={styles.selectionMeta} numberOfLines={2} includeFontPadding={false}>
                   {selectedListings
                     .slice(0, 3)
                     .map((item) => item.title || "Untitled listing")
@@ -293,7 +293,7 @@ export default function PromotionPlansScreen() {
             </View>
 
             <View style={styles.planGroup}>
-              <Text style={styles.planTitle}>
+              <Text style={styles.planTitle} includeFontPadding={false}>
                 {`Free plan${!benefits || !benefits.isPremium ? " (current)" : ""}`}
               </Text>
               <PlanOptionCard
@@ -306,7 +306,7 @@ export default function PromotionPlansScreen() {
             </View>
 
             <View style={styles.planGroup}>
-              <Text style={styles.planTitle}>
+              <Text style={styles.planTitle} includeFontPadding={false}>
                 {`Premium plan${benefits?.isPremium ? " (current)" : ""}`}
               </Text>
               <PlanOptionCard
@@ -321,8 +321,8 @@ export default function PromotionPlansScreen() {
             <View style={styles.detailCard}>
               {selectedDetails.map((row) => (
                 <View key={row.label} style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>{row.label}</Text>
-                  <Text style={styles.detailValue}>{row.value}</Text>
+                  <Text style={styles.detailLabel} includeFontPadding={false}>{row.label}</Text>
+                  <Text style={styles.detailValue} includeFontPadding={false}>{row.value}</Text>
                 </View>
               ))}
             </View>

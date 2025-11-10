@@ -56,6 +56,7 @@ export default function PaymentMethodForm({
             value={value.label}
             onChangeText={(text) => set({ label: text })}
             placeholder="e.g., My Visa Card"
+            includeFontPadding={false}
           />
         </>
       )}
@@ -85,6 +86,7 @@ export default function PaymentMethodForm({
         placeholder="1234"
         keyboardType="numeric"
         maxLength={4}
+        includeFontPadding={false}
       />
 
       <Text style={styles.inputLabel}>Expiry Date (MM/YY)</Text>
@@ -95,6 +97,7 @@ export default function PaymentMethodForm({
         placeholder="MM/YY"
         keyboardType="numeric"
         maxLength={5}
+        includeFontPadding={false}
       />
 
       <Text style={styles.inputLabel}>CVV (for verification only)</Text>
@@ -106,6 +109,7 @@ export default function PaymentMethodForm({
         keyboardType="numeric"
         maxLength={3}
         secureTextEntry
+        includeFontPadding={false}
       />
 
       {showNote && (
