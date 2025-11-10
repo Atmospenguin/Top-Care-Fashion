@@ -731,7 +731,7 @@ export default function MyTopScreen() {
         <View style={{ width: 24 }} />
         <Text style={styles.username}>{displayUser.username}</Text>
         <TouchableOpacity onPress={() => navigation.navigate("Settings")}>
-          <Icon name="settings-sharp" size={24} color="#111" />
+          <Icon name="settings-outline" size={24} color="#111" />
         </TouchableOpacity>
       </View>
 

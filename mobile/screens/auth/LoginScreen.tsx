@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, BackHandler } from "react-native";
+import Icon from "../../components/Icon";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RootStackParamList } from "../../App";
@@ -136,7 +137,6 @@ export default function LoginScreen({ navigation }: Props) {
           autoCapitalize="none"
           value={email}
           onChangeText={setEmail}
-           textAlignVertical="center"
         />
 
         <View style={styles.passwordWrap}>
@@ -147,7 +147,8 @@ export default function LoginScreen({ navigation }: Props) {
             secureTextEntry
             value={password}
             onChangeText={setPassword}
-            textAlignVertical="center"
+            multiline={false}
+            numberOfLines={1}
           />
           
         </View>
@@ -160,7 +161,7 @@ export default function LoginScreen({ navigation }: Props) {
         {/* 错误信息 - 优先显示本地错误，避免显示context中的原始错误信息 */}
         {localError && (
           <View style={styles.errorContainer}>
-            <Text style={styles.errorIcon}>⚠️</Text>
+            <Icon name="alert-circle" size={18} color="#DC2626" style={styles.errorIcon} />
             <Text style={styles.errorText}>{localError}</Text>
           </View>
         )}
@@ -207,25 +208,36 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: INPUT_BG,
     paddingHorizontal: 20,
+    paddingVertical: Platform.OS === 'android' ? 0 : 16,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: "#EEF0F3",
     fontSize: 16,
     includeFontPadding: false,
+    textAlignVertical: "center",
   },
 
   passwordWrap: {
     flexDirection: "row",
     alignItems: "center",
-    height: 56,
+    minHeight: 56,
     borderRadius: 16,
     backgroundColor: INPUT_BG,
     borderWidth: 1,
     borderColor: "#EEF0F3",
     marginBottom: 8,
     paddingHorizontal: 20,
+    paddingVertical: Platform.OS === 'android' ? 0 : 0,
   },
-  passwordInput: { flex: 1, fontSize: 16, includeFontPadding: false },
+  passwordInput: {
+    flex: 1,
+    fontSize: 16,
+    includeFontPadding: false,
+    paddingVertical: Platform.OS === 'android' ? 0 : 16,
+    textAlignVertical: "center",
+    lineHeight: 16,
+    height: Platform.OS === 'android' ? 50 : undefined,
+  },
 
   forgot: {
     alignSelf: "flex-end",
@@ -258,7 +270,6 @@ const styles = StyleSheet.create({
     borderColor: "#FECACA",
   },
   errorIcon: {
-    fontSize: 16,
     marginRight: 8,
   },
   errorText: {

@@ -263,7 +263,7 @@ export default function HomeScreen() {
           ]}
           onLayout={handleTopBarLayout}
         >
-          <View style={styles.tabsContainer}>
+          <View style={[styles.tabsContainer, { paddingBottom: insets.bottom }]}>
             {routes.map((route, i) => {
               const animation = tabAnimations[route.key];
               const translateY = animation.interpolate({
@@ -314,19 +314,40 @@ export default function HomeScreen() {
               ]}
             />
           </View>
-          <TouchableOpacity
-            style={styles.searchButton}
-            onPress={() => {
-              const parent = navigation.getParent<BottomTabNavigationProp<MainTabParamList>>();
-              parent?.navigate("Discover", {
-                screen: "DiscoverMain",
-                params: { focusSearch: Date.now() },
-              });
-            }}
-            activeOpacity={0.7}
-          >
-            <Icon name="search" size={24} color="#000" />
-          </TouchableOpacity>
+          <View style={styles.rightButtons}>
+            <TouchableOpacity
+              style={styles.bagButton}
+              onPress={() => {
+                let rootNavigation: any = navigation;
+                let current: any = navigation;
+                while (current?.getParent?.()) {
+                  current = current.getParent();
+                  if (current) {
+                    rootNavigation = current;
+                  }
+                }
+                rootNavigation?.navigate("Buy", {
+                  screen: "Bag",
+                });
+              }}
+              activeOpacity={0.7}
+            >
+              <Icon name="bag-outline" size={24} color="#000" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.searchButton}
+              onPress={() => {
+                const parent = navigation.getParent<BottomTabNavigationProp<MainTabParamList>>();
+                parent?.navigate("Discover", {
+                  screen: "DiscoverMain",
+                  params: { focusSearch: Date.now() },
+                });
+              }}
+              activeOpacity={0.7}
+            >
+              <Icon name="search-outline" size={24} color="#000" />
+            </TouchableOpacity>
+          </View>
         </Animated.View>
 
         {/* Tab Content - No default tab bar */}
@@ -369,7 +390,6 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     gap: 0,
     position: "relative",
-    paddingBottom: 6,
   },
   tabButton: {
     alignItems: "center",
@@ -392,10 +412,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
     borderRadius: 1.5,
   },
-  searchButton: {
-    padding: 8,
+  rightButtons: {
+    flexDirection: "row",
+    alignItems: "center",
     position: "absolute",
     right: 12,
-    bottom: 0,
+    bottom: 6,
+    gap: 4,
+  },
+  bagButton: {
+    padding: 8,
+  },
+  searchButton: {
+    padding: 8,
   },
 });
