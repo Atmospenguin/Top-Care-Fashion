@@ -287,12 +287,7 @@ export async function POST(req: Request) {
         location: (listing as any).location ?? null,
         likesCount: (listing as any).likes_count ?? 0,
         availableQuantity: (listing as any).inventory_count ?? numericQuantity, // 🔥 当前库存数量（stock）
-        gender: (() => {
-          const value = (listing as any).gender;
-          if (!value || typeof value !== "string") return "Unisex";
-          const lower = value.toLowerCase();
-          return lower.charAt(0).toUpperCase() + lower.slice(1);
-        })(),
+        gender: (listing as any).gender || null,
         seller: {
           name: listing.seller?.username || "Unknown",
           avatar: listing.seller?.avatar_url || "",
@@ -314,25 +309,34 @@ export async function POST(req: Request) {
   }
 }
 
-function resolveGender(input: unknown): "Men" | "Women" | "Unisex" {
+function resolveGender(input: unknown): "Men" | "Women" | "Unisex" | null {
+  console.log("🔍 resolveGender called with:", { input, type: typeof input });
+
   if (typeof input !== "string") {
+    console.log("🔍 resolveGender: not a string, returning Unisex");
     return "Unisex";
   }
 
   const normalized = input.trim().toLowerCase();
+  console.log("🔍 resolveGender normalized:", normalized);
+
   switch (normalized) {
     case "men":
     case "male":
+      console.log("🔍 resolveGender: matched Men");
       return "Men";
     case "women":
     case "female":
+      console.log("🔍 resolveGender: matched Women");
       return "Women";
     case "unisex":
     case "uni":
     case "all":
-      return "Unisex";
+      console.log("🔍 resolveGender: matched Unisex, returning null for Unisex");
+      return null; // Return null for Unisex as per user's design intent
     default:
-      return "Unisex";
+      console.log("🔍 resolveGender: no match, returning null");
+      return null;
   }
 }
 

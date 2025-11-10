@@ -184,7 +184,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       size: mapSizeToDisplay(listing.size),
       condition: mapConditionToDisplay(listing.condition_type),
       material: listing.material,
-      gender: (listing as any).gender || "unisex",
+      gender: (listing as any).gender || null,
       tags,
       category: listing.category?.name,
       images,
@@ -292,9 +292,14 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (body.condition !== undefined) updateData.condition_type = mapConditionToEnum(body.condition);
     if (body.material !== undefined) updateData.material = body.material;
     if (body.gender !== undefined) {
+      console.log("📝 Gender field received:", { raw: body.gender, type: typeof body.gender });
       const resolvedGender = mapGenderToEnum(body.gender);
+      console.log("📝 Gender after mapping:", { resolved: resolvedGender });
       if (resolvedGender) {
         updateData.gender = resolvedGender;
+      } else {
+        // If resolvedGender is null, explicitly set gender to null (for Unisex or invalid values)
+        updateData.gender = null;
       }
     }
     // Prisma expects Json type fields as JavaScript arrays/objects, not JSON strings
@@ -386,7 +391,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       size: mapSizeToDisplay(updatedListing.size),
       condition: mapConditionToDisplay(updatedListing.condition_type),
       material: updatedListing.material,
-      gender: (updatedListing as any).gender || "unisex",
+      gender: (updatedListing as any).gender || null,
       tags,
       category: updatedListing.category?.name || "Unknown",
       images,
