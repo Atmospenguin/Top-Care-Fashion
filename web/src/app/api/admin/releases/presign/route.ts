@@ -58,10 +58,9 @@ export async function POST(req: NextRequest) {
     const uniqueId = randomUUID();
     const path = `${safePlatform}/${safeVersion}/${uniqueId}-${safeFileName}`;
 
-    const expiresIn = 60 * 10; // 10 minutes
     const { data, error } = await supabaseAdmin.storage
       .from(bucket)
-      .createSignedUploadUrl(path, expiresIn);
+      .createSignedUploadUrl(path, { upsert: false });
 
     if (error || !data) {
       console.error("Failed to create signed upload URL:", error);
@@ -72,7 +71,7 @@ export async function POST(req: NextRequest) {
       bucket,
       path: data.path,
       token: data.token,
-      expiresIn,
+      expiresIn: 120, // Supabase signed upload URLs expire after 2 minutes by default
       fileType: typeof fileType === "string" ? fileType : undefined,
     });
   } catch (error: any) {
