@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { PromotionStatus } from "@prisma/client";
+import { Prisma, PromotionStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       FROM listing_promotions lp
       INNER JOIN listings l ON l.id = lp.listing_id
       INNER JOIN users u ON u.id = lp.seller_id
-      ${status ? prisma.Prisma.raw(`WHERE lp.status = '${status}'`) : prisma.Prisma.empty}
+      ${status ? Prisma.raw(`WHERE lp.status = '${status}'`) : Prisma.empty}
       ORDER BY lp.created_at DESC
       LIMIT ${limit}
       OFFSET ${offset}
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
     const countResult = await prisma.$queryRaw<[{ count: bigint }]>`
       SELECT COUNT(*) as count
       FROM listing_promotions lp
-      ${status ? prisma.Prisma.raw(`WHERE lp.status = '${status}'`) : prisma.Prisma.empty}
+      ${status ? Prisma.raw(`WHERE lp.status = '${status}'`) : Prisma.empty}
     `;
     const totalCount = Number(countResult[0].count);
 
