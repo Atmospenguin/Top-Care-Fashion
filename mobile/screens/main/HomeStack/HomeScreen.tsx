@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   Animated,
+  Platform,
 } from "react-native";
 import type { LayoutChangeEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -263,7 +264,7 @@ export default function HomeScreen() {
           ]}
           onLayout={handleTopBarLayout}
         >
-          <View style={[styles.tabsContainer, { paddingBottom: insets.bottom }]}>
+          <View style={styles.tabsContainer}>
             {routes.map((route, i) => {
               const animation = tabAnimations[route.key];
               const translateY = animation.interpolate({
@@ -394,8 +395,8 @@ const styles = StyleSheet.create({
   tabButton: {
     alignItems: "center",
     paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 0,
+    paddingTop: Platform.OS === "ios" ? 6 : 12,
+    paddingBottom: Platform.OS === "ios" ? 6 : 0,
   },
   tabText: {
     fontSize: 18,
@@ -416,8 +417,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     position: "absolute",
+    marginBottom: Platform.OS === "ios" ? 0 : -4,
+    bottom: 0,
     right: 12,
-    bottom: 6,
     gap: 4,
   },
   bagButton: {
