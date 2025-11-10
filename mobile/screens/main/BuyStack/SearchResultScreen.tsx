@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   FlatList,
   Image,
@@ -20,11 +20,17 @@ import type { ListingItem } from "../../../types/shop";
 import type { BuyStackParamList } from "./index";
 import { listingsService, type CategoryData } from "../../../src/services/listingsService";
 import { listingStatsService } from "../../../src/services/listingStatsService";
+import { useAuth } from "../../../contexts/AuthContext";
 
 type SearchResultRoute = RouteProp<BuyStackParamList, "SearchResult">;
 type BuyNavigation = NativeStackNavigationProp<BuyStackParamList>;
 
-const SIZES = ["All", "My Size", "XS", "S", "M", "L", "XL", "XXL"] as const;
+// Clothing sizes
+const CLOTHING_SIZES = ["All", "My Size", "XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL", "Free Size"] as const;
+// Shoe sizes (numbers)
+const SHOE_SIZES = ["All", "My Size", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "50"] as const;
+// Combined sizes (for general use)
+const ALL_SIZES = ["All", "My Size", "XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL", "Free Size", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "50"] as const;
 const CONDITIONS = ["All", "Brand New", "Like New", "Good", "Fair"] as const;
 const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
 const GENDER_OPTIONS = ["All", "Men", "Women", "Unisex"] as const;
@@ -51,6 +57,7 @@ const mapGenderOptionToApiParam = (
 
 export default function SearchResultScreen() {
   const navigation = useNavigation<BuyNavigation>();
+  const { user } = useAuth();
   const {
     params: { query, category: initialCategory, gender: initialGenderParam },
   } = useRoute<SearchResultRoute>();
@@ -59,6 +66,43 @@ export default function SearchResultScreen() {
     () => mapGenderParamToOption(initialGenderParam),
     [initialGenderParam],
   );
+
+  // Get available sizes based on selected category
+  // Footwear category should show shoe sizes, others show clothing sizes
+  const getAvailableSizes = useCallback((category: string): string[] => {
+    const categoryLower = category?.toLowerCase() || "";
+    if (categoryLower === "footwear" || categoryLower === "shoes" || categoryLower === "shoe") {
+      return Array.from(SHOE_SIZES);
+    }
+    // Default to clothing sizes for other categories
+    return Array.from(CLOTHING_SIZES);
+  }, []);
+
+  // Get user's preferred size(s) based on category
+  // Returns a single size string for specific categories, or an array for "All" category
+  const getUserPreferredSizes = useCallback((category: string): string[] => {
+    if (!user) return [];
+    
+    const categoryLower = category?.toLowerCase() || "";
+    const sizes: string[] = [];
+    
+    // Map category to user size preference(s)
+    if (categoryLower === "footwear" || categoryLower === "shoes" || categoryLower === "shoe") {
+      if (user.preferred_size_shoe) sizes.push(user.preferred_size_shoe);
+    } else if (categoryLower === "tops" || categoryLower === "top" || categoryLower === "outerwear") {
+      if (user.preferred_size_top) sizes.push(user.preferred_size_top);
+    } else if (categoryLower === "bottoms" || categoryLower === "bottom") {
+      if (user.preferred_size_bottom) sizes.push(user.preferred_size_bottom);
+    } else {
+      // For "All" or other categories, include all user's preferred sizes
+      if (user.preferred_size_top) sizes.push(user.preferred_size_top);
+      if (user.preferred_size_bottom) sizes.push(user.preferred_size_bottom);
+      if (user.preferred_size_shoe) sizes.push(user.preferred_size_shoe);
+    }
+    
+    // Remove duplicates and return
+    return [...new Set(sizes.map(s => s.trim()).filter(Boolean))];
+  }, [user]);
 
   const [filterModalVisible, setFilterModalVisible] = useState(false);
 
@@ -87,7 +131,8 @@ export default function SearchResultScreen() {
   const [headerVisible, setHeaderVisible] = useState(true);
 
   const [apiListings, setApiListings] = useState<ListingItem[]>([]);
-  const [categories, setCategories] = useState<string[]>(["All"]);
+  // Initialize with default categories to ensure filter options are always available
+  const [categories, setCategories] = useState<string[]>(["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   // Pagination state
@@ -139,60 +184,274 @@ export default function SearchResultScreen() {
     };
   }, []);
 
-  // Load initial listings with pagination
-  useEffect(() => {
-    loadInitialListings();
-  }, [query, initialCategory, normalizedInitialGender]);
+  // Map sort option to API sort parameter
+  const mapSortToApiParam = (sort: string): string | undefined => {
+    switch (sort) {
+      case "Price Low to High":
+        return "Price Low to High";
+      case "Price High to Low":
+        return "Price High to Low";
+      case "Latest":
+        return "Latest";
+      default:
+        return "Latest";
+    }
+  };
 
-  const loadInitialListings = async () => {
+  // Load listings with current filters
+  const loadListings = React.useCallback(async (resetOffset = true) => {
     try {
-      setInitialLoading(true);
-      console.log('🔍 SearchResult: Loading initial listings...');
+      if (resetOffset) {
+        setInitialLoading(true);
+      } else {
+        setIsLoadingMore(true);
+      }
+
+      // Handle "My Size" - get user's preferred size(s) based on category
+      let sizeParam: string | undefined;
+      let sizesParam: string[] | undefined;
+      if (selectedSize === "My Size") {
+        const preferredSizes = getUserPreferredSizes(selectedCategory)
+          .map((value) => value.trim())
+          .filter(Boolean);
+
+        if (preferredSizes.length > 0) {
+          const categoryLower = selectedCategory?.toLowerCase() || "";
+
+          if (categoryLower === "all" && preferredSizes.length > 1) {
+            // For "All" category with multiple sizes, search for any of the user's preferred sizes.
+            // Prioritise apparel sizes (non-numeric) and make sure bottom size (e.g. "L") is included first if available.
+            const nonShoeSizes = preferredSizes.filter((size) => !/^\d+$/.test(size));
+            if (nonShoeSizes.length > 0) {
+              const bottomSize = user?.preferred_size_bottom?.trim();
+              if (bottomSize && nonShoeSizes.includes(bottomSize)) {
+                // Ensure bottom size is first in the array to emphasize preference.
+                sizesParam = [bottomSize, ...nonShoeSizes.filter((size) => size !== bottomSize)];
+              } else {
+                sizesParam = [...nonShoeSizes];
+              }
+              // Include numeric sizes (e.g. shoe sizes) after apparel sizes
+              const shoeSizes = preferredSizes.filter((size) => /^\d+$/.test(size));
+              if (shoeSizes.length > 0) {
+                sizesParam.push(...shoeSizes);
+              }
+            } else {
+              // All preferred sizes are numeric (e.g. shoe sizes)
+              sizesParam = [...preferredSizes];
+            }
+
+            console.log('🔍 SearchResult: Using "My Size" with multiple preferred sizes:', {
+              category: selectedCategory,
+              preferredSizes,
+              appliedSizes: sizesParam,
+              userPreferences: {
+                top: user?.preferred_size_top,
+                bottom: user?.preferred_size_bottom,
+                shoe: user?.preferred_size_shoe,
+              },
+            });
+          } else {
+            sizeParam = preferredSizes[0];
+            console.log('🔍 SearchResult: Using "My Size" (single size):', {
+              category: selectedCategory,
+              preferredSizes,
+              appliedSize: sizeParam,
+              userPreferences: {
+                top: user?.preferred_size_top,
+                bottom: user?.preferred_size_bottom,
+                shoe: user?.preferred_size_shoe,
+              },
+            });
+          }
+        } else {
+          console.warn('🔍 SearchResult: "My Size" selected but user has no preferred size for category:', selectedCategory);
+          // Don't filter by size if user has no preference
+        }
+      } else if (selectedSize !== "All") {
+        sizeParam = selectedSize.trim();
+      }
+
+      // Build filter parameters
+      const params: any = {
+        search: query || undefined,
+        category: selectedCategory !== 'All' ? selectedCategory : undefined,
+        gender: mapGenderOptionToApiParam(selectedGender),
+        condition: selectedCondition !== "All" ? selectedCondition : undefined,
+        minPrice: minPrice ? parseFloat(minPrice) : undefined,
+        maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
+        sort: mapSortToApiParam(sortBy),
+      };
+
+      if (sizesParam?.length) {
+        params.sizes = sizesParam;
+      } else if (sizeParam) {
+        params.size = sizeParam;
+      }
+
+      // Remove undefined values
+      Object.keys(params).forEach((key) => {
+        if (params[key] === undefined) {
+          delete params[key];
+        }
+      });
+
+      // Get current offset from state
+      const currentOffset = resetOffset ? 0 : offset;
+
+      console.log('🔍 SearchResult: Loading listings with filters:', {
+        ...params,
+        limit: PAGE_SIZE,
+        offset: currentOffset,
+      });
+      console.log('🔍 SearchResult: Offset:', currentOffset);
 
       const result = await listingsService.getListings({
-        search: query || undefined,
-        category: initialCategory && initialCategory !== 'All' ? initialCategory : undefined,
-        gender: mapGenderOptionToApiParam(normalizedInitialGender),
+        ...params,
         limit: PAGE_SIZE,
-        offset: 0,
+        offset: currentOffset,
       });
 
       console.log('🔍 SearchResult: Received items:', result.items.length);
       console.log('🔍 SearchResult: Has more:', result.hasMore);
       console.log('🔍 SearchResult: Total:', result.total);
-      console.log('🔍 SearchResult: First item:', JSON.stringify(result.items[0], null, 2));
 
-      // ✅ Use items directly from API - no error-prone mapping!
-      setApiListings(result.items);
+      if (resetOffset) {
+        setApiListings(result.items);
+        setOffset(PAGE_SIZE);
+        // Always update totalCount when resetting (new filter applied)
+        setTotalCount(result.total || 0);
+      } else {
+        setApiListings(prev => [...prev, ...result.items]);
+        setOffset(prev => prev + PAGE_SIZE);
+        // Don't update totalCount on loadMore, it should remain the same
+        // But update if API returns a different total (shouldn't happen, but for safety)
+        if (result.total !== undefined && result.total !== totalCount) {
+          console.warn('🔍 SearchResult: Total count changed during loadMore:', { old: totalCount, new: result.total });
+          setTotalCount(result.total);
+        }
+      }
+
       setHasMore(result.hasMore);
-      setTotalCount(result.total);
-      setOffset(PAGE_SIZE);
     } catch (error) {
       console.error('🔍 SearchResult: Error loading listings:', error);
-      setApiListings([]);
-      setHasMore(false);
+      if (resetOffset) {
+        setApiListings([]);
+        setHasMore(false);
+      }
     } finally {
-      setInitialLoading(false);
+      if (resetOffset) {
+        setInitialLoading(false);
+      } else {
+        setIsLoadingMore(false);
+      }
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, selectedCategory, selectedGender, selectedSize, selectedCondition, minPrice, maxPrice, sortBy, getUserPreferredSizes]);
+
+  // Track previous filter values to detect changes
+  const prevFiltersRef = useRef<string>('');
+  
+  // Load listings when filters change
+  useEffect(() => {
+    // Build current filter signature
+    const currentFilters = JSON.stringify({
+      query,
+      selectedCategory,
+      selectedGender,
+      selectedSize,
+      selectedCondition,
+      minPrice,
+      maxPrice,
+      sortBy,
+    });
+
+    // Only reload if filters actually changed
+    if (prevFiltersRef.current !== currentFilters) {
+      prevFiltersRef.current = currentFilters;
+      loadListings(true);
+    }
+  }, [query, selectedCategory, selectedGender, selectedSize, selectedCondition, minPrice, maxPrice, sortBy, loadListings]);
 
   // Load more listings when scrolling to bottom
-  const loadMore = async () => {
+  const loadMore = React.useCallback(async () => {
     if (!hasMore || isLoadingMore || initialLoading) {
       console.log('🔍 SearchResult: Skip load more', { hasMore, isLoadingMore, initialLoading });
       return;
     }
 
+    // Use current offset from state
+    const currentOffset = offset;
+    
     try {
       setIsLoadingMore(true);
-      console.log('🔍 SearchResult: Loading more listings at offset:', offset);
+
+      // Handle "My Size" - get user's preferred size(s) based on category (same logic as loadListings)
+      let sizeParam: string | undefined;
+      let sizesParam: string[] | undefined;
+
+      if (selectedSize === "My Size") {
+        const preferredSizes = getUserPreferredSizes(selectedCategory)
+          .map((value) => value.trim())
+          .filter(Boolean);
+
+        if (preferredSizes.length > 0) {
+          const categoryLower = selectedCategory?.toLowerCase() || "";
+
+          if (categoryLower === "all" && preferredSizes.length > 1) {
+            const nonShoeSizes = preferredSizes.filter((size) => !/^\d+$/.test(size));
+            if (nonShoeSizes.length > 0) {
+              const bottomSize = user?.preferred_size_bottom?.trim();
+              if (bottomSize && nonShoeSizes.includes(bottomSize)) {
+                sizesParam = [bottomSize, ...nonShoeSizes.filter((size) => size !== bottomSize)];
+              } else {
+                sizesParam = [...nonShoeSizes];
+              }
+              const shoeSizes = preferredSizes.filter((size) => /^\d+$/.test(size));
+              if (shoeSizes.length > 0) {
+                sizesParam.push(...shoeSizes);
+              }
+            } else {
+              sizesParam = [...preferredSizes];
+            }
+          } else {
+            sizeParam = preferredSizes[0];
+          }
+        }
+      } else if (selectedSize !== "All") {
+        sizeParam = selectedSize.trim();
+      }
+
+      // Build filter parameters (same as loadListings)
+      const params: any = {
+        search: query || undefined,
+        category: selectedCategory !== 'All' ? selectedCategory : undefined,
+        gender: mapGenderOptionToApiParam(selectedGender),
+        condition: selectedCondition !== "All" ? selectedCondition : undefined,
+        minPrice: minPrice ? parseFloat(minPrice) : undefined,
+        maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
+        sort: mapSortToApiParam(sortBy),
+      };
+
+      if (sizesParam?.length) {
+        params.sizes = sizesParam;
+      } else if (sizeParam) {
+        params.size = sizeParam;
+      }
+
+      // Remove undefined values
+      Object.keys(params).forEach((key) => {
+        if (params[key] === undefined) {
+          delete params[key];
+        }
+      });
+
+      console.log('🔍 SearchResult: Loading more with filters:', params);
+      console.log('🔍 SearchResult: Offset:', currentOffset);
 
       const result = await listingsService.getListings({
-        search: query || undefined,
-        category: selectedCategory === 'All' ? undefined : selectedCategory,
-        gender: mapGenderOptionToApiParam(selectedGender),
+        ...params,
         limit: PAGE_SIZE,
-        offset: offset,
+        offset: currentOffset,
       });
 
       console.log('🔍 SearchResult: Loaded', result.items.length, 'more items');
@@ -205,125 +464,10 @@ export default function SearchResultScreen() {
     } finally {
       setIsLoadingMore(false);
     }
-  };
+  }, [hasMore, isLoadingMore, initialLoading, offset, query, selectedCategory, selectedGender, selectedSize, selectedCondition, minPrice, maxPrice, sortBy, getUserPreferredSizes]);
 
-  const sourceListings = apiListings;
-
-  const filteredListings = useMemo(() => {
-    console.log('🔍 SearchResult: Filtering with query:', query);
-    console.log('🔍 SearchResult: Initial category:', initialCategory);
-    console.log('🔍 SearchResult: Selected category:', selectedCategory);
-    console.log('🔍 SearchResult: Source listings count:', sourceListings.length);
-
-    // If query is empty, don't filter by title
-    let results = query ? sourceListings.filter((item) =>
-      item.title.toLowerCase().includes(query.toLowerCase())
-    ) : sourceListings;
-    console.log('🔍 SearchResult: After query filter:', results.length);
-
-    if (selectedCategory !== "All") {
-      console.log('🔍 SearchResult: Filtering by category:', selectedCategory);
-      results = results.filter((item) => {
-        const categoryLower = selectedCategory.toLowerCase();
-        const itemCategory = (item.category ?? "").toString().toLowerCase();
-        console.log('🔍 SearchResult: Item category:', item.category, '-> mapped:', itemCategory, 'vs filter:', categoryLower);
-
-        // Match API format: category values can be "Tops", "Bottoms", "Footwear", "Accessories"
-        // or legacy format: "top", "bottom", "shoe", "accessory"
-        if (categoryLower === "tops") {
-          return itemCategory === "top" || itemCategory === "tops";
-        }
-        if (categoryLower === "bottoms") {
-          return itemCategory === "bottom" || itemCategory === "bottoms";
-        }
-        if (categoryLower === "footwear") {
-          return itemCategory === "shoe" || itemCategory === "footwear";
-        }
-        if (categoryLower === "accessories") {
-          return itemCategory === "accessory" || itemCategory === "accessories";
-        }
-        if (categoryLower === "outerwear") {
-          return itemCategory === "outerwear";
-        }
-        return true;
-      });
-      console.log('🔍 SearchResult: After category filter:', results.length);
-    }
-
-    if (selectedGender !== "All") {
-      const selectedGenderLower = selectedGender.toLowerCase();
-      console.log('🔍 SearchResult: Filtering by gender:', selectedGenderLower);
-      results = results.filter((item) => {
-        const itemGender = (item.gender ?? "").toString().toLowerCase();
-        if (!itemGender) return false;
-        if (selectedGenderLower === "men") {
-          return itemGender === "men" || itemGender === "male";
-        }
-        if (selectedGenderLower === "women") {
-          return itemGender === "women" || itemGender === "female";
-        }
-        return itemGender === "unisex";
-      });
-      console.log('🔍 SearchResult: After gender filter:', results.length);
-    }
-
-    if (selectedSize !== "All") {
-      if (selectedSize === "My Size") {
-        // TODO: Get user's preferred size from user settings/preferences
-        const userPreferredSize = "M"; // Default to M for now
-        results = results.filter((item) => item.size === userPreferredSize);
-      } else {
-        results = results.filter((item) => item.size === selectedSize);
-      }
-      console.log('🔍 SearchResult: After size filter:', results.length);
-    }
-
-    if (selectedCondition !== "All") {
-      results = results.filter((item) => {
-        const itemCondition = (item.condition ?? "").toString().trim();
-        // 🔥 处理 "Like New" 和 "Like new" 的映射
-        if (selectedCondition === "Like New") {
-          return itemCondition === "Like New" || itemCondition === "Like new" || itemCondition === "LIKE_NEW";
-        }
-        // 其他条件直接匹配
-        return itemCondition === selectedCondition;
-      });
-      console.log('🔍 SearchResult: After condition filter:', results.length);
-    }
-
-    // Apply custom price range
-    const min = minPrice ? parseFloat(minPrice) : 0;
-    const max = maxPrice ? parseFloat(maxPrice) : Infinity;
-    if (minPrice || maxPrice) {
-      results = results.filter((item) => item.price >= min && item.price <= max);
-      console.log('🔍 SearchResult: After price filter:', results.length);
-    }
-
-    // Apply sorting
-    if (sortBy === "Price Low to High") {
-      results = [...results].sort((a, b) => a.price - b.price);
-    } else if (sortBy === "Price High to Low") {
-      results = [...results].sort((a, b) => b.price - a.price);
-    }
-    // Latest is the default order
-
-    console.log('🔍 SearchResult: Final filtered count:', results.length);
-    if (results.length > 0) {
-      console.log('🔍 SearchResult: First filtered item:', JSON.stringify(results[0], null, 2));
-    }
-
-    return results;
-  }, [
-    query,
-    selectedCategory,
-    selectedGender,
-    selectedSize,
-    selectedCondition,
-    minPrice,
-    maxPrice,
-    sortBy,
-    sourceListings,
-  ]);
+  // Use API listings directly (no client-side filtering)
+  const filteredListings = apiListings;
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
@@ -335,6 +479,18 @@ export default function SearchResultScreen() {
     if (sortBy !== "Latest") count++;
     return count;
   }, [selectedCategory, selectedGender, selectedSize, selectedCondition, minPrice, maxPrice, sortBy]);
+
+  // Calculate active temp filters count (for modal display)
+  const activeTempFiltersCount = useMemo(() => {
+    let count = 0;
+    if (tempCategory !== "All") count++;
+    if (tempGender !== "All") count++;
+    if (tempSize !== "All" && tempSize !== "My Size") count++;
+    if (tempCondition !== "All") count++;
+    if (tempMinPrice || tempMaxPrice) count++;
+    if (tempSortBy !== "Latest") count++;
+    return count;
+  }, [tempCategory, tempGender, tempSize, tempCondition, tempMinPrice, tempMaxPrice, tempSortBy]);
 
   const handleOpenFilters = () => {
     // Sync temp filters with current applied filters
@@ -458,7 +614,11 @@ export default function SearchResultScreen() {
               </View>
             )}
           </TouchableOpacity>
-          <Text style={styles.resultCount}>{totalCount > 0 ? totalCount : filteredListings.length} results</Text>
+          <Text style={styles.resultCount}>
+            {totalCount > 0 ? `${totalCount} result${totalCount === 1 ? '' : 's'}` : 
+             filteredListings.length > 0 ? `${filteredListings.length} result${filteredListings.length === 1 ? '' : 's'}` : 
+             '0 results'}
+          </Text>
         </View>
       </Animated.View>
 
@@ -519,7 +679,8 @@ export default function SearchResultScreen() {
           }
 
           if (!hasMore && filteredListings.length > 0) {
-            const displayCount = totalCount > 0 ? totalCount : filteredListings.length;
+            // Always use totalCount from API (total filtered results)
+            const displayCount = totalCount;
             return (
               <View style={styles.footerContainer}>
                 <View style={styles.footerDivider} />
@@ -540,73 +701,101 @@ export default function SearchResultScreen() {
       {/* Filter Modal */}
       <FilterModal
         visible={filterModalVisible}
-        sections={[
-          {
-            key: "category",
-            title: "Category",
-            options: categories.map((category) => ({
-              label: category,
-              value: category,
-            })),
-            selectedValue: tempCategory,
-            onSelect: (value) => setTempCategory(String(value)),
-          },
-          {
-            key: "gender",
-            title: "Gender",
-            options: GENDER_OPTIONS.map((gender) => ({
-              label: gender,
-              value: gender,
-            })),
-            selectedValue: tempGender,
-            onSelect: (value) => setTempGender(String(value)),
-          },
-          {
-            key: "size",
-            title: "Size",
-            options: SIZES.map((size) => ({
-              label: size,
-              value: size,
-            })),
-            selectedValue: tempSize,
-            onSelect: (value) => setTempSize(String(value)),
-          },
-          {
-            key: "condition",
-            title: "Condition",
-            options: CONDITIONS.map((condition) => ({
-              label: condition,
-              value: condition,
-            })),
-            selectedValue: tempCondition,
-            onSelect: (value) => setTempCondition(String(value)),
-          },
-          {
-            key: "priceRange",
-            title: "Price Range",
-            type: "range",
-            minValue: parseFloat(tempMinPrice) || 0,
-            maxValue: parseFloat(tempMaxPrice) || 0,
-            minPlaceholder: "$0",
-            maxPlaceholder: "$1000+",
-            onMinChange: setTempMinPrice,
-            onMaxChange: setTempMaxPrice,
-          },
-          {
-            key: "sortBy",
-            title: "Sort By",
-            options: SORT_OPTIONS.map((option) => ({
-              label: option,
-              value: option,
-            })),
-            selectedValue: tempSortBy,
-            onSelect: (value) => setTempSortBy(String(value) as typeof SORT_OPTIONS[number]),
-          },
-        ]}
+        sections={useMemo(() => {
+          // Get available sizes based on temp category
+          const availableSizes = getAvailableSizes(tempCategory);
+          
+          const filterSections = [
+            {
+              key: "category",
+              title: "Category",
+              options: categories.map((category) => ({
+                label: category,
+                value: category,
+              })),
+              selectedValue: tempCategory,
+              onSelect: (value: string | number) => {
+                const newCategory = String(value);
+                setTempCategory(newCategory);
+                // Reset size when category changes (since size options change)
+                // If current size is not available in new category, reset to "All"
+                const newAvailableSizes = getAvailableSizes(newCategory);
+                if (tempSize !== "All" && tempSize !== "My Size" && !newAvailableSizes.includes(tempSize)) {
+                  setTempSize("All");
+                }
+              },
+            },
+            {
+              key: "gender",
+              title: "Gender",
+              options: GENDER_OPTIONS.map((gender) => ({
+                label: gender,
+                value: gender,
+              })),
+              selectedValue: tempGender,
+              onSelect: (value: string | number) => setTempGender(String(value)),
+            },
+            {
+              key: "size",
+              title: "Size",
+              options: availableSizes.map((size: string) => ({
+                label: size,
+                value: size,
+              })),
+              selectedValue: tempSize,
+              onSelect: (value: string | number) => setTempSize(String(value)),
+            },
+            {
+              key: "condition",
+              title: "Condition",
+              options: CONDITIONS.map((condition) => ({
+                label: condition,
+                value: condition,
+              })),
+              selectedValue: tempCondition,
+              onSelect: (value: string | number) => setTempCondition(String(value)),
+            },
+            {
+              key: "priceRange",
+              title: "Price Range",
+              type: "range" as const,
+              minValue: tempMinPrice ? parseFloat(tempMinPrice) : 0,
+              maxValue: tempMaxPrice ? parseFloat(tempMaxPrice) : 0,
+              minPlaceholder: "$0",
+              maxPlaceholder: "$1000+",
+              onMinChange: setTempMinPrice,
+              onMaxChange: setTempMaxPrice,
+            },
+            {
+              key: "sortBy",
+              title: "Sort By",
+              options: SORT_OPTIONS.map((option) => ({
+                label: option,
+                value: option,
+              })),
+              selectedValue: tempSortBy,
+              onSelect: (value: string | number) => setTempSortBy(String(value) as typeof SORT_OPTIONS[number]),
+            },
+          ];
+          
+          console.log('🔍 FilterModal sections:', JSON.stringify(filterSections.map(s => ({
+            key: s.key,
+            title: s.title,
+            optionsCount: 'options' in s ? s.options?.length : 0,
+            type: 'type' in s ? s.type : 'chip'
+          })), null, 2));
+          console.log('🔍 Categories:', categories);
+          console.log('🔍 GENDER_OPTIONS:', GENDER_OPTIONS);
+          console.log('🔍 Available Sizes:', availableSizes);
+          console.log('🔍 CONDITIONS:', CONDITIONS);
+          console.log('🔍 SORT_OPTIONS:', SORT_OPTIONS);
+          
+          return filterSections;
+        }, [categories, tempCategory, tempGender, tempSize, tempCondition, tempMinPrice, tempMaxPrice, tempSortBy, getAvailableSizes])}
         onClose={() => setFilterModalVisible(false)}
         onClear={handleClearFilters}
         onApply={handleApplyFilters}
-        applyButtonLabel={`Apply Filters (${filteredListings.length})`}
+        applyButtonLabel={`Apply Filters${activeTempFiltersCount > 0 ? ` (${activeTempFiltersCount})` : ''}`}
       />
     </View>
   );
@@ -658,8 +847,8 @@ const styles = StyleSheet.create({
   },
   gridContent: {
     paddingHorizontal: 12,
-    paddingTop: 190, // Space for header + filter bar
-    paddingBottom: 120,
+    paddingTop: 170, // Space for header + filter bar
+    paddingBottom: 20,
   },
   gridItem: {
     flex: 1,

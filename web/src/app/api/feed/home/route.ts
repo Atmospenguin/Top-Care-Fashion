@@ -214,13 +214,14 @@ async function fetchForYou(
 ): Promise<{ items: FeedRow[]; meta: any; status?: number }> {
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY);
 
+  // get_feed_v2函数现在从数据库读取用户的gender，传递null让函数自动从数据库读取
   const { data, error } = await admin.rpc("get_feed_v2", {
     p_supabase_user_id: supabaseUserId,
     p_mode: "foryou",
     p_limit: limit,
     p_offset: offset,
     p_seed: seedId,
-    p_gender: gender ?? "unisex",
+    p_gender: null, // 传递null，函数会从users表读取gender
   });
 
   if (error) {
@@ -302,7 +303,6 @@ export async function GET(req: NextRequest) {
   const page = Math.max(1, parseIntSafe(url.searchParams.get("page"), 1));
   const limit = Math.min(50, parseIntSafe(url.searchParams.get("limit"), 20));
   const seedId = parseSeed(url.searchParams.get("seedId"), Date.now() | 0);
-  const gender = url.searchParams.get("gender");
   const noStore = url.searchParams.get("noStore") === "1";
 
   const offset = (page - 1) * limit;
@@ -317,7 +317,9 @@ export async function GET(req: NextRequest) {
       ? "foryou"
       : "trending";
 
-  const cacheKey = `${effectiveMode}|p=${page}|l=${limit}|seed=${seedId}|g=${gender ?? ""}`;
+  // 缓存键不再包含gender，因为gender现在从数据库读取，基于用户ID
+  // 使用用户ID作为缓存键的一部分，这样不同用户的feed会被分别缓存
+  const cacheKey = `${effectiveMode}|uid=${supabaseUserId ?? "anon"}|p=${page}|l=${limit}|seed=${seedId}`;
 
   if (!noStore) {
     const hit = cache.get(cacheKey);
@@ -333,7 +335,8 @@ export async function GET(req: NextRequest) {
       if (!supabaseUserId) {
         return okJson({ items: [], meta: { mode: "foryou", error: "Unauthorized" } }, { status: 401 });
       }
-      result = await fetchForYou(supabaseUserId, limit, offset, seedId, gender);
+      // gender参数保留但不再使用，函数会从数据库读取
+      result = await fetchForYou(supabaseUserId, limit, offset, seedId, null);
       if (result.status) {
         const { status, ...rest } = result as any;
         return okJson(rest, { status });
