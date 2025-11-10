@@ -273,14 +273,14 @@ export default function PromotionPlansScreen() {
             <Text style={styles.heading}>Boost Plans</Text>
 
             <View style={styles.selectionCard}>
-              <Text style={styles.selectionTitle} includeFontPadding={false}>
+              <Text style={styles.selectionTitle}>
                 {selectionCount} listing{selectionCount === 1 ? "" : "s"} selected
               </Text>
-              <Text style={styles.selectionSubtitle} includeFontPadding={false}>
+              <Text style={styles.selectionSubtitle}>
                 3-day boost • {isSelectingPremium ? "Premium pricing applies" : "Standard pricing"}
               </Text>
               {selectedListings.length > 0 ? (
-                <Text style={styles.selectionMeta} numberOfLines={2} includeFontPadding={false}>
+                <Text style={styles.selectionMeta} numberOfLines={2}>
                   {selectedListings
                     .slice(0, 3)
                     .map((item) => item.title || "Untitled listing")
@@ -293,7 +293,7 @@ export default function PromotionPlansScreen() {
             </View>
 
             <View style={styles.planGroup}>
-              <Text style={styles.planTitle} includeFontPadding={false}>
+              <Text style={styles.planTitle}>
                 {`Free plan${!benefits || !benefits.isPremium ? " (current)" : ""}`}
               </Text>
               <PlanOptionCard
@@ -306,7 +306,7 @@ export default function PromotionPlansScreen() {
             </View>
 
             <View style={styles.planGroup}>
-              <Text style={styles.planTitle} includeFontPadding={false}>
+              <Text style={styles.planTitle}>
                 {`Premium plan${benefits?.isPremium ? " (current)" : ""}`}
               </Text>
               <PlanOptionCard
@@ -321,8 +321,8 @@ export default function PromotionPlansScreen() {
             <View style={styles.detailCard}>
               {selectedDetails.map((row) => (
                 <View key={row.label} style={styles.detailRow}>
-                  <Text style={styles.detailLabel} includeFontPadding={false}>{row.label}</Text>
-                  <Text style={styles.detailValue} includeFontPadding={false}>{row.value}</Text>
+                  <Text style={styles.detailLabel}>{row.label}</Text>
+                  <Text style={styles.detailValue}>{row.value}</Text>
                 </View>
               ))}
             </View>
@@ -407,6 +407,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
+    includeFontPadding: false,
   },
   detailCard: {
     marginTop: 4,
@@ -426,11 +427,13 @@ const styles = StyleSheet.create({
   detailLabel: {
     fontSize: 14,
     color: "rgba(255,255,255,0.85)",
+    includeFontPadding: false,
   },
   detailValue: {
     fontSize: 15,
     fontWeight: "700",
     color: "#FFFFFF",
+    includeFontPadding: false,
   },
   memberHint: {
     marginTop: 12,
@@ -462,14 +465,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#FFFFFF",
+    includeFontPadding: false,
   },
   selectionSubtitle: {
     fontSize: 13,
     color: "rgba(255,255,255,0.9)",
+    includeFontPadding: false,
   },
   selectionMeta: {
     fontSize: 12,
     color: "rgba(255,255,255,0.7)",
+    includeFontPadding: false,
   },
   ctaButton: {
     marginTop: 18,

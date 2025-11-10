@@ -783,7 +783,7 @@ export default function EditListingScreen() {
             onChangeText={setTitle}
             placeholder="Enter a catchy title for your item"
             maxLength={60}
-            includeFontPadding={false}
+            textAlignVertical="center"
           />
           <Text style={styles.charCount}>{title.length}/60</Text>
 
@@ -796,7 +796,6 @@ export default function EditListingScreen() {
             onChangeText={setDescription}
             placeholder="Describe your item in detail..."
             maxLength={500}
-            includeFontPadding={false}
           />
           <Text style={styles.charCount}>{description.length}/500</Text>
 
@@ -816,7 +815,7 @@ export default function EditListingScreen() {
             onChangeText={setPrice}
             keyboardType="numeric"
             placeholder="Enter price (e.g. 25.00)"
-            includeFontPadding={false}
+            textAlignVertical="center"
           />
 
           {/* 🔥 Quantity / Stock - 必填 */}
@@ -827,7 +826,7 @@ export default function EditListingScreen() {
             onChangeText={setQuantity}
             keyboardType="numeric"
             placeholder="Enter stock quantity (e.g. 1)"
-            includeFontPadding={false}
+            textAlignVertical="center"
           />
           <Text style={styles.helperText}>
             How many items are available for sale? (Minimum: 1)
@@ -849,7 +848,7 @@ export default function EditListingScreen() {
               keyboardType="numeric"
               value={shippingFee}
               onChangeText={setShippingFee}
-              includeFontPadding={false}
+              textAlignVertical="center"
             />
           )}
 
@@ -862,7 +861,7 @@ export default function EditListingScreen() {
                 placeholderTextColor="#999"
                 value={location}
                 onChangeText={setLocation}
-                includeFontPadding={false}
+                textAlignVertical="center"
               />
             </>
           )}
@@ -887,7 +886,7 @@ export default function EditListingScreen() {
               placeholder="Enter brand (eg. Nike, Zara)"
               value={brandCustom}
               onChangeText={setBrandCustom}
-              includeFontPadding={false}
+              textAlignVertical="center"
             />
           )}
 
@@ -917,7 +916,7 @@ export default function EditListingScreen() {
               value={customSize}
               onChangeText={setCustomSize}
               returnKeyType="done"
-              includeFontPadding={false}
+              textAlignVertical="center"
             />
           )}
 
@@ -940,7 +939,7 @@ export default function EditListingScreen() {
               value={customMaterial}
               onChangeText={setCustomMaterial}
               returnKeyType="done"
-              includeFontPadding={false}
+              textAlignVertical="center"
             />
           )}
 
@@ -1244,7 +1243,7 @@ function TagPickerModal({
           placeholder="Search tags..."
           value={search}
           onChangeText={setSearch}
-          includeFontPadding={false}
+          textAlignVertical="center"
         />
 
         {/* Tag grid */}
@@ -1286,7 +1285,7 @@ function TagPickerModal({
             placeholder="Other..."
             value={customTag}
             onChangeText={setCustomTag}
-            includeFontPadding={false}
+          textAlignVertical="center"
           />
           <TouchableOpacity
             style={styles.customTagAddBtn}
@@ -1377,10 +1376,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 8,
-    padding: 10,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "android" ? 0 : 10,
+    minHeight: 46,
     marginBottom: 12,
     fontSize: 15,
     backgroundColor: "#fafafa",
+    includeFontPadding: false,
   },
   helperText: { 
     fontSize: 12, 
@@ -1544,10 +1546,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 8,
-    padding: 10,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "android" ? 0 : 10,
     fontSize: 15,
     backgroundColor: "#fafafa",
     marginBottom: 10,
+    minHeight: 46,
+    includeFontPadding: false,
   },
   tagGrid: {
     flexDirection: "row",
@@ -1580,9 +1585,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "android" ? 0 : 8,
     fontSize: 15,
+    minHeight: 46,
+    includeFontPadding: false,
   },
   customTagAddBtn: {
     backgroundColor: "#F54B3D",

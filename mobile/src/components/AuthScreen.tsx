@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { authService, SignInRequest, SignUpRequest } from '../services';
 
@@ -98,6 +99,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           value={formData.username}
           onChangeText={(value) => handleInputChange('username', value)}
           autoCapitalize="none"
+          textAlignVertical="center"
         />
       )}
 
@@ -108,6 +110,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         onChangeText={(value) => handleInputChange('email', value)}
         keyboardType="email-address"
         autoCapitalize="none"
+        textAlignVertical="center"
       />
 
       <TextInput
@@ -116,6 +119,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         value={formData.password}
         onChangeText={(value) => handleInputChange('password', value)}
         secureTextEntry
+        autoCapitalize="none"
+        textAlignVertical="center"
       />
 
       <TouchableOpacity
@@ -163,9 +168,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
-    padding: 15,
+    paddingHorizontal: 15,
+    paddingVertical: Platform.OS === 'android' ? 0 : 15,
     marginBottom: 15,
     fontSize: 16,
+    minHeight: 46,
   },
   button: {
     backgroundColor: '#007AFF',

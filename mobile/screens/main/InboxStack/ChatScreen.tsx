@@ -2144,6 +2144,7 @@ export default function ChatScreen() {
             placeholder="Type a message..."
             value={input}
             onChangeText={setInput}
+            textAlignVertical="center"
           />
           <TouchableOpacity onPress={sendMessage} style={styles.sendBtn}>
             <Icon name="send" size={22} color="#fff" />
@@ -2382,12 +2383,14 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: Platform.OS === "android" ? 0 : 8,
     paddingHorizontal: 14,
     borderRadius: 20,
     backgroundColor: "#f5f5f5",
     fontSize: 15,
     marginRight: 8,
+    minHeight: 42,
+    includeFontPadding: false,
   },
   sendBtn: {
     width: 40,

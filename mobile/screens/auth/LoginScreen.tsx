@@ -136,7 +136,7 @@ export default function LoginScreen({ navigation }: Props) {
           autoCapitalize="none"
           value={email}
           onChangeText={setEmail}
-          includeFontPadding={false}
+           textAlignVertical="center"
         />
 
         <View style={styles.passwordWrap}>
@@ -147,7 +147,7 @@ export default function LoginScreen({ navigation }: Props) {
             secureTextEntry
             value={password}
             onChangeText={setPassword}
-            includeFontPadding={false}
+            textAlignVertical="center"
           />
           
         </View>
@@ -211,6 +211,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#EEF0F3",
     fontSize: 16,
+    includeFontPadding: false,
   },
 
   passwordWrap: {
@@ -224,7 +225,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 20,
   },
-  passwordInput: { flex: 1, fontSize: 16 },
+  passwordInput: { flex: 1, fontSize: 16, includeFontPadding: false },
 
   forgot: {
     alignSelf: "flex-end",

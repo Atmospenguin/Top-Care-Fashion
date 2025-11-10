@@ -29,11 +29,11 @@ const PlanOptionCard: React.FC<PlanOptionCardProps> = ({
         {selected && <View style={styles.radioDot} />}
       </View>
       <View style={styles.textCol}>
-        <Text style={styles.label} numberOfLines={2} includeFontPadding={false}>
+        <Text style={styles.label} numberOfLines={2}>
           {prefix}
           <Text style={styles.highlight}>{highlight}</Text>
         </Text>
-        {note ? <Text style={styles.note} numberOfLines={2} includeFontPadding={false}>{note}</Text> : null}
+        {note ? <Text style={styles.note} numberOfLines={2}>{note}</Text> : null}
       </View>
     </TouchableOpacity>
   );
@@ -80,6 +80,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#FFFFFF",
     fontWeight: "600",
+    includeFontPadding: false,
   },
   highlight: {
     fontSize: 19,
@@ -95,6 +96,7 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.8)",
     fontWeight: "500",
     lineHeight: 18,
+    includeFontPadding: false,
   },
 });
 

@@ -132,6 +132,7 @@ export default function SaveOutfitModal({
                 maxLength={100}
                 editable={!isSubmitting && !isLoading}
                 selectionColor="#111"
+                textAlignVertical="center"
               />
               <Text style={styles.charCount}>
                 {outfitName.length}/100
@@ -244,11 +245,13 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingVertical: Platform.OS === 'android' ? 0 : 12,
     fontSize: 15,
     color: '#111',
     backgroundColor: '#fff',
     marginBottom: 6,
+    minHeight: 46,
+    includeFontPadding: false,
   },
   charCount: {
     fontSize: 12,

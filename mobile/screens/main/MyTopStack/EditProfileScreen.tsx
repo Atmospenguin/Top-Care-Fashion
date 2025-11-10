@@ -285,6 +285,7 @@ export default function EditProfileScreen() {
           value={formData.username}
           onChangeText={(text) => updateFormData('username', text)}
           placeholder="Enter username"
+          textAlignVertical="center"
         />
 
         <Text style={styles.label}>Bio</Text>
@@ -305,6 +306,7 @@ export default function EditProfileScreen() {
           placeholder="Enter email"
           keyboardType="email-address"
           autoCapitalize="none"
+          textAlignVertical="center"
         />
 
         <Text style={styles.label}>Phone Number</Text>
@@ -314,6 +316,7 @@ export default function EditProfileScreen() {
           onChangeText={(text) => updateFormData('phone', text)}
           placeholder="Enter phone number"
           keyboardType="phone-pad"
+          textAlignVertical="center"
         />
 
         <Text style={styles.label}>Date of Birth</Text>
@@ -354,6 +357,7 @@ export default function EditProfileScreen() {
           value={formData.location}
           onChangeText={(text) => updateFormData('location', text)}
           placeholder="Enter location"
+          textAlignVertical="center"
         />
 
         <TouchableOpacity 
@@ -409,9 +413,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 8,
-    padding: 10,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "android" ? 0 : 10,
     marginTop: 6,
     backgroundColor: "#fff",
+    minHeight: 46,
   },
   dateInput: {
     height: 44,

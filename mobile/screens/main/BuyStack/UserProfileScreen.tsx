@@ -2267,6 +2267,7 @@ const styles = StyleSheet.create({
     color: "#111",
     minHeight: 120,
     backgroundColor: "#f9f9f9",
+    includeFontPadding: false,
   },
   modalFooter: {
     flexDirection: "row",

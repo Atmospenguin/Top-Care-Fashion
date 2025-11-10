@@ -329,7 +329,7 @@ export default function ManagePaymentsScreen() {
               value={addressForm.name}
               onChangeText={(text) => setAddressForm({ ...addressForm, name: text })}
               placeholder="Enter your full name"
-              includeFontPadding={false}
+              textAlignVertical="center"
             />
 
             <Text style={styles.inputLabel}>Phone Number</Text>
@@ -339,7 +339,7 @@ export default function ManagePaymentsScreen() {
               onChangeText={(text) => setAddressForm({ ...addressForm, phone: text })}
               placeholder="+1 (555) 123-4567"
               keyboardType="phone-pad"
-              includeFontPadding={false}
+              textAlignVertical="center"
             />
 
             <View style={styles.row}>
@@ -350,7 +350,7 @@ export default function ManagePaymentsScreen() {
                   value={addressForm.line1}
                   onChangeText={(text) => setAddressForm({ ...addressForm, line1: text })}
                   placeholder="Street Address"
-                  includeFontPadding={false}
+                  textAlignVertical="center"
                 />
               </View>
               <View style={styles.smallInput}>
@@ -360,7 +360,7 @@ export default function ManagePaymentsScreen() {
                   value={addressForm.line2}
                   onChangeText={(text) => setAddressForm({ ...addressForm, line2: text })}
                   placeholder=""
-                  includeFontPadding={false}
+                  textAlignVertical="center"
                 />
               </View>
             </View>
@@ -373,7 +373,7 @@ export default function ManagePaymentsScreen() {
                   value={addressForm.city}
                   onChangeText={(text) => setAddressForm({ ...addressForm, city: text })}
                   placeholder="City"
-                  includeFontPadding={false}
+                  textAlignVertical="center"
                 />
               </View>
               <View style={styles.smallInput}>
@@ -383,7 +383,7 @@ export default function ManagePaymentsScreen() {
                   value={addressForm.state}
                   onChangeText={(text) => setAddressForm({ ...addressForm, state: text })}
                   placeholder="AL"
-                  includeFontPadding={false}
+                  textAlignVertical="center"
                 />
               </View>
             </View>
@@ -396,7 +396,7 @@ export default function ManagePaymentsScreen() {
                   value={addressForm.country}
                   onChangeText={(text) => setAddressForm({ ...addressForm, country: text })}
                   placeholder="Country"
-                  includeFontPadding={false}
+                  textAlignVertical="center"
                 />
               </View>
               <View style={styles.smallInput}>
@@ -407,7 +407,7 @@ export default function ManagePaymentsScreen() {
                   onChangeText={(text) => setAddressForm({ ...addressForm, postalCode: text })}
                   placeholder="12345"
                   keyboardType="numeric"
-                  includeFontPadding={false}
+                  textAlignVertical="center"
                 />
               </View>
             </View>
@@ -612,10 +612,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#000',
     borderRadius: 4,
-    padding: 12,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'android' ? 0 : 12,
+    minHeight: 46,
     fontSize: 16,
     color: '#000',
     backgroundColor: '#fff',
+    includeFontPadding: false,
   },
   inputHint: {
     fontSize: 12,
