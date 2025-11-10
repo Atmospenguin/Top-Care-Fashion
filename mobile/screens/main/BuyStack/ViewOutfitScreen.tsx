@@ -1077,15 +1077,16 @@ const styles = StyleSheet.create({
   },
   feedbackPanel: {
     width: "100%",
-    height: Math.min(SCREEN_HEIGHT * 0.75, 600),
     backgroundColor: "rgba(17, 17, 17, 0.95)",
     borderRadius: 20,
     overflow: "hidden",
     flexDirection: "column",
-    maxHeight: "85%",
+    alignSelf: "center",
+    maxHeight: Math.min(SCREEN_HEIGHT * 0.8, 600),
   },
   panelScrollView: {
-    maxHeight: 400,
+    flexGrow: 0,
+    maxHeight: Math.min(SCREEN_HEIGHT * 0.6, 480),
   },
   panelHeader: {
     flexDirection: "row",
@@ -1112,7 +1113,7 @@ const styles = StyleSheet.create({
   panelContent: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 24,
+    paddingBottom: 0,
   },
   loadingText: {
     color: "#fff",
