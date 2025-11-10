@@ -325,7 +325,15 @@ export default function DashboardPage() {
 
       {/* Boost/Promotion Overview */}
       <div className="bg-white border rounded-lg p-6">
-        <h3 className="text-lg font-semibold mb-4">Boost Overview</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Boost Overview</h3>
+          <Link
+            href="/admin/promotions"
+            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+          >
+            View All →
+          </Link>
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center p-4 bg-blue-50 rounded-lg">
             <div className="text-2xl font-bold text-blue-700">{stats.activePromotions}</div>
