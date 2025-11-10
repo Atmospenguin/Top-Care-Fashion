@@ -1,8 +1,14 @@
 // mobile/screens/main/HomeStack/HomeScreen.tsx
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
-  View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Animated,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  useWindowDimensions,
+  Animated,
 } from "react-native";
+import type { LayoutChangeEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, type RouteProp, type NavigatorScreenParams } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -33,6 +39,20 @@ export default function HomeScreen() {
     { key: "foryou", title: "For You" },
     { key: "trending", title: "Trending" },
   ]);
+
+  const tabKeys = routes.map((route) => route.key);
+  const tabAnimationsRef = useRef<Record<string, Animated.Value> | null>(null);
+  if (!tabAnimationsRef.current) {
+    tabAnimationsRef.current = tabKeys.reduce((acc, key, i) => {
+      acc[key] = new Animated.Value(i === 0 ? 1 : 0);
+      return acc;
+    }, {} as Record<string, Animated.Value>);
+  }
+  const tabAnimations = tabAnimationsRef.current!;
+  const [tabLayouts, setTabLayouts] = useState<Record<string, { x: number; width: number }>>({});
+  const [tabTextWidths, setTabTextWidths] = useState<Record<string, number>>({});
+  const indicatorLeft = useRef(new Animated.Value(0)).current;
+  const indicatorWidth = useRef(new Animated.Value(0)).current;
 
   // Refs for both feed lists
   const forYouRef = useRef<FeedListRef>(null);
@@ -78,10 +98,21 @@ export default function HomeScreen() {
     prevScrollY.current = offset;
   };
 
-  // Calculate exact top bar height: paddingTop(insets.top) + paddingVertical(8*2) + text(~20) + border(1) + tabIndicator(3+6) + some margin
-  const TOP_BAR_CONTENT_HEIGHT = 63;
-  const TOTAL_BAR_HEIGHT = TOP_BAR_CONTENT_HEIGHT + insets.top;
-  const TOTAL_HIDE_DISTANCE = TOTAL_BAR_HEIGHT; // Hide completely above notch
+  // Calculate top bar height dynamically so the animation matches the actual size
+  const DEFAULT_BAR_CONTENT_HEIGHT = 52;
+  const [topBarHeight, setTopBarHeight] = useState(insets.top + DEFAULT_BAR_CONTENT_HEIGHT);
+
+  useEffect(() => {
+    const targetHeight = insets.top + DEFAULT_BAR_CONTENT_HEIGHT;
+    setTopBarHeight((prev) => (Math.abs(prev - targetHeight) < 0.5 ? prev : targetHeight));
+  }, [insets.top]);
+
+  const handleTopBarLayout = useCallback((event: { nativeEvent: { layout: { height: number } } }) => {
+    const { height } = event.nativeEvent.layout;
+    setTopBarHeight((prev) => (Math.abs(prev - height) < 0.5 ? prev : height));
+  }, []);
+
+  const TOTAL_HIDE_DISTANCE = topBarHeight; // Hide completely above notch
 
   const topBarTranslateY = scrollY.interpolate({
     inputRange: [0, 1],
@@ -117,6 +148,106 @@ export default function HomeScreen() {
     }
   };
 
+  const updateIndicator = useCallback(() => {
+    const key = routes[index]?.key;
+    if (!key) return;
+    const layout = tabLayouts[key];
+    const textWidth = tabTextWidths[key];
+    if (!layout || !textWidth) return;
+
+    const left = layout.x + layout.width / 2 - textWidth / 2;
+
+    Animated.spring(indicatorLeft, {
+      toValue: left,
+      stiffness: 260,
+      damping: 24,
+      mass: 0.9,
+      useNativeDriver: false,
+    }).start();
+
+    Animated.spring(indicatorWidth, {
+      toValue: textWidth,
+      stiffness: 260,
+      damping: 24,
+      mass: 0.9,
+      useNativeDriver: false,
+    }).start();
+  }, [index, routes, tabLayouts, tabTextWidths, indicatorLeft, indicatorWidth]);
+
+  useEffect(() => {
+    updateIndicator();
+  }, [updateIndicator]);
+
+  useEffect(() => {
+    routes.forEach((route, i) => {
+      Animated.spring(tabAnimations[route.key], {
+        toValue: i === index ? 1 : 0,
+        stiffness: 300,
+        damping: 26,
+        mass: 0.9,
+        useNativeDriver: false,
+      }).start();
+    });
+  }, [index, routes, tabAnimations]);
+
+  const handleTabLayout = useCallback(
+    (key: string, event: LayoutChangeEvent) => {
+      const { x, width } = event.nativeEvent.layout;
+      setTabLayouts((prev) => {
+        const current = prev[key];
+        if (current && Math.abs(current.x - x) < 0.5 && Math.abs(current.width - width) < 0.5) {
+          return prev;
+        }
+        return { ...prev, [key]: { x, width } };
+      });
+    },
+    [],
+  );
+
+  const handleTabTextLayout = useCallback((key: string, event: LayoutChangeEvent) => {
+    const { width } = event.nativeEvent.layout;
+    setTabTextWidths((prev) => {
+      const current = prev[key];
+      if (current && Math.abs(current - width) < 0.5) {
+        return prev;
+      }
+      return { ...prev, [key]: width };
+    });
+  }, []);
+
+  const handleIndexChange = useCallback(
+    (nextIndex: number) => {
+      setIndex(nextIndex);
+      if (!topBarVisible) {
+        setTopBarVisible(true);
+      }
+      Animated.timing(scrollY, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    },
+    [scrollY, topBarVisible],
+  );
+
+  const handleTabPress = useCallback(
+    (targetIndex: number) => {
+      if (targetIndex === index) {
+        const currentRef = index === 0 ? forYouRef : trendingRef;
+        currentRef.current?.scrollToTop?.();
+        setTopBarVisible(true);
+        Animated.timing(scrollY, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+        return;
+      }
+      handleIndexChange(targetIndex);
+    },
+    [index, forYouRef, trendingRef, handleIndexChange, scrollY],
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <View style={{ flex: 1 }}>
@@ -130,24 +261,57 @@ export default function HomeScreen() {
               transform: [{ translateY: topBarTranslateY }],
             },
           ]}
+          onLayout={handleTopBarLayout}
         >
           <View style={styles.tabsContainer}>
             {routes.map((route, i) => {
-              const isActive = index === i;
+              const animation = tabAnimations[route.key];
+              const translateY = animation.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, -6],
+              });
+              const scale = animation.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 1.05],
+              });
+              const color = animation.interpolate({
+                inputRange: [0, 1],
+                outputRange: ["#999999", "#000000"],
+              });
+
               return (
                 <TouchableOpacity
                   key={route.key}
                   style={styles.tabButton}
-                  onPress={() => setIndex(i)}
+                  onPress={() => handleTabPress(i)}
                   activeOpacity={0.7}
+                  onLayout={(event) => handleTabLayout(route.key, event)}
                 >
-                  <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                  <Animated.Text
+                    onLayout={(event) => handleTabTextLayout(route.key, event)}
+                    style={[
+                      styles.tabText,
+                      {
+                        transform: [{ translateY }, { scale }],
+                        color,
+                      },
+                    ]}
+                  >
                     {route.title}
-                  </Text>
-                  {isActive && <View style={styles.tabIndicator} />}
+                  </Animated.Text>
                 </TouchableOpacity>
               );
             })}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.tabIndicator,
+                {
+                  width: indicatorWidth,
+                  transform: [{ translateX: indicatorLeft }],
+                },
+              ]}
+            />
           </View>
           <TouchableOpacity
             style={styles.searchButton}
@@ -169,7 +333,7 @@ export default function HomeScreen() {
           navigationState={{ index, routes }}
           renderScene={renderScene}
           renderTabBar={() => null}
-          onIndexChange={setIndex}
+          onIndexChange={handleIndexChange}
           initialLayout={{ width: layout.width }}
           swipeEnabled={true}
           lazy={true}
@@ -189,10 +353,10 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 10,
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-end",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingBottom: 0,
     backgroundColor: "#fff",
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#eee",
@@ -201,24 +365,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flex: 1,
     justifyContent: "center",
+    alignItems: "flex-end",
     gap: 32,
+    position: "relative",
+    paddingBottom: 6,
   },
   tabButton: {
     alignItems: "center",
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 0,
   },
   tabText: {
     fontSize: 17,
     fontWeight: "600",
-    color: "#999",
-  },
-  tabTextActive: {
-    color: "#000",
-    fontWeight: "700",
   },
   tabIndicator: {
-    marginTop: 6,
-    width: 32,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
     height: 3,
     backgroundColor: "#000",
     borderRadius: 1.5,
@@ -227,5 +392,6 @@ const styles = StyleSheet.create({
     padding: 8,
     position: "absolute",
     right: 12,
+    bottom: 0,
   },
 });
