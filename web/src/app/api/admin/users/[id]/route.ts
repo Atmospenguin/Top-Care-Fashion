@@ -201,15 +201,17 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (status !== undefined) {
       updateData.status = normalizeStatusIn(status);
     }
-    if (is_premium !== undefined) {
-      updateData.is_premium = normalizePremium(is_premium);
-    }
-    if (premium_until !== undefined) {
-      if (premium_until === null || premium_until === '') {
-        updateData.premium_until = null;
-      } else {
-        updateData.premium_until = new Date(premium_until);
-      }
+    // Premium status should be managed through premium_subscriptions table, not directly
+    // If is_premium or premium_until are provided, we'll handle them by creating/updating subscriptions
+    if (is_premium !== undefined || premium_until !== undefined) {
+      // Note: Direct updates to is_premium/premium_until are blocked by trigger
+      // Admin should use premium_subscriptions table instead
+      // For now, we'll skip these fields and log a warning
+      console.warn(
+        `Attempted to directly update premium status for user ${userId}. ` +
+        `Premium status should be managed through premium_subscriptions table.`
+      );
+      // Remove from updateData to prevent trigger override
     }
     if (gender !== undefined) {
       updateData.gender = normalizeGenderIn(gender);

@@ -7,6 +7,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { MyTopStackParamList } from "./index";
 import { apiClient } from "../../../src/services/api";
 import { userService } from "../../../src/services/userService";
+import { premiumService } from "../../../src/services/premiumService";
 import { useAuth } from "../../../contexts/AuthContext";
 
 declare const __DEV__: boolean;
@@ -124,6 +125,40 @@ export default function SecurityScreen() {
     );
   };
 
+  const cancelPremiumSubscription = async () => {
+    if (!user?.isPremium) {
+      Alert.alert("提示", "您当前不是 Premium 会员");
+      return;
+    }
+
+    Alert.alert(
+      "取消 Premium 订阅",
+      "确定要取消 Premium 订阅吗？所有活跃的订阅将被标记为过期，Premium 权益将立即失效。",
+      [
+        { text: "取消", style: "cancel" },
+        {
+          text: "确定取消",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const status = await premiumService.cancel();
+              updateUser({
+                ...(user as any),
+                isPremium: status.isPremium,
+                premiumUntil: status.premiumUntil,
+              });
+              Alert.alert("成功", "Premium 订阅已取消");
+              setShowDevToolsModal(false);
+            } catch (error) {
+              console.error("取消 Premium 订阅失败:", error);
+              Alert.alert("错误", "取消订阅失败，请稍后重试");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header title="Security" showBack />
@@ -184,6 +219,14 @@ export default function SecurityScreen() {
                   onPress={() => {
                     setShowDevToolsModal(false);
                     deleteUserPreferences();
+                  }}
+                />
+                <SettingItem
+                  icon="close-circle-outline"
+                  label="🚫 取消 Premium 订阅"
+                  onPress={() => {
+                    setShowDevToolsModal(false);
+                    cancelPremiumSubscription();
                   }}
                 />
                 <View style={styles.devNote}>
