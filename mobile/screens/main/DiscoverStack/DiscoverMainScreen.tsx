@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
   searchRightButtons: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 0,
   },
   searchIconButton: {
     padding: 8,
