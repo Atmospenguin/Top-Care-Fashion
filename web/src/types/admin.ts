@@ -49,6 +49,13 @@ export type Listing = {
   // Transaction info (if exists)
   txStatus?: "pending" | "paid" | "shipped" | "completed" | "cancelled";
   txId?: string | null;
+  // Boost info
+  isBoosted?: boolean;
+  boostEndsAt?: string | null;
+  // Stats
+  viewsCount?: number;
+  clicksCount?: number;
+  likesCount?: number;
 };
 
 export type Transaction = {
