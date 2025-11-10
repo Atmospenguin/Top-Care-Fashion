@@ -155,22 +155,51 @@ export default function DiscoverMainScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
       {/* 搜索栏 */}
-      <TextInput
-        ref={searchInputRef}
-        style={styles.searchBar}
-        placeholder="Search for Anything"
-        placeholderTextColor="#666"
-        value={searchText}
-        onChangeText={setSearchText}
-        returnKeyType="search"
-        textAlignVertical="center"
-        onSubmitEditing={() => {
-          // Navigate to SearchResult in Buy stack (allow empty string)
-          // Use parent/root navigator to reach the Buy stack
-          const parent = navigation.getParent();
-          parent?.navigate("Buy", { screen: "SearchResult", params: { query: searchText || "" } });
-        }}
-      />
+      <View style={styles.searchContainer}>
+        <TextInput
+          ref={searchInputRef}
+          style={styles.searchBar}
+          placeholder="Search for Anything"
+          placeholderTextColor="#666"
+          value={searchText}
+          onChangeText={setSearchText}
+          returnKeyType="search"
+          textAlignVertical="center"
+          onSubmitEditing={() => {
+            // Navigate to SearchResult in Buy stack (allow empty string)
+            // Use parent/root navigator to reach the Buy stack
+            const parent = navigation.getParent();
+            parent?.navigate("Buy", { screen: "SearchResult", params: { query: searchText || "" } });
+          }}
+        />
+        <View style={styles.searchRightButtons}>
+          <TouchableOpacity
+            style={styles.searchIconButton}
+            onPress={() => {
+              const parent = navigation.getParent<BottomTabNavigationProp<MainTabParamList>>();
+              parent?.navigate("My TOP", {
+                screen: "MyTopMain",
+                params: { initialTab: "Likes" },
+              });
+            }}
+            activeOpacity={0.7}
+          >
+            <Icon name="heart-outline" size={24} color="#000" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.searchIconButton}
+            onPress={() => {
+              const parent = navigation.getParent<BottomTabNavigationProp<MainTabParamList>>();
+              parent?.navigate("Buy", {
+                screen: "Bag",
+              });
+            }}
+            activeOpacity={0.7}
+          >
+            <Icon name="bag-outline" size={24} color="#000" />
+          </TouchableOpacity>
+        </View>
+      </View>
 
       {/* 分类 */}
       <Text style={styles.sectionTitle}>Shop by Category</Text>
@@ -265,15 +294,29 @@ export default function DiscoverMainScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", padding: 16 },
 
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+    gap: 8,
+  },
   searchBar: {
+    flex: 1,
     minHeight: 44,
     borderRadius: 22,
     backgroundColor: "#f3f3f3",
     paddingHorizontal: 16,
     paddingVertical: Platform.OS === "android" ? 0 : 12,
     fontSize: 15,
-    marginBottom: 20,
     includeFontPadding: false,
+  },
+  searchRightButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  searchIconButton: {
+    padding: 8,
   },
 
   sectionTitle: {
