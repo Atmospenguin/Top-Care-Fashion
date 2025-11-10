@@ -291,6 +291,7 @@ export default function HomeScreen() {
                     onLayout={(event) => handleTabTextLayout(route.key, event)}
                     style={[
                       styles.tabText,
+                      index === i && styles.tabTextActive,
                       {
                         transform: [{ translateY }, { scale }],
                         color,
@@ -366,7 +367,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "flex-end",
-    gap: 32,
+    gap: 0,
     position: "relative",
     paddingBottom: 6,
   },
@@ -377,8 +378,11 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
   },
   tabText: {
-    fontSize: 17,
-    fontWeight: "600",
+    fontSize: 18,
+    color: "#666",
+  },
+  tabTextActive: {
+    fontWeight: "800",
   },
   tabIndicator: {
     position: "absolute",
