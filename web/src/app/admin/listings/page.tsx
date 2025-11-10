@@ -11,14 +11,18 @@ import Pagination from "@/components/admin/Pagination";
 type EditingListing = Listing;
 
 type ViewMode = "grid" | "table";
-type FilterType = "all" | "listed" | "unlisted" | "sold";
+type FilterType = "all" | "listed" | "unlisted" | "sold" | "boosted";
 type SortOption =
   | "date-desc"
   | "date-asc"
   | "price-desc"
   | "price-asc"
   | "name-asc"
-  | "name-desc";
+  | "name-desc"
+  | "views-desc"
+  | "views-asc"
+  | "clicks-desc"
+  | "clicks-asc";
 
 interface Category {
   id: string;
@@ -337,6 +341,7 @@ export default function ListingManagementPage() {
             <option value="listed">Listed Only</option>
             <option value="unlisted">Unlisted Only</option>
             <option value="sold">Sold</option>
+            <option value="boosted">Boosted Only</option>
           </select>
           <select
             value={categoryFilter}
@@ -369,6 +374,10 @@ export default function ListingManagementPage() {
             <option value="price-asc">Price: low to high</option>
             <option value="name-asc">Name: A → Z</option>
             <option value="name-desc">Name: Z → A</option>
+            <option value="views-desc">Most views</option>
+            <option value="views-asc">Least views</option>
+            <option value="clicks-desc">Most clicks</option>
+            <option value="clicks-asc">Least clicks</option>
           </select>
         </div>
       </div>
@@ -476,6 +485,11 @@ function ListingCard({
                 Sold
               </span>
             )}
+            {listing.isBoosted && (
+              <span className="px-2 py-1 text-xs rounded-full bg-purple-600 text-white shadow">
+                🚀 Boosted
+              </span>
+            )}
           </div>
           {listing.txStatus && (
             <span className={`px-2 py-1 text-xs rounded-full ${getTxColor(listing.txStatus)}`}>
@@ -550,6 +564,22 @@ function ListingCard({
           <div>
             <div className="text-gray-400">Sold</div>
             <div className="font-medium text-gray-700">{formatDate(listing.soldAt)}</div>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="flex gap-3 text-xs text-gray-600 pt-2 border-t">
+          <div className="flex items-center gap-1">
+            <span>👁</span>
+            <span>{listing.viewsCount ?? 0} views</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span>👆</span>
+            <span>{listing.clicksCount ?? 0} clicks</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span>❤</span>
+            <span>{listing.likesCount ?? 0} likes</span>
           </div>
         </div>
 
@@ -730,11 +760,21 @@ function ListingTableRow({
           {listing.sold && (
             <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700">Sold</span>
           )}
+          {listing.isBoosted && (
+            <span className="px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800">
+              🚀 Boosted
+            </span>
+          )}
           {listing.txStatus && (
             <span className={`px-2 py-0.5 text-xs rounded-full ${getTxColor(listing.txStatus)}`}>
               {listing.txStatus}
             </span>
           )}
+        </div>
+        <div className="flex gap-2 mt-1 text-xs text-gray-500">
+          <span>👁 {listing.viewsCount ?? 0}</span>
+          <span>👆 {listing.clicksCount ?? 0}</span>
+          <span>❤ {listing.likesCount ?? 0}</span>
         </div>
       </td>
       <td className="px-4 py-3 align-top text-sm text-gray-600">{formatDate(listing.createdAt)}</td>

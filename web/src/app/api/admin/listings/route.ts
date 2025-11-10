@@ -50,7 +50,11 @@ type SortOption =
   | "price-desc"
   | "price-asc"
   | "name-asc"
-  | "name-desc";
+  | "name-desc"
+  | "views-desc"
+  | "views-asc"
+  | "clicks-desc"
+  | "clicks-asc";
 
 function mapOrderStatus(value: OrderStatus | null | undefined): "pending" | "paid" | "shipped" | "completed" | "cancelled" | null {
   if (!value) return null;
@@ -89,12 +93,17 @@ function mapListingRow(listing: {
   created_at: Date;
   sold_at: Date | null;
   updated_at: Date | null;
+  views_count: number | null;
+  clicks_count: number;
+  likes_count: number | null;
   seller: { username: string } | null;
   orders: { id: number; status: OrderStatus }[];
+  promotions?: { id: number; status: string; started_at: Date; ends_at: Date | null }[];
 }) {
   const imageUrls = ensureStringArray(listing.image_urls);
   const tags = ensureStringArray(listing.tags);
   const latestOrder = listing.orders[0];
+  const activePromotion = listing.promotions?.find(p => p.status === 'ACTIVE');
 
   return {
     id: String(listing.id),
@@ -116,6 +125,11 @@ function mapListingRow(listing: {
     soldAt: listing.sold_at?.toISOString() ?? null,
     txStatus: latestOrder ? mapOrderStatus(latestOrder.status) : null,
     txId: latestOrder ? String(latestOrder.id) : null,
+    isBoosted: !!activePromotion,
+    boostEndsAt: activePromotion?.ends_at?.toISOString() ?? null,
+    viewsCount: listing.views_count ?? 0,
+    clicksCount: listing.clicks_count ?? 0,
+    likesCount: listing.likes_count ?? 0,
   };
 }
 
@@ -140,6 +154,12 @@ export async function GET(request: NextRequest) {
     where.listed = false;
   } else if (statusParam === "sold") {
     where.sold = true;
+  } else if (statusParam === "boosted") {
+    where.promotions = {
+      some: {
+        status: "ACTIVE",
+      },
+    };
   }
 
   if (categoryParam && categoryParam !== "all") {
@@ -180,6 +200,14 @@ export async function GET(request: NextRequest) {
         return { name: "asc" };
       case "name-desc":
         return { name: "desc" };
+      case "views-desc":
+        return { views_count: "desc" };
+      case "views-asc":
+        return { views_count: "asc" };
+      case "clicks-desc":
+        return { clicks_count: "desc" };
+      case "clicks-asc":
+        return { clicks_count: "asc" };
       case "date-asc":
         return { created_at: "asc" };
       case "date-desc":
@@ -208,6 +236,17 @@ export async function GET(request: NextRequest) {
             created_at: "desc",
           },
           take: 1,
+        },
+        promotions: {
+          select: {
+            id: true,
+            status: true,
+            started_at: true,
+            ends_at: true,
+          },
+          where: {
+            status: "ACTIVE",
+          },
         },
       },
       orderBy,
