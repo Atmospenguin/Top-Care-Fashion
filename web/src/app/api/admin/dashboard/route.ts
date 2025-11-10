@@ -208,8 +208,6 @@ export async function GET() {
       activePromotions,
       expiredPromotions,
       promotionsThisWeek,
-      paidPromotionsTotal,
-      paidPromotionsThisMonth,
     ] = await Promise.all([
       prisma.listing_promotions.count(),
       prisma.listing_promotions.count({
@@ -224,16 +222,43 @@ export async function GET() {
       prisma.listing_promotions.count({
         where: { created_at: { gte: startOfWeek } },
       }),
-      prisma.listing_promotions.count({
-        where: { used_free_credit: false },
-      }),
-      prisma.listing_promotions.count({
-        where: {
-          used_free_credit: false,
-          created_at: { gte: startOfMonth },
-        },
-      }),
     ]);
+
+    // Calculate boost revenue from paid_amount field
+    const boostRevenueStats = await prisma.listing_promotions.aggregate({
+      _sum: {
+        paid_amount: true,
+      },
+      _count: {
+        id: true,
+      },
+      where: {
+        paid_amount: { gt: 0 },
+      },
+    });
+
+    const boostRevenueThisMonthStats = await prisma.listing_promotions.aggregate({
+      _sum: {
+        paid_amount: true,
+      },
+      _count: {
+        id: true,
+      },
+      where: {
+        paid_amount: { gt: 0 },
+        created_at: { gte: startOfMonth },
+      },
+    });
+
+    const totalBoostRevenue = boostRevenueStats._sum.paid_amount
+      ? Number(boostRevenueStats._sum.paid_amount)
+      : 0;
+    const paidPromotionsTotal = boostRevenueStats._count.id;
+
+    const boostRevenueThisMonth = boostRevenueThisMonthStats._sum.paid_amount
+      ? Number(boostRevenueThisMonthStats._sum.paid_amount)
+      : 0;
+    const paidPromotionsThisMonth = boostRevenueThisMonthStats._count.id;
 
     // Get promotion performance stats
     const promotionPerformance = await prisma.listing_promotions.aggregate({
@@ -276,11 +301,6 @@ export async function GET() {
       },
       take: 5,
     });
-
-    // Calculate boost revenue (assuming $9.99 per paid boost)
-    const BOOST_PRICE = 9.99;
-    const totalBoostRevenue = paidPromotionsTotal * BOOST_PRICE;
-    const boostRevenueThisMonth = paidPromotionsThisMonth * BOOST_PRICE;
 
     const stats = {
       totalUsers,
