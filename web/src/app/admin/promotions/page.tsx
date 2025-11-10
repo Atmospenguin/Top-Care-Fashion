@@ -21,6 +21,7 @@ interface Promotion {
   clickUplift: number;
   boostWeight: number;
   usedFreeCredit: boolean;
+  paidAmount: number;
   ctr: string;
 }
 
@@ -242,6 +243,11 @@ export default function PromotionsPage() {
                       >
                         {promo.sellerUsername}
                       </Link>
+                      {promo.paidAmount > 0 && (
+                        <div className="text-xs text-green-600 font-medium">
+                          Paid ${promo.paidAmount.toFixed(2)}
+                        </div>
+                      )}
                       {promo.usedFreeCredit && (
                         <div className="text-xs text-purple-600 mt-1">Free credit</div>
                       )}

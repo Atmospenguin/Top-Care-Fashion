@@ -18,6 +18,7 @@ interface PromotionRow {
   click_uplift_percent: number;
   boost_weight: any;
   used_free_credit: boolean;
+  paid_amount: any;
   listing_name: string | null;
   listing_price: any;
   listing_image_url: string | null;
@@ -51,6 +52,7 @@ export async function GET(req: NextRequest) {
         lp.click_uplift_percent,
         lp.boost_weight,
         lp.used_free_credit,
+        lp.paid_amount,
         l.name AS listing_name,
         l.price AS listing_price,
         l.image_url AS listing_image_url,
@@ -89,6 +91,7 @@ export async function GET(req: NextRequest) {
       clickUplift: row.click_uplift_percent ?? 0,
       boostWeight: row.boost_weight ? Number(row.boost_weight) : 1.5,
       usedFreeCredit: row.used_free_credit ?? false,
+      paidAmount: row.paid_amount ? Number(row.paid_amount) : 0,
       ctr: row.views > 0 ? ((row.clicks / row.views) * 100).toFixed(2) : "0",
     }));
 

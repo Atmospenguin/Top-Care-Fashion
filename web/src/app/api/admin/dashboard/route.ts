@@ -9,31 +9,33 @@ export async function GET() {
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   try {
-    // Calculate date ranges
+    // Calculate date ranges - Dashboard shows MONTHLY data only
     const now = new Date();
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - 7);
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-    // Get user stats
-    const [totalUsers, activeUsers, premiumUsers, newUsersThisWeek] = await Promise.all([
+    // Get user stats (THIS MONTH)
+    const [totalUsers, activeUsers, premiumUsers, newUsersThisMonth] = await Promise.all([
       prisma.users.count(),
       prisma.users.count({ where: { status: UserStatus.ACTIVE } }),
       prisma.users.count({ where: { is_premium: true } }),
-      prisma.users.count({ where: { created_at: { gte: startOfWeek } } }),
+      prisma.users.count({ where: { created_at: { gte: startOfMonth, lte: endOfMonth } } }),
     ]);
 
-    // Get listing stats
-    const [totalListings, activeListings, soldListings, newListingsThisWeek] = await Promise.all([
+    // Get listing stats (THIS MONTH)
+    const [totalListings, activeListings, soldListings, newListingsThisMonth] = await Promise.all([
       prisma.listings.count(),
       prisma.listings.count({ where: { listed: true, sold: false } }),
       prisma.listings.count({ where: { sold: true } }),
-      prisma.listings.count({ where: { created_at: { gte: startOfWeek } } }),
+      prisma.listings.count({ where: { created_at: { gte: startOfMonth, lte: endOfMonth } } }),
     ]);
 
-    // Get transaction stats
-    const [allTransactions, completedTransactions, transactionsThisWeek] = await Promise.all([
+    // Get transaction stats (THIS MONTH)
+    const [allTransactions, completedTransactions, transactionsThisMonth] = await Promise.all([
       prisma.orders.findMany({
+        where: {
+          created_at: { gte: startOfMonth, lte: endOfMonth },
+        },
         select: {
           id: true,
           status: true,
@@ -50,15 +52,16 @@ export async function GET() {
       }),
       prisma.orders.count({
         where: {
+          created_at: { gte: startOfMonth, lte: endOfMonth },
           status: {
             in: [OrderStatus.COMPLETED, OrderStatus.REVIEWED, OrderStatus.RECEIVED],
           },
         },
       }),
-      prisma.orders.count({ where: { created_at: { gte: startOfWeek } } }),
+      prisma.orders.count({ where: { created_at: { gte: startOfMonth, lte: endOfMonth } } }),
     ]);
 
-    // Calculate revenue
+    // Calculate revenue (THIS MONTH ONLY)
     const completedStatusList = [OrderStatus.COMPLETED, OrderStatus.REVIEWED, OrderStatus.RECEIVED];
     const completedOrders = allTransactions.filter((t) =>
       completedStatusList.some((status) => status === t.status)
@@ -69,24 +72,10 @@ export async function GET() {
       return sum + totalAmount;
     }, 0);
 
-    const revenueThisMonth = completedOrders
-      .filter((t) => new Date(t.created_at) >= startOfMonth)
-      .reduce((sum, order) => {
-        const { totalAmount } = summarizeOrderTotals(order);
-        return sum + totalAmount;
-      }, 0);
-
     const totalCommissionRevenue = completedOrders.reduce((sum, order) => {
       const commissionAmount = order.commission_amount ? Number(order.commission_amount) : 0;
       return sum + commissionAmount;
     }, 0);
-
-    const commissionRevenueThisMonth = completedOrders
-      .filter((t) => new Date(t.created_at) >= startOfMonth)
-      .reduce((sum, order) => {
-        const commissionAmount = order.commission_amount ? Number(order.commission_amount) : 0;
-        return sum + commissionAmount;
-      }, 0);
 
     // Get top items by views
     const topItemsRaw = await prisma.listings.findMany({
@@ -202,12 +191,12 @@ export async function GET() {
       createdAt: order.created_at.toISOString(),
     }));
 
-    // Get promotion stats
+    // Get promotion stats (THIS MONTH)
     const [
       totalPromotions,
       activePromotions,
       expiredPromotions,
-      promotionsThisWeek,
+      promotionsThisMonth,
     ] = await Promise.all([
       prisma.listing_promotions.count(),
       prisma.listing_promotions.count({
@@ -220,23 +209,11 @@ export async function GET() {
         where: { status: "EXPIRED" },
       }),
       prisma.listing_promotions.count({
-        where: { created_at: { gte: startOfWeek } },
+        where: { created_at: { gte: startOfMonth, lte: endOfMonth } },
       }),
     ]);
 
-    // Calculate boost revenue from paid_amount field
-    const boostRevenueStats = await prisma.listing_promotions.aggregate({
-      _sum: {
-        paid_amount: true,
-      },
-      _count: {
-        id: true,
-      },
-      where: {
-        paid_amount: { gt: 0 },
-      },
-    });
-
+    // Calculate boost revenue from paid_amount field (THIS MONTH ONLY)
     const boostRevenueThisMonthStats = await prisma.listing_promotions.aggregate({
       _sum: {
         paid_amount: true,
@@ -246,19 +223,62 @@ export async function GET() {
       },
       where: {
         paid_amount: { gt: 0 },
-        created_at: { gte: startOfMonth },
+        created_at: { gte: startOfMonth, lte: endOfMonth },
       },
     });
 
-    const totalBoostRevenue = boostRevenueStats._sum.paid_amount
-      ? Number(boostRevenueStats._sum.paid_amount)
-      : 0;
-    const paidPromotionsTotal = boostRevenueStats._count.id;
+    // Get total paid promotions count (all time, for reference)
+    const paidPromotionsTotal = await prisma.listing_promotions.count({
+      where: {
+        paid_amount: { gt: 0 },
+      },
+    });
 
-    const boostRevenueThisMonth = boostRevenueThisMonthStats._sum.paid_amount
+    const totalBoostRevenue = boostRevenueThisMonthStats._sum.paid_amount
       ? Number(boostRevenueThisMonthStats._sum.paid_amount)
       : 0;
     const paidPromotionsThisMonth = boostRevenueThisMonthStats._count.id;
+
+    // Get premium subscription stats
+    const [
+      totalPremiumSubscriptions,
+      activePremiumSubscriptions,
+      expiredPremiumSubscriptions,
+      premiumSubscriptionsThisMonth,
+    ] = await Promise.all([
+      prisma.premium_subscriptions.count(),
+      prisma.premium_subscriptions.count({
+        where: {
+          status: "ACTIVE",
+          ends_at: { gt: now },
+        },
+      }),
+      prisma.premium_subscriptions.count({
+        where: { status: "EXPIRED" },
+      }),
+      prisma.premium_subscriptions.count({
+        where: { created_at: { gte: startOfMonth, lte: endOfMonth } },
+      }),
+    ]);
+
+    // Calculate premium subscription revenue (THIS MONTH ONLY)
+    const premiumRevenueThisMonthStats = await prisma.premium_subscriptions.aggregate({
+      _sum: {
+        paid_amount: true,
+      },
+      _count: {
+        id: true,
+      },
+      where: {
+        paid_amount: { gt: 0 },
+        created_at: { gte: startOfMonth, lte: endOfMonth },
+      },
+    });
+
+    const totalPremiumRevenue = premiumRevenueThisMonthStats._sum.paid_amount
+      ? Number(premiumRevenueThisMonthStats._sum.paid_amount)
+      : 0;
+    const paidPremiumSubscriptionsThisMonth = premiumRevenueThisMonthStats._count.id;
 
     // Get promotion performance stats
     const promotionPerformance = await prisma.listing_promotions.aggregate({
@@ -312,21 +332,19 @@ export async function GET() {
       totalTransactions: allTransactions.length,
       completedTransactions,
       totalRevenue,
-      revenueThisMonth,
       totalCommissionRevenue,
-      commissionRevenueThisMonth,
       totalBoostRevenue,
-      boostRevenueThisMonth,
+      totalPremiumRevenue,
       paidPromotionsTotal,
       paidPromotionsThisMonth,
-      newUsersThisWeek,
-      newListingsThisWeek,
-      transactionsThisWeek,
+      newUsersThisMonth,
+      newListingsThisMonth,
+      transactionsThisMonth,
       // Promotion stats
       totalPromotions,
       activePromotions,
       expiredPromotions,
-      promotionsThisWeek,
+      promotionsThisMonth,
       promotionTotalViews: promotionPerformance._sum.views ?? 0,
       promotionTotalClicks: promotionPerformance._sum.clicks ?? 0,
       promotionAvgViewUplift: promotionPerformance._avg.view_uplift_percent
@@ -335,6 +353,12 @@ export async function GET() {
       promotionAvgClickUplift: promotionPerformance._avg.click_uplift_percent
         ? Math.round(promotionPerformance._avg.click_uplift_percent)
         : 0,
+      // Premium subscription stats
+      totalPremiumSubscriptions,
+      activePremiumSubscriptions,
+      expiredPremiumSubscriptions,
+      premiumSubscriptionsThisMonth,
+      paidPremiumSubscriptionsThisMonth,
     };
 
     return NextResponse.json({

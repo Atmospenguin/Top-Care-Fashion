@@ -60,10 +60,11 @@ model users {
   transactions_buy           transactions[]         @relation("Buyer")
   transactions_sell          transactions[]         @relation("Seller")
   addresses                  user_addresses[]
-  following                  user_follows[]         @relation("UserFollowers")
-  followers                  user_follows[]         @relation("UserFollowing")
-  likes                      user_likes[]           @relation("UserLikes")
+  following                  user_follows[]           @relation("UserFollowers")
+  followers                  user_follows[]           @relation("UserFollowing")
+  likes                      user_likes[]             @relation("UserLikes")
   payment_methods            user_payment_methods[]
+  premium_subscriptions      premium_subscriptions[]
 
   @@map("users")
 }
@@ -166,6 +167,25 @@ model listing_promotions {
   @@index([listing_id], map: "idx_listing_promotions_listing_id")
   @@index([status], map: "idx_listing_promotions_status")
   @@map("listing_promotions")
+}
+
+model premium_subscriptions {
+  id            Int      @id @default(autoincrement())
+  user_id       Int
+  plan_duration String   @db.VarChar(10)
+  paid_amount   Decimal  @default(0.00) @db.Decimal(6, 2)
+  started_at    DateTime @default(now()) @db.Timestamptz(6)
+  ends_at       DateTime @db.Timestamptz(6)
+  status        String   @default("ACTIVE") @db.VarChar(20)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @db.Timestamptz(6)
+  user          users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "idx_premium_subscriptions_user_id")
+  @@index([status], map: "idx_premium_subscriptions_status")
+  @@index([created_at(sort: Desc)], map: "idx_premium_subscriptions_created_at")
+  @@index([ends_at], map: "idx_premium_subscriptions_ends_at")
+  @@map("premium_subscriptions")
 }
 
 model user_addresses {

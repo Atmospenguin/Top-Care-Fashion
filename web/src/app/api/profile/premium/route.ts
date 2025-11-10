@@ -1,11 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { getConnection, toNumber } from "@/lib/db";
 
 function addMonths(date: Date, months: number): Date {
   const d = new Date(date);
   d.setMonth(d.getMonth() + months);
   return d;
+}
+
+// Helper to get premium pricing from pricing_plans
+async function getPremiumPrice(duration: "1m" | "3m" | "1y"): Promise<number> {
+  try {
+    const connection = await getConnection();
+    const [plans]: any = await connection.execute(
+      `SELECT price_monthly, price_quarterly, price_annual
+       FROM pricing_plans
+       WHERE plan_type = 'PREMIUM' AND active = TRUE
+       LIMIT 1`
+    );
+    await connection.end();
+
+    if (!plans || plans.length === 0) {
+      // Default fallback prices (from Plans & Pricing.md)
+      return duration === "1y" ? 59.90 : duration === "3m" ? 18.90 : 6.90;
+    }
+
+    const plan = plans[0];
+    if (duration === "1y") return toNumber(plan.price_annual) ?? 59.90;
+    if (duration === "3m") return toNumber(plan.price_quarterly) ?? 18.90;
+    return toNumber(plan.price_monthly) ?? 6.90;
+  } catch (error) {
+    console.error("Error fetching premium price:", error);
+    // Return default prices on error (from Plans & Pricing.md)
+    return duration === "1y" ? 59.90 : duration === "3m" ? 18.90 : 6.90;
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -40,22 +69,49 @@ export async function POST(req: NextRequest) {
       select: { premium_until: true },
     });
 
+    // Check existing premium subscription expiry
+    // If user has an active subscription that expires in the future, extend from that date
+    // Otherwise, start from now
     const currentExpiry = existing?.premium_until;
     const baseDate = currentExpiry && currentExpiry > now ? currentExpiry : now;
     const until = addMonths(baseDate, months);
 
-    // 注意：如果 Prisma Client 还未根据新列生成类型，以下两个字段在类型层面会报错，运行时是有效的
-    // free_promotions_used, free_promotions_reset_at
-    const updateData: any = {
-      is_premium: true,
-      premium_until: until,
-      free_promotions_used: 0,
-      free_promotions_reset_at: new Date(),
-    };
+    // Get pricing for this plan
+    const paidAmount = await getPremiumPrice(plan);
 
-    const updated = await prisma.users.update({
+    // Create subscription record
+    // Note: The trigger sync_users_premium_status() will automatically update users.is_premium and users.premium_until
+    // The trigger handles multiple active subscriptions correctly:
+    // - It queries ALL active subscriptions (status = 'ACTIVE' AND ends_at > NOW())
+    // - It uses MAX(ends_at) to get the latest expiry date
+    // - It updates users.premium_until to that latest expiry date
+    // This means if a user has multiple subscriptions, their premium_until will always be set to the latest expiry
+    // started_at is set to baseDate (current expiry if exists, otherwise now) to accurately reflect extension
+    await prisma.premium_subscriptions.create({
+      data: {
+        user_id: session.id,
+        plan_duration: plan,
+        paid_amount: paidAmount,
+        started_at: baseDate, // Use baseDate instead of now to reflect extension from existing subscription
+        ends_at: until,
+        status: "ACTIVE",
+      },
+    });
+
+    // Reset free promotions counter when subscribing
+    // Note: We update this separately because it's not part of premium status sync
+    // The trigger enforce_premium_subscription_sync only handles is_premium and premium_until
+    await prisma.users.update({
       where: { id: session.id },
-      data: updateData,
+      data: {
+        free_promotions_used: 0,
+        free_promotions_reset_at: new Date(),
+      },
+    });
+
+    // Fetch updated user to return (trigger will have updated is_premium and premium_until)
+    const updated = await prisma.users.findUnique({
+      where: { id: session.id },
       select: {
         id: true,
         username: true,
@@ -66,6 +122,10 @@ export async function POST(req: NextRequest) {
         premium_until: true,
       },
     });
+
+    if (!updated) {
+      throw new Error("User not found after subscription creation");
+    }
 
     return NextResponse.json({
       ok: true,
@@ -89,15 +149,26 @@ export async function DELETE(req: NextRequest) {
   const session = await getSessionUser(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const updated = await prisma.users.update({
+  // Expire all active subscriptions for this user
+  await prisma.premium_subscriptions.updateMany({
+    where: {
+      user_id: session.id,
+      status: "ACTIVE",
+    },
+    data: {
+      status: "EXPIRED",
+    },
+  });
+
+  // Trigger will sync users.is_premium and users.premium_until
+  const updated = await prisma.users.findUnique({
     where: { id: session.id },
-    data: { is_premium: false, premium_until: null },
     select: { id: true, is_premium: true, premium_until: true },
   });
 
   return NextResponse.json({
     ok: true,
-    isPremium: Boolean(updated.is_premium),
-    premiumUntil: updated.premium_until ?? null,
+    isPremium: Boolean(updated?.is_premium),
+    premiumUntil: updated?.premium_until ?? null,
   });
 }
