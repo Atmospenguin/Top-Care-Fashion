@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import {
   Alert,
   Dimensions,
@@ -19,6 +19,7 @@ import {
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
@@ -30,6 +31,7 @@ import { likesService, cartService, messagesService } from "../../../src/service
 import { flagsService } from "../../../src/services/flagsService";
 import { useAuth } from "../../../contexts/AuthContext";
 import { apiClient } from "../../../src/services/api";
+import { listingStatsService } from "../../../src/services/listingStatsService";
 
 const { width: WINDOW_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = Math.min(WINDOW_WIDTH - 48, 360);
@@ -82,11 +84,12 @@ export default function ListingDetailScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
   const route = useRoute<RouteProp<BuyStackParamList, "ListingDetail">>();
-  const { item: itemParam, listingId, isOwnListing: isOwnListingParam = false } = route.params || {};
+  const { listingId, isOwnListing: isOwnListingParam = false } = route.params || {};
+  const insets = useSafeAreaInsets();
   
   const { user } = useAuth();
-  const [item, setItem] = useState<ListingItem | null>(itemParam || null);
-  const [isLoadingListing, setIsLoadingListing] = useState(!itemParam && !!listingId);
+  const [item, setItem] = useState<ListingItem | null>(null);
+  const [isLoadingListing, setIsLoadingListing] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
   const [flagModalVisible, setFlagModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -96,15 +99,17 @@ export default function ListingDetailScreen() {
   const [isLoadingLike, setIsLoadingLike] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1); // 🔥 购买数量
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [listingStats, setListingStats] = useState<{ views: number | null; likes: number; clicks: number | null } | null>(null);
+  const recordedClickIdRef = useRef<string | null>(null);
 
-  // ✅ 如果只有 listingId，通过 API 加载 listing 数据
-  useEffect(() => {
-    if (!itemParam && listingId) {
-      loadListingById(listingId);
-    }
-  }, [listingId, itemParam]);
+  // ✅ 获取 listing ID
+  const getListingId = useMemo(() => {
+    return listingId ? String(listingId) : null;
+  }, [listingId]);
 
-  const loadListingById = async (id: string) => {
+  // ✅ 加载 listing 数据的函数
+  const loadListingById = useCallback(async (id: string) => {
     try {
       setIsLoadingListing(true);
       console.log("🔍 Loading listing by ID:", id);
@@ -113,6 +118,10 @@ export default function ListingDetailScreen() {
       if (response.data?.listing) {
         setItem(response.data.listing);
         console.log("✅ Listing loaded successfully:", response.data.listing);
+      } else {
+        console.error("❌ No listing data in response");
+        Alert.alert("Error", "Failed to load listing details");
+        navigation.goBack();
       }
     } catch (error) {
       console.error("❌ Error loading listing:", error);
@@ -121,13 +130,84 @@ export default function ListingDetailScreen() {
     } finally {
       setIsLoadingListing(false);
     }
-  };
+  }, [navigation]);
+
+  // ✅ 通过 API 加载 listing 数据
+  useEffect(() => {
+    if (!listingId) {
+      console.error("❌ ListingDetailScreen: listingId is required");
+      Alert.alert("Error", "Listing ID is required");
+      return;
+    }
+    
+    loadListingById(String(listingId));
+  }, [listingId, loadListingById]);
+
+  // ✅ 记录点击追踪（当用户点击进入详情页时）
+  useEffect(() => {
+    const stableId = listingId ? String(listingId) : null;
+    if (!stableId) {
+      return;
+    }
+
+    // 如果已经记录过这个ID，直接跳过（防止React StrictMode重复调用）
+    if (recordedClickIdRef.current === stableId) {
+      console.log(`[Click] Already recorded for listing ${stableId}, skipping`);
+      return;
+    }
+
+    // 立即设置ref，防止并发调用（必须在同步阶段完成）
+    recordedClickIdRef.current = stableId;
+
+    console.log(`[Click] Recording click for listing ${stableId}`);
+    
+    // 异步记录点击（不阻塞渲染）
+    const recordClick = async () => {
+      try {
+        await listingStatsService.recordClick(stableId);
+        console.log(`[Click] Successfully recorded click for listing ${stableId}`);
+      } catch (error) {
+        console.warn(`[Click] Failed to record click for listing ${stableId}:`, error);
+        // 如果失败，重置ref以便重试（但只在ref还是这个ID时才重置）
+        if (recordedClickIdRef.current === stableId) {
+          recordedClickIdRef.current = null;
+        }
+      }
+    };
+
+    recordClick();
+  }, [listingId]); // 只依赖 listingId
+
+  // ✅ 加载统计信息（如果是卖家）
+  useEffect(() => {
+    const loadStats = async () => {
+      // 优先使用 getListingId，如果不存在则使用 item?.id（item 可能是异步加载的）
+      const id = getListingId || item?.id?.toString();
+      if (!id) return;
+
+      // 检查是否为卖家
+      const isOwnListing = isOwnListingParam || (item?.sellerId && user?.id && item.sellerId === user.id);
+      if (isOwnListing) {
+        try {
+          const stats = await listingStatsService.getListingStats(id);
+          setListingStats(stats.stats);
+        } catch (error) {
+          console.warn('Failed to load listing stats:', error);
+        }
+      }
+    };
+
+    if (getListingId || item) {
+      loadStats();
+    }
+  }, [getListingId, item, isOwnListingParam, user?.id]);
   
-  // 调试：查看传递的 item 数据
-  console.log("🔍 ListingDetailScreen - Received item:", item);
-  console.log("🔍 ListingDetailScreen - Item ID:", item?.id);
-  console.log("🔍 ListingDetailScreen - Item title:", item?.title);
-  console.log("🔍 ListingDetailScreen - Item seller:", item?.seller);
+  // 调试：查看加载的 item 数据
+  if (__DEV__) {
+    console.log("🔍 ListingDetailScreen - ListingId:", listingId);
+    console.log("🔍 ListingDetailScreen - Item:", item);
+    console.log("🔍 ListingDetailScreen - Loading:", isLoadingListing);
+  }
 
   // 安全处理 item 数据，兼容 images 和 imageUrls 字段
   const safeItem = useMemo(() => {
@@ -235,6 +315,18 @@ export default function ListingDetailScreen() {
       (uri): uri is string => typeof uri === "string" && uri.length > 0,
     );
   }, [safeItem?.images]);
+
+  useEffect(() => {
+    if (previewIndex !== null && imageUris.length === 0) {
+      setPreviewIndex(null);
+    }
+  }, [imageUris.length, previewIndex]);
+
+  const previewActiveIndex =
+    previewIndex !== null
+      ? Math.min(previewIndex, Math.max(imageUris.length - 1, 0))
+      : 0;
+  const previewVisible = previewIndex !== null && imageUris.length > 0;
 
   const sizeLabel = useMemo(() => formatSizeLabel(safeItem?.size), [safeItem?.size]);
 
@@ -640,7 +732,54 @@ export default function ListingDetailScreen() {
           </View>
         }
       />
-      <ScrollView contentContainerStyle={styles.container}>
+      <Modal
+        visible={previewVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewIndex(null)}
+      >
+        <View style={styles.previewOverlay}>
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            contentOffset={{ x: previewActiveIndex * WINDOW_WIDTH, y: 0 }}
+            style={styles.previewScroll}
+          >
+            {imageUris.map((uri, idx) => (
+              <View
+                key={`${safeItem?.id ?? "listing"}-preview-${idx}`}
+                style={styles.previewImageContainer}
+              >
+                <Image source={{ uri }} style={styles.previewImage} resizeMode="contain" />
+              </View>
+            ))}
+          </ScrollView>
+          <View style={styles.previewTopBar}>
+            <Text style={styles.previewCounter}>
+              {previewActiveIndex + 1} / {imageUris.length}
+            </Text>
+            <TouchableOpacity style={styles.previewCloseBtn} onPress={() => setPreviewIndex(null)}>
+              <Icon name="close" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.previewThumbRow}>
+            {imageUris.map((uri, idx) => (
+              <TouchableOpacity
+                key={`${safeItem?.id ?? "listing"}-thumb-${idx}`}
+                onPress={() => setPreviewIndex(idx)}
+                style={[
+                  styles.previewThumb,
+                  previewActiveIndex === idx ? styles.previewThumbActive : undefined,
+                ]}
+              >
+                <Image source={{ uri }} style={styles.previewThumbImage} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Modal>
+      <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 120 + insets.bottom }]}>
         <ScrollView
           horizontal
           pagingEnabled
@@ -648,12 +787,17 @@ export default function ListingDetailScreen() {
           contentContainerStyle={styles.imageCarousel}
         >
           {imageUris.map((uri, index) => (
-            <Image
+            <TouchableOpacity
               key={`${safeItem?.id ?? "listing"}-${index}`}
-              source={{ uri }}
-              style={styles.image}
-              onError={() => console.warn(`Failed to load image: ${uri}`)}
-            />
+              activeOpacity={0.9}
+              onPress={() => setPreviewIndex(index)}
+            >
+              <Image
+                source={{ uri }}
+                style={styles.image}
+                onError={() => console.warn(`Failed to load image: ${uri}`)}
+              />
+            </TouchableOpacity>
           ))}
           {imageUris.length === 0 && (
             <Image
@@ -762,6 +906,31 @@ export default function ListingDetailScreen() {
               {updatedOn && (
                 <Text style={styles.infoText}>Last updated {updatedOn}</Text>
               )}
+            </View>
+          )}
+
+          {/* Statistics Section (for sellers) */}
+          {listingStats && (listingStats.views !== null || listingStats.clicks !== null) && (
+            <View style={styles.statsSection}>
+              <Text style={styles.statsHeading}>Statistics</Text>
+              <View style={styles.statsGrid}>
+                {listingStats.views !== null && (
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{listingStats.views}</Text>
+                    <Text style={styles.statLabel}>Views</Text>
+                  </View>
+                )}
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{listingStats.likes}</Text>
+                  <Text style={styles.statLabel}>Likes</Text>
+                </View>
+                {listingStats.clicks !== null && (
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{listingStats.clicks}</Text>
+                    <Text style={styles.statLabel}>Clicks</Text>
+                  </View>
+                )}
+              </View>
             </View>
           )}
 
@@ -923,7 +1092,7 @@ export default function ListingDetailScreen() {
 
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: 12 + insets.bottom }]}>
         {!isOwnListingFinal && (
           <>
             {/* 🔥 数量选择器 */}
@@ -1074,7 +1243,6 @@ export default function ListingDetailScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#fff" },
   container: {
-    paddingBottom: 120,
     rowGap: 16,
   },
   imageCarousel: {
@@ -1286,6 +1454,41 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#444",
   },
+  statsSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+  },
+  statsHeading: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#666",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginBottom: 12,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    gap: 16,
+  },
+  statItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111",
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: "#666",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
   sectionHeading: {
     fontSize: 16,
     fontWeight: "700",
@@ -1359,7 +1562,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     flexDirection: "column", // 🔥 改为垂直布局以支持数量选择器
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
     backgroundColor: "#fff",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#ddd",
@@ -1536,6 +1739,7 @@ const styles = StyleSheet.create({
     color: "#111",
     minHeight: 120,
     backgroundColor: "#f9f9f9",
+    includeFontPadding: false,
   },
   modalFooter: {
     flexDirection: "row",
@@ -1595,5 +1799,65 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     fontStyle: "italic",
+  },
+  previewOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center",
+  },
+  previewScroll: {
+    flexGrow: 0,
+  },
+  previewImageContainer: {
+    width: WINDOW_WIDTH,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  previewImage: {
+    width: WINDOW_WIDTH - 32,
+    height: WINDOW_WIDTH - 32,
+  },
+  previewTopBar: {
+    position: "absolute",
+    top: 40,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  previewCounter: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  previewCloseBtn: {
+    padding: 8,
+  },
+  previewThumbRow: {
+    position: "absolute",
+    bottom: 40,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  previewThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.4)",
+    marginHorizontal: 6,
+  },
+  previewThumbActive: {
+    borderColor: "#FFFFFF",
+  },
+  previewThumbImage: {
+    width: "100%",
+    height: "100%",
   },
 });

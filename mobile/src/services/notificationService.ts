@@ -45,7 +45,11 @@ class NotificationService {
       }
       
       return 0;
-    } catch (error) {
+    } catch (error: any) {
+      // 🔥 如果是 401 错误（未授权），静默处理（用户已登出）
+      if (error?.status === 401 || error?.message?.includes('401')) {
+        return 0;
+      }
       console.error("❌ Error fetching unread count:", error);
       return 0;
     }
@@ -54,7 +58,7 @@ class NotificationService {
   // 获取用户的所有通知
   async getNotifications(): Promise<Notification[]> {
     try {
-      console.log("🔔 Fetching notifications from API...");
+      // console.log("🔔 Fetching notifications from API...");
       
       const response = await apiClient.get<{
         success: boolean;
@@ -64,12 +68,17 @@ class NotificationService {
       }>('/api/notifications');
       
       if (response.data?.success) {
-        console.log("🔔 Loaded", response.data.notifications.length, "notifications from API");
+        // console.log("🔔 Loaded", response.data.notifications.length, "notifications from API");
         return response.data.notifications;
       }
       
       throw new Error('Failed to fetch notifications');
-    } catch (error) {
+    } catch (error: any) {
+      // 🔥 如果是 401 错误（未授权），静默处理（用户已登出），不显示错误和 mock 数据
+      if (error?.status === 401 || error?.message?.includes('401')) {
+        return [];
+      }
+      
       console.error("❌ Error fetching notifications:", error);
       
       // Fallback to mock data if API fails

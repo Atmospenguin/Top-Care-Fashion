@@ -14,6 +14,17 @@ if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
 
+// Add connection health check
+export async function checkDatabaseConnection(): Promise<boolean> {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return true;
+  } catch (error) {
+    console.error("❌ Database connection check failed:", error);
+    return false;
+  }
+}
+
 function buildSql(query: string, params: unknown[]): Prisma.Sql {
   const parts: Prisma.Sql[] = [];
   const chunks = query.split("?");

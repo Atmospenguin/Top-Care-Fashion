@@ -228,20 +228,20 @@ class ApiClient {
 
   // 获取认证头
   private async getAuthHeaders(): Promise<Record<string, string>> {
-    console.log("🔍 getAuthHeaders - accessToken in memory:", this.authToken ? "present" : "null");
+    // console.log("🔍 getAuthHeaders - accessToken in memory:", this.authToken ? "present" : "null");
 
     // 使用 Supabase access token
     if (this.authToken) {
-      console.log("🔑 Using JWT Token for API request:", this.previewToken(this.authToken));
+      // console.log("🔑 Using JWT Token for API request:", this.previewToken(this.authToken));
       return { Authorization: `Bearer ${this.authToken}` };
     }
 
     try {
       const storedToken = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
-      console.log("🔍 getAuthHeaders - stored access token:", storedToken ? "present" : "null");
+      // console.log("🔍 getAuthHeaders - stored access token:", storedToken ? "present" : "null");
       if (storedToken) {
         this.authToken = storedToken;
-        console.log("🔑 Using stored JWT Token for API request:", this.previewToken(storedToken));
+        // console.log("🔑 Using stored JWT Token for API request:", this.previewToken(storedToken));
         await this.ensureRefreshTokenLoaded();
         return { Authorization: `Bearer ${storedToken}` };
       }
@@ -249,7 +249,7 @@ class ApiClient {
       console.log('🔍 API Client - Error reading stored token:', e);
     }
 
-    console.log("❌ No auth token available, returning empty headers");
+    // console.log("❌ No auth token available, returning empty headers");
     return {};
   }
 
@@ -281,7 +281,7 @@ class ApiClient {
     }
 
     try {
-      console.log(`🔍 API Request -> ${options.method || 'GET'} ${url} (timeout: ${this.timeout}ms)`);
+      // console.log(`🔍 API Request -> ${options.method || 'GET'} ${url} (timeout: ${this.timeout}ms)`);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -295,16 +295,24 @@ class ApiClient {
       clearTimeout(timeoutId);
       
       const ct = response.headers.get('content-type') || '';
-      console.log(`🔍 API Response <- ${options.method || 'GET'} ${url} status=${response.status} time=${Date.now()}`);
-      if (!ct.includes('application/json')) {
-        console.log(`🔍 API Response Content-Type: ${ct}`);
-      }
+      // console.log(`🔍 API Response <- ${options.method || 'GET'} ${url} status=${response.status} time=${Date.now()}`);
+      // if (!ct.includes('application/json')) {
+      //   console.log(`🔍 API Response Content-Type: ${ct}`);
+      // }
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
 
         // 如果是 401 错误且还有重试次数，尝试刷新 session
-        if (response.status === 401 && retryCount < 1) {
+        // 🔥 但是登录/注册相关的端点不应该触发session刷新（因为用户还没有登录，没有refresh token）
+        // 🔥 忘记密码/重置密码端点也不需要刷新session（这些是公开端点）
+        const isPublicAuthEndpoint = endpoint.includes('/api/auth/signin') || 
+                                     endpoint.includes('/api/auth/register') || 
+                                     endpoint.includes('/api/auth/signup') ||
+                                     endpoint.includes('/api/auth/forgot-password') ||
+                                     endpoint.includes('/api/auth/reset-password');
+        
+        if (response.status === 401 && retryCount < 1 && !isPublicAuthEndpoint) {
           console.log(`🔍 API Client - 401 error, attempting session refresh (retry ${retryCount + 1})`);
           const refreshed = await this.tryRefreshSession();
           if (refreshed) {
@@ -318,6 +326,15 @@ class ApiClient {
             console.log("🔍 API Client - Triggering auth failure callback (navigating to login)");
             this.onAuthFailure();
           }
+          
+          // 🔥 对于非公开认证端点，session刷新失败后，不抛出原始401错误
+          // 因为已经导航到登录页了，抛出错误可能会在UI层显示"HTTP 401"
+          // 改为抛出更友好的错误消息，或者让调用方知道认证已失效
+          throw new ApiError(
+            "Session expired. Please log in again.",
+            response.status,
+            errorData
+          );
         }
 
         throw new ApiError(

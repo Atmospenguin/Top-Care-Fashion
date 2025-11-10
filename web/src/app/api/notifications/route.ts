@@ -67,12 +67,16 @@ export async function GET(request: NextRequest) {
           ? notification.conversation_id.toString()
           : undefined;
 
+      // 🔥 修复：优先使用 related_user 的头像（动态的），而不是 image_url（静态的）
+      // 这样同一个商品多个买家的通知可以正确显示不同买家的头像
+      const notificationImage = notification.related_user?.avatar_url || notification.image_url;
+
       const formatted = {
         id: notification.id.toString(),
         type: notification.type.toLowerCase(),
         title: notification.title,
         message: notification.message,
-        image: notification.image_url || notification.related_user?.avatar_url,
+        image: notificationImage,
         listingImage,
         time: notification.created_at ? formatTime(notification.created_at) : null,
         isRead: notification.is_read,
@@ -99,6 +103,11 @@ export async function GET(request: NextRequest) {
             "conversation_id" in notification ? notification.conversation_id : undefined,
           formatted_orderId: formatted.orderId,
           formatted_conversationId: formatted.conversationId,
+          related_user_id: notification.related_user_id,
+          related_user_avatar: notification.related_user?.avatar_url,
+          image_url_static: notification.image_url,
+          final_image: notificationImage,
+          final_listingImage: listingImage,
         });
       }
 
@@ -203,13 +212,16 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // 🔥 修复：优先使用 related_user 的头像（动态的），而不是 image_url（静态的）
+    const notificationImage = notification.related_user?.avatar_url || notification.image_url;
+
     // 格式化响应数据
     const formattedNotification = {
       id: notification.id.toString(),
       type: notification.type.toLowerCase(),
       title: notification.title,
       message: notification.message,
-      image: notification.image_url || notification.related_user?.avatar_url,
+      image: notificationImage,
       time: notification.created_at ? formatTime(notification.created_at) : null,
       isRead: notification.is_read,
       orderId: notification.order_id,

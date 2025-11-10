@@ -30,6 +30,7 @@ interface EnhancedListing extends Listing {
   viewsCount?: number;
   likesCount?: number;
   clicksCount?: number;
+  bagCount?: number;
   gender?: string | null;
   shippingOption?: string | null;
   shippingFee?: number | null;
@@ -76,6 +77,12 @@ export default function ListingDetailPage() {
   const [promotionEndDate, setPromotionEndDate] = useState("");
   const [useFreeCredit, setUseFreeCredit] = useState(false);
   const [creatingPromotion, setCreatingPromotion] = useState(false);
+  const [timeSeriesStats, setTimeSeriesStats] = useState<Array<{
+    date: string;
+    views: number;
+    likes: number;
+    clicks: number;
+  }> | null>(null);
 
   const loadListingDetails = async () => {
     try {
@@ -90,6 +97,19 @@ export default function ListingDetailPage() {
           imageUrl: listingData.imageUrl ?? listingData.image_url ?? normalizedImages[0] ?? null,
         };
         setListing(normalizedListing);
+        
+        // Load time series stats
+        try {
+          const statsRes = await fetch(`/api/listings/${listingId}/stats`, { cache: "no-store" });
+          if (statsRes.ok) {
+            const statsData = await statsRes.json();
+            if (statsData.success && statsData.data.timeSeries) {
+              setTimeSeriesStats(statsData.data.timeSeries);
+            }
+          }
+        } catch (statsError) {
+          console.warn('Failed to load time series stats:', statsError);
+        }
       } else if (res.status === 404) {
         setError("Listing not found");
       } else {
@@ -336,6 +356,7 @@ export default function ListingDetailPage() {
             <InfoRow label="Views" value={listing.viewsCount?.toString() || '0'} />
             <InfoRow label="Likes" value={listing.likesCount?.toString() || '0'} />
             <InfoRow label="Clicks" value={listing.clicksCount?.toString() || '0'} />
+            <InfoRow label="Bag Adds" value={typeof listing.bagCount === "number" ? listing.bagCount.toString() : '0'} />
             <InfoRow label="Status" value={
               <div className="flex items-center gap-2">
                 <span className={`px-2 py-1 text-xs rounded-full ${
@@ -352,6 +373,86 @@ export default function ListingDetailPage() {
             <InfoRow label="Updated At" value={listing.updatedAt ? new Date(listing.updatedAt).toLocaleString() : null} />
             <InfoRow label="Sold At" value={listing.soldAt ? new Date(listing.soldAt).toLocaleString() : null} />
           </div>
+          
+          {/* Time Series Chart */}
+          {timeSeriesStats && timeSeriesStats.length > 0 && (
+            <div className="mt-6 pt-6 border-t">
+              <h4 className="text-md font-semibold mb-4">30-Day Trend</h4>
+              <div className="space-y-4">
+                {/* Views Chart */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs font-medium text-gray-600">Views</span>
+                    <span className="text-xs text-gray-500">
+                      Max: {Math.max(...timeSeriesStats.map(d => d.views))}
+                    </span>
+                  </div>
+                  <div className="h-20 bg-gray-100 rounded flex items-end gap-1 p-1">
+                    {timeSeriesStats.map((stat, idx) => {
+                      const maxViews = Math.max(...timeSeriesStats.map(d => d.views), 1);
+                      const height = (stat.views / maxViews) * 100;
+                      return (
+                        <div
+                          key={`views-${idx}`}
+                          className="flex-1 bg-blue-500 rounded-t"
+                          style={{ height: `${height}%` }}
+                          title={`${stat.date}: ${stat.views} views`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                {/* Likes Chart */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs font-medium text-gray-600">Likes</span>
+                    <span className="text-xs text-gray-500">
+                      Max: {Math.max(...timeSeriesStats.map(d => d.likes))}
+                    </span>
+                  </div>
+                  <div className="h-20 bg-gray-100 rounded flex items-end gap-1 p-1">
+                    {timeSeriesStats.map((stat, idx) => {
+                      const maxLikes = Math.max(...timeSeriesStats.map(d => d.likes), 1);
+                      const height = (stat.likes / maxLikes) * 100;
+                      return (
+                        <div
+                          key={`likes-${idx}`}
+                          className="flex-1 bg-green-500 rounded-t"
+                          style={{ height: `${height}%` }}
+                          title={`${stat.date}: ${stat.likes} likes`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                {/* Clicks Chart */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs font-medium text-gray-600">Clicks</span>
+                    <span className="text-xs text-gray-500">
+                      Max: {Math.max(...timeSeriesStats.map(d => d.clicks))}
+                    </span>
+                  </div>
+                  <div className="h-20 bg-gray-100 rounded flex items-end gap-1 p-1">
+                    {timeSeriesStats.map((stat, idx) => {
+                      const maxClicks = Math.max(...timeSeriesStats.map(d => d.clicks), 1);
+                      const height = (stat.clicks / maxClicks) * 100;
+                      return (
+                        <div
+                          key={`clicks-${idx}`}
+                          className="flex-1 bg-purple-500 rounded-t"
+                          style={{ height: `${height}%` }}
+                          title={`${stat.date}: ${stat.clicks} clicks`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

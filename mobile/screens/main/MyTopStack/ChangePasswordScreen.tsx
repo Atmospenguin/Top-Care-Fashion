@@ -53,6 +53,7 @@ export default function ChangePasswordScreen() {
             autoCapitalize="none"
             style={styles.input}
             placeholder="Current password"
+          textAlignVertical="center"
           />
 
           <Text style={styles.label}>New password</Text>
@@ -63,6 +64,7 @@ export default function ChangePasswordScreen() {
             autoCapitalize="none"
             style={styles.input}
             placeholder="New password"
+          textAlignVertical="center"
           />
 
           <Text style={styles.label}>Confirm new password</Text>
@@ -73,6 +75,7 @@ export default function ChangePasswordScreen() {
             autoCapitalize="none"
             style={styles.input}
             placeholder="Confirm new password"
+          textAlignVertical="center"
           />
 
           <TouchableOpacity
@@ -112,8 +115,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
     paddingHorizontal: 16,
+    paddingVertical: Platform.OS === "android" ? 0 : 12,
     backgroundColor: "#F9FAFB",
     marginBottom: 16,
+    includeFontPadding: false,
   },
   button: {
     height: 52,

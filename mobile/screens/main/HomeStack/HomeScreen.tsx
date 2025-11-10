@@ -1,512 +1,401 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, RefreshControl, FlatList } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation, useRoute, useScrollToTop, type NavigatorScreenParams } from "@react-navigation/native";
+// mobile/screens/main/HomeStack/HomeScreen.tsx
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  useWindowDimensions,
+  Animated,
+} from "react-native";
+import type { LayoutChangeEvent } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation, useRoute, type RouteProp, type NavigatorScreenParams } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import type { RouteProp } from "@react-navigation/native";
+import { TabView } from "react-native-tab-view";
 
 import Icon from "../../../components/Icon";
 import type { HomeStackParamList } from "./index";
-import type { RootStackParamList } from "../../../App";
-import type { MyTopStackParamList } from "../MyTopStack";
-import type { ListingItem } from "../../../types/shop";
-import { useAuth } from "../../../contexts/AuthContext";
-import { listingsService } from "../../../src/services/listingsService";
+import type { DiscoverStackParamList } from "../DiscoverStack/index";
+import FeedList, { type FeedListRef } from "./FeedList";
 
 type MainTabParamList = {
   Home: undefined;
-  Discover: undefined;
+  Discover: NavigatorScreenParams<DiscoverStackParamList> | undefined;
   Sell: undefined;
   Inbox: undefined;
-  "My TOP": NavigatorScreenParams<MyTopStackParamList> | undefined;
+  "My TOP": any;
 };
 
 export default function HomeScreen() {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
+  const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const route = useRoute<RouteProp<HomeStackParamList, "HomeMain">>();
-  const lastRefreshRef = useRef<number | null>(null);
-  const scrollRef = useRef<FlatList<ListingItem> | null>(null);
-  const scrollOffsetRef = useRef(0);
-  const [searchText, setSearchText] = useState("");
-  const [featuredItems, setFeaturedItems] = useState<ListingItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const searchInputRef = useRef<TextInput>(null); // 🔥 添加搜索框引用
+  const layout = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
-  // Pagination state
-  const [offset, setOffset] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const PAGE_SIZE = 20;
+  const [index, setIndex] = useState(0);
+  const [routes] = useState([
+    { key: "foryou", title: "For You" },
+    { key: "trending", title: "Trending" },
+  ]);
 
-  const { isAuthenticated } = useAuth();
+  const tabKeys = routes.map((route) => route.key);
+  const tabAnimationsRef = useRef<Record<string, Animated.Value> | null>(null);
+  if (!tabAnimationsRef.current) {
+    tabAnimationsRef.current = tabKeys.reduce((acc, key, i) => {
+      acc[key] = new Animated.Value(i === 0 ? 1 : 0);
+      return acc;
+    }, {} as Record<string, Animated.Value>);
+  }
+  const tabAnimations = tabAnimationsRef.current!;
+  const [tabLayouts, setTabLayouts] = useState<Record<string, { x: number; width: number }>>({});
+  const [tabTextWidths, setTabTextWidths] = useState<Record<string, number>>({});
+  const indicatorLeft = useRef(new Animated.Value(0)).current;
+  const indicatorWidth = useRef(new Animated.Value(0)).current;
 
-  // 获取推荐商品数据（仅登录后触发）
-  const loadFeaturedItems = useCallback(async (opts?: { isRefresh?: boolean }) => {
-    try {
-      setError(null);
-      if (opts?.isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+  // Refs for both feed lists
+  const forYouRef = useRef<FeedListRef>(null);
+  const trendingRef = useRef<FeedListRef>(null);
 
-      console.log('🔍 HomeScreen: Loading featured items...');
-      const result = await listingsService.getListings({
-        limit: PAGE_SIZE,
-        offset: 0,
-      });
+  // Animation for hiding/showing top bar
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const prevScrollY = useRef(0);
+  const [topBarVisible, setTopBarVisible] = useState(true);
 
-      console.log('🔍 HomeScreen: Received items:', result.items.length);
-      console.log('🔍 HomeScreen: Has more:', result.hasMore);
+  // Handle scroll position changes
+  const handleScroll = (offset: number) => {
+    const diff = offset - prevScrollY.current;
 
-      // 🔥 去重：防止后端返回重复数据
-      const uniqueItems = Array.from(
-        new Map(result.items.map(item => [item.id, item])).values()
-      );
-      console.log('🔍 HomeScreen: After dedup:', uniqueItems.length, 'unique items');
-      
-      setFeaturedItems(uniqueItems);
-      setHasMore(result.hasMore);
-      setOffset(PAGE_SIZE);
-    } catch (err) {
-      console.error('Error loading featured items:', err);
-      setError('Failed to load items');
-      setFeaturedItems([]);
-      setHasMore(false);
-    } finally {
-      if (opts?.isRefresh) {
-        setRefreshing(false);
-      } else {
-        setLoading(false);
-      }
+    // Scrolling down - hide top bar
+    if (diff > 0 && offset > 100 && topBarVisible) {
+      setTopBarVisible(false);
+      Animated.timing(scrollY, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
     }
+    // Scrolling up - show top bar
+    else if (diff < 0 && !topBarVisible) {
+      setTopBarVisible(true);
+      Animated.timing(scrollY, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+    // At top - always show
+    else if (offset < 50 && !topBarVisible) {
+      setTopBarVisible(true);
+      Animated.timing(scrollY, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+
+    prevScrollY.current = offset;
+  };
+
+  // Calculate top bar height dynamically so the animation matches the actual size
+  const DEFAULT_BAR_CONTENT_HEIGHT = 52;
+  const [topBarHeight, setTopBarHeight] = useState(insets.top + DEFAULT_BAR_CONTENT_HEIGHT);
+
+  useEffect(() => {
+    const targetHeight = insets.top + DEFAULT_BAR_CONTENT_HEIGHT;
+    setTopBarHeight((prev) => (Math.abs(prev - targetHeight) < 0.5 ? prev : targetHeight));
+  }, [insets.top]);
+
+  const handleTopBarLayout = useCallback((event: { nativeEvent: { layout: { height: number } } }) => {
+    const { height } = event.nativeEvent.layout;
+    setTopBarHeight((prev) => (Math.abs(prev - height) < 0.5 ? prev : height));
   }, []);
 
-  // Load more items when scrolling to bottom
-  const loadMore = useCallback(async () => {
-    if (!hasMore || isLoadingMore || loading || !isAuthenticated) {
-      console.log('🔍 HomeScreen: Skip load more', { hasMore, isLoadingMore, loading, isAuthenticated });
-      return;
-    }
+  const TOTAL_HIDE_DISTANCE = topBarHeight; // Hide completely above notch
 
-    try {
-      setIsLoadingMore(true);
-      console.log('🔍 HomeScreen: Loading more items at offset:', offset);
+  const topBarTranslateY = scrollY.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -TOTAL_HIDE_DISTANCE],
+  });
 
-      const result = await listingsService.getListings({
-        limit: PAGE_SIZE,
-        offset: offset,
-      });
-
-      console.log('🔍 HomeScreen: Loaded', result.items.length, 'more items');
-
-      // 🔥 去重：防止重复的商品ID导致 FlatList key 冲突
-      setFeaturedItems(prev => {
-        const existingIds = new Set(prev.map(item => item.id));
-        const newItems = result.items.filter(item => !existingIds.has(item.id));
-        console.log('🔍 HomeScreen: After dedup, adding', newItems.length, 'new items');
-        return [...prev, ...newItems];
-      });
-      setHasMore(result.hasMore);
-      setOffset(prev => prev + PAGE_SIZE);
-    } catch (err) {
-      console.error('Error loading more items:', err);
-    } finally {
-      setIsLoadingMore(false);
-    }
-  }, [hasMore, isLoadingMore, loading, isAuthenticated, offset]);
-
+  // Handle tab press: refresh if at top, scroll to top if not
   useEffect(() => {
-    if (isAuthenticated) {
-      loadFeaturedItems();
+    const tabPressTS = (route.params as any)?.tabPressTS;
+    if (!tabPressTS) return;
+
+    const currentRef = index === 0 ? forYouRef : trendingRef;
+    const scrollOffset = currentRef.current?.getScrollOffset() ?? 0;
+    const isAtTop = scrollOffset < 50;
+
+    if (isAtTop) {
+      // At top, refresh data
+      currentRef.current?.refresh();
     } else {
-      // 未登录时重置状态，避免界面显示旧数据
-      setFeaturedItems([]);
-      setLoading(false);
-      setError(null);
+      // Not at top, scroll to top
+      currentRef.current?.scrollToTop();
     }
-  }, [isAuthenticated, loadFeaturedItems]);
+  }, [(route.params as any)?.tabPressTS]);
 
-  const refreshTrigger = route.params?.refreshTS;
-  const scrollToTopTrigger = route.params?.scrollToTopTS;
-  const tabPressTrigger = route.params?.tabPressTS;
+  const renderScene = ({ route }: any) => {
+    switch (route.key) {
+      case "foryou":
+        return <FeedList ref={forYouRef} mode="foryou" onScroll={handleScroll} />;
+      case "trending":
+        return <FeedList ref={trendingRef} mode="trending" onScroll={handleScroll} />;
+      default:
+        return null;
+    }
+  };
+
+  const updateIndicator = useCallback(() => {
+    const key = routes[index]?.key;
+    if (!key) return;
+    const layout = tabLayouts[key];
+    const textWidth = tabTextWidths[key];
+    if (!layout || !textWidth) return;
+
+    const left = layout.x + layout.width / 2 - textWidth / 2;
+
+    Animated.spring(indicatorLeft, {
+      toValue: left,
+      stiffness: 260,
+      damping: 24,
+      mass: 0.9,
+      useNativeDriver: false,
+    }).start();
+
+    Animated.spring(indicatorWidth, {
+      toValue: textWidth,
+      stiffness: 260,
+      damping: 24,
+      mass: 0.9,
+      useNativeDriver: false,
+    }).start();
+  }, [index, routes, tabLayouts, tabTextWidths, indicatorLeft, indicatorWidth]);
 
   useEffect(() => {
-    // 移除自动刷新逻辑，回到页面不再自动刷新 featuredItems
-  }, [loadFeaturedItems]);
+    updateIndicator();
+  }, [updateIndicator]);
 
-  // 单击 Tab：若在顶部则刷新，否则丝滑回顶
   useEffect(() => {
-    if (tabPressTrigger) {
-      const atTop = (scrollOffsetRef.current || 0) <= 2;
-      if (atTop) {
-        loadFeaturedItems({ isRefresh: true });
-      } else {
-        // FlatList uses scrollToOffset
-        scrollRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+    routes.forEach((route, i) => {
+      Animated.spring(tabAnimations[route.key], {
+        toValue: i === index ? 1 : 0,
+        stiffness: 300,
+        damping: 26,
+        mass: 0.9,
+        useNativeDriver: false,
+      }).start();
+    });
+  }, [index, routes, tabAnimations]);
+
+  const handleTabLayout = useCallback(
+    (key: string, event: LayoutChangeEvent) => {
+      const { x, width } = event.nativeEvent.layout;
+      setTabLayouts((prev) => {
+        const current = prev[key];
+        if (current && Math.abs(current.x - x) < 0.5 && Math.abs(current.width - width) < 0.5) {
+          return prev;
+        }
+        return { ...prev, [key]: { x, width } };
+      });
+    },
+    [],
+  );
+
+  const handleTabTextLayout = useCallback((key: string, event: LayoutChangeEvent) => {
+    const { width } = event.nativeEvent.layout;
+    setTabTextWidths((prev) => {
+      const current = prev[key];
+      if (current && Math.abs(current - width) < 0.5) {
+        return prev;
       }
-      navigation.setParams({ tabPressTS: undefined });
-    }
-  }, [tabPressTrigger]);
+      return { ...prev, [key]: width };
+    });
+  }, []);
 
-  // 丝滑回到顶部
-  useEffect(() => {
-    if (scrollToTopTrigger) {
-      scrollRef.current?.scrollToOffset?.({ offset: 0, animated: true });
-      navigation.setParams({ scrollToTopTS: undefined });
-    }
-  }, [scrollToTopTrigger]);
+  const handleIndexChange = useCallback(
+    (nextIndex: number) => {
+      setIndex(nextIndex);
+      if (!topBarVisible) {
+        setTopBarVisible(true);
+      }
+      Animated.timing(scrollY, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    },
+    [scrollY, topBarVisible],
+  );
 
-  // Tab 单击滚到顶部（确保 ref 绑定到 FlatList）
-  useScrollToTop(scrollRef);
-
-  // 🔥 使用 useMemo 缓存 ListHeaderComponent，防止每次输入都重新渲染
-  const listHeader = React.useMemo(() => (
-          <View>
-            {/* 🔍 搜索栏 */}
-            <View style={styles.searchRow}>
-              <TextInput
-                ref={searchInputRef}
-                style={styles.searchBar}
-                placeholder="Search for anything"
-                placeholderTextColor="#666"
-                value={searchText}
-                onChangeText={setSearchText}
-                returnKeyType="search"
-                onSubmitEditing={() => {
-                  // Navigate to SearchResult in Buy stack
-                  const parent = navigation.getParent()?.getParent();
-                  parent?.navigate("Buy", { screen: "SearchResult", params: { query: searchText || "" } });
-                }}
-              />
-              <TouchableOpacity
-                style={{ marginLeft: 12 }}
-                accessibilityRole="button"
-                onPress={() => {
-                  // 🔥 获取 MainTabs 导航器并导航到 My TOP tab
-                  navigation
-                    .getParent<BottomTabNavigationProp<MainTabParamList>>()
-                    ?.navigate("My TOP", {
-                      screen: "MyTopMain",
-                      params: { initialTab: "Likes" },
-                    });
-                }}
-              >
-                <Icon name="heart-outline" size={24} color="#111" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ marginLeft: 12 }}
-                accessibilityRole="button"
-                onPress={() =>
-                  // Navigate to Bag screen without passing items parameter
-                  // This will load cart items from API
-                  (navigation as any)
-                  .getParent()
-                  ?.getParent()
-                  ?.navigate("Buy", {
-                    screen: "Bag",
-                  } as any)
-                }
-              >
-                <Icon name="bag-outline" size={24} color="#111" />
-              </TouchableOpacity>
-            </View>
-
-            {/* 🌟 Premium Banner */}
-            <View style={styles.banner}>
-              <Text style={styles.bannerTitle}>Style smarter with AI Mix & Match</Text>
-              <Text style={styles.bannerSubtitle}>
-                Unlimited Mix & Match Styling{"\n"}Reduced commission fees & Free boosts
-              </Text>
-              <TouchableOpacity
-                style={styles.premiumBtn}
-                onPress={() => {
-                  const rootNavigation = navigation
-                    .getParent()
-                    ?.getParent() as
-                    | NativeStackNavigationProp<RootStackParamList>
-                    | undefined;
-
-                  rootNavigation?.navigate("Premium", {
-                    screen: "PremiumPlans",
-                  });
-                }}
-              >
-                <Text style={styles.premiumText}>Get Premium</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* 👕 推荐区标题 */}
-            <Text style={styles.sectionTitle}>Suggested for you</Text>
-            
-            {/* Loading or Error states */}
-            {loading && (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#007AFF" />
-                <Text style={styles.loadingText}>Loading items...</Text>
-              </View>
-            )}
-            {error && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
-                <TouchableOpacity
-                  style={styles.retryButton}
-                  onPress={() => {
-                    loadFeaturedItems();
-                  }}
-                >
-                  <Text style={styles.retryText}>Retry</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-  ), [searchText, navigation, loading, error, loadFeaturedItems]); // 🔥 只在这些值改变时重新渲染
+  const handleTabPress = useCallback(
+    (targetIndex: number) => {
+      if (targetIndex === index) {
+        const currentRef = index === 0 ? forYouRef : trendingRef;
+        currentRef.current?.scrollToTop?.();
+        setTopBarVisible(true);
+        Animated.timing(scrollY, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+        return;
+      }
+      handleIndexChange(targetIndex);
+    },
+    [index, forYouRef, trendingRef, handleIndexChange, scrollY],
+  );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
-      <FlatList
-        ref={scrollRef as any}
-        onScroll={(e) => {
-          scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
-        }}
-        scrollEventThrottle={16}
-        style={styles.container}
-        data={featuredItems}
-        numColumns={2}
-        keyExtractor={(item) => item.id.toString()}
-        columnWrapperStyle={styles.row}
-        contentContainerStyle={styles.gridContainer}
-        showsVerticalScrollIndicator={false}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => loadFeaturedItems({ isRefresh: true })}
-          />
-        }
-        ListHeaderComponent={listHeader}
-        ListFooterComponent={() => {
-          if (isLoadingMore) {
-            return (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <ActivityIndicator size="small" color="#007AFF" />
-                <Text style={styles.loadingText}>Loading more...</Text>
-              </View>
-            );
-          }
-          if (!hasMore && featuredItems.length > 0) {
-            return (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <Text style={{ color: '#999', fontSize: 14 }}>You've reached the end</Text>
-              </View>
-            );
-          }
-          return <View style={{ height: 60 }} />;
-        }}
-        renderItem={({ item }) => {
-          const primaryImage =
-            (Array.isArray(item.images) && item.images[0]) ||
-            "https://via.placeholder.com/300x300/f4f4f4/999999?text=No+Image";
+    <View style={{ flex: 1, backgroundColor: "#fff" }}>
+      <View style={{ flex: 1 }}>
+        {/* Custom Tab Bar - Animated and absolute positioned, includes safe area */}
+        <Animated.View
+          style={[
+            styles.topNav,
+            {
+              top: 0,
+              paddingTop: insets.top,
+              transform: [{ translateY: topBarTranslateY }],
+            },
+          ]}
+          onLayout={handleTopBarLayout}
+        >
+          <View style={styles.tabsContainer}>
+            {routes.map((route, i) => {
+              const animation = tabAnimations[route.key];
+              const translateY = animation.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, -6],
+              });
+              const scale = animation.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 1.05],
+              });
+              const color = animation.interpolate({
+                inputRange: [0, 1],
+                outputRange: ["#999999", "#000000"],
+              });
 
-          return (
-            <TouchableOpacity
-              style={styles.gridItem}
-              onPress={() =>
-                (navigation as any)
-                  .getParent()
-                  ?.getParent()
-                  ?.navigate("Buy", {
-                    screen: "ListingDetail",
-                    params: { listingId: item.id },
-                  } as any)
-              }
-              accessibilityRole="button"
-            >
-              <Image
-                source={{ uri: primaryImage }}
-                style={styles.gridImage}
-              />
-              <View style={styles.itemInfo}>
-                <Text style={styles.itemTitle} numberOfLines={1}>
-                  {item.title}
-                </Text>
-                <Text style={styles.itemPrice}>${item.price?.toFixed(2) || "0.00"}</Text>
-                {item.size && (
-                  <Text style={styles.itemSize} numberOfLines={1}>
-                    Size {item.size}
-                  </Text>
-                )}
-                {item.material && (
-                  <Text style={styles.itemMaterial} numberOfLines={1}>
-                    {item.material}
-                  </Text>
-                )}
-                {Array.isArray(item.tags) && item.tags.length > 0 && (
-                  <View style={styles.itemTags}>
-                    {item.tags.slice(0, 2).map((tag, index) => (
-                      <View key={index} style={styles.itemTagChip}>
-                        <Text style={styles.itemTagText}>{tag}</Text>
-                      </View>
-                    ))}
-                    {item.tags.length > 2 && (
-                      <Text style={styles.itemTagMore}>+{item.tags.length - 2}</Text>
-                    )}
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity>
-          );
-        }}
-      />
-    </SafeAreaView>
+              return (
+                <TouchableOpacity
+                  key={route.key}
+                  style={styles.tabButton}
+                  onPress={() => handleTabPress(i)}
+                  activeOpacity={0.7}
+                  onLayout={(event) => handleTabLayout(route.key, event)}
+                >
+                  <Animated.Text
+                    onLayout={(event) => handleTabTextLayout(route.key, event)}
+                    style={[
+                      styles.tabText,
+                      index === i && styles.tabTextActive,
+                      {
+                        transform: [{ translateY }, { scale }],
+                        color,
+                      },
+                    ]}
+                  >
+                    {route.title}
+                  </Animated.Text>
+                </TouchableOpacity>
+              );
+            })}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.tabIndicator,
+                {
+                  width: indicatorWidth,
+                  transform: [{ translateX: indicatorLeft }],
+                },
+              ]}
+            />
+          </View>
+          <TouchableOpacity
+            style={styles.searchButton}
+            onPress={() => {
+              const parent = navigation.getParent<BottomTabNavigationProp<MainTabParamList>>();
+              parent?.navigate("Discover", {
+                screen: "DiscoverMain",
+                params: { focusSearch: Date.now() },
+              });
+            }}
+            activeOpacity={0.7}
+          >
+            <Icon name="search" size={24} color="#000" />
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Tab Content - No default tab bar */}
+        <TabView
+          navigationState={{ index, routes }}
+          renderScene={renderScene}
+          renderTabBar={() => null}
+          onIndexChange={handleIndexChange}
+          initialLayout={{ width: layout.width }}
+          swipeEnabled={true}
+          lazy={true}
+          lazyPreloadDistance={0}
+          style={{ flex: 1 }}
+        />
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", padding: 16 },
-
-  // 搜索
-  searchRow: {
+  topNav: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  searchBar: {
-    flex: 1,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#f3f3f3",
-    paddingHorizontal: 16,
-    fontSize: 15,
-  },
-
-  // Banner
-  banner: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  bannerTitle: { fontSize: 18, fontWeight: "700", marginBottom: 6 },
-  bannerSubtitle: { fontSize: 14, color: "#555", marginBottom: 12 },
-  premiumBtn: {
-    backgroundColor: "#000",
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  premiumText: { color: "#fff", fontWeight: "700" },
-
-  // 推荐
-  sectionTitle: { fontSize: 16, fontWeight: "700", marginBottom: 12 },
-  gridContainer: {
-    paddingHorizontal: 0,
-  },
-  row: {
+    alignItems: "flex-end",
     justifyContent: "space-between",
-    paddingHorizontal: 0,
+    paddingHorizontal: 16,
+    paddingBottom: 0,
+    backgroundColor: "#fff",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#eee",
   },
-  gridItem: {
-    width: "48%",
-    marginBottom: 16,
-    borderRadius: 12,
-    overflow: "hidden",
-    backgroundColor: "#f9f9f9",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#ededed",
-  },
-  gridImage: {
-    width: "100%",
-    aspectRatio: 1,
-    backgroundColor: "#f1f1f1",
-  },
-  itemInfo: {
-    padding: 10,
-    rowGap: 4,
-  },
-  itemTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111",
-  },
-  itemPrice: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#111",
-  },
-  itemSize: {
-    fontSize: 12,
-    color: "#666",
-  },
-  itemMaterial: {
-    fontSize: 11,
-    color: "#888",
-    marginTop: 2,
-    fontStyle: "italic",
-  },
-  itemTags: {
+  tabsContainer: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 4,
-    gap: 4,
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "flex-end",
+    gap: 0,
+    position: "relative",
+    paddingBottom: 6,
   },
-  itemTagChip: {
-    backgroundColor: "#f0f0f0",
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: 0.5,
-    borderColor: "#e0e0e0",
-  },
-  itemTagText: {
-    fontSize: 10,
-    color: "#666",
-    fontWeight: "500",
-  },
-  itemTagMore: {
-    fontSize: 10,
-    color: "#999",
-    fontStyle: "italic",
-    alignSelf: "center",
-  },
-
-  // 加载和错误状态
-  loadingContainer: {
+  tabButton: {
     alignItems: "center",
-    paddingVertical: 40,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 0,
   },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 14,
+  tabText: {
+    fontSize: 18,
     color: "#666",
   },
-  errorContainer: {
-    alignItems: "center",
-    paddingVertical: 40,
+  tabTextActive: {
+    fontWeight: "800",
   },
-  errorText: {
-    fontSize: 14,
-    color: "#FF3B30",
-    textAlign: "center",
-    marginBottom: 10,
+  tabIndicator: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    height: 3,
+    backgroundColor: "#000",
+    borderRadius: 1.5,
   },
-  retryButton: {
-    backgroundColor: "#007AFF",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryText: {
-    color: "#fff",
-    fontWeight: "600",
+  searchButton: {
+    padding: 8,
+    position: "absolute",
+    right: 12,
+    bottom: 0,
   },
 });

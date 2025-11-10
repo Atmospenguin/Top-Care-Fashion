@@ -9,7 +9,6 @@ import ChangePasswordScreen from "./ChangePasswordScreen";
 import NotificationsScreen from "./NotificationsScreen";
 import PrivacyScreen from "./PrivacyScreen";
 import HelpSupportScreen from "./HelpSupportScreen";
-import TermsPoliciesScreen from "./TermsPoliciesScreen";
 import FlagScreen from "./FlagScreen";
 import FeedbackScreen from "./FeedbackScreen";
 import ActiveListingDetailScreen from "./ActiveListingDetailScreen";
@@ -44,6 +43,12 @@ export type MyTopStackParamList = {
         refreshTS?: number;
         scrollToTopTS?: number;
         tabPressTS?: number;
+        brandPickerRequest?: {
+          ts: number;
+          availableBrands?: string[];
+          selectedBrands?: string[];
+          source?: "discover" | "mytop";
+        };
       }
     | undefined;
   EditProfile: undefined;
@@ -53,7 +58,6 @@ export type MyTopStackParamList = {
   Notifications: undefined;
   Privacy: undefined;
   HelpSupport: undefined;
-  TermsPolicies: undefined;
   Flag: undefined;
   Feedback: undefined;
   OrderDetail: { id: string; source: "purchase" | "sold"; conversationId?: string };
@@ -145,7 +149,6 @@ export default function MyTopStackNavigator() {
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="Privacy" component={PrivacyScreen} />
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
-    <Stack.Screen name="TermsPolicies" component={TermsPoliciesScreen} />
     <Stack.Screen name="Feedback" component={FeedbackScreen} />
       <Stack.Screen name="Flag" component={FlagScreen} />
       <Stack.Screen name="ActiveListingDetail" component={ActiveListingDetailScreen} />

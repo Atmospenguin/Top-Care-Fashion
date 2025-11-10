@@ -92,6 +92,9 @@ export default function ContentManagementPage() {
   const [releases, setReleases] = useState<Release[]>([]);
   const [uploadingRelease, setUploadingRelease] = useState(false);
   const [deletingReleaseId, setDeletingReleaseId] = useState<number | null>(null);
+  const [newTag, setNewTag] = useState("");
+  const [addingTag, setAddingTag] = useState(false);
+  const [deletingTag, setDeletingTag] = useState<string | null>(null);
   const filteredFeedbacks = useMemo(() => {
     const term = feedbackQuery.trim().toLowerCase();
     if (!term) return feedbacks;
@@ -210,19 +213,6 @@ export default function ContentManagementPage() {
     fetchData();
   }, [fetchData]);
 
-  async function updateStats() {
-    try {
-      setSaving(true);
-      const response = await fetch("/api/admin/site-stats", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(stats),
-      });
-      alert(response.ok ? "Site stats updated successfully!" : "Failed to update site stats");
-    } finally {
-      setSaving(false);
-    }
-  }
 
   async function updateLandingContent() {
     try {
@@ -429,6 +419,82 @@ export default function ContentManagementPage() {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
+
+  async function addTag() {
+    const trimmedTag = newTag.trim().toLowerCase();
+    if (!trimmedTag) {
+      alert("Tag cannot be empty");
+      return;
+    }
+    if (availableTags.includes(trimmedTag)) {
+      alert("Tag already exists");
+      return;
+    }
+
+    try {
+      setAddingTag(true);
+      const response = await fetch("/api/admin/feedback/tags", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tag: trimmedTag }),
+      });
+
+      if (response.ok) {
+        setNewTag("");
+        // Refresh tags list
+        const tagsRes = await fetch("/api/feedback/tags");
+        if (tagsRes.ok) {
+          const tagsData = await tagsRes.json();
+          setAvailableTags(tagsData.tags || []);
+        }
+      } else {
+        const data = await response.json().catch(() => null);
+        alert(data?.error || "Failed to add tag");
+      }
+    } catch (error) {
+      console.error("Error adding tag:", error);
+      alert("Failed to add tag");
+    } finally {
+      setAddingTag(false);
+    }
+  }
+
+  async function deleteTag(tag: string) {
+    if (!confirm(`Delete tag "${tag}"? This will only remove it from available tags if it's not in use.`)) {
+      return;
+    }
+
+    try {
+      setDeletingTag(tag);
+      const response = await fetch(`/api/admin/feedback/tags?tag=${encodeURIComponent(tag)}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        // Refresh tags list
+        const tagsRes = await fetch("/api/feedback/tags");
+        if (tagsRes.ok) {
+          const tagsData = await tagsRes.json();
+          setAvailableTags(tagsData.tags || []);
+          // Also remove from newFeedback if it's selected
+          if (newFeedback.tags.includes(tag)) {
+            setNewFeedback({
+              ...newFeedback,
+              tags: newFeedback.tags.filter((t) => t !== tag),
+            });
+          }
+        }
+      } else {
+        const data = await response.json().catch(() => null);
+        alert(data?.error || "Failed to delete tag");
+      }
+    } catch (error) {
+      console.error("Error deleting tag:", error);
+      alert("Failed to delete tag");
+    } finally {
+      setDeletingTag(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -696,11 +762,11 @@ export default function ContentManagementPage() {
                 </div>
                 <div>
                   <div className="block text-sm font-medium text-gray-700 mb-1">Tags</div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 mb-2">
                     {availableTags.map((tag) => {
                       const checked = newFeedback.tags.includes(tag);
                       return (
-                        <label key={tag} className={`text-xs px-2 py-1 rounded-full cursor-pointer border ${checked ? 'bg-[var(--brand-color)] text-white border-[var(--brand-color)]' : 'bg-white text-black border-black/10'}`}>
+                        <label key={tag} className={`group relative inline-flex items-center gap-1 text-xs px-2 py-1 pr-1 rounded-full cursor-pointer border transition-colors ${checked ? 'bg-[var(--brand-color)] text-white border-[var(--brand-color)]' : 'bg-white text-black border-black/10 hover:border-gray-300'}`}>
                           <input type="checkbox" className="hidden" checked={checked} onChange={(e) => {
                             setNewFeedback({
                               ...newFeedback,
@@ -708,9 +774,46 @@ export default function ContentManagementPage() {
                             });
                           }} />
                           <span>#{tag}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              deleteTag(tag);
+                            }}
+                            disabled={deletingTag === tag}
+                            className={`ml-1 w-4 h-4 flex items-center justify-center rounded-full transition-colors disabled:opacity-50 text-xs font-bold ${checked ? 'hover:bg-white/20 text-white' : 'hover:bg-red-100 text-gray-500 hover:text-red-600'}`}
+                            title="Delete tag"
+                          >
+                            {deletingTag === tag ? "..." : "×"}
+                          </button>
                         </label>
                       );
                     })}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addTag();
+                        }
+                      }}
+                      placeholder="Add new tag"
+                      className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={addTag}
+                      disabled={addingTag || !newTag.trim()}
+                      className="px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Add tag"
+                    >
+                      {addingTag ? "..." : "+"}
+                    </button>
                   </div>
                 </div>
                 <div className="flex items-center">
@@ -921,24 +1024,40 @@ export default function ContentManagementPage() {
         {/* Site Statistics (moved after feedback) */}
         <div className="bg-white p-6 rounded-lg border border-gray-200">
           <h2 className="text-xl font-semibold mb-4">Site Statistics</h2>
+          <p className="text-sm text-gray-600 mb-4">Real-time statistics calculated from the database. Ratings are from user feedback.</p>
           <div className="space-y-4">
             <div>
-              <label htmlFor="users" className="block text-sm font-medium text-gray-700 mb-1">Total Users</label>
-              <input id="users" type="number" value={stats.users} onChange={(e) => setStats({ ...stats, users: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Total Users</label>
+              <div className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-900 font-semibold text-lg">
+                {stats.users.toLocaleString()}
+              </div>
             </div>
             <div>
-              <label htmlFor="listings" className="block text-sm font-medium text-gray-700 mb-1">Total Listings</label>
-              <input id="listings" type="number" value={stats.listings} onChange={(e) => setStats({ ...stats, listings: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Total Listings</label>
+              <div className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-900 font-semibold text-lg">
+                {stats.listings.toLocaleString()}
+              </div>
             </div>
             <div>
-              <label htmlFor="sold" className="block text-sm font-medium text-gray-700 mb-1">Items Sold</label>
-              <input id="sold" type="number" value={stats.sold} onChange={(e) => setStats({ ...stats, sold: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Items Sold</label>
+              <div className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-900 font-semibold text-lg">
+                {stats.sold.toLocaleString()}
+              </div>
             </div>
             <div>
-              <label htmlFor="rating" className="block text-sm font-medium text-gray-700 mb-1">Average Rating</label>
-              <input id="rating" type="number" step="0.1" min="0" max="5" value={stats.rating} onChange={(e) => setStats({ ...stats, rating: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Average Rating (from Feedback)</label>
+              <div className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-900 font-semibold text-lg flex items-center gap-2">
+                <span>{stats.rating.toFixed(1)}</span>
+                <span className="text-yellow-500">{"★".repeat(Math.round(stats.rating))}</span>
+              </div>
             </div>
-            <button onClick={updateStats} disabled={saving} className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50">{saving ? "Updating..." : "Update Statistics"}</button>
+            <button
+              onClick={fetchData}
+              disabled={loading}
+              className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? "Refreshing..." : "Refresh Statistics"}
+            </button>
           </div>
         </div>
 

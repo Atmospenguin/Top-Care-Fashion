@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "../../../components/Icon";
@@ -68,6 +69,7 @@ export default function DiscoverMainScreen() {
   const [brandsLoading, setBrandsLoading] = useState(true);
   const [brandsError, setBrandsError] = useState<string | null>(null);
   const [preferredBrands, setPreferredBrands] = useState<string[]>([]);
+  const searchInputRef = useRef<TextInput>(null);
 
   const loadBrands = useCallback(async () => {
     try {
@@ -126,6 +128,17 @@ export default function DiscoverMainScreen() {
     }
   }, [route.params, loadPreferred, loadBrands]);
 
+  // Focus search input when focusSearch param is passed
+  useEffect(() => {
+    if (route.params?.focusSearch) {
+      // Small delay to ensure navigation is complete
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [route.params?.focusSearch]);
+
   const handleBrandPress = useCallback(
     (brand: string) => {
       if (!brand) return;
@@ -143,12 +156,14 @@ export default function DiscoverMainScreen() {
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
       {/* 搜索栏 */}
       <TextInput
+        ref={searchInputRef}
         style={styles.searchBar}
         placeholder="Search for Anything"
         placeholderTextColor="#666"
         value={searchText}
         onChangeText={setSearchText}
         returnKeyType="search"
+        textAlignVertical="center"
         onSubmitEditing={() => {
           // Navigate to SearchResult in Buy stack (allow empty string)
           // Use parent/root navigator to reach the Buy stack
@@ -178,18 +193,23 @@ export default function DiscoverMainScreen() {
       <View style={styles.brandHeader}>
         <Text style={styles.sectionTitle}>Brands</Text>
         <TouchableOpacity
-          onPress={() =>
-            navigation
-              .getParent<BottomTabNavigationProp<MainTabParamList>>()
-              ?.navigate("My TOP", {
-                screen: "EditBrand",
-                params: {
+          onPress={() => {
+            const parent = navigation.getParent<BottomTabNavigationProp<MainTabParamList>>();
+            const requestTs = Date.now();
+            const available = brands.map((b) => b.name);
+
+            parent?.navigate("My TOP", {
+              screen: "MyTopMain",
+              params: {
+                brandPickerRequest: {
+                  ts: requestTs,
                   source: "discover",
-                  availableBrands: brands.map((b) => b.name),
+                  availableBrands: available,
                   selectedBrands: preferredBrands,
                 },
-              })
-          }
+              },
+            });
+          }}
         >
           <Text style={styles.selectBrands}>Select Brands</Text>
         </TouchableOpacity>
@@ -246,12 +266,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", padding: 16 },
 
   searchBar: {
-    height: 44,
+    minHeight: 44,
     borderRadius: 22,
     backgroundColor: "#f3f3f3",
     paddingHorizontal: 16,
+    paddingVertical: Platform.OS === "android" ? 0 : 12,
     fontSize: 15,
     marginBottom: 20,
+    includeFontPadding: false,
   },
 
   sectionTitle: {

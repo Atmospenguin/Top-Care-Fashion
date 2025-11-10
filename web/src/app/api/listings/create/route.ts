@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { Prisma } from "@prisma/client";
 import { isPremiumUser, getListingLimit } from "@/lib/userPermissions";
+import { resolveCategoryId } from "@/lib/categories";
 
 export async function POST(req: Request) {
   try {
@@ -65,6 +66,22 @@ export async function POST(req: Request) {
           { status: 403 }
         );
       }
+    }
+
+    // 🔐 Users must have at least one payout method on file before posting
+    const hasPaymentMethod = await prisma.user_payment_methods.count({
+      where: { user_id: sessionUser.id },
+    });
+
+    if (!hasPaymentMethod) {
+      console.log("❌ Listing creation blocked - user missing payout method");
+      return NextResponse.json(
+        {
+          error: "Missing payout method",
+          message: "Add a payout method in Manage Payments before posting a listing.",
+        },
+        { status: 400 }
+      );
     }
 
     const body = await req.json();
@@ -144,7 +161,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const categoryId = await getCategoryId(category);
+    const categoryId = await resolveCategoryId(category);
 
     console.log("📝 Creating listing with mapped data:", {
       name: title,
@@ -262,9 +279,9 @@ export async function POST(req: Request) {
         size: mapSizeToDisplay(listing.size),
         condition: listing.condition_type,
         material: listing.material,
-        tags: listing.tags ? JSON.parse(listing.tags as string) : [],
+        tags: parseJsonArray(listing.tags, []),
         category: listing.category?.name,
-        images: listing.image_urls ? JSON.parse(listing.image_urls as string) : [],
+        images: parseJsonArray(listing.image_urls, []),
         shippingOption: (listing as any).shipping_option ?? null,
         shippingFee: (listing as any).shipping_fee ?? null,
         location: (listing as any).location ?? null,
@@ -297,16 +314,6 @@ export async function POST(req: Request) {
   }
 }
 
-// 辅助函数：根据分类名称获取分类ID
-// Only 5 core categories are supported
-const CATEGORY_CANONICALS = [
-  "Accessories",
-  "Bottoms",
-  "Footwear",
-  "Outerwear",
-  "Tops",
-] as const;
-
 function resolveGender(input: unknown): "Men" | "Women" | "Unisex" {
   if (typeof input !== "string") {
     return "Unisex";
@@ -329,115 +336,21 @@ function resolveGender(input: unknown): "Men" | "Women" | "Unisex" {
   }
 }
 
-async function getCategoryId(categoryName: string): Promise<number> {
-  const normalized = (categoryName || "").trim().toLowerCase();
-
-  if (
-    !normalized ||
-    normalized === "select" ||
-    normalized === "none" ||
-    normalized.startsWith("select ") ||
-    normalized.includes("selecta") ||
-    normalized.startsWith("choose")
-  ) {
-    throw new Error("Category name is empty");
+function parseJsonArray(value: unknown, fallback: any[] = []) {
+  if (!value) {
+    return fallback;
   }
-
-  const synonymMap: Record<string, (typeof CATEGORY_CANONICALS)[number]> = {
-    // Accessories (including bags)
-    accessories: "Accessories",
-    accessory: "Accessories",
-    jewelry: "Accessories",
-    jewellery: "Accessories",
-    bag: "Accessories",
-    bags: "Accessories",
-    handbag: "Accessories",
-    purse: "Accessories",
-    backpack: "Accessories",
-    belt: "Accessories",
-    belts: "Accessories",
-    scarf: "Accessories",
-    scarves: "Accessories",
-    hat: "Accessories",
-    hats: "Accessories",
-    beanie: "Accessories",
-    sunglasses: "Accessories",
-    eyewear: "Accessories",
-    watch: "Accessories",
-    watches: "Accessories",
-
-    // Bottoms
-    bottoms: "Bottoms",
-    bottom: "Bottoms",
-    pants: "Bottoms",
-    trouser: "Bottoms",
-    trousers: "Bottoms",
-    jeans: "Bottoms",
-    shorts: "Bottoms",
-    skirt: "Bottoms",
-    skirts: "Bottoms",
-    leggings: "Bottoms",
-    joggers: "Bottoms",
-
-    // Footwear (renamed from Shoes)
-    footwear: "Footwear",
-    shoes: "Footwear",
-    shoe: "Footwear",
-    sneaker: "Footwear",
-    sneakers: "Footwear",
-    heel: "Footwear",
-    heels: "Footwear",
-    boot: "Footwear",
-    boots: "Footwear",
-    sandal: "Footwear",
-    sandals: "Footwear",
-
-    // Outerwear
-    outerwear: "Outerwear",
-    coat: "Outerwear",
-    coats: "Outerwear",
-    jacket: "Outerwear",
-    jackets: "Outerwear",
-    blazer: "Outerwear",
-    blazers: "Outerwear",
-    parka: "Outerwear",
-    trench: "Outerwear",
-
-    // Tops (including dresses mapped to tops)
-    tops: "Tops",
-    top: "Tops",
-    shirt: "Tops",
-    shirts: "Tops",
-    blouse: "Tops",
-    blouses: "Tops",
-    tee: "Tops",
-    tees: "Tops",
-    tshirt: "Tops",
-    "t-shirt": "Tops",
-    hoodie: "Tops",
-    hoodies: "Tops",
-    sweater: "Tops",
-    sweaters: "Tops",
-    cardigan: "Tops",
-    cardigans: "Tops",
-    dress: "Tops",  // Dresses now categorized as Tops
-    dresses: "Tops",
-    gown: "Tops",
-    gowns: "Tops",
-  };
-
-  const mapped =
-    synonymMap[normalized] ??
-    CATEGORY_CANONICALS.find((cat) => cat.toLowerCase() === normalized) ??
-    "Tops";
-
-  const category = await prisma.listing_categories.findFirst({
-    where: { name: mapped },
-  });
-
-  if (!category) {
-    throw new Error(`Category '${mapped}' is missing from the database.`);
+  if (Array.isArray(value)) {
+    return value;
   }
-
-  return category.id;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
 }
+

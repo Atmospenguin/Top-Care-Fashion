@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, BackHandler } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { RootStackParamList } from "../../App";
 import { LOGO_FULL_COLOR } from "../../constants/assetUrls";
 import { useAuth } from "../../contexts/AuthContext";
@@ -66,9 +67,10 @@ export default function LoginScreen({ navigation }: Props) {
       try {
         const me = await getCurrentUser();
         const u = (me as any)?.data?.user || null;
-        // 严格检查：要求所有偏好字段都已填写
+        // 严格检查：要求所有偏好字段都已填写（包括生日）
         hasCompletePreferences = Boolean(
           u &&
+          u.dob && // 检查生日是否已填写
           Array.isArray(u.preferred_styles) && u.preferred_styles.length > 0 &&
           u.preferred_size_shoe &&
           u.preferred_size_top &&
@@ -113,68 +115,72 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      {/* 欢迎文字 */}
-      <Text style={styles.welcome}>Welcome!</Text>
-      <View style={styles.logoWrapper}>
-        <LOGO_FULL_COLOR width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
-      </View>
-
-      {/* 输入框 */}
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your email"
-        placeholderTextColor="#9AA0A6"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        value={email}
-        onChangeText={setEmail}
-      />
-
-      <View style={styles.passwordWrap}>
-        <TextInput
-          style={styles.passwordInput}
-          placeholder="Enter your password"
-          placeholderTextColor="#9AA0A6"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
-        
-      </View>
-
-      {/* 忘记密码 */}
-      <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
-      <Text style={styles.forgot}>Forgot Password?</Text>
-      </TouchableOpacity>
-
-      {/* 错误信息 */}
-      {(localError || error) && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorText}>{localError || error}</Text>
-        </View>
-      )}
-
-      {/* 登录按钮 */}
-      <TouchableOpacity
-        style={[styles.loginBtn, loading && styles.loginBtnDisabled]}
-        onPress={handleLogin}
-        disabled={loading}
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["bottom"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {loading ? (
-          <ActivityIndicator color="#fff" size="small" />
-        ) : (
-          <Text style={styles.loginText}>Login</Text>
-        )}
-      </TouchableOpacity>
+        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        {/* 欢迎文字 */}
+        <Text style={styles.welcome}>Welcome!</Text>
+        <View style={styles.logoWrapper}>
+          <LOGO_FULL_COLOR width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
+        </View>
 
-      </ScrollView>
-    </KeyboardAvoidingView>
+        {/* 输入框 */}
+        <TextInput
+          style={styles.input}
+          placeholder="Enter your email"
+          placeholderTextColor="#9AA0A6"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          value={email}
+          onChangeText={setEmail}
+           textAlignVertical="center"
+        />
+
+        <View style={styles.passwordWrap}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Enter your password"
+            placeholderTextColor="#9AA0A6"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+            textAlignVertical="center"
+          />
+          
+        </View>
+
+        {/* 忘记密码 */}
+        <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
+        <Text style={styles.forgot}>Forgot Password?</Text>
+        </TouchableOpacity>
+
+        {/* 错误信息 - 优先显示本地错误，避免显示context中的原始错误信息 */}
+        {localError && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorIcon}>⚠️</Text>
+            <Text style={styles.errorText}>{localError}</Text>
+          </View>
+        )}
+
+        {/* 登录按钮 */}
+        <TouchableOpacity
+          style={[styles.loginBtn, loading && styles.loginBtnDisabled]}
+          onPress={handleLogin}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.loginText}>Login</Text>
+          )}
+        </TouchableOpacity>
+
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -205,6 +211,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#EEF0F3",
     fontSize: 16,
+    includeFontPadding: false,
   },
 
   passwordWrap: {
@@ -218,7 +225,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 20,
   },
-  passwordInput: { flex: 1, fontSize: 16 },
+  passwordInput: { flex: 1, fontSize: 16, includeFontPadding: false },
 
   forgot: {
     alignSelf: "flex-end",

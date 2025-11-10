@@ -12,13 +12,30 @@ interface DashboardStats {
   soldListings: number;
   totalTransactions: number;
   completedTransactions: number;
-  totalRevenue: number;
-  revenueThisMonth: number;
-  totalCommissionRevenue: number;
-  commissionRevenueThisMonth: number;
-  newUsersThisWeek: number;
-  newListingsThisWeek: number;
-  transactionsThisWeek: number;
+  totalRevenue: number; // THIS MONTH
+  totalCommissionRevenue: number; // THIS MONTH
+  totalBoostRevenue: number; // THIS MONTH
+  totalPremiumRevenue: number; // THIS MONTH
+  paidPromotionsTotal: number;
+  paidPromotionsThisMonth: number;
+  newUsersThisMonth: number;
+  newListingsThisMonth: number;
+  transactionsThisMonth: number;
+  // Promotion stats
+  totalPromotions: number;
+  activePromotions: number;
+  expiredPromotions: number;
+  promotionsThisMonth: number;
+  promotionTotalViews: number;
+  promotionTotalClicks: number;
+  promotionAvgViewUplift: number;
+  promotionAvgClickUplift: number;
+  // Premium subscription stats
+  totalPremiumSubscriptions: number;
+  activePremiumSubscriptions: number;
+  expiredPremiumSubscriptions: number;
+  premiumSubscriptionsThisMonth: number;
+  paidPremiumSubscriptionsThisMonth: number;
 }
 
 interface TopItem {
@@ -27,6 +44,7 @@ interface TopItem {
   views: number;
   likes: number;
   clicks: number;
+  bag: number;
 }
 
 interface TopSeller {
@@ -47,11 +65,23 @@ interface RecentTransaction {
   createdAt: string;
 }
 
+interface TopBoostedListing {
+  id: string;
+  listingId: string;
+  listingName: string;
+  views: number;
+  clicks: number;
+  viewUplift: number;
+  clickUplift: number;
+  ctr: string;
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [topItems, setTopItems] = useState<TopItem[]>([]);
   const [topSellers, setTopSellers] = useState<TopSeller[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
+  const [topBoostedListings, setTopBoostedListings] = useState<TopBoostedListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,6 +97,7 @@ export default function DashboardPage() {
         setTopItems(data.topItems || []);
         setTopSellers(data.topSellers || []);
         setRecentTransactions(data.recentTransactions || []);
+        setTopBoostedListings(data.topBoostedListings || []);
       } catch (error) {
         console.error('Error loading dashboard data:', error);
         setError(error instanceof Error ? error.message : "Failed to load dashboard");
@@ -116,11 +147,19 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
-        <p className="text-sm text-gray-600 mt-1">
-          Overview of your marketplace performance
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
+          <p className="text-sm text-gray-600 mt-1">
+            Overview of your marketplace performance (This Month)
+          </p>
+        </div>
+        <Link
+          href="/admin/stats"
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+        >
+          View Detailed Stats
+        </Link>
       </div>
 
       {/* Key Metrics */}
@@ -147,9 +186,9 @@ export default function DashboardPage() {
           link="/admin/transactions"
         />
         <StatCard
-          title="Total Revenue"
+          title="Revenue This Month"
           value={`$${stats.totalRevenue.toFixed(2)}`}
-          subtext={`$${stats.revenueThisMonth.toFixed(2)} this month`}
+          subtext={`${stats.completedTransactions} completed orders`}
           color="yellow"
           link="/admin/transactions"
         />
@@ -157,23 +196,23 @@ export default function DashboardPage() {
 
       {/* Revenue Details */}
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Revenue Breakdown */}
+        {/* Revenue Breakdown (THIS MONTH) */}
         <div className="bg-white border rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4">Revenue Breakdown</h3>
+          <h3 className="text-lg font-semibold mb-4">Revenue Breakdown (This Month)</h3>
           <div className="space-y-4">
             <div className="flex justify-between items-center pb-3 border-b">
               <div>
                 <div className="text-sm text-gray-600">Total Revenue</div>
                 <div className="text-xs text-gray-500 mt-1">All completed transactions</div>
               </div>
-              <div className="text-xl font-bold text-gray-900">
+              <div className="text-xl font-bold text-blue-600">
                 ${stats.totalRevenue.toFixed(2)}
               </div>
             </div>
             <div className="flex justify-between items-center pb-3 border-b">
               <div>
                 <div className="text-sm text-gray-600">Commission Revenue</div>
-                <div className="text-xs text-gray-500 mt-1">Platform earnings</div>
+                <div className="text-xs text-gray-500 mt-1">Platform earnings from sales</div>
               </div>
               <div className="text-xl font-bold text-orange-600">
                 ${stats.totalCommissionRevenue.toFixed(2)}
@@ -181,33 +220,42 @@ export default function DashboardPage() {
             </div>
             <div className="flex justify-between items-center pb-3 border-b">
               <div>
-                <div className="text-sm text-gray-600">Revenue This Month</div>
-                <div className="text-xs text-gray-500 mt-1">Current month total</div>
+                <div className="text-sm text-gray-600">Boost Revenue</div>
+                <div className="text-xs text-gray-500 mt-1">{stats.paidPromotionsThisMonth} paid promotions</div>
               </div>
-              <div className="text-xl font-bold text-green-600">
-                ${stats.revenueThisMonth.toFixed(2)}
+              <div className="text-xl font-bold text-purple-600">
+                ${stats.totalBoostRevenue.toFixed(2)}
               </div>
             </div>
             <div className="flex justify-between items-center">
               <div>
-                <div className="text-sm text-gray-600">Commission This Month</div>
-                <div className="text-xs text-gray-500 mt-1">Current month earnings</div>
+                <div className="text-sm text-gray-600">Premium Revenue</div>
+                <div className="text-xs text-gray-500 mt-1">{stats.paidPremiumSubscriptionsThisMonth} new subscriptions</div>
               </div>
-              <div className="text-xl font-bold text-orange-600">
-                ${stats.commissionRevenueThisMonth.toFixed(2)}
+              <div className="text-xl font-bold text-indigo-600">
+                ${stats.totalPremiumRevenue.toFixed(2)}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Commission Stats */}
+        {/* Platform Earnings (THIS MONTH) */}
         <div className="bg-white border rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4">Commission Stats</h3>
+          <h3 className="text-lg font-semibold mb-4">Platform Earnings (This Month)</h3>
           <div className="space-y-4">
             <div className="flex justify-between items-center pb-3 border-b">
               <div>
-                <div className="text-sm text-gray-600">Total Commission</div>
-                <div className="text-xs text-gray-500 mt-1">Lifetime platform earnings</div>
+                <div className="text-sm text-gray-600">Total Platform Earnings</div>
+                <div className="text-xs text-gray-500 mt-1">Commission + Boost + Premium</div>
+              </div>
+              <div className="text-xl font-bold text-blue-600">
+                ${(stats.totalCommissionRevenue + stats.totalBoostRevenue + stats.totalPremiumRevenue).toFixed(2)}
+              </div>
+            </div>
+            <div className="flex justify-between items-center pb-3 border-b">
+              <div>
+                <div className="text-sm text-gray-600">Commission Revenue</div>
+                <div className="text-xs text-gray-500 mt-1">From transaction fees</div>
               </div>
               <div className="text-xl font-bold text-orange-600">
                 ${stats.totalCommissionRevenue.toFixed(2)}
@@ -215,47 +263,191 @@ export default function DashboardPage() {
             </div>
             <div className="flex justify-between items-center pb-3 border-b">
               <div>
-                <div className="text-sm text-gray-600">Effective Commission Rate</div>
-                <div className="text-xs text-gray-500 mt-1">Average rate across all sales</div>
+                <div className="text-sm text-gray-600">Boost Revenue</div>
+                <div className="text-xs text-gray-500 mt-1">From paid promotions</div>
               </div>
               <div className="text-xl font-bold text-purple-600">
-                {(stats.totalRevenue > 0 ? (stats.totalCommissionRevenue / stats.totalRevenue) * 100 : 0).toFixed(2)}%
+                ${stats.totalBoostRevenue.toFixed(2)}
+              </div>
+            </div>
+            <div className="flex justify-between items-center pb-3 border-b">
+              <div>
+                <div className="text-sm text-gray-600">Premium Revenue</div>
+                <div className="text-xs text-gray-500 mt-1">From subscriptions</div>
+              </div>
+              <div className="text-xl font-bold text-indigo-600">
+                ${stats.totalPremiumRevenue.toFixed(2)}
               </div>
             </div>
             <div className="flex justify-between items-center">
               <div>
-                <div className="text-sm text-gray-600">Total Seller Revenue</div>
-                <div className="text-xs text-gray-500 mt-1">Paid out to sellers</div>
+                <div className="text-sm text-gray-600">Revenue Mix</div>
+                <div className="text-xs text-gray-500 mt-1">Commission / Boost / Premium</div>
               </div>
-              <div className="text-xl font-bold text-green-600">
-                ${(stats.totalRevenue - stats.totalCommissionRevenue).toFixed(2)}
+              <div className="text-sm font-medium text-gray-700">
+                {stats.totalCommissionRevenue + stats.totalBoostRevenue + stats.totalPremiumRevenue > 0
+                  ? `${((stats.totalCommissionRevenue / (stats.totalCommissionRevenue + stats.totalBoostRevenue + stats.totalPremiumRevenue)) * 100).toFixed(0)}% / ${((stats.totalBoostRevenue / (stats.totalCommissionRevenue + stats.totalBoostRevenue + stats.totalPremiumRevenue)) * 100).toFixed(0)}% / ${((stats.totalPremiumRevenue / (stats.totalCommissionRevenue + stats.totalBoostRevenue + stats.totalPremiumRevenue)) * 100).toFixed(0)}%`
+                  : "0% / 0% / 0%"
+                }
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Recent Activity */}
+      {/* Recent Activity (THIS MONTH) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <ActivityCard
           title="New Users"
-          value={stats.newUsersThisWeek}
-          period="This Week"
+          value={stats.newUsersThisMonth}
+          period="This Month"
           color="blue"
         />
         <ActivityCard
           title="New Listings"
-          value={stats.newListingsThisWeek}
-          period="This Week"
+          value={stats.newListingsThisMonth}
+          period="This Month"
           color="green"
         />
         <ActivityCard
           title="Transactions"
-          value={stats.transactionsThisWeek}
-          period="This Week"
+          value={stats.transactionsThisMonth}
+          period="This Month"
           color="purple"
         />
       </div>
+
+      {/* Boost/Promotion Overview */}
+      <div className="bg-white border rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Boost Overview</h3>
+          <Link
+            href="/admin/promotions"
+            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+          >
+            View All →
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="text-center p-4 bg-blue-50 rounded-lg">
+            <div className="text-2xl font-bold text-blue-700">{stats.activePromotions}</div>
+            <div className="text-sm text-blue-600 mt-1">Active Boosts</div>
+            <div className="text-xs text-gray-500 mt-1">
+              {stats.totalPromotions} total • {stats.expiredPromotions} expired
+            </div>
+          </div>
+          <div className="text-center p-4 bg-green-50 rounded-lg">
+            <div className="text-2xl font-bold text-green-700">{stats.promotionTotalViews.toLocaleString()}</div>
+            <div className="text-sm text-green-600 mt-1">Total Views</div>
+            <div className="text-xs text-gray-500 mt-1">
+              {stats.promotionTotalClicks.toLocaleString()} clicks
+            </div>
+          </div>
+          <div className="text-center p-4 bg-purple-50 rounded-lg">
+            <div className="text-2xl font-bold text-purple-700">
+              {stats.promotionAvgViewUplift >= 0 ? '+' : ''}{stats.promotionAvgViewUplift}%
+            </div>
+            <div className="text-sm text-purple-600 mt-1">Avg View Uplift</div>
+            <div className="text-xs text-gray-500 mt-1">vs baseline period</div>
+          </div>
+          <div className="text-center p-4 bg-orange-50 rounded-lg">
+            <div className="text-2xl font-bold text-orange-700">
+              {stats.promotionAvgClickUplift >= 0 ? '+' : ''}{stats.promotionAvgClickUplift}%
+            </div>
+            <div className="text-sm text-orange-600 mt-1">Avg CTR Uplift</div>
+            <div className="text-xs text-gray-500 mt-1">vs baseline period</div>
+          </div>
+        </div>
+        <div className="mt-4 pt-4 border-t">
+          <div className="text-sm text-gray-600">
+            <span className="font-semibold">{stats.promotionsThisMonth}</span> new boosts this month
+          </div>
+        </div>
+      </div>
+
+      {/* Premium Subscription Overview */}
+      <div className="bg-white border rounded-lg p-6">
+        <h3 className="text-lg font-semibold mb-4">Premium Subscriptions</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="text-center p-4 bg-gradient-to-br from-amber-50 to-yellow-50 rounded-lg">
+            <div className="text-2xl font-bold text-amber-700">{stats.activePremiumSubscriptions}</div>
+            <div className="text-sm text-amber-600 mt-1">Active Premium</div>
+            <div className="text-xs text-gray-500 mt-1">
+              {stats.totalPremiumSubscriptions} total • {stats.expiredPremiumSubscriptions} expired
+            </div>
+          </div>
+          <div className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg">
+            <div className="text-2xl font-bold text-green-700">${stats.totalPremiumRevenue.toLocaleString()}</div>
+            <div className="text-sm text-green-600 mt-1">Total Revenue</div>
+            <div className="text-xs text-gray-500 mt-1">
+              All-time premium earnings
+            </div>
+          </div>
+          <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg">
+            <div className="text-2xl font-bold text-blue-700">
+              ${stats.totalPremiumRevenue.toLocaleString()}
+            </div>
+            <div className="text-sm text-blue-600 mt-1">Premium Revenue</div>
+            <div className="text-xs text-gray-500 mt-1">
+              {stats.paidPremiumSubscriptionsThisMonth} new subscriptions this month
+            </div>
+          </div>
+          <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg">
+            <div className="text-2xl font-bold text-purple-700">
+              {stats.premiumSubscriptionsThisMonth}
+            </div>
+            <div className="text-sm text-purple-600 mt-1">This Month</div>
+            <div className="text-xs text-gray-500 mt-1">New subscriptions</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Top Boosted Listings */}
+      {topBoostedListings.length > 0 && (
+        <div className="bg-white border rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-4">Top Boosted Listings</h3>
+          <div className="space-y-3">
+            {topBoostedListings.map((item) => (
+              <Link
+                key={item.id}
+                href={`/admin/listings/${item.listingId}`}
+                className="block p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg hover:from-blue-100 hover:to-purple-100 transition"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">{item.listingName}</div>
+                    <div className="flex gap-4 mt-2 text-sm">
+                      <span className="text-gray-600">
+                        👁 {item.views} views
+                      </span>
+                      <span className="text-gray-600">
+                        👆 {item.clicks} clicks
+                      </span>
+                      <span className="text-gray-600">
+                        CTR {item.ctr}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 ml-4">
+                    <div className="text-center px-3 py-2 bg-white rounded-lg shadow-sm">
+                      <div className={`text-lg font-bold ${item.viewUplift >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {item.viewUplift >= 0 ? '+' : ''}{item.viewUplift}%
+                      </div>
+                      <div className="text-xs text-gray-500">Views</div>
+                    </div>
+                    <div className="text-center px-3 py-2 bg-white rounded-lg shadow-sm">
+                      <div className={`text-lg font-bold ${item.clickUplift >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {item.clickUplift >= 0 ? '+' : ''}{item.clickUplift}%
+                      </div>
+                      <div className="text-xs text-gray-500">CTR</div>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Top Items & Top Sellers */}
       <div className="grid md:grid-cols-2 gap-6">
@@ -273,7 +465,7 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between">
                     <div className="font-medium text-gray-900">{item.name}</div>
                     <div className="text-sm text-gray-600">
-                      👁 {item.views} | ❤ {item.likes} | 👆 {item.clicks}
+                      👁 {item.views} | ❤ {item.likes} | 👆 {item.clicks} | 🛒 {item.bag}
                     </div>
                   </div>
                 </Link>

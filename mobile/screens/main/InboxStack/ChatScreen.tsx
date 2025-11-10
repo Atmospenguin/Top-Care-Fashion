@@ -5,7 +5,7 @@ import type { NavigationProp } from "@react-navigation/native";
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
-import { messagesService, ordersService, listingsService, reviewsService, type Message, type ConversationDetail } from "../../../src/services";
+import { messagesService, ordersService, reviewsService, pollingService, type Message, type ConversationDetail } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
 import { premiumService } from "../../../src/services";
 import Avatar from "../../../components/Avatar";
@@ -90,6 +90,18 @@ type ChatItem =
       text: string; 
       orderId: string;
     };
+
+type OrderCardItem = Extract<ChatItem, { type: "orderCard" }>;
+type MessageItem = Extract<ChatItem, { type: "msg" }>;
+type SystemMessageItem = Extract<ChatItem, { type: "system" }>;
+type ReviewReplyCtaItem = Extract<ChatItem, { type: "reviewReplyCta" }>;
+type MutualReviewCtaItem = Extract<ChatItem, { type: "mutualReviewCta" }>;
+
+const isOrderCardItem = (item: ChatItem): item is OrderCardItem => item.type === "orderCard";
+const isMessageItem = (item: ChatItem): item is MessageItem => item.type === "msg";
+const isSystemItem = (item: ChatItem): item is SystemMessageItem => item.type === "system";
+const isReviewReplyItem = (item: ChatItem): item is ReviewReplyCtaItem => item.type === "reviewReplyCta";
+const isMutualReviewItem = (item: ChatItem): item is MutualReviewCtaItem => item.type === "mutualReviewCta";
 
 // 🔥 状态转换函数 - 与OrderDetailScreen保持一致
 const getDisplayStatus = (status: string): string => {
@@ -216,6 +228,23 @@ export default function ChatScreen() {
   const [conversation, setConversation] = useState<ConversationDetail | null>(null);
   const [lastOrderStatus, setLastOrderStatus] = useState<string | null>(null);
   const listRef = useRef<FlatList<ChatItem>>(null);
+
+  // 🔥 设置/清除当前对话ID（用于轮询服务，避免在当前对话中显示通知）
+  useFocusEffect(
+    React.useCallback(() => {
+      // 进入聊天页面时设置当前对话ID
+      if (conversationId) {
+        pollingService.setCurrentConversationId(conversationId);
+        console.log('✅ Set current conversation ID:', conversationId);
+      }
+
+      return () => {
+        // 离开聊天页面时清除当前对话ID
+        pollingService.setCurrentConversationId(null);
+        console.log('✅ Cleared current conversation ID');
+      };
+    }, [conversationId])
+  );
 
   // 🔥 移除重复的 useEffect，只保留 focus listener 中的逻辑
 
@@ -572,8 +601,8 @@ export default function ChatScreen() {
           };
         } else if (!sanitized.buyer) {
           sanitized.buyer = {
-            name: sanitized.buyer?.name ?? "Buyer",
-            avatar: sanitized.buyer?.avatar,
+            name: "Buyer",
+            avatar: undefined,
           } as any;
         }
 
@@ -581,18 +610,18 @@ export default function ChatScreen() {
           sanitized.seller_id = fallbackSellerId;
           sanitized.seller = {
             name: isCurrentSeller
-              ? user?.username ?? sanitized.seller.name ?? "Seller"
-              : otherUserInfo?.username ?? sanitized.seller.name ?? "Seller",
+              ? user?.username ?? sanitized.seller?.name ?? "Seller"
+              : otherUserInfo?.username ?? sanitized.seller?.name ?? "Seller",
             avatar: isCurrentSeller
-              ? currentUserAvatar ?? sanitized.seller.avatar ?? undefined
-              : otherUserInfo?.avatar ?? sanitized.seller.avatar ?? undefined,
+              ? currentUserAvatar ?? sanitized.seller?.avatar ?? undefined
+              : otherUserInfo?.avatar ?? sanitized.seller?.avatar ?? undefined,
             id: fallbackSellerId,
             user_id: fallbackSellerId,
           } as any;
         } else if (!sanitized.seller) {
           sanitized.seller = {
-            name: sanitized.seller?.name ?? "Seller",
-            avatar: sanitized.seller?.avatar,
+            name: "Seller",
+            avatar: undefined,
           } as any;
         }
 
@@ -605,51 +634,62 @@ export default function ChatScreen() {
       console.log("🔍 Other User (对话对象):", conversationData.conversation?.otherUser?.username);
  
       let backendHasValidOrderCard = false;
-      const apiItems = (conversationData.messages || [])
-        .map((msg) => {
-          if (msg.type === "msg") {
-            return {
-              id: msg.id,
-              type: "msg",
-              sender: msg.sender,
-              text: msg.text,
-              time: msg.time,
-              senderInfo: msg.senderInfo
-            };
-          } else if (msg.type === "system") {
-            return {
-              id: msg.id,
-              type: "system",
-              text: msg.text,
-              time: msg.time,
-              sentByUser: msg.sentByUser, // 🔥 添加 sentByUser 字段
-              senderInfo: msg.senderInfo
-            };
-          } else if (msg.type === "orderCard" && msg.order) {
-            const { order: sanitizedOrder } = sanitizeOrderForConversation(msg.order);
-            if (!sanitizedOrder) {
-              console.log("⚠️ Dropping backend order card due to missing sanitized order", msg.id);
-              return null;
-            }
-            backendHasValidOrderCard = true;
-            return {
-              id: msg.id,
-              type: "orderCard",
-              order: sanitizedOrder
-            };
-          } else {
-            // Fallback for unknown types - 确保所有消息都显示
-            return {
-              id: msg.id,
-              type: "msg",
-              sender: msg.sender || "other",
-              text: msg.text,
-              time: msg.time,
-              senderInfo: msg.senderInfo
-            };
+      const mappedItems = (conversationData.messages || []).map<ChatItem | null>((msg) => {
+        const normalizeSender = (rawSender: any): MessageItem["sender"] =>
+          rawSender === "me" ? "me" : "other";
+
+        if (msg.type === "msg") {
+          const messageItem: MessageItem = {
+            id: msg.id,
+            type: "msg",
+            sender: normalizeSender(msg.sender),
+            text: msg.text,
+            time: msg.time,
+            senderInfo: msg.senderInfo,
+          };
+          return messageItem;
+        }
+
+        if (msg.type === "system") {
+          const systemItem: SystemMessageItem = {
+            id: msg.id,
+            type: "system",
+            text: msg.text,
+            time: msg.time,
+            sentByUser: msg.sentByUser,
+            senderInfo: msg.senderInfo,
+          };
+          return systemItem;
+        }
+
+        if (msg.type === "orderCard" && msg.order) {
+          const { order: sanitizedOrder } = sanitizeOrderForConversation(msg.order);
+          if (!sanitizedOrder) {
+            console.log("⚠️ Dropping backend order card due to missing sanitized order", msg.id);
+            return null;
           }
-        })
-        .filter((item): item is ChatItem => Boolean(item));
+          backendHasValidOrderCard = true;
+          const orderCardItem: OrderCardItem = {
+            id: msg.id,
+            type: "orderCard",
+            order: sanitizedOrder,
+          };
+          return orderCardItem;
+        }
+
+        // Fallback for unknown types - 确保所有消息都显示
+        const fallbackItem: MessageItem = {
+          id: msg.id,
+          type: "msg",
+          sender: normalizeSender(msg.sender),
+          text: msg.text,
+          time: msg.time,
+          senderInfo: msg.senderInfo,
+        };
+        return fallbackItem;
+      });
+
+      const apiItems = mappedItems.filter((item): item is ChatItem => item !== null);
 
       // 🔥 安全地输出日志
       console.log("🔍 转换后的消息数量:", apiItems.length);
@@ -726,8 +766,8 @@ export default function ChatScreen() {
         console.log("🔍 Loaded", finalItems.length, "messages from API");
         
         // 🔥 记录当前订单状态
-        const loadedOrderCard = finalItems.find(item => item.type === "orderCard");
-        if (loadedOrderCard && loadedOrderCard.type === "orderCard") {
+        const loadedOrderCard = finalItems.find(isOrderCardItem);
+        if (loadedOrderCard) {
           setLastOrderStatus(loadedOrderCard.order.status);
           console.log("🔍 Recorded order status:", loadedOrderCard.order.status);
           
@@ -1160,122 +1200,42 @@ export default function ChatScreen() {
         // 🔥 咨询状态：跳转到 ListingDetail
         console.log("🔍 Inquiry status, navigating to ListingDetail");
         
-        try {
-          // 获取 listing ID
-          let listingId = o.listing_id;
-          if (!listingId && conversation?.listing?.id) {
-            listingId = conversation.listing.id;
-          }
-          
-          if (!listingId) {
-            console.error("❌ No listing ID found");
-            Alert.alert("Error", "Listing information not available");
-            return;
-          }
-          
-          console.log("🔍 Fetching listing with ID:", listingId);
+        // 获取 listing ID
+        let listingId = o.listing_id;
+        if (!listingId && conversation?.listing?.id) {
+          listingId = conversation.listing.id;
+        }
         
-          // 🔥 获取完整的listing数据
-          const listingResponse = await listingsService.getListingById(String(listingId));
-          const listing = (listingResponse as any)?.listing ?? listingResponse;
-          const listingMeta = listingResponse as any;
-          
-          // 🔥 检查商品是否已下架或售罄
-          if (listing?.sold === true || listing?.listed === false) {
-            console.log("⚠️ Listing is sold out or delisted");
-            Alert.alert("Item Sold", "This item has already been sold and is no longer available.");
-            return;
-          }
-          
-          console.log("🔍 Fetched listing data:", listing);
-          
-          // 🔥 转换数据格式以匹配 ListingItem
-          const rawImages = Array.isArray((listing as any)?.images)
-            ? (listing as any).images
-            : Array.isArray((listingMeta as any)?.images)
-            ? (listingMeta as any).images
-            : null;
-          const primaryImage =
-            typeof (listing as any)?.image === 'string' && (listing as any).image
-              ? (listing as any).image
-              : typeof (listingMeta as any)?.image === 'string' && (listingMeta as any).image
-              ? (listingMeta as any).image
-              : typeof (listingMeta as any)?.image_url === 'string' && (listingMeta as any).image_url
-              ? (listingMeta as any).image_url
-              : null;
-          const resolvedImages = rawImages && rawImages.length > 0
-            ? rawImages
-            : primaryImage
-            ? [primaryImage]
-            : o.product.image
-            ? [o.product.image]
-            : [];
-
-          const sellerData = (listing as any)?.seller ?? (listingMeta as any)?.seller ?? {};
-
-          const listingItem = {
-            id: listing?.id?.toString() || String(listingId),
-            title: listing?.title || o.product.title,
-            price: typeof listing?.price === 'number' ? listing.price : Number(listing?.price) || o.product.price,
-            description: listing?.description || `Size: ${o.product.size || 'One Size'}`,
-            brand: listing?.brand || "Brand",
-            size: listing?.size || o.product.size || "One Size",
-            condition: listing?.condition || "Good",
-            material: listing?.material || "Mixed",
-            gender: listing?.gender || "unisex",
-            tags: Array.isArray(listing?.tags) ? listing.tags : [],
-            images: resolvedImages,
-            category: typeof listing?.category === 'string'
-              ? listing.category.toLowerCase()
-              : typeof listingMeta?.category === 'string'
-              ? listingMeta.category.toLowerCase()
-              : "top",
-            // 🔥 添加库存信息（优先使用 availableQuantity，回退到 inventory_count）
-            availableQuantity: typeof (listing as any)?.availableQuantity === 'number' 
-              ? (listing as any).availableQuantity
-              : typeof (listing as any)?.inventory_count === 'number' 
-              ? (listing as any).inventory_count 
-              : undefined,
-            // 🔥 添加其他可能需要的字段
-            shippingFee: listing?.shipping_fee,
-            shippingOption: listing?.shipping_option,
-            location: listing?.location,
-            listedAt: listing?.listed_at,
-            seller: {
-              id: sellerData?.id || 0,
-              name: sellerData?.name || o.seller.name,
-              avatar: sellerData?.avatar || o.seller.avatar || "",
-              rating: sellerData?.rating || 5.0,
-              sales: sellerData?.sales || 0,
-            },
-          };
-          
-          console.log("🔍 Converted listingItem:", listingItem);
-          console.log("🔍 availableQuantity:", listingItem.availableQuantity);
-          console.log("🔍 Raw listing.availableQuantity:", (listing as any)?.availableQuantity);
-          console.log("🔍 Raw listing.inventory_count:", (listing as any)?.inventory_count);
-          
-          // 🔥 获取根导航器
-          let rootNavigation: any = navigation;
-          let currentNav: any = navigation;
-          while (currentNav?.getParent?.()) {
-            const parent = currentNav.getParent();
-            if (!parent) break;
-            currentNav = parent;
-          }
-          rootNavigation = currentNav ?? navigation;
-          
-          console.log("🔍 Navigating to ListingDetail");
+        if (!listingId) {
+          console.error("❌ No listing ID found");
+          Alert.alert("Error", "Listing information not available");
+          return;
+        }
+        
+        // ✅ Use lazy loading: only pass listingId, let ListingDetailScreen fetch full data
+        // This ensures we get complete, up-to-date data from the API
+        // The ListingDetailScreen will handle checking if item is sold/delisted
+        const listingIdStr = String(listingId);
+        console.log("🔍 Navigating to ListingDetail with lazy loading, listingId:", listingIdStr);
+        
+        // 🔥 获取根导航器
+        let rootNavigation: any = navigation;
+        let currentNav: any = navigation;
+        while (currentNav?.getParent?.()) {
+          const parent = currentNav.getParent();
+          if (!parent) break;
+          currentNav = parent;
+        }
+        rootNavigation = currentNav ?? navigation;
+        
+        requestAnimationFrame(() => {
           rootNavigation.navigate("Buy", {
             screen: "ListingDetail",
             params: {
-              item: listingItem
+              listingId: listingIdStr
             }
           });
-        } catch (error) {
-          console.error("❌ Error fetching listing:", error);
-          Alert.alert("Error", "Failed to load listing details");
-        }
+        });
       } else {
         // 🔥 已下单：跳转到 OrderDetail
         console.log("🔍 Order placed, navigating to OrderDetail");
@@ -1645,8 +1605,8 @@ export default function ChatScreen() {
       if (isCurrentUserSender) {
         displayText = "I've cancelled this order.";
       } else {
-        const orderCard = items.find(item => item.type === "orderCard");
-        if (orderCard && orderCard.type === "orderCard") {
+        const orderCard = items.find(isOrderCardItem);
+        if (orderCard) {
           const isSenderBuyer = Number(senderInfo?.id) === Number(orderCard.order.buyer_id);
           displayText = isSenderBuyer 
             ? "Buyer has cancelled the order." 
@@ -1816,10 +1776,10 @@ export default function ChatScreen() {
     
     // 状态 3: 他已评/我未评 - "Leave Review (isReply)"
     if (status?.hasOtherReviewed) {
-      const orderCard = items.find(item => item.type === "orderCard" && item.order.id === orderId);
+    const orderCard = items.find((item): item is OrderCardItem => isOrderCardItem(item) && item.order.id === orderId);
       let otherPersonName = "The other person";
       
-      if (orderCard && orderCard.type === "orderCard") {
+      if (orderCard) {
         const isBuyer = user?.username === orderCard.order.buyer?.name;
         if (isBuyer) {
           otherPersonName = orderCard.order.seller?.name || "The seller";
@@ -1893,8 +1853,8 @@ export default function ChatScreen() {
   const renderReviewCtaFooter = () => {
     try {
       // 找到 orderCard
-      const orderCard = items.find(item => item.type === "orderCard");
-      if (!orderCard || orderCard.type !== "orderCard") {
+      const orderCard = items.find(isOrderCardItem);
+      if (!orderCard) {
         return null;
       }
 
@@ -2052,7 +2012,7 @@ export default function ChatScreen() {
               return <View style={{ marginBottom: 12 }}><Text style={styles.textLeft}>{String(item)}</Text></View>;
             }
 
-          if (item.type === "orderCard") {
+          if (isOrderCardItem(item)) {
             // 🔥 判断订单卡片应该显示在左侧还是右侧
             // 根据订单中的 buyer_id 判断当前用户是否为买家
             const currentUserId = user?.id;
@@ -2079,16 +2039,17 @@ export default function ChatScreen() {
               </View>
             );
           }
-          if (item.type === "system")
+          if (isSystemItem(item)) {
             return <View style={{ marginBottom: 12 }}>{renderSystem(item)}</View>;
+          }
           // 🔥 reviewCta 已移至 ListFooterComponent，不再混入 items
-          if (item.type === "reviewReplyCta")
+          if (isReviewReplyItem(item))
             return <View style={{ marginBottom: 12 }}>{renderReviewReplyCTA(item.orderId, item.text, item.reviewType)}</View>;
-          if (item.type === "mutualReviewCta")
+          if (isMutualReviewItem(item))
             return <View style={{ marginBottom: 12 }}>{renderMutualReviewCTA(item.orderId, item.text)}</View>;
 
           // 普通消息（显式类型检查）
-          if (item.type === "msg") {
+          if (isMessageItem(item)) {
           return (
             <View style={{ marginBottom: 12 }}>
               {item.time ? <Text style={styles.time}>{item.time}</Text> : null}
@@ -2183,6 +2144,7 @@ export default function ChatScreen() {
             placeholder="Type a message..."
             value={input}
             onChangeText={setInput}
+            textAlignVertical="center"
           />
           <TouchableOpacity onPress={sendMessage} style={styles.sendBtn}>
             <Icon name="send" size={22} color="#fff" />
@@ -2421,12 +2383,14 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: Platform.OS === "android" ? 0 : 8,
     paddingHorizontal: 14,
     borderRadius: 20,
     backgroundColor: "#f5f5f5",
     fontSize: 15,
     marginRight: 8,
+    minHeight: 42,
+    includeFontPadding: false,
   },
   sendBtn: {
     width: 40,

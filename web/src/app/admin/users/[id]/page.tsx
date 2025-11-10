@@ -482,32 +482,57 @@ export default function UserDetailPage() {
             <button
               onClick={async () => {
                 try {
-                  const newPremiumStatus = !user.is_premium;
-                  let premiumUntil = null;
+                  if (user.is_premium) {
+                    // Revoke premium by expiring subscriptions
+                    const res = await fetch(`/api/admin/users/${userId}/premium`, {
+                      method: 'DELETE',
+                    });
 
-                  if (newPremiumStatus) {
+                    if (res.ok) {
+                      const data = await res.json();
+                      setUser({ ...user, is_premium: data.user.isPremium, premium_until: data.user.premiumUntil });
+                    } else {
+                      const error = await res.json();
+                      alert(`Failed to revoke premium: ${error.error || 'Unknown error'}`);
+                    }
+                  } else {
+                    // Grant premium by creating subscription
                     const months = prompt('Enter premium duration in months:', '12');
                     if (!months) return;
-                    const date = new Date();
-                    date.setMonth(date.getMonth() + parseInt(months));
-                    premiumUntil = date.toISOString();
-                  }
+                    const monthsNum = parseInt(months);
+                    if (isNaN(monthsNum) || monthsNum < 1) {
+                      alert('Invalid number of months');
+                      return;
+                    }
 
-                  const res = await fetch(`/api/admin/users/${userId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      is_premium: newPremiumStatus,
-                      premium_until: premiumUntil
-                    })
-                  });
+                    const paidAmount = prompt('Enter paid amount (0 for free):', '0');
+                    if (paidAmount === null) return;
+                    const paidAmountNum = parseFloat(paidAmount);
+                    if (isNaN(paidAmountNum) || paidAmountNum < 0) {
+                      alert('Invalid paid amount');
+                      return;
+                    }
 
-                  if (res.ok) {
-                    const updatedUser = await res.json();
-                    setUser(updatedUser);
+                    const res = await fetch(`/api/admin/users/${userId}/premium`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        months: monthsNum,
+                        paidAmount: paidAmountNum,
+                      }),
+                    });
+
+                    if (res.ok) {
+                      const data = await res.json();
+                      setUser({ ...user, is_premium: data.user.isPremium, premium_until: data.user.premiumUntil });
+                    } else {
+                      const error = await res.json();
+                      alert(`Failed to grant premium: ${error.error || 'Unknown error'}`);
+                    }
                   }
                 } catch (error) {
                   console.error('Error updating premium status:', error);
+                  alert('Error updating premium status');
                 }
               }}
               className={`px-4 py-2 text-sm rounded-md ${

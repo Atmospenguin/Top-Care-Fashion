@@ -5,6 +5,7 @@ export async function GET() {
   try {
     const connection = await getConnection();
 
+    // Read stats from site_stats table (automatically updated by database triggers)
     const [rows]: any = await connection.execute(
       `SELECT total_users, total_listings, total_sold, avg_rating
        FROM site_stats
@@ -16,9 +17,9 @@ export async function GET() {
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json({
         stats: {
-          users: 12000,
-          listings: 38000,
-          sold: 9400,
+          users: 0,
+          listings: 0,
+          sold: 0,
           rating: 4.8,
         },
       });
@@ -30,7 +31,7 @@ export async function GET() {
         users: toNumber(siteStats.total_users) ?? 0,
         listings: toNumber(siteStats.total_listings) ?? 0,
         sold: toNumber(siteStats.total_sold) ?? 0,
-        rating: toNumber(siteStats.avg_rating) ?? 0,
+        rating: toNumber(siteStats.avg_rating) ?? 4.8,
       },
     });
   } catch (error) {

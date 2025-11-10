@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Image, FlatList, TouchableOpacity, ActivityIndicator } from "react-native";
+import React, { useState, useCallback, useEffect } from "react";
+import { View, Text, StyleSheet, Image, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
 import Icon from "../../../components/Icon";
 import { likesService, LikedListing } from "../../../src/services";
 import { useNavigation } from "@react-navigation/native";
@@ -23,15 +23,16 @@ export default function LikesTab() {
   const navigation = useNavigation();
   const [likedListings, setLikedListings] = useState<LikedListing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadLikedListings();
-  }, []);
-
-  const loadLikedListings = async () => {
+  const loadLikedListings = useCallback(async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
       const data = await likesService.getLikedListings();
       setLikedListings(data);
@@ -40,93 +41,51 @@ export default function LikesTab() {
       setError('Failed to load liked listings');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, []);
+
+  // 组件挂载时加载数据（仅一次）
+  useEffect(() => {
+    loadLikedListings(false);
+  }, [loadLikedListings]);
+
+  // 下拉刷新处理
+  const onRefresh = useCallback(() => {
+    loadLikedListings(true);
+  }, [loadLikedListings]);
+
+  // 重试按钮处理
+  const handleRetry = useCallback(() => {
+    loadLikedListings(false);
+  }, [loadLikedListings]);
 
   const handleItemPress = (likedListing: LikedListing) => {
-    // 调试：查看原始数据
-    console.log('🔍 Debug - Original likedListing:', likedListing);
-    console.log('🔍 Debug - Original seller:', likedListing.listing.seller);
-    
+    if (!likedListing?.listing?.id) {
+      console.warn('⚠️ Cannot navigate: invalid listing item');
+      return;
+    }
+
     // 导航到ListingDetailScreen
-    const rootNavigation = navigation
-      .getParent()
-      ?.getParent() as any;
-    
-    // 处理图片数据 - 转换为ListingDetailScreen期望的格式
-    let images = [];
-    if (likedListing.listing?.image_url) {
-      images = [likedListing.listing.image_url];
-    } else if (likedListing.listing?.image_urls) {
-      try {
-        const imageUrls = typeof likedListing.listing.image_urls === 'string' 
-          ? JSON.parse(likedListing.listing.image_urls) 
-          : likedListing.listing.image_urls;
-        images = Array.isArray(imageUrls) ? imageUrls : [];
-      } catch (e) {
-        console.log('Error parsing image_urls:', e);
-        images = [];
+    // 向上查找根导航，保证可以跳转到 Buy 栈
+    let rootNavigation: any = navigation;
+    let current: any = navigation;
+    while (current?.getParent?.()) {
+      current = current.getParent();
+      if (current) {
+        rootNavigation = current;
       }
     }
-    
-    // 处理tags数据
-    let tags = [];
-    if (likedListing.listing?.tags) {
-      try {
-        tags = typeof likedListing.listing.tags === 'string' 
-          ? JSON.parse(likedListing.listing.tags) 
-          : likedListing.listing.tags;
-        if (!Array.isArray(tags)) {
-          tags = [];
-        }
-      } catch (e) {
-        console.log('Error parsing tags:', e);
-        tags = [];
-      }
-    }
-    
-    // 转换数据格式以匹配ListingDetailScreen的期望格式
-    const rawSeller = likedListing.listing?.seller ?? {};
-    const sellerAvatar =
-      (typeof rawSeller.avatar_url === "string" && rawSeller.avatar_url.trim() !== ""
-        ? rawSeller.avatar_url
-        : typeof (rawSeller as any).avatar === "string" && (rawSeller as any).avatar.trim() !== ""
-        ? (rawSeller as any).avatar
-        : typeof (rawSeller as any).avatar_path === "string" && (rawSeller as any).avatar_path.trim() !== ""
-        ? (rawSeller as any).avatar_path
-        : undefined);
 
-    const sellerName = rawSeller?.username ?? (rawSeller as any)?.name ?? "Seller";
-
-    const listingData = {
-      ...likedListing.listing,
-      title: likedListing.listing?.name, // 将name转换为title
-      images: images, // 添加images数组
-      tags: tags, // 添加tags数组
-      // 🔥 添加库存信息
-      availableQuantity: typeof (likedListing.listing as any)?.inventory_count === 'number'
-        ? (likedListing.listing as any).inventory_count
-        : undefined,
-      seller: {
-        ...rawSeller,
-        name: sellerName,
-        avatar: sellerAvatar,
-        isPremium: Boolean(
-          rawSeller?.isPremium ?? (rawSeller as any)?.is_premium ?? false
-        ),
-        // 保留id字段用于用户身份验证
-      },
-    };
-    
-    // 调试：查看转换后的数据
-    console.log('🔍 Debug - Converted listingData:', listingData);
-    console.log('🔍 Debug - Converted seller:', listingData.seller);
-    console.log('🔍 Debug - availableQuantity:', listingData.availableQuantity);
-    console.log('🔍 Debug - Raw inventory_count:', (likedListing.listing as any)?.inventory_count);
-    
-    rootNavigation?.navigate("Buy", {
-      screen: "ListingDetail",
-      params: { item: listingData },
+    // ✅ Use lazy loading: only pass listingId, let ListingDetailScreen fetch full data
+    // This ensures we get complete, up-to-date data from the API
+    const listingId = String(likedListing.listing.id);
+    console.log('🔍 Navigating to ListingDetail with lazy loading, listingId:', listingId);
+    requestAnimationFrame(() => {
+      rootNavigation?.navigate("Buy", {
+        screen: "ListingDetail",
+        params: { listingId },
+      });
     });
   };
 
@@ -186,7 +145,7 @@ export default function LikesTab() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90E2" />
+        <ActivityIndicator size="large" color="#000" />
         <Text style={styles.loadingText}>Loading your likes...</Text>
       </View>
     );
@@ -197,7 +156,7 @@ export default function LikesTab() {
       <View style={styles.errorContainer}>
         <Icon name="alert-circle-outline" size={48} color="#FF6B6B" />
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={loadLikedListings}>
+        <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -218,6 +177,14 @@ export default function LikesTab() {
         numColumns={3}
         renderItem={renderItem}
         contentContainerStyle={styles.listContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#000"
+            colors={["#000"]}
+          />
+        }
       />
     </View>
   );

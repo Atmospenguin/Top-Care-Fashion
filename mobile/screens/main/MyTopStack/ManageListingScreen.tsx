@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -21,6 +21,7 @@ import type { MyTopStackParamList } from "./index";
 import type { RootStackParamList } from "../../../App";
 import type { PremiumStackParamList } from "../PremiumStack";
 import { listingsService, type BoostedListingSummary } from "../../../src/services/listingsService";
+import { listingStatsService } from "../../../src/services/listingStatsService";
 import type { ListingItem } from "../../../types/shop";
 
 export default function ManageListingScreen() {
@@ -37,6 +38,13 @@ export default function ManageListingScreen() {
   const [boostInfo, setBoostInfo] = useState<BoostedListingSummary | null>(null);
   const [loadingBoostInfo, setLoadingBoostInfo] = useState(true);
   const [updatingListed, setUpdatingListed] = useState(false);
+  const [performance, setPerformance] = useState({
+    bag: 0,
+    likes: 0,
+    views: 0,
+    clicks: 0,
+  });
+  const [loadingPerformance, setLoadingPerformance] = useState(true);
 
   // ✅ 获取listing数据 - 使用 useFocusEffect 以便在返回时刷新
   useFocusEffect(
@@ -75,44 +83,92 @@ export default function ManageListingScreen() {
     }, [route.params?.listingId, navigation])
   );
 
-  useEffect(() => {
-    let isMounted = true;
-    const listingId = route.params?.listingId;
-    if (!listingId) {
-      setBoostInfo(null);
-      setLoadingBoostInfo(false);
+  // ✅ 获取 boost 信息 - 使用 useFocusEffect 以便在返回时刷新
+  useFocusEffect(
+    React.useCallback(() => {
+      let isMounted = true;
+      const listingId = route.params?.listingId;
+      if (!listingId) {
+        setBoostInfo(null);
+        setLoadingBoostInfo(false);
+        return;
+      }
+
+      const loadBoostInfo = async () => {
+        try {
+          setLoadingBoostInfo(true);
+          const boostedListings = await listingsService.getBoostedListings();
+          if (!isMounted) return;
+          const matched = boostedListings.find(
+            (item) => String(item.listingId) === String(listingId)
+          );
+          setBoostInfo(matched ?? null);
+        } catch (error) {
+          if (isMounted) {
+            console.error("❌ Error fetching boost status:", error);
+            setBoostInfo(null);
+          }
+        } finally {
+          if (isMounted) {
+            setLoadingBoostInfo(false);
+          }
+        }
+      };
+
+      loadBoostInfo();
+
       return () => {
         isMounted = false;
       };
-    }
+    }, [route.params?.listingId])
+  );
 
-    const loadBoostInfo = async () => {
-      try {
-        setLoadingBoostInfo(true);
-        const boostedListings = await listingsService.getBoostedListings();
-        if (!isMounted) return;
-        const matched = boostedListings.find(
-          (item) => String(item.listingId) === String(listingId)
-        );
-        setBoostInfo(matched ?? null);
-      } catch (error) {
-        if (isMounted) {
-          console.error("❌ Error fetching boost status:", error);
-          setBoostInfo(null);
-        }
-      } finally {
-        if (isMounted) {
-          setLoadingBoostInfo(false);
-        }
+  // ✅ 获取性能统计数据 - 使用 useFocusEffect 以便在返回时刷新
+  useFocusEffect(
+    React.useCallback(() => {
+      let isMounted = true;
+      const listingId = route.params?.listingId;
+      if (!listingId) {
+        setPerformance({ bag: 0, likes: 0, views: 0, clicks: 0 });
+        setLoadingPerformance(false);
+        return;
       }
-    };
 
-    loadBoostInfo();
+      const loadPerformanceStats = async () => {
+        try {
+          setLoadingPerformance(true);
+          console.log("📊 Fetching performance stats for listing:", listingId);
+          const stats = await listingStatsService.getListingStats(String(listingId));
+          
+          if (!isMounted) return;
+          
+          console.log("✅ Performance stats loaded:", stats);
+          setPerformance({
+            bag: stats.stats.bag ?? 0,
+            likes: stats.stats.likes ?? 0,
+            views: stats.stats.views ?? 0,
+            clicks: stats.stats.clicks ?? 0,
+          });
+        } catch (error) {
+          if (isMounted) {
+            console.error("❌ Error fetching performance stats:", error);
+            // Keep default values on error
+            setPerformance({ bag: 0, likes: 0, views: 0, clicks: 0 });
+          }
+        } finally {
+          if (isMounted) {
+            setLoadingPerformance(false);
+          }
+        }
+      };
 
-    return () => {
-      isMounted = false;
-    };
-  }, [route.params?.listingId]);
+      loadPerformanceStats();
+
+      return () => {
+        isMounted = false;
+      };
+    }, [route.params?.listingId])
+  );
 
   const formatBoostDate = (isoDate: string | null | undefined) => {
     if (!isoDate) return null;
@@ -141,14 +197,7 @@ export default function ManageListingScreen() {
   };
 
   // ✅ 处理标记为已售
-  const handleMarkAsSold = () => {
-    if (!listing) return;
-    navigation.navigate("ConfirmSell", {
-      mode: "markSold",
-      listingId: listing.id,
-      listingSnapshot: listing,
-    });
-  };
+  const handleMarkAsSold = () => {};
 
   // ✅ 处理删除listing
   const handleDeleteListing = () => {
@@ -223,13 +272,6 @@ export default function ManageListingScreen() {
     });
   };
 
-  // 模拟数据（你确认过的数字）
-  const performance = {
-    bag: 1,
-    likes: 2,
-    views: 178,
-    clicks: 32,
-  };
 
   if (loading) {
     return (
@@ -253,6 +295,10 @@ export default function ManageListingScreen() {
     );
   }
 
+  const statusLabel = listing.listed === false ? "Unlisted" : "Listed";
+  const statusBadgeStyle = listing.listed === false ? styles.statusBadgeUnlisted : styles.statusBadgeListed;
+  const statusTextStyle = listing.listed === false ? styles.statusBadgeTextUnlisted : styles.statusBadgeTextListed;
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header title="Listing" showBack />
@@ -273,37 +319,26 @@ export default function ManageListingScreen() {
             style={styles.thumb} 
           />
           <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
+              <Text style={[styles.topTitle, { flex: 1, marginRight: 8 }]} numberOfLines={2} ellipsizeMode="tail">
+                {listing.title}
+              </Text>
+              <View style={styles.statusRow}>
+                <View style={[styles.statusBadge, statusBadgeStyle]}>
+                  <Text style={[styles.statusBadgeText, statusTextStyle]}>{statusLabel}</Text>
+                </View>
+                {updatingListed && (
+                  <ActivityIndicator
+                    size="small"
+                    color="#6b6b6b"
+                    style={{ marginLeft: 8 }}
+                  />
+                )}
+              </View>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
               <Text style={styles.topPrice}>${listing.price}</Text>
               <Icon name="create-outline" size={16} color="#6b6b6b" />
-            </View>
-            <View style={styles.statusRow}>
-              <View
-                style={[
-                  styles.statusBadge,
-                  listing.listed === false
-                    ? styles.statusBadgeUnlisted
-                    : styles.statusBadgeListed,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.statusBadgeText,
-                    listing.listed === false
-                      ? styles.statusBadgeTextUnlisted
-                      : styles.statusBadgeTextListed,
-                  ]}
-                >
-                  {listing.listed === false ? "Unlisted" : "Listed"}
-                </Text>
-              </View>
-              {updatingListed && (
-                <ActivityIndicator
-                  size="small"
-                  color="#6b6b6b"
-                  style={{ marginLeft: 8 }}
-                />
-              )}
             </View>
             {/* 🔥 显示库存数量 */}
             {listing.availableQuantity !== undefined && (
@@ -320,11 +355,18 @@ export default function ManageListingScreen() {
           <View style={styles.promoHeader}>
             <Icon name="gift-outline" size={20} color="#111" />
             <View style={{ flex: 1 }}>
-              <Text style={styles.promoTitle}>
-                {boostInfo
-                  ? "Your listing is currently boosted"
-                  : "Want more shoppers to see your listing?"}
-              </Text>
+              <View style={styles.promoTitleRow}>
+                <Text style={styles.promoTitle}>
+                  {boostInfo && boostInfo.status === 'ACTIVE'
+                    ? "Your listing is currently boosted"
+                    : "Want more shoppers to see your listing?"}
+                </Text>
+                {boostInfo && boostInfo.status === 'ACTIVE' && (
+                  <View style={[styles.statusBadge, styles.boostBadge]}>
+                    <Text style={[styles.statusBadgeText, styles.boostBadgeText]}>Boosted</Text>
+                  </View>
+                )}
+              </View>
               {boostInfo && (
                 <Text style={styles.promoSubtitle}>
                   {formatBoostStatus(boostInfo.status)}
@@ -334,63 +376,124 @@ export default function ManageListingScreen() {
                 </Text>
               )}
             </View>
-            {boostInfo && (
-              <View style={[styles.statusBadge, styles.boostBadge]}>
-                <Text style={[styles.statusBadgeText, styles.boostBadgeText]}>Boosted</Text>
-              </View>
-            )}
           </View>
 
           {loadingBoostInfo ? (
             <Text style={styles.promoLoadingText}>Checking boost status…</Text>
           ) : boostInfo ? (
-            <View style={styles.boostMetaRow}>
-              {typeof boostInfo.views === "number" && boostInfo.views > 0 && (
-                <Text style={styles.boostMetaText}>Views {boostInfo.views}</Text>
-              )}
-              {typeof boostInfo.clicks === "number" && boostInfo.clicks > 0 && (
-                <Text style={styles.boostMetaText}>Clicks {boostInfo.clicks}</Text>
+            <View>
+              <View style={styles.boostMetaRow}>
+                <View style={styles.boostMetaLeft}>
+                  {typeof boostInfo.views === "number" && boostInfo.views > 0 && (
+                    <Text style={styles.boostMetaText}>Views {boostInfo.views}</Text>
+                  )}
+                  {typeof boostInfo.clicks === "number" && boostInfo.clicks > 0 && (
+                    <Text style={styles.boostMetaText}>Clicks {boostInfo.clicks}</Text>
+                  )}
+                </View>
+                <TouchableOpacity onPress={handleOpenPromotionPlans}>
+                  <Text style={styles.promoLink}>Manage Boost</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Uplift Stats */}
+              {boostInfo.status === 'ACTIVE' && (
+                boostInfo.viewUpliftPercent !== undefined ||
+                boostInfo.clickUpliftPercent !== undefined
+              ) && (
+                <View style={styles.upliftContainer}>
+                  <Text style={styles.upliftTitle}>Performance vs Baseline</Text>
+                  <View style={styles.upliftRow}>
+                    {typeof boostInfo.viewUpliftPercent === "number" && (
+                      <View style={styles.upliftCell}>
+                        <Icon
+                          name={boostInfo.viewUpliftPercent >= 0 ? "trending-up-outline" : "trending-down-outline"}
+                          size={18}
+                          color={boostInfo.viewUpliftPercent >= 0 ? "#16a34a" : "#dc2626"}
+                        />
+                        <Text style={[
+                          styles.upliftValue,
+                          boostInfo.viewUpliftPercent >= 0 ? styles.upliftPositive : styles.upliftNegative
+                        ]}>
+                          {boostInfo.viewUpliftPercent >= 0 ? '+' : ''}{boostInfo.viewUpliftPercent}%
+                        </Text>
+                        <Text style={styles.upliftLabel}>Views</Text>
+                      </View>
+                    )}
+                    {typeof boostInfo.clickUpliftPercent === "number" && (
+                      <View style={styles.upliftCell}>
+                        <Icon
+                          name={boostInfo.clickUpliftPercent >= 0 ? "trending-up-outline" : "trending-down-outline"}
+                          size={18}
+                          color={boostInfo.clickUpliftPercent >= 0 ? "#16a34a" : "#dc2626"}
+                        />
+                        <Text style={[
+                          styles.upliftValue,
+                          boostInfo.clickUpliftPercent >= 0 ? styles.upliftPositive : styles.upliftNegative
+                        ]}>
+                          {boostInfo.clickUpliftPercent >= 0 ? '+' : ''}{boostInfo.clickUpliftPercent}%
+                        </Text>
+                        <Text style={styles.upliftLabel}>Click Rate</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
               )}
             </View>
           ) : (
-            <Text style={styles.promoSubtitle}>
-              Boost to push your listing to more shoppers and increase visibility.
-            </Text>
+            <View>
+              <Text style={styles.promoSubtitle}>
+                Boost to push your listing to more shoppers and increase visibility.
+              </Text>
+              <TouchableOpacity
+                style={styles.promoLinkWrapper}
+                onPress={handleOpenPromotionPlans}
+              >
+                <Text style={styles.promoLink}>Click To Get Boost</Text>
+              </TouchableOpacity>
+            </View>
           )}
-
-          <TouchableOpacity
-            style={styles.promoLinkWrapper}
-            onPress={handleOpenPromotionPlans}
-          >
-            <Text style={styles.promoLink}>
-              {boostInfo ? "Manage Boost Options" : "Click To Get Boost"}
-            </Text>
-          </TouchableOpacity>
         </View>
 
         {/* Performance */}
         <View style={styles.metricsRow}>
           <View style={styles.metricCell}>
             <Icon name="bag-outline" size={22} color="#111" />
-            <Text style={styles.metricNumber}>{performance.bag}</Text>
+            {loadingPerformance ? (
+              <ActivityIndicator size="small" color="#999" style={{ marginTop: 6 }} />
+            ) : (
+              <Text style={styles.metricNumber}>{performance.bag}</Text>
+            )}
             <Text style={styles.metricLabel}>Bag</Text>
           </View>
 
           <View style={styles.metricCell}>
             <Icon name="heart-outline" size={22} color="#111" />
-            <Text style={styles.metricNumber}>{performance.likes}</Text>
+            {loadingPerformance ? (
+              <ActivityIndicator size="small" color="#999" style={{ marginTop: 6 }} />
+            ) : (
+              <Text style={styles.metricNumber}>{performance.likes}</Text>
+            )}
             <Text style={styles.metricLabel}>Likes</Text>
           </View>
 
           <View style={styles.metricCell}>
             <Icon name="eye-outline" size={22} color="#111" />
-            <Text style={styles.metricNumber}>{performance.views}</Text>
+            {loadingPerformance ? (
+              <ActivityIndicator size="small" color="#999" style={{ marginTop: 6 }} />
+            ) : (
+              <Text style={styles.metricNumber}>{performance.views}</Text>
+            )}
             <Text style={styles.metricLabel}>Views</Text>
           </View>
 
           <View style={styles.metricCell}>
             <Icon name="sparkles-outline" size={22} color="#111" />
-            <Text style={styles.metricNumber}>{performance.clicks}</Text>
+            {loadingPerformance ? (
+              <ActivityIndicator size="small" color="#999" style={{ marginTop: 6 }} />
+            ) : (
+              <Text style={styles.metricNumber}>{performance.clicks}</Text>
+            )}
             <Text style={styles.metricLabel}>Clicks</Text>
           </View>
         </View>
@@ -439,13 +542,6 @@ export default function ManageListingScreen() {
             )}
           </TouchableOpacity>
 
-          {/* 🔥 只在商品已发布时显示 "Mark as Sold" */}
-          {listing?.listed === true && (
-            <TouchableOpacity style={styles.rowItem} onPress={handleMarkAsSold}>
-              <Text style={styles.rowText}>Mark as Sold</Text>
-              <Icon name="chevron-forward" size={18} color="#999" />
-            </TouchableOpacity>
-          )}
         </View>
       </ScrollView>
 
@@ -485,6 +581,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   thumb: { width: 56, height: 56, borderRadius: 8, backgroundColor: "#eee" },
+  topTitle: { fontSize: 15, fontWeight: "600", color: "#111", marginBottom: 2 },
   topPrice: { fontSize: 18, fontWeight: "700", color: "#111", marginRight: 6 },
   stockText: { 
     marginTop: 4, 
@@ -494,7 +591,6 @@ const styles = StyleSheet.create({
   }, // 🔥 库存文本样式
   previewText: { marginTop: 4, color: "#6b6b6b" },
   statusRow: {
-    marginTop: 6,
     flexDirection: "row",
     alignItems: "center",
     columnGap: 6,
@@ -506,9 +602,11 @@ const styles = StyleSheet.create({
   },
   statusBadgeListed: { backgroundColor: "#DCFCE7" },
   statusBadgeUnlisted: { backgroundColor: "#FEE2E2" },
+  statusBadgeSold: { backgroundColor: "#EDE9FE" },
   statusBadgeText: { fontSize: 12, fontWeight: "700" },
   statusBadgeTextListed: { color: "#166534" },
   statusBadgeTextUnlisted: { color: "#991B1B" },
+  statusBadgeTextSold: { color: "#5B21B6" },
 
   promoCard: {
     marginTop: 12,
@@ -523,13 +621,21 @@ const styles = StyleSheet.create({
     elevation: 2,
     rowGap: 6,
   },
-  promoHeader: { flexDirection: "row", alignItems: "center", columnGap: 8 },
+  promoHeader: { flexDirection: "row", alignItems: "flex-start", columnGap: 8 },
+  promoTitleRow: { flexDirection: "row", alignItems: "flex-start", columnGap: 8, flex: 1 },
   promoLinkWrapper: { alignSelf: "flex-start", marginLeft: 28 },
   promoTitle: { fontSize: 14, fontWeight: "700", color: "#111", flex: 1, flexWrap: "wrap" },
   promoSubtitle: { marginTop: 2, color: "#555", fontSize: 13 },
   promoLoadingText: { marginTop: 6, color: "#666", fontSize: 13 },
   boostMetaRow: {
     marginTop: 6,
+    marginLeft: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    columnGap: 12,
+  },
+  boostMetaLeft: {
     flexDirection: "row",
     flexWrap: "wrap",
     columnGap: 12,
@@ -539,6 +645,48 @@ const styles = StyleSheet.create({
   promoLink: { color: "#2563eb", fontWeight: "600", marginTop: 0 },
   boostBadge: { backgroundColor: "#DBEAFE" },
   boostBadgeText: { color: "#1D4ED8" },
+
+  upliftContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#e6e6e6",
+  },
+  upliftTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#666",
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  upliftRow: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  upliftCell: {
+    flex: 1,
+    alignItems: "center",
+    padding: 8,
+    backgroundColor: "#f9fafb",
+    borderRadius: 8,
+  },
+  upliftValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  upliftPositive: {
+    color: "#16a34a",
+  },
+  upliftNegative: {
+    color: "#dc2626",
+  },
+  upliftLabel: {
+    fontSize: 11,
+    color: "#666",
+    marginTop: 2,
+  },
 
   metricsRow: {
     marginTop: 12,

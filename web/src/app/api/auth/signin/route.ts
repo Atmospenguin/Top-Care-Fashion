@@ -20,39 +20,6 @@ function mapGender(value: Gender | null | undefined): "Male" | "Female" | null {
   return null;
 }
 
-async function ensureLocalUser(supabaseUserId: string, email: string) {
-  const existingBySupabase = await prisma.users.findUnique({
-    where: { supabase_user_id: supabaseUserId },
-    select: { id: true },
-  });
-  if (existingBySupabase) return existingBySupabase.id;
-
-  const existingByEmail = await prisma.users.findUnique({
-    where: { email },
-    select: { id: true },
-  });
-  if (existingByEmail) {
-    const updated = await prisma.users.update({
-      where: { id: existingByEmail.id },
-      data: { supabase_user_id: supabaseUserId },
-      select: { id: true },
-    });
-    return updated.id;
-  }
-
-  const fallbackUsername = email.split("@")[0] || `user_${supabaseUserId.slice(0, 8)}`;
-  const created = await prisma.users.create({
-    data: {
-      username: fallbackUsername,
-      email,
-      role: UserRole.USER,
-      status: UserStatus.ACTIVE,
-      supabase_user_id: supabaseUserId,
-    },
-    select: { id: true },
-  });
-  return created.id;
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -109,9 +76,9 @@ export async function POST(req: NextRequest) {
     console.log("✅ Supabase sign-in successful for:", normalizedEmail);
     console.log("✅ Supabase email_confirmed_at:", supabaseUser.email_confirmed_at);
 
-    const userId = await ensureLocalUser(supabaseUser.id, normalizedEmail);
+    // 直接查询本地用户，不自动创建
     const user = await prisma.users.findUnique({
-      where: { id: userId },
+      where: { supabase_user_id: supabaseUser.id },
       select: {
         id: true,
         username: true,
@@ -133,7 +100,7 @@ export async function POST(req: NextRequest) {
 
     if (!user) {
       console.error("Local user record not found for Supabase user", supabaseUser.id);
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json({ error: "User not found. Please register first." }, { status: 404 });
     }
 
     if (user.status === UserStatus.SUSPENDED) {

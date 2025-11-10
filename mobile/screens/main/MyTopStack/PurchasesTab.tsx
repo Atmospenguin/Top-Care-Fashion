@@ -6,11 +6,9 @@ import {
   Image,
   FlatList,
   TouchableOpacity,
-  Modal,
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { Picker } from "@react-native-picker/picker";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { MyTopStackParamList } from "./index";
@@ -36,9 +34,10 @@ export default function PurchasesTab() {
     useNavigation<NativeStackNavigationProp<MyTopStackParamList>>();
 
   const [filter, setFilter] = useState<OrderStatus | "All">("All");
-  const [modalVisible, setModalVisible] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const filterLabels: Record<string, string> = {
@@ -50,63 +49,75 @@ export default function PurchasesTab() {
   };
 
   // Load purchased orders from API
-  useEffect(() => {
-    const loadPurchasedOrders = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        console.log("🔍 PurchasesTab - Loading purchased orders...");
-        const response = await ordersService.getBoughtOrders();
-        console.log("🔍 PurchasesTab - API response:", response);
-        console.log("🔍 PurchasesTab - Orders count:", response.orders?.length || 0);
-        
-        setOrders(response.orders);
-      } catch (err) {
-        console.error("❌ PurchasesTab - Error loading purchased orders:", err);
-        setError(err instanceof Error ? err.message : "Failed to load orders");
-        
-        // Fallback to mock data
-        console.log("🔍 PurchasesTab - Using mock data as fallback");
-        const mockOrders: Order[] = PURCHASE_GRID_ITEMS.map((item, index) => ({
-          id: parseInt(item.id) || index + 1,
-          buyer_id: 1,
-          seller_id: 2,
-          listing_id: index + 1,
-          status: mapMockStatusToApiStatus(item.status),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          buyer: {
-            id: 1,
-            username: "You",
-            avatar_url: undefined,
-          },
-          seller: {
-            id: 2,
-            username: "Seller",
-            avatar_url: undefined,
-          },
-          listing: {
-            id: index + 1,
-            name: `Product ${index + 1}`,
-            description: "",
-            price: 0,
-            image_url: item.image,
-            image_urls: [item.image],
-            brand: "",
-            size: "",
-            condition_type: "GOOD",
-          },
-          reviews: [],
-        }));
-        setOrders(mockOrders);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadPurchasedOrders = async () => {
+    try {
+      setError(null);
+      
+      // If not refreshing, show full-screen loading
+      if (!refreshing) setLoading(true);
+      
+      console.log("🔍 PurchasesTab - Loading purchased orders...");
+      const response = await ordersService.getBoughtOrders();
+      console.log("🔍 PurchasesTab - API response:", response);
+      console.log("🔍 PurchasesTab - Orders count:", response.orders?.length || 0);
+      
+      setOrders(response.orders);
+    } catch (err) {
+      console.error("❌ PurchasesTab - Error loading purchased orders:", err);
+      setError(err instanceof Error ? err.message : "Failed to load orders");
+      
+      // Fallback to mock data
+      console.log("🔍 PurchasesTab - Using mock data as fallback");
+      const mockOrders: Order[] = PURCHASE_GRID_ITEMS.map((item, index) => ({
+        id: parseInt(item.id) || index + 1,
+        buyer_id: 1,
+        seller_id: 2,
+        listing_id: index + 1,
+        status: mapMockStatusToApiStatus(item.status),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        buyer: {
+          id: 1,
+          username: "You",
+          avatar_url: undefined,
+        },
+        seller: {
+          id: 2,
+          username: "Seller",
+          avatar_url: undefined,
+        },
+        listing: {
+          id: index + 1,
+          name: `Product ${index + 1}`,
+          description: "",
+          price: 0,
+          image_url: item.image,
+          image_urls: [item.image],
+          brand: "",
+          size: "",
+          condition_type: "GOOD",
+        },
+        reviews: [],
+      }));
+      setOrders(mockOrders);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     loadPurchasedOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await loadPurchasedOrders();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Helper function to map mock status to API status
   function mapMockStatusToApiStatus(mockStatus: string): OrderStatus {
@@ -194,7 +205,7 @@ export default function PurchasesTab() {
 
   // Filter data
   const filtered = orders.filter((order) => {
-    if (filter === "All") return order.status !== "CANCELLED"; // 🔥 "All" 不包含 cancelled orders
+    if (filter === "All") return true; // "All" 包含取消订单
     
     // 🔥 将 REVIEWED 状态视为 COMPLETED
     if (filter === "COMPLETED") {
@@ -210,37 +221,44 @@ export default function PurchasesTab() {
       <View style={styles.filterRow}>
         <TouchableOpacity
           style={styles.filterBtn}
-          onPress={() => setModalVisible(true)}
+          onPress={() => setDropdownOpen((v) => !v)}
         >
           <Text style={{ fontSize: 16, fontWeight: '500' }}>{filterLabels[filter] ?? filter} ▼</Text>
         </TouchableOpacity>
+
+        {/* Floating dropdown anchored to the button */}
+        {dropdownOpen && (
+          <>
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => setDropdownOpen(false)}
+              style={styles.backdrop}
+            />
+            <View style={styles.dropdownFloating}>
+              {[
+                { label: "All", value: "All" as const },
+                { label: "In Progress", value: "IN_PROGRESS" as const },
+                { label: "Delivered", value: "DELIVERED" as const },
+                { label: "Completed", value: "COMPLETED" as const },
+                { label: "Cancelled", value: "CANCELLED" as const },
+              ].map(opt => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setFilter(opt.value);
+                    setDropdownOpen(false);
+                  }}
+                >
+                  <Text style={styles.dropdownItemText}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
       </View>
 
-      {/* Filter modal */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Picker
-              selectedValue={filter}
-              onValueChange={(val) => {
-                setFilter(val);
-                setModalVisible(false);
-              }}
-            >
-              <Picker.Item label="All" value="All" />
-              <Picker.Item label="In Progress" value="IN_PROGRESS" />
-              <Picker.Item label="Delivered" value="DELIVERED" />
-              <Picker.Item label="Completed" value="COMPLETED" />
-              <Picker.Item label="Cancelled" value="CANCELLED" />
-            </Picker>
-          </View>
-        </View>
-      </Modal>
+      {/* Removed modal; using floating dropdown above */}
 
       {/* Loading state */}
       {loading && (
@@ -281,8 +299,10 @@ export default function PurchasesTab() {
       {!loading && !error && filtered.length > 0 && (
         <FlatList
           data={formatData(filtered, 3)}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={(item) => (item as any).empty ? `purchase-blank-${(item as any).id}` : `purchase-${String(item.id)}`}
           numColumns={3}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
           renderItem={({ item }) =>
             item.empty ? (
               <View style={[styles.item, styles.itemInvisible]} />
@@ -319,7 +339,12 @@ export default function PurchasesTab() {
                 />
                 {/* Status overlay */}
                 <View style={styles.overlay}>
-                  <Text style={styles.overlayText}>
+                  <Text
+                    style={styles.overlayText}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.6}
+                  >
                     {getOverlayText(item.status)}
                   </Text>
                 </View>
@@ -336,6 +361,8 @@ const styles = StyleSheet.create({
   filterRow: {
     paddingHorizontal: 16,
     paddingVertical: 8,
+    position: "relative",
+    zIndex: 10,
   },
   filterBtn: {
     fontSize: 16,
@@ -347,13 +374,37 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignSelf: "flex-start",
   },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.3)",
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    top: 0,
+    left: -16,
+    right: -16,
+    bottom: -8,
   },
-  modalBox: {
+  dropdownFloating: {
+    position: "absolute",
+    top: 44,
+    left: 16,
+    width: 220,
     backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    overflow: "hidden",
+    // Shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  dropdownItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    color: "#111",
   },
   centered: {
     flex: 1,

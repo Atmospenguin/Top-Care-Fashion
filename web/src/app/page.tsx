@@ -10,8 +10,7 @@ interface Testimonial {
   user: string;
   text: string;
   rating: number;
-  // Extend allowed tags to match filter options and usage
-  tags: Array<"mixmatch" | "ailisting" | "premium" | "buyer" | "seller">;
+  tags: string[]; // Allow any tags, not just the predefined ones
   ts: number;
 }
 
@@ -58,7 +57,7 @@ interface ReleaseLinks {
 }
 
 export default function Home() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [stats, setStats] = useState<SiteStats>({ users: 12000, listings: 38000, sold: 9400, rating: 4.8 });
   const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
@@ -80,6 +79,18 @@ export default function Home() {
     { key: "buyer", label: "From Buyer" },
     { key: "seller", label: "From Seller" },
   ] as const;
+
+  // Helper function to format tag label for display
+  const formatTagLabel = (tag: string): string => {
+    const tagMap: Record<string, string> = {
+      mixmatch: "Mix & Match",
+      ailisting: "AI Listing",
+      premium: "Premium",
+      buyer: "Buyer",
+      seller: "Seller",
+    };
+    return tagMap[tag.toLowerCase()] || tag.charAt(0).toUpperCase() + tag.slice(1);
+  };
 
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
 
@@ -134,7 +145,7 @@ export default function Home() {
   const visible = testimonials.filter((t) =>
     filter === "all"
       ? true
-      : t.tags.includes(filter as Testimonial["tags"][number])
+      : Array.isArray(t.tags) && t.tags.includes(filter)
   );
   const androidRelease = releaseLinks.android;
   return (
@@ -193,23 +204,42 @@ export default function Home() {
           ))}
         </div>
         <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
-          {visible.map((t) => {
-            const tags = (t.tags ?? []) as Testimonial["tags"];
-            const from = tags.includes('buyer') ? 'from buyer' : (tags.includes('seller') ? 'from seller' : undefined);
-            // Get user initials (first 2 characters)
-            const initials = t.user.slice(0, 2).toUpperCase();
-            return (
-             <div key={t.id} className="rounded-xl border border-black/10 p-6 shadow-sm bg-white">
-               <div className="flex items-center gap-2">
-                 <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-                   <span className="text-xs font-semibold text-gray-600">{initials}</span>
+          {visible.length === 0 ? (
+            <div className="col-span-full text-center py-8 text-black/50">
+              No feedback available for this filter.
+            </div>
+          ) : (
+            visible.map((t) => {
+              const tags = Array.isArray(t.tags) ? t.tags.filter(Boolean) : [];
+              const from = tags.includes('buyer') ? 'from buyer' : (tags.includes('seller') ? 'from seller' : undefined);
+              const userName = t.user || 'Anonymous';
+              // Get user initials (first 2 characters)
+              const initials = userName.slice(0, 2).toUpperCase();
+              return (
+               <div key={t.id} className="rounded-xl border border-black/10 p-6 shadow-sm bg-white flex flex-col">
+                 <div className="flex items-center gap-2 mb-3">
+                   <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                     <span className="text-xs font-semibold text-gray-600">{initials}</span>
+                   </div>
+                   <span className="text-sm font-medium truncate">{userName}</span>
                  </div>
-                 <span className="text-sm font-medium">{t.user}</span>
-               </div>
-              <p className="mt-3 text-sm text-black/70">"{t.text}" {from && (<span className="text-black/50">— {from}</span>)}</p>
-                <div className="mt-3 text-[var(--brand-color)]">{"★★★★★".slice(0, t.rating)}</div>
-              </div>
-          );})}
+                 <p className="text-sm text-black/70 mb-3 flex-grow">"{t.text}" {from && (<span className="text-black/50">— {from}</span>)}</p>
+                 {tags.length > 0 && (
+                   <div className="flex flex-wrap gap-1.5 mb-3">
+                     {tags.map((tag, index) => (
+                       <span
+                         key={`${t.id}-${tag}-${index}`}
+                         className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--brand-color)]/10 text-[var(--brand-color)] border border-[var(--brand-color)]/20"
+                       >
+                         #{formatTagLabel(tag)}
+                       </span>
+                     ))}
+                   </div>
+                 )}
+                 <div className="text-[var(--brand-color)] mt-auto">{"★★★★★".slice(0, Math.round(t.rating || 0))}</div>
+                </div>
+            );})
+          )}
         </div>
 
         {/* Inline Stats */}
@@ -231,6 +261,19 @@ export default function Home() {
             <div className="text-xs text-black/60">Avg. rating</div>
           </div>
         </div>
+
+        {/* Admin Quick Links */}
+        {user?.actor === "Admin" && (
+          <div className="mt-6 flex justify-center">
+            <Link
+              href="/admin/promotions"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm text-[var(--brand-color)] border border-[var(--brand-color)] rounded-lg hover:bg-[var(--brand-color)] hover:text-white transition"
+            >
+              <span>📈</span>
+              <span>Manage Boosted Listings</span>
+            </Link>
+          </div>
+        )}
       </section>
 
 
@@ -273,7 +316,7 @@ export default function Home() {
                   <div className="absolute -top-3 right-4 text-[10px] px-2 py-1 rounded-full bg-[var(--brand-color)] text-white shadow">POPULAR</div>
                 )}
                 <div className="text-xs font-medium tracking-wide text-black/60">
-                  {plan.type === 'free' ? 'Starter' : 'Pro'}
+                  {plan.type === 'FREE' ? 'Starter' : 'Pro'}
                 </div>
                 <h3 className="mt-1 text-xl font-semibold">{plan.name}</h3>
                 <p className="mt-1 text-sm">{plan.description}</p>

@@ -42,9 +42,10 @@ export default function SplashScreen({ navigation }: Props) {
         try {
           const me = await getCurrentUser();
           const u = (me as any)?.data?.user || null;
-          // 严格检查：要求所有偏好字段都已填写
+          // 严格检查：要求所有偏好字段都已填写（包括生日）
           hasCompletePreferences = Boolean(
             u &&
+            u.dob && // 检查生日是否已填写
             Array.isArray(u.preferred_styles) && u.preferred_styles.length > 0 &&
             u.preferred_size_shoe &&
             u.preferred_size_top &&

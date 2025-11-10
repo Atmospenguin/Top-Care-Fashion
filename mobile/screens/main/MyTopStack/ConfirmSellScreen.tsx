@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { CommonActions, useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 
@@ -98,6 +98,11 @@ export default function ConfirmSellScreen() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [loadingPayment, setLoadingPayment] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const homeNavigationLockedRef = useRef(false);
+
+  const handleManagePayments = useCallback(() => {
+    navigation.navigate("ManagePayments");
+  }, [navigation]);
 
   useEffect(() => {
     if (!markSoldListingId) {
@@ -172,29 +177,32 @@ export default function ConfirmSellScreen() {
     };
   }, [benefits]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadPayment = async () => {
-      try {
-        setLoadingPayment(true);
-        const method = await paymentMethodsService.getDefaultPaymentMethod();
-        if (!cancelled) {
-          setPaymentMethod(method);
-        }
-      } catch (error) {
-        console.warn("Unable to load payout method", error);
-      } finally {
-        if (!cancelled) {
-          setLoadingPayment(false);
-        }
-      }
-    };
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
 
-    loadPayment();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+      const loadPayment = async () => {
+        try {
+          setLoadingPayment(true);
+          const method = await paymentMethodsService.getDefaultPaymentMethod();
+          if (!cancelled) {
+            setPaymentMethod(method);
+          }
+        } catch (error) {
+          console.warn("Unable to load payout method", error);
+        } finally {
+          if (!cancelled) {
+            setLoadingPayment(false);
+          }
+        }
+      };
+
+      loadPayment();
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
 
   const previewData = useMemo<
     (Partial<ListingItem> & Partial<CreateListingRequest>) | CreateListingRequest | ListingItem | null
@@ -239,6 +247,8 @@ export default function ConfirmSellScreen() {
 
   const loadingContent = !!markSoldListingId && loadingListing;
   const hasCompleted = !!finalListing;
+  const needsPaymentMethodBeforePosting =
+    createMode && !hasCompleted && !loadingPayment && !paymentMethod;
 
   const confirmLabel = (() => {
     if (processing) {
@@ -252,7 +262,13 @@ export default function ConfirmSellScreen() {
     }
 
     if (createMode) {
-      return hasCompleted ? "Back to MyTop" : "Post listing";
+      if (hasCompleted) {
+        return "Back to MyTop";
+      }
+      if (needsPaymentMethodBeforePosting) {
+        return "Add payout method";
+      }
+      return "Post listing";
     }
 
     if (updateMode) {
@@ -262,7 +278,10 @@ export default function ConfirmSellScreen() {
     return "Confirm & Mark as Sold";
   })();
 
-  const confirmDisabled = processing || (!!markSoldListingId && loadingListing);
+  const confirmDisabled =
+    processing ||
+    (!!markSoldListingId && loadingListing) ||
+    (createMode && !hasCompleted && loadingPayment);
 
   const navigateToBoost = (target: ListingItem) => {
     const boostParams = {
@@ -305,12 +324,32 @@ export default function ConfirmSellScreen() {
     navigation.goBack();
   };
 
-  const returnToMyTopHome = () => {
-    const stackState = navigation.getState?.();
-    if (stackState && Array.isArray(stackState.routes) && stackState.routes.length > 1) {
-      navigation.popToTop();
+  useFocusEffect(
+    useCallback(() => {
+      homeNavigationLockedRef.current = false;
+      return () => {
+        homeNavigationLockedRef.current = false;
+      };
+    }, [])
+  );
+
+  const returnToMyTopHome = useCallback(() => {
+    if (homeNavigationLockedRef.current) {
       return;
     }
+    homeNavigationLockedRef.current = true;
+
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [
+          {
+            name: "MyTopMain",
+            params: { refreshTS: Date.now() },
+          },
+        ],
+      })
+    );
 
     const parentNavigator = (navigation as any)?.getParent?.();
     const rootNavigator = parentNavigator?.getParent?.();
@@ -335,7 +374,28 @@ export default function ConfirmSellScreen() {
     }
 
     navigation.navigate("MyTopMain");
-  };
+
+    setTimeout(() => {
+      homeNavigationLockedRef.current = false;
+    }, 400);
+  }, [navigation]);
+
+  useEffect(() => {
+    const parentNavigator = (navigation as any)?.getParent?.();
+    if (!parentNavigator?.addListener) {
+      return;
+    }
+
+    const unsubscribe = parentNavigator.addListener("tabPress", (event: any) => {
+      if (!navigation.isFocused?.()) {
+        return;
+      }
+      event?.preventDefault?.();
+      returnToMyTopHome();
+    });
+
+    return unsubscribe;
+  }, [navigation, returnToMyTopHome]);
 
   const handleConfirmSell = async () => {
     if (processing) {
@@ -350,6 +410,11 @@ export default function ConfirmSellScreen() {
 
       if (!createDraft) {
         Alert.alert("Missing information", "Unable to post this listing.");
+        return;
+      }
+
+      if (needsPaymentMethodBeforePosting) {
+        handleManagePayments();
         return;
       }
 
@@ -570,6 +635,13 @@ export default function ConfirmSellScreen() {
                   <Text style={styles.caption}>
                     Add a payout method in Manage Payments so we know where to send your earnings.
                   </Text>
+                  <TouchableOpacity
+                    style={styles.payoutActionButton}
+                    onPress={handleManagePayments}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.payoutActionText}>Add payout method</Text>
+                  </TouchableOpacity>
                 </>
               )}
             </View>
@@ -766,6 +838,18 @@ const styles = StyleSheet.create({
   payoutDetails: {
     fontSize: 13,
     color: "rgba(255,255,255,0.7)",
+  },
+  payoutActionButton: {
+    marginTop: 12,
+    paddingVertical: 10,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+  },
+  payoutActionText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   secondaryButton: {
     marginBottom: 12,

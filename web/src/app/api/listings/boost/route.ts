@@ -205,11 +205,12 @@ export async function POST(req: NextRequest) {
       for (let index = 0; index < availableListingIds.length; index += 1) {
         const listingId = availableListingIds[index];
         const usedFree = index < freeCreditsUsed;
+        const paidAmount = usedFree ? 0.00 : pricePerBoost;
         const rows = await tx.$queryRaw<CreatedPromotionRow[]>`
           INSERT INTO listing_promotions
-            (listing_id, seller_id, status, started_at, ends_at, views, clicks, view_uplift_percent, click_uplift_percent, used_free_credit, created_at, updated_at)
+            (listing_id, seller_id, status, started_at, ends_at, views, clicks, view_uplift_percent, click_uplift_percent, used_free_credit, paid_amount, created_at, updated_at)
           VALUES
-            (${listingId}, ${session.id}, 'ACTIVE', ${now}, ${new Date(endsAt)}, 0, 0, 0, 0, ${usedFree}, ${now}, ${now})
+            (${listingId}, ${session.id}, 'ACTIVE', ${now}, ${new Date(endsAt)}, 0, 0, 0, 0, ${usedFree}, ${paidAmount}, ${now}, ${now})
           RETURNING id, listing_id, used_free_credit;
         `;
 

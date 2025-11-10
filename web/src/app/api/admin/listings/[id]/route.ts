@@ -131,6 +131,15 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
   });
   if (!listing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const bagCount = await prisma.cart_items.count({
+    where: {
+      listing_id: id,
+      quantity: {
+        gt: 0,
+      },
+    },
+  });
+
   const seller = listing.seller_id
     ? await prisma.users.findUnique({ where: { id: listing.seller_id }, select: { username: true } })
     : null;
@@ -166,6 +175,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
     viewsCount: listing.views_count ?? 0,
     likesCount: listing.likes_count ?? 0,
     clicksCount: listing.clicks_count ?? 0,
+    bagCount,
     gender: listing.gender ?? null,
     shippingOption: listing.shipping_option ?? null,
     shippingFee: listing.shipping_fee ? toNumber(listing.shipping_fee) : null,

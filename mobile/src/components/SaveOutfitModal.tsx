@@ -19,6 +19,7 @@ interface SaveOutfitModalProps {
   onClose: () => void;
   onSave: (outfitName: string) => Promise<void>;
   isLoading?: boolean;
+  defaultName?: string; // ✅ 自动填入的默认名称
 }
 
 export default function SaveOutfitModal({
@@ -26,16 +27,25 @@ export default function SaveOutfitModal({
   onClose,
   onSave,
   isLoading = false,
+  defaultName,
 }: SaveOutfitModalProps) {
   const [outfitName, setOutfitName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!visible) {
+    if (visible) {
+      // ✅ 当 modal 打开时，如果有 defaultName，自动填入
+      if (defaultName) {
+        setOutfitName(defaultName);
+      } else {
+        setOutfitName('');
+      }
+      setIsSubmitting(false);
+    } else {
       setOutfitName('');
       setIsSubmitting(false);
     }
-  }, [visible]);
+  }, [visible, defaultName]);
 
   const handleSave = async () => {
     if (!outfitName.trim()) {
@@ -122,6 +132,7 @@ export default function SaveOutfitModal({
                 maxLength={100}
                 editable={!isSubmitting && !isLoading}
                 selectionColor="#111"
+                textAlignVertical="center"
               />
               <Text style={styles.charCount}>
                 {outfitName.length}/100
@@ -234,11 +245,13 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingVertical: Platform.OS === 'android' ? 0 : 12,
     fontSize: 15,
     color: '#111',
     backgroundColor: '#fff',
     marginBottom: 6,
+    minHeight: 46,
+    includeFontPadding: false,
   },
   charCount: {
     fontSize: 12,

@@ -4,6 +4,106 @@ import { getSessionUser } from "@/lib/auth";
 
 const STALE_PROMOTION_WINDOW_DAYS = 30;
 
+/**
+ * Calculate uplift for a specific promotion
+ */
+async function calculateUpliftForPromotion(promotionId: number): Promise<{
+  viewUpliftPercent: number;
+  clickUpliftPercent: number;
+} | null> {
+  try {
+    const promotion = await prisma.listing_promotions.findUnique({
+      where: { id: promotionId },
+    });
+
+    if (!promotion) {
+      return null;
+    }
+
+    // Calculate boost period
+    const boostStart = new Date(promotion.started_at);
+    const boostEnd = promotion.ends_at ? new Date(promotion.ends_at) : new Date();
+    const boostDays = Math.max(
+      1,
+      Math.ceil((boostEnd.getTime() - boostStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    );
+
+    // Calculate baseline period (same duration before boost)
+    const baselineEnd = new Date(boostStart);
+    baselineEnd.setDate(baselineEnd.getDate() - 1);
+    const baselineStart = new Date(baselineEnd);
+    baselineStart.setDate(baselineStart.getDate() - boostDays + 1);
+
+    // Query baseline stats from listing_stats_daily
+    const baselineStats = await prisma.$queryRaw<
+      Array<{ total_views: bigint; total_clicks: bigint }>
+    >`
+      SELECT
+        COALESCE(SUM(views), 0)::bigint as total_views,
+        COALESCE(SUM(clicks), 0)::bigint as total_clicks
+      FROM listing_stats_daily
+      WHERE listing_id = ${promotion.listing_id}
+        AND date >= ${baselineStart.toISOString().split('T')[0]}::date
+        AND date <= ${baselineEnd.toISOString().split('T')[0]}::date
+    `;
+
+    const baselineViewsRaw = Number(baselineStats[0]?.total_views || 0);
+    const baselineClicksRaw = Number(baselineStats[0]?.total_clicks || 0);
+
+    // Current boost stats
+    const boostViews = promotion.views;
+    const boostClicks = promotion.clicks;
+
+    // Calculate daily averages
+    const flooredBaselineViews = Math.max(baselineViewsRaw, boostDays);
+    const baselineDailyViews = Math.max(1, flooredBaselineViews / boostDays);
+    const boostDailyViews = boostDays > 0 ? boostViews / boostDays : boostViews;
+    const flooredBaselineClicks = Math.max(baselineClicksRaw, 0);
+
+    // Calculate CTRs (as percentages)
+    const boostCtr = boostViews > 0 ? (boostClicks / boostViews) * 100 : 0;
+    let baselineCtr =
+      flooredBaselineViews > 0
+        ? (flooredBaselineClicks / flooredBaselineViews) * 100
+        : 0;
+    if (baselineCtr <= 0 && flooredBaselineClicks > 0) {
+      baselineCtr = 1;
+    }
+
+    // Calculate uplift percentages
+    let viewUpliftPercent = 0;
+    let clickUpliftPercent = 0;
+
+    if (baselineDailyViews > 0 && boostViews > 0) {
+      viewUpliftPercent = Math.round(
+        ((boostDailyViews - baselineDailyViews) / baselineDailyViews) * 100
+      );
+      viewUpliftPercent = Math.max(-99, Math.min(999, viewUpliftPercent));
+    }
+
+    if (baselineCtr > 0 && boostViews > 0) {
+      clickUpliftPercent = Math.round(
+        ((boostCtr - baselineCtr) / baselineCtr) * 100
+      );
+      clickUpliftPercent = Math.max(-99, Math.min(999, clickUpliftPercent));
+    }
+
+    // Update the promotion with calculated uplift
+    await prisma.listing_promotions.update({
+      where: { id: promotionId },
+      data: {
+        view_uplift_percent: viewUpliftPercent,
+        click_uplift_percent: clickUpliftPercent,
+      },
+    });
+
+    return { viewUpliftPercent, clickUpliftPercent };
+  } catch (error) {
+    console.error(`Failed to calculate uplift for promotion ${promotionId}:`, error);
+    return null;
+  }
+}
+
 const PLACEHOLDER_SIZE_TOKENS = new Set([
   "",
   "n",
@@ -304,6 +404,56 @@ export async function GET(req: NextRequest) {
       ORDER BY lp.started_at DESC
       LIMIT ${MAX_RESULTS};
     `;
+
+    // Calculate uplift for ACTIVE promotions before returning
+    const url = new URL(req.url);
+    const shouldCalculate = url.searchParams.get("calculate") !== "false"; // Default to true
+
+    if (shouldCalculate) {
+      const activePromotions = rows.filter((row) => row.status === "ACTIVE");
+
+      // Calculate uplift for all active promotions in parallel
+      await Promise.allSettled(
+        activePromotions.map((row) => calculateUpliftForPromotion(row.id))
+      );
+
+      // Refetch the rows to get updated uplift values
+      if (activePromotions.length > 0) {
+        const updatedRows = await prisma.$queryRaw<BoostedListingRow[]>`
+          SELECT
+            lp.id,
+            lp.listing_id,
+            lp.status,
+            lp.started_at,
+            lp.ends_at,
+            lp.views,
+            lp.clicks,
+            lp.view_uplift_percent,
+            lp.click_uplift_percent,
+            lp.used_free_credit,
+            l.name AS listing_title,
+            l.price AS listing_price,
+            l.size AS listing_size,
+            l.image_urls AS listing_image_urls,
+            l.image_url AS listing_image_url
+          FROM listing_promotions lp
+          INNER JOIN listings l ON l.id = lp.listing_id
+          WHERE lp.seller_id = ${sessionUser.id}
+            AND (
+              lp.status IN ('ACTIVE', 'SCHEDULED')
+              OR (
+                lp.status = 'EXPIRED'
+                AND (lp.ends_at IS NULL OR lp.ends_at >= ${staleCutoff})
+              )
+            )
+          ORDER BY lp.started_at DESC
+          LIMIT ${MAX_RESULTS};
+        `;
+
+        // Replace rows with updated data
+        rows.splice(0, rows.length, ...updatedRows);
+      }
+    }
 
     const data = rows
       .filter((row) => row.listing_title)

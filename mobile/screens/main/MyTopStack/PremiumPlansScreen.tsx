@@ -89,19 +89,19 @@ export default function PremiumPlansScreen() {
             <View style={styles.planGroup}>
               <PlanOptionCard
                 prefix="1 Month / "
-                highlight="$ 6.99"
+                highlight="$ 6.9"
                 selected={selectedPlan === "1m"}
                 onPress={() => setSelectedPlan("1m")}
               />
               <PlanOptionCard
                 prefix="3 Month / "
-                highlight="$ 18.99"
+                highlight="$ 18.9"
                 selected={selectedPlan === "3m"}
                 onPress={() => setSelectedPlan("3m")}
               />
               <PlanOptionCard
                 prefix="1 Year / "
-                highlight="$ 59.99"
+                highlight="$ 59.9"
                 selected={selectedPlan === "1y"}
                 onPress={() => setSelectedPlan("1y")}
               />

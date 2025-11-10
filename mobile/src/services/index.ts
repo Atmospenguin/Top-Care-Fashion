@@ -1,6 +1,7 @@
 // 统一导出所有服务
 export { apiClient } from './api';
 export { listingsService, ListingsService } from './listingsService';
+export { listingStatsService } from './listingStatsService';
 export { authService, AuthService } from './authService';
 export { userService, UserService } from './userService';
 export { feedbackService } from './feedbackService';
@@ -16,6 +17,9 @@ export { benefitsService, BenefitsServiceType } from './benefitsService';
 export { paymentMethodsService } from './paymentMethodsService';
 export { addressService } from './addressService';
 export { NotificationHelper } from './notificationHelper';
+export { localNotificationService } from './localNotificationService';
+export { pollingService } from './pollingService';
+export { categoryService } from './categoryService';
 
 // 导出类型
 export type { ApiResponse, ApiError } from '../config/api';

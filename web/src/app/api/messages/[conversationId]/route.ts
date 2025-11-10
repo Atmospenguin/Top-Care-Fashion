@@ -235,29 +235,29 @@ export async function GET(
     const seller = conversation.participant;
     
     // 🔍 调试：查看listing数据
-    console.log("🔍 Listing data:", {
-      id: conversation.listing?.id,
-      name: conversation.listing?.name,
-      image_url: conversation.listing?.image_url,
-      image_urls: conversation.listing?.image_urls,
-      image_urls_type: typeof conversation.listing?.image_urls,
-      image_urls_length: Array.isArray(conversation.listing?.image_urls) ? conversation.listing.image_urls.length : "not array",
-      final_image: conversation.listing ? ((conversation.listing.image_urls as any)?.[0] || conversation.listing.image_url || "https://via.placeholder.com/64x64/f0f0f0/999999?text=No+Image") : "No listing"
-    });
+    // console.log("🔍 Listing data:", {
+    //   id: conversation.listing?.id,
+    //   name: conversation.listing?.name,
+    //   image_url: conversation.listing?.image_url,
+    //   image_urls: conversation.listing?.image_urls,
+    //   image_urls_type: typeof conversation.listing?.image_urls,
+    //   image_urls_length: Array.isArray(conversation.listing?.image_urls) ? conversation.listing.image_urls.length : "not array",
+    //   final_image: conversation.listing ? ((conversation.listing.image_urls as any)?.[0] || conversation.listing.image_url || "https://via.placeholder.com/64x64/f0f0f0/999999?text=No+Image") : "No listing"
+    // });
     
     // 🔍 调试：检查conversation是否有listing
-    console.log("🔍 Conversation has listing:", !!conversation.listing);
-    console.log("🔍 Conversation listing_id:", conversation.listing_id);
+    // console.log("🔍 Conversation has listing:", !!conversation.listing);
+    // console.log("🔍 Conversation listing_id:", conversation.listing_id);
     
     // 🔍 调试：查看conversation数据
-    console.log("🔍 Conversation data:", {
-      initiator_id: conversation.initiator_id,
-      participant_id: conversation.participant_id,
-      initiator_username: conversation.initiator.username,
-      participant_username: conversation.participant.username,
-      current_user_id: dbUser.id,
-      current_user_username: dbUser.username
-    });
+    // console.log("🔍 Conversation data:", {
+    //   initiator_id: conversation.initiator_id,
+    //   participant_id: conversation.participant_id,
+    //   initiator_username: conversation.initiator.username,
+    //   participant_username: conversation.participant.username,
+    //   current_user_id: dbUser.id,
+    //   current_user_username: dbUser.username
+    // });
     
     // 🔥 查询真实订单状态（如果有订单的话）
     let existingOrder = null;
@@ -305,9 +305,9 @@ export async function GET(
           },
           orderBy: { created_at: 'desc' }
         });
-        console.log("🔍 Found existing order:", existingOrder?.id, "Status:", existingOrder?.status);
-        console.log("🔍 Order buyer:", existingOrder?.buyer?.username, "seller:", existingOrder?.seller?.username);
-        console.log("🔍 Conversation initiator:", conversation.initiator.username, "participant:", conversation.participant.username);
+        // console.log("🔍 Found existing order:", existingOrder?.id, "Status:", existingOrder?.status);
+        // console.log("🔍 Order buyer:", existingOrder?.buyer?.username, "seller:", existingOrder?.seller?.username);
+        // console.log("🔍 Conversation initiator:", conversation.initiator.username, "participant:", conversation.participant.username);
 
         if (existingOrder) {
           const buyerId = Number(existingOrder.buyer_id);
