@@ -62,6 +62,37 @@ export async function POST(
       },
     });
 
+    // 同步累计到 listing_stats_daily（按UTC自然日聚合）
+    const now = new Date();
+    const yyyy = now.getUTCFullYear();
+    const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(now.getUTCDate()).padStart(2, "0");
+    const dayIso = `${yyyy}-${mm}-${dd}T00:00:00.000Z`;
+
+    await prisma.listing_stats_daily.upsert({
+      where: {
+        listing_id_date: {
+          listing_id: listingId,
+          date: new Date(dayIso),
+        },
+      },
+      update: {
+        views: {
+          increment: 1,
+        },
+        updated_at: new Date(),
+      },
+      create: {
+        listing_id: listingId,
+        date: new Date(dayIso),
+        views: 1,
+        likes: 0,
+        clicks: 0,
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+    });
+
     return NextResponse.json({
       success: true,
       message: "View recorded",

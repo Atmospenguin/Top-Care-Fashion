@@ -165,11 +165,40 @@ export default function BoostedListingScreen() {
     }
   };
 
-  const formatUplift = (percent: number) => {
-    if (!percent || percent <= 0) {
-      return "No uplift data";
+  const getUpliftDisplay = (percent: number | null | undefined) => {
+    if (percent === null || percent === undefined) {
+      return {
+        icon: "remove-outline" as const,
+        pillStyle: styles.upliftPillNeutral,
+        textStyle: styles.upliftTextNeutral,
+        text: "No uplift data yet",
+      };
     }
-    return `+${percent}% from boosting`;
+
+    if (percent > 0) {
+      return {
+        icon: "arrow-up" as const,
+        pillStyle: styles.upliftPillPositive,
+        textStyle: styles.upliftTextPositive,
+        text: `+${percent}% vs baseline`,
+      };
+    }
+
+    if (percent < 0) {
+      return {
+        icon: "arrow-down" as const,
+        pillStyle: styles.upliftPillNegative,
+        textStyle: styles.upliftTextNegative,
+        text: `${percent}% vs baseline`,
+      };
+    }
+
+    return {
+      icon: "remove-outline" as const,
+      pillStyle: styles.upliftPillNeutral,
+      textStyle: styles.upliftTextNeutral,
+      text: "No change vs baseline",
+    };
   };
 
   const buildStatusSubtitle = (item: BoostedListingSummary, isExpiredSection?: boolean) => {
@@ -263,20 +292,30 @@ export default function BoostedListingScreen() {
                   <Icon name="eye-outline" size={16} color="#111" />
                   <Text style={styles.metricText}>{item.views} views</Text>
                 </View>
-                <View style={styles.upliftPill}>
-                  <Icon name="arrow-up" size={14} color="#1f7a1f" />
-                  <Text style={styles.upliftText}>{formatUplift(item.viewUpliftPercent)}</Text>
-                </View>
+                {(() => {
+                  const viewUplift = getUpliftDisplay(item.viewUpliftPercent);
+                  return (
+                    <View style={[styles.upliftPillBase, viewUplift.pillStyle]}>
+                      <Icon name={viewUplift.icon} size={14} color={viewUplift.textStyle.color ?? "#1f7a1f"} />
+                      <Text style={[styles.upliftTextBase, viewUplift.textStyle]}>{viewUplift.text}</Text>
+                    </View>
+                  );
+                })()}
               </View>
               <View style={[styles.metricRow, { marginTop: 6 }]}>
                 <View style={styles.metricPill}>
                   <Icon name="push-outline" size={16} color="#111" />
                   <Text style={styles.metricText}>{item.clicks} clicks</Text>
                 </View>
-                <View style={styles.upliftPill}>
-                  <Icon name="arrow-up" size={14} color="#1f7a1f" />
-                  <Text style={styles.upliftText}>{formatUplift(item.clickUpliftPercent)}</Text>
-                </View>
+                {(() => {
+                  const clickUplift = getUpliftDisplay(item.clickUpliftPercent);
+                  return (
+                    <View style={[styles.upliftPillBase, clickUplift.pillStyle]}>
+                      <Icon name={clickUplift.icon} size={14} color={clickUplift.textStyle.color ?? "#1f7a1f"} />
+                      <Text style={[styles.upliftTextBase, clickUplift.textStyle]}>{clickUplift.text}</Text>
+                    </View>
+                  );
+                })()}
               </View>
             </View>
           </View>
@@ -356,16 +395,36 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
   },
   metricText: { color: "#111" },
-  upliftPill: {
+  upliftPillBase: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#DDF6DD",
+    borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 999,
   },
-  upliftText: { color: "#1f7a1f", fontWeight: "700", fontSize: 12 },
+  upliftPillPositive: {
+    backgroundColor: "#DDF6DD",
+  },
+  upliftPillNegative: {
+    backgroundColor: "#FDEAEA",
+  },
+  upliftPillNeutral: {
+    backgroundColor: "#F3F4F6",
+  },
+  upliftTextBase: {
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  upliftTextPositive: {
+    color: "#1f7a1f",
+  },
+  upliftTextNegative: {
+    color: "#b00020",
+  },
+  upliftTextNeutral: {
+    color: "#555",
+  },
   expiredSection: {
     paddingTop: 24,
     paddingBottom: 12,
