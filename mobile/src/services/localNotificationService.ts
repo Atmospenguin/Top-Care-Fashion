@@ -36,6 +36,7 @@ export interface AppNotificationData {
 // 已通知ID的存储键
 const NOTIFIED_MESSAGES_KEY = '@notified_message_ids';
 const NOTIFIED_NOTIFICATIONS_KEY = '@notified_notification_ids';
+const PUSH_NOTIFICATION_KEY = '@push_notifications_enabled';
 
 class LocalNotificationService {
   private notifiedMessageIds: Set<string> = new Set();
@@ -146,15 +147,36 @@ class LocalNotificationService {
   }
 
   /**
+   * 检查推送通知是否已启用
+   */
+  async isPushNotificationEnabled(): Promise<boolean> {
+    try {
+      const saved = await AsyncStorage.getItem(PUSH_NOTIFICATION_KEY);
+      // 默认为 true（如果从未设置过）
+      return saved === null || saved === 'true';
+    } catch (error) {
+      console.error('❌ Error checking push notification setting:', error);
+      return true; // 默认启用
+    }
+  }
+
+  /**
    * 显示新消息通知
    */
   async showMessageNotification(data: MessageNotificationData): Promise<void> {
     try {
       await this.initialize();
 
+      // 检查推送通知开关
+      const isEnabled = await this.isPushNotificationEnabled();
+      if (!isEnabled) {
+        console.log('⚠️ Push notifications disabled, skipping message notification');
+        return;
+      }
+
       // 检查是否已经通知过（使用conversationId + timestamp作为唯一标识）
       const notificationId = `msg_${data.conversationId}_${Date.now()}`;
-      
+
       // 显示通知
       await Notifications.scheduleNotificationAsync({
         content: {
@@ -184,6 +206,13 @@ class LocalNotificationService {
   async showNotification(data: AppNotificationData): Promise<void> {
     try {
       await this.initialize();
+
+      // 检查推送通知开关
+      const isEnabled = await this.isPushNotificationEnabled();
+      if (!isEnabled) {
+        console.log('⚠️ Push notifications disabled, skipping app notification');
+        return;
+      }
 
       // 检查是否已经通知过
       if (data.notificationId && this.notifiedNotificationIds.has(data.notificationId)) {

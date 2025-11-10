@@ -22,6 +22,28 @@ import { cartService, CartItem } from "../../../src/services";
 
 const BASE_DATE_ISO = new Date(0).toISOString();
 
+// Helper to format size label
+const formatSizeLabel = (value?: string | null) => {
+  if (!value || value === "Select" || value === "null") return "Not specified";
+  return value;
+};
+
+// Condition type mapping from database enum to display string
+const CONDITION_TYPE_MAP: Record<string, string> = {
+  "NEW": "Brand New",
+  "BRAND_NEW": "Brand New",
+  "LIKE_NEW": "Like New",
+  "GOOD": "Good",
+  "FAIR": "Fair",
+  "POOR": "Poor",
+};
+
+// Helper to format condition label
+const formatConditionLabel = (value?: string | null) => {
+  if (!value) return "Not specified";
+  return CONDITION_TYPE_MAP[value] || value;
+};
+
 // Helper to validate and convert gender string to Gender type
 const normalizeGender = (gender: string | undefined | null): Gender | null | undefined => {
   if (!gender) return undefined;
@@ -319,61 +341,79 @@ export default function BagScreen() {
               
               return (
                 <View key={`${listing.id}-${index}`} style={styles.itemRow}>
-                  <Image source={{ uri: listing.images[0] }} style={styles.itemImage} />
-                  <View style={styles.itemInfo}>
-                    <Text style={styles.itemTitle}>{listing.title}</Text>
-                    <Text style={styles.itemMeta}>
-                      Size {listing.size ?? "-"} | {listing.condition ?? "-"}
-                    </Text>
-                    <Text style={styles.itemPrice}>${typeof listing.price === 'number' ? listing.price.toFixed(2) : parseFloat(listing.price || '0').toFixed(2)}</Text>
-                  </View>
-                  <View style={styles.itemActions}>
-                    {/* 🔥 库存警告 */}
-                    {listing.availableQuantity !== undefined && (
-                      <>
-                        {listing.availableQuantity <= 0 ? (
-                          <Text style={styles.stockWarning}>Out of stock</Text>
-                        ) : listing.availableQuantity < quantity ? (
-                          <Text style={styles.stockWarning}>
-                            Only {listing.availableQuantity} left
-                          </Text>
-                        ) : null}
-                      </>
-                    )}
-                    
-                    {/* 🔥 数量选择器 + 删除按钮 */}
-                    <View style={styles.actionsRow}>
-                      <View style={styles.quantitySelector}>
-                        <TouchableOpacity
-                          style={[
-                            styles.quantityBtn,
-                            (!canModify || quantity <= 1) && styles.quantityBtnDisabled
-                          ]}
-                          disabled={!canModify || quantity <= 1}
-                          onPress={() => updateQuantity(cartId, quantity - 1)}
-                        >
-                          <Text style={styles.quantityBtnText}>−</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.quantityText}>{quantity}</Text>
-                        <TouchableOpacity
-                          style={[
-                            styles.quantityBtn,
-                            (!canModify || (listing.availableQuantity !== undefined && quantity >= listing.availableQuantity)) && styles.quantityBtnDisabled
-                          ]}
-                          disabled={!canModify || (listing.availableQuantity !== undefined && quantity >= listing.availableQuantity)}
-                          onPress={() => updateQuantity(cartId, quantity + 1)}
-                        >
-                          <Text style={styles.quantityBtnText}>+</Text>
-                        </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate("ListingDetail", { listingId: listing.id.toString() })}
+                    activeOpacity={0.7}
+                  >
+                    <Image source={{ uri: listing.images[0] }} style={styles.itemImage} />
+                  </TouchableOpacity>
+
+                  <View style={styles.itemContent}>
+                    {/* 标题行 - 跨越整个宽度，可点击 */}
+                    <TouchableOpacity
+                      onPress={() => navigation.navigate("ListingDetail", { listingId: listing.id.toString() })}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.itemTitle} numberOfLines={2}>{listing.title}</Text>
+                    </TouchableOpacity>
+
+                    {/* 底部信息行 */}
+                    <View style={styles.bottomRow}>
+                      <View style={styles.itemInfo}>
+                        <Text style={styles.itemMeta}>Size {formatSizeLabel(listing.size)}</Text>
+                        <Text style={styles.itemMeta}>{formatConditionLabel(listing.condition)}</Text>
+                        <Text style={styles.itemPrice}>${typeof listing.price === 'number' ? listing.price.toFixed(2) : parseFloat(listing.price || '0').toFixed(2)}</Text>
                       </View>
-                      
-                      <TouchableOpacity
-                        style={styles.removeBtn}
-                        disabled={!canModify}
-                        onPress={() => removeItem(cartId)}
-                      >
-                        <Icon name="trash-outline" size={16} color="#F54B3D" />
-                      </TouchableOpacity>
+
+                      <View style={styles.itemActions}>
+                        {/* 🔥 库存警告 */}
+                        {listing.availableQuantity !== undefined && (
+                          <>
+                            {listing.availableQuantity <= 0 ? (
+                              <Text style={styles.stockWarning}>Out of stock</Text>
+                            ) : listing.availableQuantity < quantity ? (
+                              <Text style={styles.stockWarning}>
+                                Only {listing.availableQuantity} left
+                              </Text>
+                            ) : null}
+                          </>
+                        )}
+
+                        {/* 🔥 数量选择器 + 删除按钮 */}
+                        <View style={styles.actionsRow}>
+                          <View style={styles.quantitySelector}>
+                            <TouchableOpacity
+                              style={[
+                                styles.quantityBtn,
+                                (!canModify || quantity <= 1) && styles.quantityBtnDisabled
+                              ]}
+                              disabled={!canModify || quantity <= 1}
+                              onPress={() => updateQuantity(cartId, quantity - 1)}
+                            >
+                              <Text style={styles.quantityBtnText}>−</Text>
+                            </TouchableOpacity>
+                            <Text style={styles.quantityText}>{quantity}</Text>
+                            <TouchableOpacity
+                              style={[
+                                styles.quantityBtn,
+                                (!canModify || (listing.availableQuantity !== undefined && quantity >= listing.availableQuantity)) && styles.quantityBtnDisabled
+                              ]}
+                              disabled={!canModify || (listing.availableQuantity !== undefined && quantity >= listing.availableQuantity)}
+                              onPress={() => updateQuantity(cartId, quantity + 1)}
+                            >
+                              <Text style={styles.quantityBtnText}>+</Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          <TouchableOpacity
+                            style={styles.removeBtn}
+                            disabled={!canModify}
+                            onPress={() => removeItem(cartId)}
+                          >
+                            <Icon name="trash-outline" size={16} color="#F54B3D" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
                     </View>
                   </View>
                 </View>
@@ -506,10 +546,35 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "#f4f4f4",
   },
-  itemInfo: { flex: 1, rowGap: 4 },
-  itemTitle: { fontSize: 15, fontWeight: "600" },
-  itemMeta: { fontSize: 13, color: "#666" },
-  itemPrice: { fontSize: 15, fontWeight: "700", marginTop: 4 },
+  itemContent: {
+    flex: 1,
+    rowGap: 6,
+  },
+  itemTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 20,
+    marginBottom: 2,
+  },
+  bottomRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
+  itemInfo: {
+    flex: 1,
+    rowGap: 2,
+  },
+  itemMeta: {
+    fontSize: 13,
+    color: "#666",
+    lineHeight: 18,
+  },
+  itemPrice: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginTop: 2,
+  },
   // 🔥 库存警告样式
   stockWarning: {
     fontSize: 11,
