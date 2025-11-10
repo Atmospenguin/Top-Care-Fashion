@@ -16,6 +16,10 @@ interface DashboardStats {
   revenueThisMonth: number;
   totalCommissionRevenue: number;
   commissionRevenueThisMonth: number;
+  totalBoostRevenue: number;
+  boostRevenueThisMonth: number;
+  paidPromotionsTotal: number;
+  paidPromotionsThisMonth: number;
   newUsersThisWeek: number;
   newListingsThisWeek: number;
   transactionsThisWeek: number;
@@ -196,10 +200,19 @@ export default function DashboardPage() {
             <div className="flex justify-between items-center pb-3 border-b">
               <div>
                 <div className="text-sm text-gray-600">Commission Revenue</div>
-                <div className="text-xs text-gray-500 mt-1">Platform earnings</div>
+                <div className="text-xs text-gray-500 mt-1">Platform earnings from sales</div>
               </div>
               <div className="text-xl font-bold text-orange-600">
                 ${stats.totalCommissionRevenue.toFixed(2)}
+              </div>
+            </div>
+            <div className="flex justify-between items-center pb-3 border-b">
+              <div>
+                <div className="text-sm text-gray-600">Boost Revenue</div>
+                <div className="text-xs text-gray-500 mt-1">From paid promotions ({stats.paidPromotionsTotal} boosts)</div>
+              </div>
+              <div className="text-xl font-bold text-purple-600">
+                ${stats.totalBoostRevenue.toFixed(2)}
               </div>
             </div>
             <div className="flex justify-between items-center pb-3 border-b">
@@ -211,26 +224,44 @@ export default function DashboardPage() {
                 ${stats.revenueThisMonth.toFixed(2)}
               </div>
             </div>
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center pb-3 border-b">
               <div>
                 <div className="text-sm text-gray-600">Commission This Month</div>
-                <div className="text-xs text-gray-500 mt-1">Current month earnings</div>
+                <div className="text-xs text-gray-500 mt-1">Current month commission earnings</div>
               </div>
               <div className="text-xl font-bold text-orange-600">
                 ${stats.commissionRevenueThisMonth.toFixed(2)}
               </div>
             </div>
+            <div className="flex justify-between items-center">
+              <div>
+                <div className="text-sm text-gray-600">Boost Revenue This Month</div>
+                <div className="text-xs text-gray-500 mt-1">Current month boost earnings ({stats.paidPromotionsThisMonth} boosts)</div>
+              </div>
+              <div className="text-xl font-bold text-purple-600">
+                ${stats.boostRevenueThisMonth.toFixed(2)}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Commission Stats */}
+        {/* Commission and Boost */}
         <div className="bg-white border rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4">Commission Stats</h3>
+          <h3 className="text-lg font-semibold mb-4">Commission and Boost</h3>
           <div className="space-y-4">
             <div className="flex justify-between items-center pb-3 border-b">
               <div>
-                <div className="text-sm text-gray-600">Total Commission</div>
-                <div className="text-xs text-gray-500 mt-1">Lifetime platform earnings</div>
+                <div className="text-sm text-gray-600">Total Platform Earnings</div>
+                <div className="text-xs text-gray-500 mt-1">Commission + Boost revenue</div>
+              </div>
+              <div className="text-xl font-bold text-blue-600">
+                ${(stats.totalCommissionRevenue + stats.totalBoostRevenue).toFixed(2)}
+              </div>
+            </div>
+            <div className="flex justify-between items-center pb-3 border-b">
+              <div>
+                <div className="text-sm text-gray-600">Commission Revenue</div>
+                <div className="text-xs text-gray-500 mt-1">From transaction fees</div>
               </div>
               <div className="text-xl font-bold text-orange-600">
                 ${stats.totalCommissionRevenue.toFixed(2)}
@@ -238,20 +269,32 @@ export default function DashboardPage() {
             </div>
             <div className="flex justify-between items-center pb-3 border-b">
               <div>
+                <div className="text-sm text-gray-600">Boost Revenue</div>
+                <div className="text-xs text-gray-500 mt-1">From paid promotions</div>
+              </div>
+              <div className="text-xl font-bold text-purple-600">
+                ${stats.totalBoostRevenue.toFixed(2)}
+              </div>
+            </div>
+            <div className="flex justify-between items-center pb-3 border-b">
+              <div>
                 <div className="text-sm text-gray-600">Effective Commission Rate</div>
                 <div className="text-xs text-gray-500 mt-1">Average rate across all sales</div>
               </div>
-              <div className="text-xl font-bold text-purple-600">
+              <div className="text-xl font-bold text-gray-600">
                 {(stats.totalRevenue > 0 ? (stats.totalCommissionRevenue / stats.totalRevenue) * 100 : 0).toFixed(2)}%
               </div>
             </div>
             <div className="flex justify-between items-center">
               <div>
-                <div className="text-sm text-gray-600">Total Seller Revenue</div>
-                <div className="text-xs text-gray-500 mt-1">Paid out to sellers</div>
+                <div className="text-sm text-gray-600">Revenue Mix</div>
+                <div className="text-xs text-gray-500 mt-1">Commission vs Boost split</div>
               </div>
-              <div className="text-xl font-bold text-green-600">
-                ${(stats.totalRevenue - stats.totalCommissionRevenue).toFixed(2)}
+              <div className="text-sm font-medium text-gray-700">
+                {stats.totalCommissionRevenue + stats.totalBoostRevenue > 0
+                  ? `${((stats.totalCommissionRevenue / (stats.totalCommissionRevenue + stats.totalBoostRevenue)) * 100).toFixed(0)}% / ${((stats.totalBoostRevenue / (stats.totalCommissionRevenue + stats.totalBoostRevenue)) * 100).toFixed(0)}%`
+                  : "0% / 0%"
+                }
               </div>
             </div>
           </div>

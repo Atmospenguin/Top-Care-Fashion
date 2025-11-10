@@ -208,6 +208,8 @@ export async function GET() {
       activePromotions,
       expiredPromotions,
       promotionsThisWeek,
+      paidPromotionsTotal,
+      paidPromotionsThisMonth,
     ] = await Promise.all([
       prisma.listing_promotions.count(),
       prisma.listing_promotions.count({
@@ -221,6 +223,15 @@ export async function GET() {
       }),
       prisma.listing_promotions.count({
         where: { created_at: { gte: startOfWeek } },
+      }),
+      prisma.listing_promotions.count({
+        where: { used_free_credit: false },
+      }),
+      prisma.listing_promotions.count({
+        where: {
+          used_free_credit: false,
+          created_at: { gte: startOfMonth },
+        },
       }),
     ]);
 
@@ -266,6 +277,11 @@ export async function GET() {
       take: 5,
     });
 
+    // Calculate boost revenue (assuming $9.99 per paid boost)
+    const BOOST_PRICE = 9.99;
+    const totalBoostRevenue = paidPromotionsTotal * BOOST_PRICE;
+    const boostRevenueThisMonth = paidPromotionsThisMonth * BOOST_PRICE;
+
     const stats = {
       totalUsers,
       activeUsers,
@@ -279,6 +295,10 @@ export async function GET() {
       revenueThisMonth,
       totalCommissionRevenue,
       commissionRevenueThisMonth,
+      totalBoostRevenue,
+      boostRevenueThisMonth,
+      paidPromotionsTotal,
+      paidPromotionsThisMonth,
       newUsersThisWeek,
       newListingsThisWeek,
       transactionsThisWeek,
