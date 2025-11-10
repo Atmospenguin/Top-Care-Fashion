@@ -6,11 +6,9 @@ import {
   Image,
   FlatList,
   TouchableOpacity,
-  Modal,
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { Picker } from "@react-native-picker/picker";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { MyTopStackParamList } from "./index";
@@ -37,9 +35,10 @@ type SoldFilter = "All" | "ToShip" | "InTransit" | "Completed" | "Cancelled";
 
 export default function SoldTab() {
   const [filter, setFilter] = useState<SoldFilter>("All");
-  const [modalVisible, setModalVisible] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [soldListings, setSoldListings] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const filterLabels: Record<string, string> = {
@@ -124,6 +123,15 @@ export default function SoldTab() {
     loadSoldListings();
   }, []);
 
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await loadSoldListings();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const normalizeOrderStatus = (status?: string | null) => {
     if (!status) return null;
     return status.toUpperCase();
@@ -165,8 +173,8 @@ export default function SoldTab() {
     const status = normalizeOrderStatus(listing.orderStatus);
 
     if (filter === "All") {
-      // "All" 不包含被取消的订单，只显示有效的销售记录
-      return status !== "CANCELLED";
+      // "All" 包含所有状态（包括取消）
+      return true;
     }
 
     if (!status) {
@@ -183,37 +191,42 @@ export default function SoldTab() {
       <View style={styles.filterRow}>
         <TouchableOpacity
           style={styles.filterBtn}
-          onPress={() => setModalVisible(true)}
+          onPress={() => setDropdownOpen((v) => !v)}
         >
           <Text style={{ fontSize: 16, fontWeight: '500' }}>{filterLabels[filter] ?? filter} ▼</Text>
         </TouchableOpacity>
-      </View>
 
-      {/* Filter modal */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Picker
-              selectedValue={filter}
-              onValueChange={(val) => {
-                setFilter(val);
-                setModalVisible(false);
-              }}
-            >
-              <Picker.Item label="All" value="All" />
-              <Picker.Item label="To Ship" value="ToShip" />
-              <Picker.Item label="In Transit" value="InTransit" />
-              <Picker.Item label="Completed" value="Completed" />
-              <Picker.Item label="Cancelled" value="Cancelled" />
-            </Picker>
-          </View>
-        </View>
-      </Modal>
+        {/* Floating dropdown anchored to the button */}
+        {dropdownOpen && (
+          <>
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => setDropdownOpen(false)}
+              style={styles.backdrop}
+            />
+            <View style={styles.dropdownFloating}>
+              {[
+                { label: "All", value: "All" as SoldFilter },
+                { label: "To Ship", value: "ToShip" as SoldFilter },
+                { label: "In Transit", value: "InTransit" as SoldFilter },
+                { label: "Completed", value: "Completed" as SoldFilter },
+                { label: "Cancelled", value: "Cancelled" as SoldFilter },
+              ].map(opt => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setFilter(opt.value);
+                    setDropdownOpen(false);
+                  }}
+                >
+                  <Text style={styles.dropdownItemText}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+      </View>
 
       {/* Loading state */}
       {loading && (
@@ -252,8 +265,10 @@ export default function SoldTab() {
       {!loading && !error && filtered.length > 0 && (
         <FlatList
           data={formatData(filtered, 3)}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={(item) => (item as any).empty ? `sold-blank-${(item as any).id}` : `sold-${String((item as any).orderId ?? item.id)}`}
           numColumns={3}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
           renderItem={({ item }) =>
             item.empty ? (
               <View style={[styles.item, styles.itemInvisible]} />
@@ -278,7 +293,12 @@ export default function SoldTab() {
                   style={styles.image} 
                 />
                 <View style={styles.overlay}>
-                  <Text style={styles.overlayText}>
+                  <Text
+                    style={styles.overlayText}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.6}
+                  >
                     {getOverlayText(item.orderStatus)}
                   </Text>
                 </View>
@@ -295,6 +315,8 @@ const styles = StyleSheet.create({
   filterRow: {
     paddingHorizontal: 16,
     paddingVertical: 8,
+    position: "relative",
+    zIndex: 10,
   },
   filterBtn: {
     fontSize: 16,
@@ -306,13 +328,37 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignSelf: "flex-start",
   },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.3)",
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    top: 0,
+    left: -16,
+    right: -16,
+    bottom: -8,
   },
-  modalBox: {
+  dropdownFloating: {
+    position: "absolute",
+    top: 44,
+    left: 16,
+    width: 200,
     backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    overflow: "hidden",
+    // Shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  dropdownItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    color: "#111",
   },
   centered: {
     flex: 1,

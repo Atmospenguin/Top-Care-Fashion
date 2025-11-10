@@ -78,8 +78,9 @@ export default function MyTopScreen() {
   const [activeTab, setActiveTab] = useState<TabKey>("Shop");
   const { width: screenWidth } = useWindowDimensions();
   const pagerRef = useRef<ScrollViewType>(null);
+  const didInitialLoadRef = useRef<boolean>(false);
 
-  const tabAnimationsRef = useRef<Record<TabKey, Animated.Value>>();
+  const tabAnimationsRef = useRef<Record<TabKey, Animated.Value> | null>(null);
   if (!tabAnimationsRef.current) {
     tabAnimationsRef.current = TAB_KEYS.reduce(
       (acc, key) => {
@@ -89,10 +90,10 @@ export default function MyTopScreen() {
       {} as Record<TabKey, Animated.Value>,
     );
   }
-  const tabAnimations = tabAnimationsRef.current;
+  const tabAnimations = tabAnimationsRef.current as Record<TabKey, Animated.Value>;
 
-  const [tabLayouts, setTabLayouts] = useState<Record<TabKey, { x: number; width: number }>>({});
-  const [tabTextWidths, setTabTextWidths] = useState<Record<TabKey, number>>({});
+  const [tabLayouts, setTabLayouts] = useState<Partial<Record<TabKey, { x: number; width: number }>>>({});
+  const [tabTextWidths, setTabTextWidths] = useState<Partial<Record<TabKey, number>>>({});
   const indicatorLeft = useRef(new Animated.Value(0)).current;
   const indicatorWidth = useRef(new Animated.Value(0)).current;
   const listRef = useRef<FlatList<any>>(null);
@@ -185,12 +186,7 @@ export default function MyTopScreen() {
       animated: true,
     });
 
-    if (activeTab === "Shop") {
-      requestAnimationFrame(() => {
-        listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
-      });
-      listOffsetRef.current = 0;
-    }
+    // Do not auto scroll to top on tab change; only do so on explicit tab re-press
   }, [activeTab, screenWidth]);
 
   const handlePagerMomentumEnd = useCallback(
@@ -201,18 +197,14 @@ export default function MyTopScreen() {
 
       if (targetTab !== activeTab) {
         setActiveTab(targetTab);
-      } else if (targetTab === "Shop") {
-        requestAnimationFrame(() => {
-          listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
-        });
-        listOffsetRef.current = 0;
       }
     },
     [activeTab, screenWidth],
   );
 
   // ✅ 添加真实数据状态
-  const [shopListings, setShopListings] = useState<ListingItem[]>([]);
+  const [activeListingsState, setActiveListingsState] = useState<ListingItem[]>([]);
+  const [inactiveListingsState, setInactiveListingsState] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -327,22 +319,42 @@ export default function MyTopScreen() {
 
       console.log("📖 Final API params:", params);
 
+      // When requesting "all" and it's NOT a load-more call, fetch active and unlisted separately
+      // so the Inactive section has real items even if the backend doesn't return them in "all".
+      if (status === 'all' && !isLoadMore) {
+        const [activeRes, inactiveRes] = await Promise.all([
+          listingsService.getUserListings({ ...params, status: 'active' }),
+          listingsService.getUserListings({ ...params, status: 'unlisted', offset: 0 }), // no pagination for inactive
+        ]);
+        const activeList = activeRes.listings ?? [];
+        const inactiveList = inactiveRes.listings ?? [];
+        // Combine for local filtering; UI splits them again by listed flag
+        setActiveListingsState(activeList);
+        setInactiveListingsState(inactiveList);
+        // Update totals from responses to avoid relying on default PAGE_SIZE behavior
+        if (typeof activeRes.total === 'number') setActiveTotalCount(activeRes.total);
+        if (typeof inactiveRes.total === 'number') setInactiveTotalCount(inactiveRes.total);
+        // Pagination only applies to active items
+        setHasMore(activeList.length === PAGE_SIZE);
+        setOffset(PAGE_SIZE);
+        console.log(`✅ Loaded ${activeList.length} active and ${inactiveList.length} inactive listings`);
+        return;
+      }
+
       const { listings, total } = await listingsService.getUserListings(params);
 
-      if (status === 'all' || status === 'active' || status === 'unlisted') {
+      if (status === 'active' || status === 'all') {
         if (isLoadMore) {
-          // Append new items
-          setShopListings(prev => [...prev, ...listings]);
+          setActiveListingsState(prev => [...prev, ...listings]);
+          setOffset(currentOffset + PAGE_SIZE);
         } else {
-          // Replace with new items
-          setShopListings(listings);
+          setActiveListingsState(listings);
+          setOffset(PAGE_SIZE);
         }
-
-        // Update pagination state
-        // Note: When status='all', total includes both active and inactive
-        // We'll fetch separate counts for display
         setHasMore(listings.length === PAGE_SIZE);
-        setOffset(isLoadMore ? currentOffset + PAGE_SIZE : PAGE_SIZE);
+      } else if (status === 'unlisted') {
+        // Unlisted listings are not paginated in the UI
+        setInactiveListingsState(listings);
       }
 
       console.log(`✅ Loaded ${listings.length} ${status} listings, total: ${total}`);
@@ -359,7 +371,7 @@ export default function MyTopScreen() {
       // Fetch active count (use PAGE_SIZE to get correct total from backend)
       const activeResult = await listingsService.getUserListings({
         status: 'active',
-        limit: PAGE_SIZE,
+        limit: 1,
         offset: 0,
         ...filters,
       });
@@ -368,7 +380,7 @@ export default function MyTopScreen() {
       // Fetch inactive count (use PAGE_SIZE to get correct total from backend)
       const inactiveResult = await listingsService.getUserListings({
         status: 'unlisted',
-        limit: PAGE_SIZE,
+        limit: 1,
         offset: 0,
         ...filters,
       });
@@ -536,7 +548,7 @@ export default function MyTopScreen() {
         filters.sortBy = "price_high_to_low";
       }
 
-      await fetchUserListings('all', filters, true);
+      await fetchUserListings('active', filters, true);
     } catch (error) {
       console.error('Error loading more listings:', error);
     } finally {
@@ -576,6 +588,12 @@ export default function MyTopScreen() {
   const onRefresh = useCallback(() => refreshAll({ useSpinner: true }), [refreshAll]);
 
   // （移除初次挂载时的重复加载，统一在获得焦点时刷新）
+  // 首次挂载时，采用与 refresh 相同的加载路径（但不显示下拉指示器）
+  useEffect(() => {
+    if (didInitialLoadRef.current) return;
+    didInitialLoadRef.current = true;
+    refreshAll({ useSpinner: false });
+  }, [refreshAll]);
 
   // 为 Tab 单击滚动到顶部提供支持
   useScrollToTop(listRef);
@@ -656,10 +674,7 @@ export default function MyTopScreen() {
         navigation.setParams({ refreshTS: undefined });
       }
 
-      // 若不是显式请求，则进行一次静默刷新，避免页面进入时自动"下拉"
-      if (!didRefresh) {
-        refreshAll({ useSpinner: false });
-      }
+      // 不进行静默刷新：避免从其他 Tab 聚焦回来时自动刷新
       return () => { isActive = false; };
     }, [navigation, refreshAll, route.params])
   );
@@ -680,14 +695,8 @@ export default function MyTopScreen() {
   }, [navigation, route.params?.brandPickerRequest]);
 
   // ✅ 使用真实用户数据，提供默认值以防用户数据为空
-  const activeListings = useMemo(
-    () => shopListings.filter((listing) => listing.listed !== false),
-    [shopListings]
-  );
-  const inactiveListings = useMemo(
-    () => shopListings.filter((listing) => listing.listed === false),
-    [shopListings]
-  );
+  const activeListings = useMemo(() => activeListingsState, [activeListingsState]);
+  const inactiveListings = useMemo(() => inactiveListingsState, [inactiveListingsState]);
 
   // Use backend total count instead of loaded count
   const listedCount = activeTotalCount > 0 ? activeTotalCount : activeListings.length;
@@ -802,7 +811,7 @@ export default function MyTopScreen() {
                     ? formatData(displayUser.activeListings, 3)
                     : []
                 }
-                keyExtractor={(item) => String(item.id)}
+                keyExtractor={(item) => (item as any).empty ? `active-blank-${(item as any).id}` : `active-${String((item as ListingItem).id)}`}
                 numColumns={3}
                 showsVerticalScrollIndicator={false}
                 refreshing={refreshing}
@@ -928,7 +937,7 @@ export default function MyTopScreen() {
                         </Text>
                         <FlatList
                           data={formatData(inactiveListings, 3)}
-                          keyExtractor={(item) => String(item.id)}
+                          keyExtractor={(item) => (item as any).empty ? `inactive-blank-${(item as any).id}` : `inactive-${String((item as ListingItem).id)}`}
                           numColumns={3}
                           scrollEnabled={false}
                           contentContainerStyle={styles.inactiveListContent}
@@ -948,7 +957,14 @@ export default function MyTopScreen() {
                               >
                                 <Image source={{ uri: imageUri }} style={styles.itemImage} />
                                 <View style={styles.unlistedOverlay}>
-                                  <Text style={styles.unlistedOverlayText}>UNLISTED</Text>
+                                  <Text
+                                    style={styles.unlistedOverlayText}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.6}
+                                  >
+                                    UNLISTED
+                                  </Text>
                                 </View>
                               </TouchableOpacity>
                             );
@@ -1241,12 +1257,13 @@ const styles = StyleSheet.create({
   },
   inactiveSection: {
     marginTop: 16,
-    paddingHorizontal: 12,
+    paddingHorizontal: 0,
   },
   inactiveTitle: {
     fontSize: 17,
     fontWeight: "700",
     marginBottom: 8,
+    paddingHorizontal: 12,
   },
   inactiveListContent: {
     paddingBottom: 16,
