@@ -163,6 +163,13 @@ export async function POST(req: Request) {
 
     const categoryId = await resolveCategoryId(category);
 
+    const resolvedGenderValue = resolveGender(gender);
+    console.log("📝 Gender resolution result:", {
+      input: gender,
+      resolved: resolvedGenderValue,
+      type: typeof resolvedGenderValue
+    });
+
     console.log("📝 Creating listing with mapped data:", {
       name: title,
       condition_type: mapConditionToEnum(condition),
@@ -192,7 +199,7 @@ export async function POST(req: Request) {
         material: material || null,
         tags: tags || Prisma.JsonNull,
     category_id: categoryId,
-    gender: resolveGender(gender),
+    gender: resolvedGenderValue,
         seller_id: sessionUser.id,
         image_urls: images || Prisma.JsonNull,
         listed: true,
@@ -220,6 +227,12 @@ export async function POST(req: Request) {
           },
         },
       },
+    });
+
+    console.log("✅ Listing created in database with ID:", listing.id);
+    console.log("✅ Gender stored in database:", {
+      gender: (listing as any).gender,
+      type: typeof (listing as any).gender
     });
 
     const mapSizeToDisplay = (sizeValue: string | null): string | null => {
@@ -287,12 +300,7 @@ export async function POST(req: Request) {
         location: (listing as any).location ?? null,
         likesCount: (listing as any).likes_count ?? 0,
         availableQuantity: (listing as any).inventory_count ?? numericQuantity, // 🔥 当前库存数量（stock）
-        gender: (() => {
-          const value = (listing as any).gender;
-          if (!value || typeof value !== "string") return "Unisex";
-          const lower = value.toLowerCase();
-          return lower.charAt(0).toUpperCase() + lower.slice(1);
-        })(),
+        gender: (listing as any).gender || null,
         seller: {
           name: listing.seller?.username || "Unknown",
           avatar: listing.seller?.avatar_url || "",
@@ -315,24 +323,33 @@ export async function POST(req: Request) {
 }
 
 function resolveGender(input: unknown): "Men" | "Women" | "Unisex" {
+  console.log("🔍 resolveGender called with:", { input, type: typeof input });
+
   if (typeof input !== "string") {
+    console.log("🔍 resolveGender: not a string, returning Unisex enum");
     return "Unisex";
   }
 
   const normalized = input.trim().toLowerCase();
+  console.log("🔍 resolveGender normalized:", normalized);
+
   switch (normalized) {
     case "men":
     case "male":
+      console.log("🔍 resolveGender: matched Men enum");
       return "Men";
     case "women":
     case "female":
+      console.log("🔍 resolveGender: matched Women enum");
       return "Women";
     case "unisex":
     case "uni":
     case "all":
-      return "Unisex";
+      console.log("🔍 resolveGender: matched Unisex enum");
+      return "Unisex"; // Return "Unisex" enum value, not null
     default:
-      return "Unisex";
+      console.log("🔍 resolveGender: no match, defaulting to Unisex enum");
+      return "Unisex"; // Default to Unisex enum
   }
 }
 

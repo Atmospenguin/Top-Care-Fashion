@@ -184,7 +184,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       size: mapSizeToDisplay(listing.size),
       condition: mapConditionToDisplay(listing.condition_type),
       material: listing.material,
-      gender: (listing as any).gender || "unisex",
+      gender: (listing as any).gender || null,
       tags,
       category: listing.category?.name,
       images,
@@ -292,10 +292,12 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (body.condition !== undefined) updateData.condition_type = mapConditionToEnum(body.condition);
     if (body.material !== undefined) updateData.material = body.material;
     if (body.gender !== undefined) {
+      console.log("📝 Gender field received:", { raw: body.gender, type: typeof body.gender });
       const resolvedGender = mapGenderToEnum(body.gender);
-      if (resolvedGender) {
-        updateData.gender = resolvedGender;
-      }
+      console.log("📝 Gender after mapping:", { resolved: resolvedGender });
+      // Always update gender field. If invalid input, default to Unisex enum
+      updateData.gender = resolvedGender || "Unisex";
+      console.log("📝 Gender to be saved:", updateData.gender);
     }
     // Prisma expects Json type fields as JavaScript arrays/objects, not JSON strings
     if (body.tags !== undefined) updateData.tags = body.tags;
@@ -338,6 +340,11 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     updateData.updated_at = new Date();
 
     console.log("📝 Update data prepared:", JSON.stringify(updateData, null, 2));
+    console.log("📝 Gender in updateData:", {
+      gender: updateData.gender,
+      type: typeof updateData.gender,
+      hasGender: 'gender' in updateData
+    });
 
     const updatedListing = await prisma.listings.update({
       where: { id: listingId },
@@ -363,6 +370,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     });
 
     console.log("✅ Listing updated successfully:", updatedListing.id);
+    console.log("✅ Gender in database after update:", {
+      gender: (updatedListing as any).gender,
+      type: typeof (updatedListing as any).gender
+    });
 
     const images = (() => {
       const parsed = parseJsonArray(updatedListing.image_urls);
@@ -386,7 +397,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       size: mapSizeToDisplay(updatedListing.size),
       condition: mapConditionToDisplay(updatedListing.condition_type),
       material: updatedListing.material,
-      gender: (updatedListing as any).gender || "unisex",
+      gender: (updatedListing as any).gender || null,
       tags,
       category: updatedListing.category?.name || "Unknown",
       images,
