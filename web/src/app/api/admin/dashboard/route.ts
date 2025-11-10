@@ -224,6 +224,42 @@ export async function GET() {
       }),
     ]);
 
+    // Calculate boost revenue from paid_amount field
+    const boostRevenueStats = await prisma.listing_promotions.aggregate({
+      _sum: {
+        paid_amount: true,
+      },
+      _count: {
+        id: true,
+      },
+      where: {
+        paid_amount: { gt: 0 },
+      },
+    });
+
+    const boostRevenueThisMonthStats = await prisma.listing_promotions.aggregate({
+      _sum: {
+        paid_amount: true,
+      },
+      _count: {
+        id: true,
+      },
+      where: {
+        paid_amount: { gt: 0 },
+        created_at: { gte: startOfMonth },
+      },
+    });
+
+    const totalBoostRevenue = boostRevenueStats._sum.paid_amount
+      ? Number(boostRevenueStats._sum.paid_amount)
+      : 0;
+    const paidPromotionsTotal = boostRevenueStats._count.id;
+
+    const boostRevenueThisMonth = boostRevenueThisMonthStats._sum.paid_amount
+      ? Number(boostRevenueThisMonthStats._sum.paid_amount)
+      : 0;
+    const paidPromotionsThisMonth = boostRevenueThisMonthStats._count.id;
+
     // Get promotion performance stats
     const promotionPerformance = await prisma.listing_promotions.aggregate({
       where: {
@@ -279,6 +315,10 @@ export async function GET() {
       revenueThisMonth,
       totalCommissionRevenue,
       commissionRevenueThisMonth,
+      totalBoostRevenue,
+      boostRevenueThisMonth,
+      paidPromotionsTotal,
+      paidPromotionsThisMonth,
       newUsersThisWeek,
       newListingsThisWeek,
       transactionsThisWeek,

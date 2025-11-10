@@ -319,21 +319,26 @@ export default function ManageListingScreen() {
             style={styles.thumb} 
           />
           <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
+              <Text style={[styles.topTitle, { flex: 1, marginRight: 8 }]} numberOfLines={2} ellipsizeMode="tail">
+                {listing.title}
+              </Text>
+              <View style={styles.statusRow}>
+                <View style={[styles.statusBadge, statusBadgeStyle]}>
+                  <Text style={[styles.statusBadgeText, statusTextStyle]}>{statusLabel}</Text>
+                </View>
+                {updatingListed && (
+                  <ActivityIndicator
+                    size="small"
+                    color="#6b6b6b"
+                    style={{ marginLeft: 8 }}
+                  />
+                )}
+              </View>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
               <Text style={styles.topPrice}>${listing.price}</Text>
               <Icon name="create-outline" size={16} color="#6b6b6b" />
-            </View>
-            <View style={styles.statusRow}>
-              <View style={[styles.statusBadge, statusBadgeStyle]}>
-                <Text style={[styles.statusBadgeText, statusTextStyle]}>{statusLabel}</Text>
-              </View>
-              {updatingListed && (
-                <ActivityIndicator
-                  size="small"
-                  color="#6b6b6b"
-                  style={{ marginLeft: 8 }}
-                />
-              )}
             </View>
             {/* 🔥 显示库存数量 */}
             {listing.availableQuantity !== undefined && (
@@ -378,12 +383,17 @@ export default function ManageListingScreen() {
           ) : boostInfo ? (
             <View>
               <View style={styles.boostMetaRow}>
-                {typeof boostInfo.views === "number" && boostInfo.views > 0 && (
-                  <Text style={styles.boostMetaText}>Views {boostInfo.views}</Text>
-                )}
-                {typeof boostInfo.clicks === "number" && boostInfo.clicks > 0 && (
-                  <Text style={styles.boostMetaText}>Clicks {boostInfo.clicks}</Text>
-                )}
+                <View style={styles.boostMetaLeft}>
+                  {typeof boostInfo.views === "number" && boostInfo.views > 0 && (
+                    <Text style={styles.boostMetaText}>Views {boostInfo.views}</Text>
+                  )}
+                  {typeof boostInfo.clicks === "number" && boostInfo.clicks > 0 && (
+                    <Text style={styles.boostMetaText}>Clicks {boostInfo.clicks}</Text>
+                  )}
+                </View>
+                <TouchableOpacity onPress={handleOpenPromotionPlans}>
+                  <Text style={styles.promoLink}>Manage Boost</Text>
+                </TouchableOpacity>
               </View>
 
               {/* Uplift Stats */}
@@ -431,19 +441,18 @@ export default function ManageListingScreen() {
               )}
             </View>
           ) : (
-            <Text style={styles.promoSubtitle}>
-              Boost to push your listing to more shoppers and increase visibility.
-            </Text>
+            <View>
+              <Text style={styles.promoSubtitle}>
+                Boost to push your listing to more shoppers and increase visibility.
+              </Text>
+              <TouchableOpacity
+                style={styles.promoLinkWrapper}
+                onPress={handleOpenPromotionPlans}
+              >
+                <Text style={styles.promoLink}>Click To Get Boost</Text>
+              </TouchableOpacity>
+            </View>
           )}
-
-          <TouchableOpacity
-            style={styles.promoLinkWrapper}
-            onPress={handleOpenPromotionPlans}
-          >
-            <Text style={styles.promoLink}>
-              {boostInfo ? "Manage Boost Options" : "Click To Get Boost"}
-            </Text>
-          </TouchableOpacity>
         </View>
 
         {/* Performance */}
@@ -572,6 +581,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   thumb: { width: 56, height: 56, borderRadius: 8, backgroundColor: "#eee" },
+  topTitle: { fontSize: 15, fontWeight: "600", color: "#111", marginBottom: 2 },
   topPrice: { fontSize: 18, fontWeight: "700", color: "#111", marginRight: 6 },
   stockText: { 
     marginTop: 4, 
@@ -581,7 +591,6 @@ const styles = StyleSheet.create({
   }, // 🔥 库存文本样式
   previewText: { marginTop: 4, color: "#6b6b6b" },
   statusRow: {
-    marginTop: 6,
     flexDirection: "row",
     alignItems: "center",
     columnGap: 6,
@@ -620,6 +629,13 @@ const styles = StyleSheet.create({
   promoLoadingText: { marginTop: 6, color: "#666", fontSize: 13 },
   boostMetaRow: {
     marginTop: 6,
+    marginLeft: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    columnGap: 12,
+  },
+  boostMetaLeft: {
     flexDirection: "row",
     flexWrap: "wrap",
     columnGap: 12,

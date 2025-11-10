@@ -89,20 +89,29 @@ export async function POST(req: NextRequest) {
         AND date <= ${baselineEnd.toISOString().split('T')[0]}::date
     `;
 
-    const baselineViews = Number(baselineStats[0]?.total_views || 0);
-    const baselineClicks = Number(baselineStats[0]?.total_clicks || 0);
+    const baselineViewsRaw = Number(baselineStats[0]?.total_views || 0);
+    const baselineClicksRaw = Number(baselineStats[0]?.total_clicks || 0);
 
     // Current boost stats
     const boostViews = promotion.views;
     const boostClicks = promotion.clicks;
 
-    // Calculate daily averages
-    const boostDailyViews = boostViews / boostDays;
-    const baselineDailyViews = baselineViews / boostDays;
+    // Apply baseline floors
+    const flooredBaselineViews = Math.max(baselineViewsRaw, boostDays);
+    const baselineDailyViews = Math.max(1, flooredBaselineViews / boostDays);
+    const boostDailyViews = boostDays > 0 ? boostViews / boostDays : boostViews;
+
+    const flooredBaselineClicks = Math.max(baselineClicksRaw, 0);
 
     // Calculate CTRs (as percentages)
     const boostCtr = boostViews > 0 ? (boostClicks / boostViews) * 100 : 0;
-    const baselineCtr = baselineViews > 0 ? (baselineClicks / baselineViews) * 100 : 0;
+    let baselineCtr =
+      flooredBaselineViews > 0
+        ? (flooredBaselineClicks / flooredBaselineViews) * 100
+        : 0;
+    if (baselineCtr <= 0 && flooredBaselineClicks > 0) {
+      baselineCtr = 1;
+    }
 
     // Calculate uplift percentages
     let viewUpliftPercent = 0;
@@ -148,8 +157,8 @@ export async function POST(req: NextRequest) {
         start: baselineStart.toISOString(),
         end: baselineEnd.toISOString(),
         days: boostDays,
-        views: baselineViews,
-        clicks: baselineClicks,
+        views: baselineViewsRaw,
+        clicks: baselineClicksRaw,
         ctr: parseFloat(baselineCtr.toFixed(2)),
       },
       uplift: {
