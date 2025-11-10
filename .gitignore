@@ -17,3 +17,4 @@ yarn-error.log*
 docs/vercel_supabase_credentials
 .vercel
 .claude/settings.local.json
+.vscode/settings.json

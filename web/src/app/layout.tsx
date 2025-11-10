@@ -11,10 +11,38 @@ const geistSans = GeistSans;
 const geistMono = GeistMono;
 
 export const metadata: Metadata = {
-  title: "Top Care Fashion",
-  description: "Prototype – Landing, Register, Marketplace",
+  title: {
+    default: "Top Care Fashion",
+    template: "%s | Top Care Fashion"
+  },
+  description: "Discover your perfect style with Top Care Fashion - Your personal AI-powered fashion companion for outfit recommendations and style inspiration",
+  keywords: ["fashion", "clothing", "style", "outfit", "wardrobe", "AI fashion", "fashion recommendation"],
+  authors: [{ name: "Top Care Fashion Team" }],
+  creator: "Top Care Fashion",
+  publisher: "Top Care Fashion",
   icons: {
     icon: "/icon_14radius.svg",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    siteName: "Top Care Fashion",
+    title: "Top Care Fashion",
+    description: "Your personal AI-powered fashion companion for outfit recommendations and style inspiration",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Top Care Fashion",
+    description: "Your personal AI-powered fashion companion for outfit recommendations and style inspiration",
+  },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 5,
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 

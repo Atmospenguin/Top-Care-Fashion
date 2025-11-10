@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef, forwardRef, u
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, Image, RefreshControl, FlatList,
+  Platform,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -273,7 +274,7 @@ const FeedList = forwardRef<FeedListRef, FeedListProps>(({ mode, onScroll }, ref
   const contentStyle = useMemo(
     () => ({
       ...styles.gridContainer,
-      paddingTop: insets.top + 60 + 16, // Safe area top + top bar height (60) + extra margin (16)
+      paddingTop: insets.top + (Platform.OS === "ios" ? 50 : 50), // Safe area top + top bar height (iOS: 52, Android: 60) + extra margin (16)
     }),
     [insets.top]
   );
