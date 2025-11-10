@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServer } from "@/lib/supabase";
+import { ensurePublicBucket } from "./helpers";
 
 export const runtime = "nodejs";
 
@@ -9,16 +10,6 @@ function env(name: string) {
   const v = process.env[name];
   if (!v || !v.trim()) throw new Error(`${name} is required`);
   return v;
-}
-
-async function ensurePublicBucket(supabase: any, bucket: string) {
-  const { error: createErr } = await supabase.storage.createBucket(bucket, { public: true });
-  if (createErr && !String(createErr.message || "").toLowerCase().includes("already exists")) {
-    const { error: updateErr } = await supabase.storage.updateBucket(bucket, { public: true });
-    if (updateErr) {
-      console.warn(`Could not ensure bucket ${bucket} is public:`, updateErr);
-    }
-  }
 }
 
 // GET - List all releases
@@ -45,7 +36,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST - Upload new release
+// POST - Finalize release after file upload
 export async function POST(req: NextRequest) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -54,41 +45,41 @@ export async function POST(req: NextRequest) {
     const supabaseUrl = env("NEXT_PUBLIC_SUPABASE_URL");
     const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
     const supabaseAdmin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
-    
-    const form = await req.formData();
-    const file = form.get("file");
-    const version = form.get("version") as string;
-    const releaseNotes = form.get("releaseNotes") as string;
-    const setAsCurrent = form.get("setAsCurrent") === "true";
-    const platform = "android";
 
-    if (!(file instanceof File)) {
-      return NextResponse.json({ error: "File is required" }, { status: 400 });
+    const body = await req.json().catch(() => ({}));
+    const {
+      version,
+      releaseNotes,
+      setAsCurrent,
+      path,
+      fileName,
+      fileSize,
+      platform: rawPlatform,
+    } = body ?? {};
+
+    const platform = typeof rawPlatform === "string" && rawPlatform.trim() ? rawPlatform.trim() : "android";
+    if (!path || typeof path !== "string") {
+      return NextResponse.json({ error: "File path is required" }, { status: 400 });
+    }
+    if (!fileName || typeof fileName !== "string") {
+      return NextResponse.json({ error: "File name is required" }, { status: 400 });
+    }
+    const numericFileSize = Number(fileSize);
+    if (!Number.isFinite(numericFileSize) || numericFileSize <= 0) {
+      return NextResponse.json({ error: "File size must be a positive number" }, { status: 400 });
+    }
+    if (!version || typeof version !== "string" || !version.trim()) {
+      return NextResponse.json({ error: "Version is required" }, { status: 400 });
     }
 
-    if (!version) {
-      return NextResponse.json({ error: "Version is required" }, { status: 400 });
+    const normalizedVersion = version.trim();
+
+    if (!path.startsWith(`${platform}/`)) {
+      return NextResponse.json({ error: "Invalid file path for selected platform" }, { status: 400 });
     }
 
     const bucket = "releases";
     await ensurePublicBucket(supabaseAdmin, bucket);
-
-    // Upload file to storage
-    const fileName = file.name;
-    const path = `${platform}/${version}/${fileName}`;
-    const arrayBuf = await file.arrayBuffer();
-    
-    const { error: upErr } = await supabaseAdmin.storage
-      .from(bucket)
-      .upload(path, Buffer.from(arrayBuf), {
-        contentType: file.type || "application/octet-stream",
-        upsert: false,
-      });
-
-    if (upErr) {
-      console.error("Upload error:", upErr);
-      return NextResponse.json({ error: `Upload failed: ${upErr.message}` }, { status: 500 });
-    }
 
     const { data } = supabaseAdmin.storage.from(bucket).getPublicUrl(path);
     const fileUrl = data.publicUrl;
@@ -107,13 +98,13 @@ export async function POST(req: NextRequest) {
     const { data: release, error: dbError } = await supabase
       .from("releases")
       .insert({
-        version,
+        version: normalizedVersion,
         platform,
         file_url: fileUrl,
         file_name: fileName,
-        file_size: file.size,
-        release_notes: releaseNotes || null,
-        is_current: setAsCurrent,
+        file_size: Math.round(numericFileSize),
+        release_notes: typeof releaseNotes === "string" && releaseNotes.trim() ? releaseNotes : null,
+        is_current: Boolean(setAsCurrent),
       })
       .select()
       .single();

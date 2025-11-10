@@ -1,7 +1,9 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import FeatureCardManager, { FeatureCard } from "@/components/admin/FeatureCardManager";
 import AssetLibraryManager from "../../../components/admin/AssetLibraryManager";
+import { createSupabaseBrowser } from "@/lib/supabase.browser";
 
 interface SiteStats {
   users: number;
@@ -95,6 +97,14 @@ export default function ContentManagementPage() {
   const [newTag, setNewTag] = useState("");
   const [addingTag, setAddingTag] = useState(false);
   const [deletingTag, setDeletingTag] = useState<string | null>(null);
+  const supabase = useMemo(() => {
+    try {
+      return createSupabaseBrowser();
+    } catch (error) {
+      console.error("Failed to initialize Supabase browser client:", error);
+      return null;
+    }
+  }, []);
   const filteredFeedbacks = useMemo(() => {
     const term = feedbackQuery.trim().toLowerCase();
     if (!term) return feedbacks;
@@ -339,26 +349,95 @@ export default function ContentManagementPage() {
     }
   }
 
-  async function uploadRelease(e: React.FormEvent<HTMLFormElement>) {
+  async function uploadRelease(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     const formData = new FormData(form);
-    
+
+    if (!supabase) {
+      alert("Supabase client is not configured. Please check environment settings.");
+      return;
+    }
+
+    const fileEntry = formData.get("file");
+    if (!(fileEntry instanceof File)) {
+      alert("Please select an .apk file to upload.");
+      return;
+    }
+    if (fileEntry.size === 0) {
+      alert("Selected file is empty.");
+      return;
+    }
+
+    const versionEntry = formData.get("version");
+    const version = typeof versionEntry === "string" ? versionEntry.trim() : "";
+    if (!version) {
+      alert("Version is required.");
+      return;
+    }
+
+    const releaseNotesEntry = formData.get("releaseNotes");
+    const releaseNotes = typeof releaseNotesEntry === "string" ? releaseNotesEntry : "";
+    const setAsCurrent = formData.get("setAsCurrent") === "true";
+
     try {
       setUploadingRelease(true);
-      const response = await fetch("/api/admin/releases", {
+      const presignResponse = await fetch("/api/admin/releases/presign", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: fileEntry.name,
+          fileType: fileEntry.type,
+          version,
+          platform: "android",
+        }),
       });
-      
-      if (response.ok) {
-        alert("Release uploaded successfully!");
-        form.reset();
-        fetchData();
-      } else {
-        const data = await response.json().catch(() => null);
-        alert(data?.error || "Failed to upload release");
+
+      if (!presignResponse.ok) {
+        const data = await presignResponse.json().catch(() => null);
+        alert(data?.error || "Failed to prepare upload");
+        return;
       }
+
+      const presignData: { bucket: string; path: string; token: string } = await presignResponse.json();
+      if (!presignData?.bucket || !presignData?.path || !presignData?.token) {
+        alert("Invalid upload configuration received.");
+        return;
+      }
+
+      const { error: uploadError } = await supabase.storage
+        .from(presignData.bucket)
+        .uploadToSignedUrl(presignData.path, presignData.token, fileEntry);
+
+      if (uploadError) {
+        console.error("Supabase signed upload failed:", uploadError);
+        alert(uploadError.message || "Failed to upload file to storage");
+        return;
+      }
+
+      const finalizeResponse = await fetch("/api/admin/releases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          version,
+          releaseNotes,
+          setAsCurrent,
+          path: presignData.path,
+          fileName: fileEntry.name,
+          fileSize: fileEntry.size,
+          platform: "android",
+        }),
+      });
+
+      if (!finalizeResponse.ok) {
+        const data = await finalizeResponse.json().catch(() => null);
+        alert(data?.error || "Failed to save release");
+        return;
+      }
+
+      alert("Release uploaded successfully!");
+      form.reset();
+      fetchData();
     } catch (error) {
       console.error("Error uploading release:", error);
       alert("Failed to upload release");
