@@ -78,9 +78,10 @@ export default function HomeScreen() {
     prevScrollY.current = offset;
   };
 
-  // Calculate exact top bar height: paddingVertical(8*2) + text(~20) + border(1) + tabIndicator(3+6) + some margin
-  const TOP_BAR_HEIGHT = 63;
-  const TOTAL_HIDE_DISTANCE = TOP_BAR_HEIGHT + insets.top; // Hide completely above notch
+  // Calculate exact top bar height: paddingTop(insets.top) + paddingVertical(8*2) + text(~20) + border(1) + tabIndicator(3+6) + some margin
+  const TOP_BAR_CONTENT_HEIGHT = 63;
+  const TOTAL_BAR_HEIGHT = TOP_BAR_CONTENT_HEIGHT + insets.top;
+  const TOTAL_HIDE_DISTANCE = TOTAL_BAR_HEIGHT; // Hide completely above notch
 
   const topBarTranslateY = scrollY.interpolate({
     inputRange: [0, 1],
@@ -119,26 +120,13 @@ export default function HomeScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <View style={{ flex: 1 }}>
-        {/* Animated white background for notch area - moves with top bar */}
-        <Animated.View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: insets.top,
-            backgroundColor: "#fff",
-            zIndex: 9,
-            transform: [{ translateY: topBarTranslateY }],
-          }}
-        />
-
-        {/* Custom Tab Bar - Animated and absolute positioned */}
+        {/* Custom Tab Bar - Animated and absolute positioned, includes safe area */}
         <Animated.View
           style={[
             styles.topNav,
             {
-              top: insets.top,
+              top: 0,
+              paddingTop: insets.top,
               transform: [{ translateY: topBarTranslateY }],
             },
           ]}
@@ -206,13 +194,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 3,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#eee",
   },
   tabsContainer: {
     flexDirection: "row",
