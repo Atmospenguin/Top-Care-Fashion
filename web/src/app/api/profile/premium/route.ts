@@ -1,11 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { getConnection, toNumber } from "@/lib/db";
 
 function addMonths(date: Date, months: number): Date {
   const d = new Date(date);
   d.setMonth(d.getMonth() + months);
   return d;
+}
+
+// Helper to get premium pricing from pricing_plans
+async function getPremiumPrice(duration: "1m" | "3m" | "1y"): Promise<number> {
+  try {
+    const connection = await getConnection();
+    const [plans]: any = await connection.execute(
+      `SELECT price_monthly, price_quarterly, price_annual
+       FROM pricing_plans
+       WHERE plan_type = 'PREMIUM' AND active = TRUE
+       LIMIT 1`
+    );
+    await connection.end();
+
+    if (!plans || plans.length === 0) {
+      // Default fallback prices
+      return duration === "1y" ? 99.99 : duration === "3m" ? 29.99 : 9.99;
+    }
+
+    const plan = plans[0];
+    if (duration === "1y") return toNumber(plan.price_annual) ?? 99.99;
+    if (duration === "3m") return toNumber(plan.price_quarterly) ?? 29.99;
+    return toNumber(plan.price_monthly) ?? 9.99;
+  } catch (error) {
+    console.error("Error fetching premium price:", error);
+    // Return default prices on error
+    return duration === "1y" ? 99.99 : duration === "3m" ? 29.99 : 9.99;
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -43,6 +72,15 @@ export async function POST(req: NextRequest) {
     const currentExpiry = existing?.premium_until;
     const baseDate = currentExpiry && currentExpiry > now ? currentExpiry : now;
     const until = addMonths(baseDate, months);
+
+    // Get pricing for this plan
+    const paidAmount = await getPremiumPrice(plan);
+
+    // Create subscription record
+    await prisma.$executeRaw`
+      INSERT INTO premium_subscriptions (user_id, plan_duration, paid_amount, started_at, ends_at, status)
+      VALUES (${session.id}, ${plan}, ${paidAmount}, ${now}, ${until}, 'ACTIVE')
+    `;
 
     // 注意：如果 Prisma Client 还未根据新列生成类型，以下两个字段在类型层面会报错，运行时是有效的
     // free_promotions_used, free_promotions_reset_at

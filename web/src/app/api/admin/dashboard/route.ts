@@ -260,6 +260,52 @@ export async function GET() {
       : 0;
     const paidPromotionsThisMonth = boostRevenueThisMonthStats._count.id;
 
+    // Get premium subscription stats
+    const [
+      totalPremiumSubscriptions,
+      activePremiumSubscriptions,
+      expiredPremiumSubscriptions,
+      premiumSubscriptionsThisWeek,
+    ] = await Promise.all([
+      prisma.$executeRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM premium_subscriptions`,
+      prisma.$executeRaw<[{ count: bigint }]>`
+        SELECT COUNT(*) as count
+        FROM premium_subscriptions
+        WHERE status = 'ACTIVE' AND ends_at > ${now}
+      `,
+      prisma.$executeRaw<[{ count: bigint }]>`
+        SELECT COUNT(*) as count
+        FROM premium_subscriptions
+        WHERE status = 'EXPIRED'
+      `,
+      prisma.$executeRaw<[{ count: bigint }]>`
+        SELECT COUNT(*) as count
+        FROM premium_subscriptions
+        WHERE created_at >= ${startOfWeek}
+      `,
+    ]);
+
+    // Calculate premium subscription revenue
+    const premiumRevenueStats = await prisma.$queryRaw<[{ total_revenue: any }]>`
+      SELECT COALESCE(SUM(paid_amount), 0) as total_revenue
+      FROM premium_subscriptions
+      WHERE paid_amount > 0
+    `;
+
+    const premiumRevenueThisMonthStats = await prisma.$queryRaw<[{ total_revenue: any; count: bigint }]>`
+      SELECT COALESCE(SUM(paid_amount), 0) as total_revenue, COUNT(*) as count
+      FROM premium_subscriptions
+      WHERE paid_amount > 0 AND created_at >= ${startOfMonth}
+    `;
+
+    const totalPremiumRevenue = premiumRevenueStats[0]?.total_revenue
+      ? Number(premiumRevenueStats[0].total_revenue)
+      : 0;
+    const premiumRevenueThisMonth = premiumRevenueThisMonthStats[0]?.total_revenue
+      ? Number(premiumRevenueThisMonthStats[0].total_revenue)
+      : 0;
+    const paidPremiumSubscriptionsThisMonth = Number(premiumRevenueThisMonthStats[0]?.count ?? 0);
+
     // Get promotion performance stats
     const promotionPerformance = await prisma.listing_promotions.aggregate({
       where: {
@@ -335,6 +381,14 @@ export async function GET() {
       promotionAvgClickUplift: promotionPerformance._avg.click_uplift_percent
         ? Math.round(promotionPerformance._avg.click_uplift_percent)
         : 0,
+      // Premium subscription stats
+      totalPremiumSubscriptions: Number(totalPremiumSubscriptions[0]?.count ?? 0),
+      activePremiumSubscriptions: Number(activePremiumSubscriptions[0]?.count ?? 0),
+      expiredPremiumSubscriptions: Number(expiredPremiumSubscriptions[0]?.count ?? 0),
+      premiumSubscriptionsThisWeek: Number(premiumSubscriptionsThisWeek[0]?.count ?? 0),
+      totalPremiumRevenue,
+      premiumRevenueThisMonth,
+      paidPremiumSubscriptionsThisMonth,
     };
 
     return NextResponse.json({

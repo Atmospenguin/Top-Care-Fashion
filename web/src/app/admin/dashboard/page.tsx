@@ -371,6 +371,43 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Premium Subscription Overview */}
+      <div className="bg-white border rounded-lg p-6">
+        <h3 className="text-lg font-semibold mb-4">Premium Subscriptions</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="text-center p-4 bg-gradient-to-br from-amber-50 to-yellow-50 rounded-lg">
+            <div className="text-2xl font-bold text-amber-700">{stats.activePremiumSubscriptions}</div>
+            <div className="text-sm text-amber-600 mt-1">Active Premium</div>
+            <div className="text-xs text-gray-500 mt-1">
+              {stats.totalPremiumSubscriptions} total • {stats.expiredPremiumSubscriptions} expired
+            </div>
+          </div>
+          <div className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg">
+            <div className="text-2xl font-bold text-green-700">${stats.totalPremiumRevenue.toLocaleString()}</div>
+            <div className="text-sm text-green-600 mt-1">Total Revenue</div>
+            <div className="text-xs text-gray-500 mt-1">
+              All-time premium earnings
+            </div>
+          </div>
+          <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg">
+            <div className="text-2xl font-bold text-blue-700">
+              ${stats.premiumRevenueThisMonth.toLocaleString()}
+            </div>
+            <div className="text-sm text-blue-600 mt-1">This Month</div>
+            <div className="text-xs text-gray-500 mt-1">
+              {stats.paidPremiumSubscriptionsThisMonth} new subscriptions
+            </div>
+          </div>
+          <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg">
+            <div className="text-2xl font-bold text-purple-700">
+              {stats.premiumSubscriptionsThisWeek}
+            </div>
+            <div className="text-sm text-purple-600 mt-1">This Week</div>
+            <div className="text-xs text-gray-500 mt-1">New subscriptions</div>
+          </div>
+        </div>
+      </div>
+
       {/* Top Boosted Listings */}
       {topBoostedListings.length > 0 && (
         <div className="bg-white border rounded-lg p-6">
