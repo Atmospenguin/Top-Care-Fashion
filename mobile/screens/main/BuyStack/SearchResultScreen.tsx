@@ -455,7 +455,7 @@ export default function SearchResultScreen() {
                   setTotalCount(result.total);
                 }
               }
-              setHasMore(result.hasMore);
+              setHasMore(result.items.length === PAGE_SIZE);
               console.log('🔍 SearchResult: loadListings - Final state: items=', resetOffset ? result.items.length : 'appended', ', hasMore=', result.hasMore, ', totalCount=', result.total);
               return;
             } catch (error) {
@@ -729,47 +729,8 @@ export default function SearchResultScreen() {
       if (sortBy === "For You") {
         const searchQuery = query || "";
         
-        // Use existing seed for pagination consistency; do NOT generate a new seed here
-        if (feedSeed == null) {
-          console.warn('🔍 SearchResult: loadMore aborted - feedSeed not initialized yet');
-          return;
-        }
-        const currentSeed = feedSeed;
-        
-        const searchParams: any = {
-          q: searchQuery,
-          limit: PAGE_SIZE,
-          page: Math.floor(currentOffset / PAGE_SIZE) + 1,
-          offset: currentOffset,
-          gender: mapGenderOptionToApiParam(genderToUseInLoadMore), // 使用优先的 gender
-          seed: currentSeed, // Pass seed for consistent sorting
-        };
-
-        // 使用 categoryId - 优先使用 initialCategoryId
-        if (initialCategoryId) {
-          searchParams.categoryId = initialCategoryId;
-          console.log('🔍 SearchResult: loadMore - Using categoryId from route params:', initialCategoryId);
-        } else if (selectedCategory !== 'All') {
-          // 如果没有 initialCategoryId，尝试从 categoryMap 查找
-          if (categoriesData?.categoryMap && categoriesData.categoryMap[selectedCategory]) {
-            searchParams.categoryId = categoriesData.categoryMap[selectedCategory];
-            console.log('🔍 SearchResult: loadMore - Found categoryId from categoryMap:', categoriesData.categoryMap[selectedCategory]);
-          } else {
-            searchParams.category = selectedCategory;
-            console.log('🔍 SearchResult: loadMore - Using category name (fallback):', selectedCategory);
-          }
-        }
-        
-        console.log('🔍 SearchResult: loadMore - Using gender:', {
-          initialGenderParam,
-          normalizedInitialGender,
-          selectedGender,
-          genderToUseInLoadMore,
-          mappedGender: mapGenderOptionToApiParam(genderToUseInLoadMore),
-        });
-
+        // 先判断是否为复杂筛选，复杂筛选直接走常规搜索的分页逻辑
         const hasComplexFilters = selectedCondition !== "All" || minPrice || maxPrice || sizeParam || sizesParam?.length;
-        
         if (hasComplexFilters) {
           // Fallback to regular search for complex filters
           const params: any = {
@@ -809,10 +770,49 @@ export default function SearchResultScreen() {
           });
           
           setApiListings(prev => [...prev, ...result.items]);
-          setHasMore(result.hasMore);
+          setHasMore(result.items.length === PAGE_SIZE);
           setOffset(prev => prev + PAGE_SIZE);
           return;
         }
+
+        // Use existing seed for pagination consistency; do NOT generate a new seed here
+        if (feedSeed == null) {
+          console.warn('🔍 SearchResult: loadMore aborted - feedSeed not initialized yet');
+          return;
+        }
+        const currentSeed = feedSeed;
+        
+        const searchParams: any = {
+          q: searchQuery,
+          limit: PAGE_SIZE,
+          page: Math.floor(currentOffset / PAGE_SIZE) + 1,
+          offset: currentOffset,
+          gender: mapGenderOptionToApiParam(genderToUseInLoadMore), // 使用优先的 gender
+          seed: currentSeed, // Pass seed for consistent sorting
+        };
+
+        // 使用 categoryId - 优先使用 initialCategoryId
+        if (initialCategoryId) {
+          searchParams.categoryId = initialCategoryId;
+          console.log('🔍 SearchResult: loadMore - Using categoryId from route params:', initialCategoryId);
+        } else if (selectedCategory !== 'All') {
+          // 如果没有 initialCategoryId，尝试从 categoryMap 查找
+          if (categoriesData?.categoryMap && categoriesData.categoryMap[selectedCategory]) {
+            searchParams.categoryId = categoriesData.categoryMap[selectedCategory];
+            console.log('🔍 SearchResult: loadMore - Found categoryId from categoryMap:', categoriesData.categoryMap[selectedCategory]);
+          } else {
+            searchParams.category = selectedCategory;
+            console.log('🔍 SearchResult: loadMore - Using category name (fallback):', selectedCategory);
+          }
+        }
+        
+        console.log('🔍 SearchResult: loadMore - Using gender:', {
+          initialGenderParam,
+          normalizedInitialGender,
+          selectedGender,
+          genderToUseInLoadMore,
+          mappedGender: mapGenderOptionToApiParam(genderToUseInLoadMore),
+        });
 
         try {
           const result = await listingsService.searchListings(searchQuery, searchParams);
@@ -822,7 +822,7 @@ export default function SearchResultScreen() {
             console.log('🔍 SearchResult: loadMore - Total items after merge:', newList.length, '(prev:', prev.length, '+ new:', result.items.length, ')');
             return newList;
           });
-          setHasMore(result.hasMore);
+          setHasMore(result.items.length === PAGE_SIZE);
           setOffset(prev => prev + PAGE_SIZE);
           return;
         } catch (error) {
