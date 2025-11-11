@@ -348,7 +348,6 @@ export default function SearchResultScreen() {
           q: searchQuery,
           limit: PAGE_SIZE,
           page: Math.floor(currentOffset / PAGE_SIZE) + 1,
-          offset: currentOffset,
           gender: mapGenderOptionToApiParam(genderToUse), // 使用优先的 gender
           seed: currentSeed, // Pass seed for consistent sorting
         };
@@ -729,17 +728,17 @@ export default function SearchResultScreen() {
       if (sortBy === "For You") {
         const searchQuery = query || "";
         
-        // Use existing seed for pagination consistency
-        const currentSeed = feedSeed ?? Math.floor(Math.random() * 2147483647);
-        if (!feedSeed) {
-          setFeedSeed(currentSeed); // Save seed if not already set
+        // Use existing seed for pagination consistency; if missing, avoid paginating to prevent duplicates
+        if (feedSeed == null) {
+          console.warn('🔍 SearchResult: loadMore aborted - feedSeed is null, waiting for initial load to set seed');
+          return;
         }
+        const currentSeed = feedSeed;
         
         const searchParams: any = {
           q: searchQuery,
           limit: PAGE_SIZE,
           page: Math.floor(currentOffset / PAGE_SIZE) + 1,
-          offset: currentOffset,
           gender: mapGenderOptionToApiParam(genderToUseInLoadMore), // 使用优先的 gender
           seed: currentSeed, // Pass seed for consistent sorting
         };
