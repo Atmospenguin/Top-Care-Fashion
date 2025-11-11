@@ -51,6 +51,12 @@
     "platforms": [
       "ios",
       "android"
-    ]
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/43fcbd20-cac5-45f7-810b-463059702c7a"
+    }
   }
 }
