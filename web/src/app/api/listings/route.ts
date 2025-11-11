@@ -6,6 +6,7 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
+    const categoryIdParam = searchParams.get("categoryId");
     const search = searchParams.get("search");
     const genderParam = searchParams.get("gender");
     const sizeParam = searchParams.get("size");
@@ -26,7 +27,13 @@ export async function GET(req: Request) {
       sold: false,
     };
 
-    if (category && category !== "All") {
+    // 优先使用 categoryId，如果没有则使用 category 名称
+    if (categoryIdParam) {
+      const categoryId = parseInt(categoryIdParam, 10);
+      if (!isNaN(categoryId)) {
+        where.category_id = categoryId;
+      }
+    } else if (category && category !== "All") {
       where.category = {
         name: { contains: category, mode: "insensitive" },
       };
