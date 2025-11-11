@@ -214,6 +214,11 @@ export default function BoostedListingScreen() {
     return `Boosted ${formatRelative(item.startedAt)}`;
   };
 
+  // ✅ 处理点击列表项，导航到ManageListing
+  const handleListingPress = useCallback((listingId: string) => {
+    navigation.navigate("ManageListing", { listingId });
+  }, [navigation]);
+
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Header title="Boosted listings" showBack />
@@ -245,7 +250,12 @@ export default function BoostedListingScreen() {
                 <View style={styles.expiredSection}>
                   <Text style={styles.sectionHeader}>Expired boosts</Text>
                   {expiredBoosts.map((item) => (
-                    <View key={item.id} style={[styles.boostRow, styles.expiredRow]}>
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[styles.boostRow, styles.expiredRow]}
+                      onPress={() => handleListingPress(String(item.listingId))}
+                      activeOpacity={0.7}
+                    >
                       {item.primaryImage ? (
                         <Image source={{ uri: item.primaryImage }} style={styles.thumb} />
                       ) : (
@@ -262,14 +272,18 @@ export default function BoostedListingScreen() {
                         </Text>
                         <Text style={[styles.rowSub, styles.expiredSub]}>{buildStatusSubtitle(item, true)}</Text>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               )
             : null
         }
         renderItem={({ item }) => (
-          <View style={styles.boostRow}>
+          <TouchableOpacity
+            style={styles.boostRow}
+            onPress={() => handleListingPress(String(item.listingId))}
+            activeOpacity={0.7}
+          >
             {item.primaryImage ? (
               <Image source={{ uri: item.primaryImage }} style={styles.thumb} />
             ) : (
@@ -318,7 +332,7 @@ export default function BoostedListingScreen() {
                 })()}
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
       />
     </View>
