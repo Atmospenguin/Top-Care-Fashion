@@ -55,6 +55,148 @@ function extractImageUrls(imageUrls: unknown, imageUrl: string | null): string[]
   return [];
 }
 
+const toArray = (value: unknown): string[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value as string[];
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed as string[];
+      }
+    } catch {
+      if (value.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(value.replace(/'/g, '"'));
+          if (Array.isArray(parsed)) {
+            return parsed as string[];
+          }
+        } catch {
+          /* noop */
+        }
+      }
+      if (value.trim().length > 0) {
+        return [value];
+      }
+    }
+  }
+  return [];
+};
+
+const mapConditionToDisplay = (conditionEnum: string | null | undefined): string | null => {
+  if (!conditionEnum) return null;
+  const conditionMap: Record<string, string> = {
+    NEW: "Brand New",
+    LIKE_NEW: "Like New",
+    GOOD: "Good",
+    FAIR: "Fair",
+    POOR: "Poor",
+  };
+  return conditionMap[conditionEnum] || conditionEnum;
+};
+
+const mapSizeToDisplay = (sizeValue: string | null | undefined): string | null => {
+  if (!sizeValue) return null;
+  const value = sizeValue.trim();
+  if (value.includes("/")) {
+    const firstPart = value.split("/")[0].trim();
+    if (["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"].includes(firstPart)) {
+      return firstPart;
+    }
+    const numberMatch = firstPart.match(/\d+/);
+    if (numberMatch) {
+      return numberMatch[0];
+    }
+    return firstPart;
+  }
+
+  const sizeMap: Record<string, string> = {
+    "28": "28",
+    "29": "29",
+    "30": "30",
+    "31": "31",
+    "32": "32",
+    "33": "33",
+    "34": "34",
+    "35": "35",
+    "36": "36",
+    "37": "37",
+    "38": "38",
+    "39": "39",
+    "40": "40",
+    "41": "41",
+    "42": "42",
+    "43": "43",
+    "44": "44",
+    "45": "45",
+    "46": "46",
+    "47": "47",
+    "48": "48",
+    "49": "49",
+    "50": "50",
+    XXS: "XXS",
+    XS: "XS",
+    S: "S",
+    M: "M",
+    L: "L",
+    XL: "XL",
+    XXL: "XXL",
+    XXXL: "XXXL",
+    "Free Size": "Free Size",
+    "One Size": "One Size",
+    Small: "Small",
+    Medium: "Medium",
+    Large: "Large",
+    "Extra Large": "Extra Large",
+    Other: "Other",
+  };
+
+  return sizeMap[value] || value;
+};
+
+const toNumber = (value: unknown): number => {
+  if (value == null) return 0;
+  if (typeof value === "number") return value;
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "string") return Number(value) || 0;
+  if (typeof value === "object") {
+    const maybeDecimal = value as { toNumber?: () => number; toString?: () => string };
+    if (typeof maybeDecimal.toNumber === "function") {
+      const result = maybeDecimal.toNumber();
+      return Number.isFinite(result) ? result : 0;
+    }
+    if (typeof maybeDecimal.toString === "function") {
+      const str = maybeDecimal.toString();
+      const parsed = Number(str);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+  }
+  return 0;
+};
+
+const normalizeSeller = (listing: any) => {
+  if (listing?.seller) {
+    return {
+      id: listing.seller.id ?? 0,
+      name: listing.seller.username ?? "",
+      avatar: listing.seller.avatar_url ?? "",
+      rating: toNumber(listing.seller.average_rating),
+      sales: listing.seller.total_reviews ?? 0,
+      isPremium: Boolean(listing.seller.is_premium),
+      is_premium: Boolean(listing.seller.is_premium),
+    };
+  }
+  return {
+    id: 0,
+    name: "",
+    avatar: "",
+    rating: 0,
+    sales: 0,
+    isPremium: false,
+    is_premium: false,
+  };
+};
+
 // Extract Supabase user ID from request
 async function getSupabaseUserIdFromRequest(req: NextRequest): Promise<string | null> {
   // 1) Try mobile Bearer token
@@ -97,9 +239,21 @@ function parseIntSafe(v: string | null, d: number) {
   return Number.isFinite(n) && n > 0 ? n : d;
 }
 
-function parseSeed(v: string | null, d: number) {
-  const n = v ? parseInt(v, 10) : NaN;
-  return Number.isFinite(n) ? n : d;
+function parseSeed(v: string | null, d: number): number {
+  // PostgreSQL integer range: -2,147,483,648 to 2,147,483,647
+  // We'll use positive values only: 0 to 2,147,483,647
+  const MAX_INT = 2147483647;
+  
+  if (v) {
+    const n = parseInt(v, 10);
+    if (Number.isFinite(n)) {
+      // Ensure seed is within PostgreSQL integer range
+      return Math.abs(n % MAX_INT);
+    }
+  }
+  // For default value (Date.now() or other), ensure it's within integer range
+  // Use modulo to keep it within bounds
+  return Math.abs(d % MAX_INT);
 }
 
 export async function GET(req: NextRequest) {
@@ -126,18 +280,23 @@ export async function GET(req: NextRequest) {
       ? useFeedParam === "true" 
       : isMobileApp; // 移动端默认启用，web端默认禁用
 
-    // Validate search query
-    if (!searchQuery || searchQuery.trim().length === 0) {
+    // Get user ID for personalized search
+    const supabaseUserId = await getSupabaseUserIdFromRequest(req);
+
+    // Normalize search query (allow empty string for feed algorithm)
+    const normalizedSearchQuery = searchQuery.trim();
+
+    // Validate search query only for non-feed search
+    // Feed algorithm can work with empty query (returns personalized recommendations)
+    if (!useFeed && (!normalizedSearchQuery || normalizedSearchQuery.length === 0)) {
       return NextResponse.json(
         { error: "Search query is required", success: false },
         { status: 400 }
       );
     }
 
-    // Get user ID for personalized search
-    const supabaseUserId = await getSupabaseUserIdFromRequest(req);
-
-    // If useFeed is true, use the feed algorithm (only if user is authenticated)
+    // If useFeed is true, use the feed algorithm
+    // This works even with empty search query (returns personalized feed)
     if (useFeed) {
       const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY);
 
@@ -150,9 +309,15 @@ export async function GET(req: NextRequest) {
         );
       }
 
+      // For feed algorithm, if search query is empty, pass empty string
+      // The database function will treat empty query as "no search filter" and return personalized recommendations
+      const feedSearchQuery = normalizedSearchQuery.length > 0 
+        ? normalizedSearchQuery 
+        : ""; // Empty string = no search filter, feed algorithm will personalize all items
+
       const { data, error } = await admin.rpc("get_search_feed", {
         p_supabase_user_id: supabaseUserId || null, // Allow null for anonymous users
-        p_search_query: searchQuery.trim(),
+        p_search_query: feedSearchQuery,
         p_limit: limit,
         p_offset: offset,
         p_seed: seedId,
@@ -183,57 +348,214 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      // Transform data to match API format
+      // Process items directly from get_search_feed results
+      // IMPORTANT: Maintain the EXACT order from get_search_feed (feed algorithm sorting)
+      // Use price_cents directly from RPC result to avoid Prisma Decimal conversion issues
+      const { prisma } = await import("@/lib/db");
+      const { Prisma } = await import("@prisma/client");
+      
+      // Debug: Log the order from get_search_feed
+      console.log('🔍 Feed search order:', data.slice(0, 5).map((r: SearchRow) => ({ id: r.id, title: r.title, price_cents: r.price_cents, final_score: r.final_score })));
+      
+      // Calculate total count using the same filter logic as get_search_feed and fallbackSearch
+      // This ensures consistent count calculation regardless of feed algorithm
+      const where: any = {
+        listed: true,
+        sold: false,
+      };
+
+      // Priority: categoryId > category name (same as get_search_feed function)
+      if (parsedCategoryId) {
+        where.category_id = parsedCategoryId;
+      } else if (category) {
+        where.category = {
+          name: { contains: category, mode: "insensitive" },
+        };
+      }
+
+      // Gender filter (same as get_search_feed function)
+      if (gender) {
+        const normalizeGender = (value: string): "Men" | "Women" | "Unisex" | undefined => {
+          const lower = value.toLowerCase();
+          if (lower === "men" || lower === "male") return "Men";
+          if (lower === "women" || lower === "female") return "Women";
+          if (lower === "unisex" || lower === "all") return "Unisex";
+          return undefined;
+        };
+
+        const normalizedGender = normalizeGender(gender);
+        if (normalizedGender) {
+          where.gender = normalizedGender;
+        }
+      }
+
+      // Search query filter (only if search query is not empty, same as get_search_feed function)
+      if (normalizedSearchQuery && normalizedSearchQuery.length > 0) {
+        const searchFilters: any[] = [
+          { name: { contains: normalizedSearchQuery, mode: "insensitive" } },
+          { description: { contains: normalizedSearchQuery, mode: "insensitive" } },
+          { brand: { contains: normalizedSearchQuery, mode: "insensitive" } },
+        ];
+        where.OR = searchFilters;
+      }
+
+      // Calculate total count (matches the filter conditions used in get_search_feed)
+      const totalCount = await prisma.listings.count({ where });
+      
+      // Fetch only the fields we need to supplement (size, condition, material, seller, etc.)
+      // Use the order from data array to preserve feed algorithm sorting
+      const listingIds = data.map((row: SearchRow) => row.id);
+      
+      const listings = await prisma.listings.findMany({
+        where: { id: { in: listingIds } },
+        include: {
+          seller: {
+            select: {
+              id: true,
+              username: true,
+              avatar_url: true,
+              average_rating: true,
+              total_reviews: true,
+              is_premium: true,
+            },
+          },
+          category: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+
+      // Create a map for quick lookup (order doesn't matter here)
+      const listingMap = new Map<number, (typeof listings)[number]>();
+      listings.forEach((listing) => listingMap.set(listing.id, listing));
+
+      // Process items in the EXACT order from data array (preserves feed algorithm sorting)
       const items = data.map((row: SearchRow) => {
-        // Get image URLs from tags (which might contain image_urls) or image_url
-        // Note: get_search_feed returns image_url directly, but we need to handle image_urls if present
-        const imageUrls = extractImageUrls(null, row.image_url);
+        const listing = listingMap.get(row.id);
+        
+        // Use price_cents directly from get_search_feed result (already in cents, convert to dollars)
+        const price = row.price_cents != null ? Number(row.price_cents) / 100 : 0;
+        
+        // If listing not found, use minimal data from RPC result
+        if (!listing) {
+          const fallbackImages = extractImageUrls(null, row.image_url);
+          return {
+            id: row.id.toString(),
+            title: row.title ?? "",
+            description: "",
+            price,
+            brand: row.brand ?? "",
+            size: null,
+            condition: null,
+            material: null,
+            tags: Array.isArray(row.tags) ? row.tags : [],
+            category: null,
+            images: fallbackImages,
+            shippingOption: null,
+            shippingFee: 0,
+            location: null,
+            likesCount: 0,
+            availableQuantity: 1,
+            gender: gender || "Unisex",
+            seller: { id: 0, name: "", avatar: "", rating: 0, sales: 0, isPremium: false, is_premium: false },
+            createdAt: null,
+            updatedAt: null,
+            listed: true,
+            sold: false,
+            quantity: 1,
+            source: row.source ?? "search",
+            fair_score: row.fair_score === null ? null : Number(row.fair_score),
+            final_score: row.final_score === null ? null : Number(row.final_score),
+            is_boosted: row.is_boosted ?? false,
+            boost_weight: row.boost_weight === null || row.boost_weight === undefined ? null : Number(row.boost_weight),
+            search_relevance: row.search_relevance === null ? null : Number(row.search_relevance),
+          };
+        }
+
+        // Build seller info
+        const sellerInfo = (listing as any).seller
+          ? {
+              id: (listing as any).seller.id,
+              name: (listing as any).seller.username,
+              avatar: (listing as any).seller.avatar_url ?? "",
+              rating: toNumber((listing as any).seller.average_rating),
+              sales: (listing as any).seller.total_reviews ?? 0,
+              isPremium: Boolean((listing as any).seller.is_premium),
+              is_premium: Boolean((listing as any).seller.is_premium),
+            }
+          : { id: 0, name: "", avatar: "", rating: 0, sales: 0, isPremium: false, is_premium: false };
+
+        // Extract images
+        const imageUrls = (() => {
+          const urls = toArray((listing as any).image_urls);
+          if (urls.length > 0) {
+            return urls;
+          }
+          if ((listing as any).image_url && typeof (listing as any).image_url === "string" && (listing as any).image_url.trim() !== "") {
+            return [(listing as any).image_url];
+          }
+          return extractImageUrls(null, row.image_url);
+        })();
+
+        // Combine tags
+        const listingTags = toArray((listing as any).tags);
+        const combinedTags = listingTags.length > 0 ? listingTags : (Array.isArray(row.tags) ? row.tags : []);
+
+        // Normalize gender
+        const genderValue = (() => {
+          const value = (listing as any).gender;
+          if (!value || typeof value !== "string") return "Unisex";
+          const lower = value.toLowerCase();
+          return lower.charAt(0).toUpperCase() + lower.slice(1);
+        })();
+
+        const availableQuantity = toNumber((listing as any).inventory_count ?? 1);
+        const quantityValue = (listing as any).quantity != null ? toNumber((listing as any).quantity) : availableQuantity;
 
         return {
-          id: row.id.toString(),
-          title: row.title || "",
-          description: null, // Search feed doesn't return description
-          price: row.price_cents ? Number(row.price_cents) / 100 : 0,
-          brand: row.brand || "",
-          size: null,
-          condition: null,
-          material: null,
-          tags: Array.isArray(row.tags) ? row.tags : (row.tags ? JSON.parse(row.tags as any) : []),
-          category: null,
-          images: imageUrls.length > 0 ? imageUrls : [],
-          shippingOption: null,
-          shippingFee: 0,
-          location: null,
-          likesCount: 0,
-          availableQuantity: 1,
-          gender: gender || "Unisex",
-          seller: {
-            id: 0,
-            name: "",
-            avatar: "",
-            rating: 0,
-            sales: 0,
-            isPremium: false,
-            is_premium: false,
-          },
-          createdAt: null,
-          updatedAt: null,
-          // Feed algorithm metadata
-          source: row.source,
-          fair_score: row.fair_score ? Number(row.fair_score) : null,
-          final_score: row.final_score ? Number(row.final_score) : null,
-          is_boosted: row.is_boosted || false,
-          boost_weight: row.boost_weight ? Number(row.boost_weight) : null,
-          search_relevance: row.search_relevance ? Number(row.search_relevance) : null,
+          id: listing.id.toString(),
+          title: (listing as any).name ?? row.title ?? "",
+          description: (listing as any).description ?? "",
+          price, // Use price_cents from get_search_feed (converted to dollars)
+          brand: row.brand ?? "",
+          size: mapSizeToDisplay((listing as any).size ?? null),
+          condition: mapConditionToDisplay((listing as any).condition_type ?? null),
+          material: (listing as any).material ?? null,
+          tags: combinedTags,
+          category: (listing as any).category?.name ?? null,
+          images: imageUrls,
+          shippingOption: (listing as any).shipping_option ?? null,
+          shippingFee: toNumber((listing as any).shipping_fee ?? null),
+          location: (listing as any).location ?? null,
+          likesCount: toNumber((listing as any).likes_count ?? 0),
+          availableQuantity,
+          gender: genderValue,
+          seller: sellerInfo,
+          createdAt: (listing as any).created_at ? (listing as any).created_at.toISOString() : null,
+          updatedAt: (listing as any).updated_at ? (listing as any).updated_at.toISOString() : null,
+          listed: (listing as any).listed ?? true,
+          sold: (listing as any).sold ?? false,
+          quantity: quantityValue,
+          source: row.source ?? "search",
+          fair_score: row.fair_score === null ? null : Number(row.fair_score),
+          final_score: row.final_score === null ? null : Number(row.final_score),
+          is_boosted: row.is_boosted ?? false,
+          boost_weight: row.boost_weight === null || row.boost_weight === undefined ? null : Number(row.boost_weight),
+          search_relevance: row.search_relevance === null ? null : Number(row.search_relevance),
         };
       });
+
+      // Debug: Log the final order
+      console.log('🔍 Final API response order:', items.slice(0, 5).map((i: any) => ({ id: i.id, title: i.title, price: i.price })));
 
       return NextResponse.json({
         success: true,
         data: {
           items,
-          total: items.length, // Note: get_search_feed doesn't return total count
-          hasMore: items.length >= limit,
+          total: totalCount, // Use calculated total count
+          hasMore: offset + items.length < totalCount, // Same logic as fallbackSearch
           page,
           limit,
           searchQuery,

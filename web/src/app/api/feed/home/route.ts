@@ -34,9 +34,21 @@ function parseIntSafe(v: string | null, d: number) {
   const n = v ? parseInt(v, 10) : NaN;
   return Number.isFinite(n) && n > 0 ? n : d;
 }
-function parseSeed(v: string | null, d: number) {
-  const n = v ? parseInt(v, 10) : NaN;
-  return Number.isFinite(n) ? n : d;
+function parseSeed(v: string | null, d: number): number {
+  // PostgreSQL integer range: -2,147,483,648 to 2,147,483,647
+  // We'll use positive values only: 0 to 2,147,483,647
+  const MAX_INT = 2147483647;
+  
+  if (v) {
+    const n = parseInt(v, 10);
+    if (Number.isFinite(n)) {
+      // Ensure seed is within PostgreSQL integer range
+      return Math.abs(n % MAX_INT);
+    }
+  }
+  // For default value (Date.now() or other), ensure it's within integer range
+  // Use modulo to keep it within bounds
+  return Math.abs(d % MAX_INT);
 }
 function okJson(data: any, init?: number | ResponseInit) {
   // Allow shorthand okJson(data, 401) or okJson(data, { status: 401 })
@@ -302,7 +314,7 @@ export async function GET(req: NextRequest) {
   const modeParam = (url.searchParams.get("mode") || "").toLowerCase(); // "foryou" | "trending"
   const page = Math.max(1, parseIntSafe(url.searchParams.get("page"), 1));
   const limit = Math.min(50, parseIntSafe(url.searchParams.get("limit"), 20));
-  const seedId = parseSeed(url.searchParams.get("seedId"), Date.now() | 0);
+  const seedId = parseSeed(url.searchParams.get("seedId"), Date.now());
   const noStore = url.searchParams.get("noStore") === "1";
 
   const offset = (page - 1) * limit;

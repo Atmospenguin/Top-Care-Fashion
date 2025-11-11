@@ -32,7 +32,7 @@ const SHOE_SIZES = ["All", "My Size", "28", "29", "30", "31", "32", "33", "34", 
 // Combined sizes (for general use)
 const ALL_SIZES = ["All", "My Size", "XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL", "Free Size", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "50"] as const;
 const CONDITIONS = ["All", "Brand New", "Like New", "Good", "Fair"] as const;
-const SORT_OPTIONS = ["Latest", "Price Low to High", "Price High to Low"] as const;
+const SORT_OPTIONS = ["For You", "Latest", "Price Low to High", "Price High to Low"] as const;
 const GENDER_OPTIONS = ["All", "Men", "Women", "Unisex"] as const;
 
 const mapGenderParamToOption = (gender?: string | null): typeof GENDER_OPTIONS[number] => {
@@ -113,7 +113,7 @@ export default function SearchResultScreen() {
   const [selectedGender, setSelectedGender] = useState<string>(normalizedInitialGender);
   const [minPrice, setMinPrice] = useState<string>("");
   const [maxPrice, setMaxPrice] = useState<string>("");
-  const [sortBy, setSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
+  const [sortBy, setSortBy] = useState<typeof SORT_OPTIONS[number]>("For You");
 
   // Temporary filters (used in modal, applied on button click)
   const [tempCategory, setTempCategory] = useState<string>("All");
@@ -122,7 +122,7 @@ export default function SearchResultScreen() {
   const [tempGender, setTempGender] = useState<string>(normalizedInitialGender);
   const [tempMinPrice, setTempMinPrice] = useState<string>("");
   const [tempMaxPrice, setTempMaxPrice] = useState<string>("");
-  const [tempSortBy, setTempSortBy] = useState<typeof SORT_OPTIONS[number]>("Latest");
+  const [tempSortBy, setTempSortBy] = useState<typeof SORT_OPTIONS[number]>("For You");
 
   // Scroll animation state
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -187,6 +187,9 @@ export default function SearchResultScreen() {
   // Map sort option to API sort parameter
   const mapSortToApiParam = (sort: string): string | undefined => {
     switch (sort) {
+      case "For You":
+        // "For You" uses feed algorithm, handled separately
+        return undefined;
       case "Price Low to High":
         return "Price Low to High";
       case "Price High to Low":
@@ -271,7 +274,105 @@ export default function SearchResultScreen() {
         sizeParam = selectedSize.trim();
       }
 
-      // Build filter parameters
+      // Get current offset from state
+      const currentOffset = resetOffset ? 0 : offset;
+
+      // If "For You" is selected, use feed algorithm
+      if (sortBy === "For You") {
+        const searchQuery = query || "";
+        
+        const searchParams: any = {
+          limit: PAGE_SIZE,
+          page: Math.floor(currentOffset / PAGE_SIZE) + 1,
+          offset: currentOffset,
+          gender: mapGenderOptionToApiParam(selectedGender),
+        };
+
+        // Add category if not "All"
+        if (selectedCategory !== 'All') {
+          const categoryId = parseInt(selectedCategory, 10);
+          if (!isNaN(categoryId)) {
+            searchParams.categoryId = categoryId;
+          } else {
+            searchParams.category = selectedCategory;
+          }
+        }
+
+        // Feed algorithm search endpoint doesn't support all filters yet
+        // For complex filters (condition, price, size), fallback to regular search
+        const hasComplexFilters = selectedCondition !== "All" || minPrice || maxPrice || sizeParam || sizesParam?.length;
+        
+        if (hasComplexFilters) {
+          console.warn('🔍 SearchResult: Complex filters with "For You" sort, using Latest sort instead');
+          const params: any = {
+            search: searchQuery || undefined,
+            category: selectedCategory !== 'All' ? selectedCategory : undefined,
+            gender: mapGenderOptionToApiParam(selectedGender),
+            condition: selectedCondition !== "All" ? selectedCondition : undefined,
+            minPrice: minPrice ? parseFloat(minPrice) : undefined,
+            maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
+            sort: "Latest",
+          };
+
+          if (sizesParam?.length) {
+            params.sizes = sizesParam;
+          } else if (sizeParam) {
+            params.size = sizeParam;
+          }
+
+          Object.keys(params).forEach((key) => {
+            if (params[key] === undefined) {
+              delete params[key];
+            }
+          });
+
+          const result = await listingsService.getListings({
+            ...params,
+            limit: PAGE_SIZE,
+            offset: currentOffset,
+          });
+          
+          if (resetOffset) {
+            setApiListings(result.items);
+            setOffset(PAGE_SIZE);
+            setTotalCount(result.total || 0);
+          } else {
+            setApiListings(prev => [...prev, ...result.items]);
+            setOffset(prev => prev + PAGE_SIZE);
+            if (result.total !== undefined && result.total !== totalCount) {
+              setTotalCount(result.total);
+            }
+          }
+          setHasMore(result.hasMore);
+          return;
+        }
+
+        // Use feed algorithm search
+        console.log('🔍 SearchResult: Using feed algorithm (For You) with params:', searchParams);
+        
+        try {
+          const result = await listingsService.searchListings(searchQuery, searchParams);
+          
+          if (resetOffset) {
+            setApiListings(result.items);
+            setOffset(PAGE_SIZE);
+            setTotalCount(result.total || 0);
+          } else {
+            setApiListings(prev => [...prev, ...result.items]);
+            setOffset(prev => prev + PAGE_SIZE);
+            if (result.total !== undefined && result.total !== totalCount) {
+              setTotalCount(result.total);
+            }
+          }
+          setHasMore(result.hasMore);
+          return;
+        } catch (error) {
+          console.error('🔍 SearchResult: Feed algorithm search failed, falling back to regular search:', error);
+          // Fall through to regular search
+        }
+      }
+
+      // Build filter parameters for regular search (non-"For You" sort)
       const params: any = {
         search: query || undefined,
         category: selectedCategory !== 'All' ? selectedCategory : undefined,
@@ -295,9 +396,6 @@ export default function SearchResultScreen() {
         }
       });
 
-      // Get current offset from state
-      const currentOffset = resetOffset ? 0 : offset;
-
       console.log('🔍 SearchResult: Loading listings with filters:', {
         ...params,
         limit: PAGE_SIZE,
@@ -318,19 +416,14 @@ export default function SearchResultScreen() {
       if (resetOffset) {
         setApiListings(result.items);
         setOffset(PAGE_SIZE);
-        // Always update totalCount when resetting (new filter applied)
         setTotalCount(result.total || 0);
       } else {
         setApiListings(prev => [...prev, ...result.items]);
         setOffset(prev => prev + PAGE_SIZE);
-        // Don't update totalCount on loadMore, it should remain the same
-        // But update if API returns a different total (shouldn't happen, but for safety)
         if (result.total !== undefined && result.total !== totalCount) {
-          console.warn('🔍 SearchResult: Total count changed during loadMore:', { old: totalCount, new: result.total });
           setTotalCount(result.total);
         }
       }
-
       setHasMore(result.hasMore);
     } catch (error) {
       console.error('🔍 SearchResult: Error loading listings:', error);
@@ -421,7 +514,76 @@ export default function SearchResultScreen() {
         sizeParam = selectedSize.trim();
       }
 
-      // Build filter parameters (same as loadListings)
+      // If "For You" is selected, use feed algorithm (same logic as loadListings)
+      if (sortBy === "For You") {
+        const searchQuery = query || "";
+        
+        const searchParams: any = {
+          limit: PAGE_SIZE,
+          page: Math.floor(currentOffset / PAGE_SIZE) + 1,
+          offset: currentOffset,
+          gender: mapGenderOptionToApiParam(selectedGender),
+        };
+
+        if (selectedCategory !== 'All') {
+          const categoryId = parseInt(selectedCategory, 10);
+          if (!isNaN(categoryId)) {
+            searchParams.categoryId = categoryId;
+          } else {
+            searchParams.category = selectedCategory;
+          }
+        }
+
+        const hasComplexFilters = selectedCondition !== "All" || minPrice || maxPrice || sizeParam || sizesParam?.length;
+        
+        if (hasComplexFilters) {
+          // Fallback to regular search for complex filters
+          const params: any = {
+            search: searchQuery || undefined,
+            category: selectedCategory !== 'All' ? selectedCategory : undefined,
+            gender: mapGenderOptionToApiParam(selectedGender),
+            condition: selectedCondition !== "All" ? selectedCondition : undefined,
+            minPrice: minPrice ? parseFloat(minPrice) : undefined,
+            maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
+            sort: "Latest",
+          };
+
+          if (sizesParam?.length) {
+            params.sizes = sizesParam;
+          } else if (sizeParam) {
+            params.size = sizeParam;
+          }
+
+          Object.keys(params).forEach((key) => {
+            if (params[key] === undefined) {
+              delete params[key];
+            }
+          });
+
+          const result = await listingsService.getListings({
+            ...params,
+            limit: PAGE_SIZE,
+            offset: currentOffset,
+          });
+          
+          setApiListings(prev => [...prev, ...result.items]);
+          setHasMore(result.hasMore);
+          setOffset(prev => prev + PAGE_SIZE);
+          return;
+        }
+
+        try {
+          const result = await listingsService.searchListings(searchQuery, searchParams);
+          setApiListings(prev => [...prev, ...result.items]);
+          setHasMore(result.hasMore);
+          setOffset(prev => prev + PAGE_SIZE);
+          return;
+        } catch (error) {
+          console.error('🔍 SearchResult: Feed algorithm search failed in loadMore, falling back:', error);
+        }
+      }
+
+      // Build filter parameters for regular search (non-"For You" sort)
       const params: any = {
         search: query || undefined,
         category: selectedCategory !== 'All' ? selectedCategory : undefined,
@@ -476,7 +638,7 @@ export default function SearchResultScreen() {
     if (selectedSize !== "All") count++;
     if (selectedCondition !== "All") count++;
     if (minPrice || maxPrice) count++;
-    if (sortBy !== "Latest") count++;
+    if (sortBy !== "For You") count++;
     return count;
   }, [selectedCategory, selectedGender, selectedSize, selectedCondition, minPrice, maxPrice, sortBy]);
 
@@ -488,7 +650,7 @@ export default function SearchResultScreen() {
     if (tempSize !== "All" && tempSize !== "My Size") count++;
     if (tempCondition !== "All") count++;
     if (tempMinPrice || tempMaxPrice) count++;
-    if (tempSortBy !== "Latest") count++;
+    if (tempSortBy !== "For You") count++;
     return count;
   }, [tempCategory, tempGender, tempSize, tempCondition, tempMinPrice, tempMaxPrice, tempSortBy]);
 
@@ -511,7 +673,7 @@ export default function SearchResultScreen() {
     setTempGender("All");
     setTempMinPrice("");
     setTempMaxPrice("");
-    setTempSortBy("Latest");
+    setTempSortBy("For You");
   };
 
   const handleApplyFilters = () => {

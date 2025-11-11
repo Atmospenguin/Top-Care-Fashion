@@ -47,10 +47,8 @@ BEGIN
   v_seed := COALESCE(p_seed, 0)::text;
   v_search_query_normalized := lower(trim(COALESCE(p_search_query, '')));
   
-  -- 如果没有搜索关键词，返回空结果
-  IF v_search_query_normalized = '' THEN
-    RETURN;
-  END IF;
+  -- 如果搜索查询为空字符串或只有通配符，则视为无搜索过滤（返回个性化推荐）
+  -- 注意：空查询将匹配所有商品，由feed算法进行个性化排序
   
   -- Resolve app user + prefs + gender from database (if user exists)
   IF p_supabase_user_id IS NOT NULL THEN
@@ -89,8 +87,11 @@ BEGIN
         END
       )
       -- 搜索过滤：匹配名称、描述、品牌、标签
+      -- 如果搜索查询为空或只有通配符，则跳过搜索过滤（返回所有商品，由feed算法个性化排序）
       AND (
-        lower(l.name) LIKE '%' || v_search_query_normalized || '%'
+        v_search_query_normalized = '' 
+        OR v_search_query_normalized = '%'
+        OR lower(l.name) LIKE '%' || v_search_query_normalized || '%'
         OR lower(COALESCE(l.description, '')) LIKE '%' || v_search_query_normalized || '%'
         OR lower(COALESCE(l.brand, '')) LIKE '%' || v_search_query_normalized || '%'
         -- 标签搜索：检查tags JSONB数组中是否包含搜索关键词
@@ -215,7 +216,7 @@ BEGIN
         WHEN COALESCE(r.is_boosted, false) THEN COALESCE(r.boost_weight, 1.0)::numeric
         ELSE NULL::numeric
       END AS boost_weight_value,
-      COALESCE(srs.relevance_score, 0.0)::numeric AS search_relevance_score,
+      COALESCE(srs.relevance_score, 1.0)::numeric AS search_relevance_val,
 
       -- User preference matching (only if user exists)
       EXISTS (
@@ -310,7 +311,7 @@ BEGIN
       f.boosted_score_raw,
       f.is_boosted_flag,
       f.boost_weight_value,
-      f.search_relevance_score,
+      f.search_relevance_val,
       CASE
         WHEN s.mx > s.mn THEN
           (COALESCE(f.boosted_score_raw, 0) - s.mn) / NULLIF(s.mx - s.mn, 0)
@@ -334,37 +335,63 @@ BEGIN
       sc.boosted_score_raw,
       sc.is_boosted_flag,
       sc.boost_weight_value,
-      sc.search_relevance_score,
+      sc.search_relevance_val,
       sc.brand_match,
       sc.tag_match,
       sc.tag_match_count,
       sc.engagement_aff,
       -- 综合评分：搜索相关性 + feed算法评分
-      -- 搜索相关性权重：0.30（确保搜索结果相关）
-      -- Feed算法评分权重：0.70（个性化推荐）
-      (
-        0.30 * sc.search_relevance_score  -- 搜索相关性
-        + 0.25 * sc.boost_norm  -- 趋势分数（降低权重，因为搜索更关注相关性）
-        + CASE 
-            -- 如果用户存在，应用个性化推荐
-            WHEN v_user_id IS NOT NULL THEN (
-              0.20 * CASE WHEN sc.engagement_aff THEN 1 ELSE 0 END  -- 用户偏好匹配
-              + CASE 
-                  -- Explicit preferences (用户手动选择的品牌/风格) - 最高优先级
-                  WHEN sc.brand_match AND sc.tag_match THEN 0.20  -- 品牌+标签同时匹配
-                  WHEN sc.tag_match_count >= 2 THEN 0.18  -- 多个标签匹配
-                  WHEN sc.brand_match OR sc.tag_match THEN 0.15  -- 单个匹配
-                  -- Behavior-based recommendations (基于用户历史交互) - 中等优先级
-                  WHEN sc.behavior_brand_match AND sc.behavior_tag_match THEN 0.12  -- 行为: 品牌+标签
-                  WHEN sc.behavior_tag_match_count >= 2 THEN 0.10  -- 行为: 多个标签
-                  WHEN sc.behavior_brand_match OR sc.behavior_tag_match THEN 0.08  -- 行为: 单个匹配
-                  ELSE 0
-                END
-            )
-            -- 如果用户不存在，只使用搜索相关性和趋势分数
-            ELSE 0.20 * CASE WHEN sc.engagement_aff THEN 1 ELSE 0 END
-          END
-      ) AS final_score_val,
+      -- 如果搜索查询为空，搜索相关性权重降低，feed算法权重增加
+      CASE 
+        WHEN v_search_query_normalized = '' OR v_search_query_normalized = '%' THEN (
+          -- 无搜索查询：主要使用feed算法
+          0.10 * sc.search_relevance_val  -- 搜索相关性权重降低（所有商品都是1.0）
+          + 0.35 * sc.boost_norm  -- 趋势分数
+          + CASE 
+              -- 如果用户存在，应用个性化推荐
+              WHEN v_user_id IS NOT NULL THEN (
+                0.25 * CASE WHEN sc.engagement_aff THEN 1 ELSE 0 END  -- 用户偏好匹配
+                + CASE 
+                    -- Explicit preferences (用户手动选择的品牌/风格) - 最高优先级
+                    WHEN sc.brand_match AND sc.tag_match THEN 0.25  -- 品牌+标签同时匹配
+                    WHEN sc.tag_match_count >= 2 THEN 0.22  -- 多个标签匹配
+                    WHEN sc.brand_match OR sc.tag_match THEN 0.18  -- 单个匹配
+                    -- Behavior-based recommendations (基于用户历史交互) - 中等优先级
+                    WHEN sc.behavior_brand_match AND sc.behavior_tag_match THEN 0.15  -- 行为: 品牌+标签
+                    WHEN sc.behavior_tag_match_count >= 2 THEN 0.12  -- 行为: 多个标签
+                    WHEN sc.behavior_brand_match OR sc.behavior_tag_match THEN 0.10  -- 行为: 单个匹配
+                    ELSE 0
+                  END
+              )
+              -- 如果用户不存在，只使用趋势分数
+              ELSE 0.30 * CASE WHEN sc.engagement_aff THEN 1 ELSE 0 END
+            END
+        )
+        ELSE (
+          -- 有搜索查询：搜索相关性 + feed算法评分
+          0.30 * sc.search_relevance_val  -- 搜索相关性
+          + 0.25 * sc.boost_norm  -- 趋势分数（降低权重，因为搜索更关注相关性）
+          + CASE 
+              -- 如果用户存在，应用个性化推荐
+              WHEN v_user_id IS NOT NULL THEN (
+                0.20 * CASE WHEN sc.engagement_aff THEN 1 ELSE 0 END  -- 用户偏好匹配
+                + CASE 
+                    -- Explicit preferences (用户手动选择的品牌/风格) - 最高优先级
+                    WHEN sc.brand_match AND sc.tag_match THEN 0.20  -- 品牌+标签同时匹配
+                    WHEN sc.tag_match_count >= 2 THEN 0.18  -- 多个标签匹配
+                    WHEN sc.brand_match OR sc.tag_match THEN 0.15  -- 单个匹配
+                    -- Behavior-based recommendations (基于用户历史交互) - 中等优先级
+                    WHEN sc.behavior_brand_match AND sc.behavior_tag_match THEN 0.12  -- 行为: 品牌+标签
+                    WHEN sc.behavior_tag_match_count >= 2 THEN 0.10  -- 行为: 多个标签
+                    WHEN sc.behavior_brand_match OR sc.behavior_tag_match THEN 0.08  -- 行为: 单个匹配
+                    ELSE 0
+                  END
+              )
+              -- 如果用户不存在，只使用搜索相关性和趋势分数
+              ELSE 0.20 * CASE WHEN sc.engagement_aff THEN 1 ELSE 0 END
+            END
+        )
+      END AS final_score_val,
       CASE
         WHEN sc.brand_match AND sc.tag_match THEN 'brand&tag'
         WHEN sc.brand_match THEN 'brand'
@@ -373,6 +400,7 @@ BEGIN
         WHEN sc.behavior_brand_match THEN 'behavior_brand'
         WHEN sc.behavior_tag_match THEN 'behavior_tag'
         WHEN sc.engagement_aff THEN 'affinity'
+        WHEN v_search_query_normalized = '' OR v_search_query_normalized = '%' THEN 'feed'
         ELSE 'search'
       END AS src_label
     FROM scored sc
@@ -387,7 +415,7 @@ BEGIN
       r.boosted_score_raw,
       r.is_boosted_flag,
       r.boost_weight_value,
-      r.search_relevance_score,
+      r.search_relevance_val AS search_relevance_score,
       r.final_score_val,
       lc.title AS card_title,
       lc.image_url AS card_image_url,
