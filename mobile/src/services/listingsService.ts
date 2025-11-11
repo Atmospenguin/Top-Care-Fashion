@@ -23,6 +23,7 @@ export interface UserListingsQueryParams {
 
 export interface ListingsQueryParams {
   category?: string;
+  categoryId?: number; // 支持直接传递 categoryId
   search?: string;
   minPrice?: number;
   maxPrice?: number;
@@ -114,9 +115,10 @@ export interface DraftListingRequest {
 
 // 分类数据结构
 export interface CategoryData {
-  men: Record<string, string[]>;
-  women: Record<string, string[]>;
-  unisex: Record<string, string[]>;
+  men: Record<string, { id: number; subcategories: string[] }>;
+  women: Record<string, { id: number; subcategories: string[] }>;
+  unisex: Record<string, { id: number; subcategories: string[] }>;
+  categoryMap?: Record<string, number>; // 名称到ID的映射，方便查找
 }
 
 const VALID_LISTING_CATEGORIES: ListingCategory[] = [
@@ -552,7 +554,7 @@ export class ListingsService {
   }
 
   // 搜索商品（使用feed算法搜索端点，移动端默认启用）
-  async searchListings(query: string, params?: Omit<ListingsQueryParams, 'search'>): Promise<ListingsResponse> {
+  async searchListings(query: string, params?: Omit<ListingsQueryParams, 'search'> & { categoryId?: number }): Promise<ListingsResponse> {
     try {
       // 使用新的搜索端点，移动端默认启用feed算法（通过x-mobile-app头识别）
       const searchParams: Record<string, any> = {
@@ -564,16 +566,30 @@ export class ListingsService {
         seed: params?.seed, // Pass seed for consistent pagination
       };
 
-      // 如果有category，尝试转换为categoryId（如果category是数字）
-      if (params?.category) {
+      // 优先使用 categoryId（如果提供）
+      if (params?.categoryId !== undefined && params.categoryId !== null) {
+        searchParams.categoryId = params.categoryId;
+        console.log('🔍 ListingsService: Using categoryId:', params.categoryId);
+      } else if (params?.category) {
+        // 如果有category，尝试转换为categoryId（如果category是数字）
         const categoryId = parseInt(params.category, 10);
         if (!isNaN(categoryId)) {
           searchParams.categoryId = categoryId;
+          console.log('🔍 ListingsService: Parsed categoryId from category:', categoryId);
         } else {
           // 如果不是数字，保留category名称（fallback会处理）
           searchParams.category = params.category;
+          console.log('🔍 ListingsService: Using category name:', params.category);
         }
       }
+      
+      console.log('🔍 ListingsService: searchListings params:', {
+        query,
+        searchParams,
+        originalParams: params,
+        categoryIdInSearchParams: searchParams.categoryId,
+        categoryInSearchParams: searchParams.category,
+      });
 
       const response = await apiClient.get<{
         success: boolean;

@@ -6,6 +6,7 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
+    const categoryIdParam = searchParams.get("categoryId");
     const search = searchParams.get("search");
     const genderParam = searchParams.get("gender");
     const sizeParam = searchParams.get("size");
@@ -26,7 +27,13 @@ export async function GET(req: Request) {
       sold: false,
     };
 
-    if (category && category !== "All") {
+    // 优先使用 categoryId，如果没有则使用 category 名称
+    if (categoryIdParam) {
+      const categoryId = parseInt(categoryIdParam, 10);
+      if (!isNaN(categoryId)) {
+        where.category_id = categoryId;
+      }
+    } else if (category && category !== "All") {
       where.category = {
         name: { contains: category, mode: "insensitive" },
       };
@@ -326,10 +333,16 @@ export async function GET(req: Request) {
 
     const mapSizeToDisplay = (sizeValue: string | null): string | null => {
       if (!sizeValue) return null;
+      const trimmed = sizeValue.trim();
+
+      // Preserve "N/A" exactly, do not split into "N"
+      if (/^n\/a$/i.test(trimmed)) {
+        return "N/A";
+      }
       
       // 处理复杂的尺码字符串（如 "M / EU 38 / UK 10 / US 6"）
-      if (sizeValue.includes("/")) {
-        const parts = sizeValue.split("/");
+      if (trimmed.includes("/")) {
+        const parts = trimmed.split("/");
         const firstPart = parts[0].trim();
         
         // 如果第一部分是字母尺码，直接返回

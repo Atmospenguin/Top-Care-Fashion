@@ -58,9 +58,24 @@ const mapGenderOptionToApiParam = (
 export default function SearchResultScreen() {
   const navigation = useNavigation<BuyNavigation>();
   const { user } = useAuth();
-  const {
-    params: { query, category: initialCategory, gender: initialGenderParam },
-  } = useRoute<SearchResultRoute>();
+  const route = useRoute<SearchResultRoute>();
+  
+  // 安全地解构 route params，提供默认值
+  const query = route.params?.query || "";
+  const initialCategoryId = route.params?.categoryId;
+  const initialCategory = route.params?.category; // 向后兼容
+  const initialGenderParam = route.params?.gender;
+  
+  // Debug: Log route params
+  useEffect(() => {
+    console.log('🔍 SearchResult: Route params changed:', {
+      query,
+      initialCategoryId,
+      initialCategory,
+      initialGenderParam,
+      allParams: route.params,
+    });
+  }, [route.params, query, initialCategoryId, initialCategory, initialGenderParam]);
 
   const normalizedInitialGender = useMemo(
     () => mapGenderParamToOption(initialGenderParam),
@@ -76,6 +91,17 @@ export default function SearchResultScreen() {
     }
     // Default to clothing sizes for other categories
     return Array.from(CLOTHING_SIZES);
+  }, []);
+
+  // 简单去重，避免跨页重复（与 Home Feed 一致）
+  const dedupeById = useCallback((arr: ListingItem[]) => {
+    const seen = new Set<string>();
+    return arr.filter((it) => {
+      const id = String(it.id);
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
   }, []);
 
   // Get user's preferred size(s) based on category
@@ -107,19 +133,33 @@ export default function SearchResultScreen() {
   const [filterModalVisible, setFilterModalVisible] = useState(false);
 
   // Applied filters (used for actual filtering)
-  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || "All");
+  // 初始化时使用 route params 的值，如果没有则使用 "All"
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => {
+    console.log('🔍 SearchResult: Initializing selectedCategory with:', initialCategory || "All");
+    return initialCategory || "All";
+  });
   const [selectedSize, setSelectedSize] = useState<string>("All");
   const [selectedCondition, setSelectedCondition] = useState<string>("All");
-  const [selectedGender, setSelectedGender] = useState<string>(normalizedInitialGender);
+  const [selectedGender, setSelectedGender] = useState<string>(() => {
+    console.log('🔍 SearchResult: Initializing selectedGender with:', normalizedInitialGender || "All");
+    return normalizedInitialGender || "All";
+  });
   const [minPrice, setMinPrice] = useState<string>("");
   const [maxPrice, setMaxPrice] = useState<string>("");
   const [sortBy, setSortBy] = useState<typeof SORT_OPTIONS[number]>("For You");
 
   // Temporary filters (used in modal, applied on button click)
-  const [tempCategory, setTempCategory] = useState<string>("All");
+  // 初始化时也使用 route params 的值，这样 FilterModal 打开时显示正确的选中状态
+  const [tempCategory, setTempCategory] = useState<string>(() => {
+    console.log('🔍 SearchResult: Initializing tempCategory with:', initialCategory || "All");
+    return initialCategory || "All";
+  });
   const [tempSize, setTempSize] = useState<string>("All");
   const [tempCondition, setTempCondition] = useState<string>("All");
-  const [tempGender, setTempGender] = useState<string>(normalizedInitialGender);
+  const [tempGender, setTempGender] = useState<string>(() => {
+    console.log('🔍 SearchResult: Initializing tempGender with:', normalizedInitialGender || "All");
+    return normalizedInitialGender || "All";
+  });
   const [tempMinPrice, setTempMinPrice] = useState<string>("");
   const [tempMaxPrice, setTempMaxPrice] = useState<string>("");
   const [tempSortBy, setTempSortBy] = useState<typeof SORT_OPTIONS[number]>("For You");
@@ -133,6 +173,7 @@ export default function SearchResultScreen() {
   const [apiListings, setApiListings] = useState<ListingItem[]>([]);
   // Initialize with default categories to ensure filter options are always available
   const [categories, setCategories] = useState<string[]>(["All", "Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"]);
+  const [categoriesData, setCategoriesData] = useState<CategoryData | null>(null); // 保存完整的 categories 数据，包含 ID 信息
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   // Pagination state
@@ -141,16 +182,11 @@ export default function SearchResultScreen() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
-  const [feedSeed, setFeedSeed] = useState<number | null>(null); // Store seed for feed algorithm consistency
+  // Feed pagination state (mirror Home Feed)
+  const seedRef = useRef<number>((Date.now() % 2147483647) | 0);
+  const [feedPage, setFeedPage] = useState(1);
   const PAGE_SIZE = 20;
   const viewedItemsRef = useRef<Set<string>>(new Set()); // 追踪已记录views的商品
-
-  useEffect(() => {
-    setSelectedGender(normalizedInitialGender);
-    setTempGender(normalizedInitialGender);
-    // Reset feed seed when query changes
-    setFeedSeed(null);
-  }, [normalizedInitialGender]);
 
   // Load categories from database
   useEffect(() => {
@@ -159,6 +195,9 @@ export default function SearchResultScreen() {
     listingsService.getCategories()
       .then((data: CategoryData) => {
         if (!mounted) return;
+        // Save full categories data (includes IDs)
+        setCategoriesData(data);
+        
         // Extract all unique category names from all genders
         const allCategories = new Set<string>();
         allCategories.add("All");
@@ -212,6 +251,30 @@ export default function SearchResultScreen() {
       } else {
         setIsLoadingMore(true);
       }
+
+      // 确定要使用的 gender：优先使用 route params 中的 gender
+      const genderToUse = normalizedInitialGender && normalizedInitialGender !== "All" 
+        ? normalizedInitialGender 
+        : selectedGender;
+      
+      // Log current filter state to debug
+      console.log('🔍 SearchResult: loadListings called with filters:', {
+        query,
+        selectedCategory,
+        initialCategoryId,
+        categoriesDataLoaded: !!categoriesData,
+        categoryMapAvailable: !!categoriesData?.categoryMap,
+        initialGenderParam,
+        normalizedInitialGender,
+        selectedGender,
+        genderToUse,
+        selectedSize,
+        selectedCondition,
+        minPrice,
+        maxPrice,
+        sortBy,
+        resetOffset,
+      });
 
       // Handle "My Size" - get user's preferred size(s) based on category
       let sizeParam: string | undefined;
@@ -284,34 +347,43 @@ export default function SearchResultScreen() {
       if (sortBy === "For You") {
         const searchQuery = query || "";
         
-        // Generate or reuse seed for consistent pagination
-        // Reset seed when starting a new search (resetOffset = true)
-        const currentSeed = resetOffset 
-          ? Math.floor(Math.random() * 2147483647) // Generate new seed for new search
-          : (feedSeed ?? Math.floor(Math.random() * 2147483647)); // Reuse existing seed for pagination
-        
+        // Stable seed (reset when resetOffset), mirror FeedList
         if (resetOffset) {
-          setFeedSeed(currentSeed); // Save seed for pagination
+          seedRef.current = (Date.now() % 2147483647) | 0;
+          setFeedPage(1);
         }
+        const currentSeed = seedRef.current;
         
         const searchParams: any = {
           q: searchQuery,
           limit: PAGE_SIZE,
-          page: Math.floor(currentOffset / PAGE_SIZE) + 1,
+          page: resetOffset ? 1 : Math.max(1, Math.floor(currentOffset / PAGE_SIZE) + 1),
           offset: currentOffset,
-          gender: mapGenderOptionToApiParam(selectedGender),
+          gender: mapGenderOptionToApiParam(genderToUse), // 使用优先的 gender
           seed: currentSeed, // Pass seed for consistent sorting
         };
 
-        // Add category if not "All"
-        if (selectedCategory !== 'All') {
-          const categoryId = parseInt(selectedCategory, 10);
-          if (!isNaN(categoryId)) {
-            searchParams.categoryId = categoryId;
+        // Add category - 优先使用 categoryId（从 route params 或从 categoryMap 查找）
+        // 如果有 initialCategoryId（从 route params），直接使用，不依赖 selectedCategory
+        if (initialCategoryId) {
+          searchParams.categoryId = initialCategoryId;
+          console.log('🔍 SearchResult: Using categoryId from route params:', initialCategoryId);
+        } else if (selectedCategory !== 'All') {
+          // 如果没有 initialCategoryId，尝试从 categoryMap 查找
+          if (categoriesData?.categoryMap && categoriesData.categoryMap[selectedCategory]) {
+            searchParams.categoryId = categoriesData.categoryMap[selectedCategory];
+            console.log('🔍 SearchResult: Found categoryId from categoryMap:', categoriesData.categoryMap[selectedCategory]);
           } else {
+            // 最后 fallback 到名称
             searchParams.category = selectedCategory;
+            console.log('🔍 SearchResult: Using category name (fallback):', selectedCategory);
           }
         }
+        
+        console.log('🔍 SearchResult: Using feed algorithm (For You) with params:', {
+          ...searchParams,
+          genderSource: genderToUse === normalizedInitialGender ? 'route params' : 'selectedGender state',
+        });
 
         // Feed algorithm search endpoint doesn't support all filters yet
         // For complex filters (condition, price, size), fallback to regular search
@@ -321,13 +393,21 @@ export default function SearchResultScreen() {
           console.warn('🔍 SearchResult: Complex filters with "For You" sort, using Latest sort instead');
           const params: any = {
             search: searchQuery || undefined,
-            category: selectedCategory !== 'All' ? selectedCategory : undefined,
-            gender: mapGenderOptionToApiParam(selectedGender),
+            gender: mapGenderOptionToApiParam(genderToUse), // 使用优先的 gender
             condition: selectedCondition !== "All" ? selectedCondition : undefined,
             minPrice: minPrice ? parseFloat(minPrice) : undefined,
             maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
             sort: "Latest",
           };
+          
+          // 使用 categoryId - 优先使用 initialCategoryId
+          if (initialCategoryId) {
+            params.categoryId = initialCategoryId;
+          } else if (selectedCategory !== 'All' && categoriesData?.categoryMap) {
+            params.categoryId = categoriesData.categoryMap[selectedCategory];
+          } else if (selectedCategory !== 'All') {
+            params.category = selectedCategory;
+          }
 
           if (sizesParam?.length) {
             params.sizes = sizesParam;
@@ -369,23 +449,34 @@ export default function SearchResultScreen() {
               const result = await listingsService.searchListings(searchQuery, searchParams);
               console.log('🔍 SearchResult: loadListings feed search - Received', result.items.length, 'items, hasMore:', result.hasMore, 'total:', result.total, 'offset:', currentOffset);
               
+              // Prepare merged length for hasMore calculation (must use deduped length)
+              const mergedLength = resetOffset
+                ? dedupeById(result.items).length
+                : dedupeById([...apiListings, ...result.items]).length;
+
               if (resetOffset) {
                 console.log('🔍 SearchResult: loadListings - Resetting listings to', result.items.length, 'items');
-                setApiListings(result.items);
+                setApiListings(dedupeById(result.items));
                 setOffset(PAGE_SIZE);
                 setTotalCount(result.total || 0);
+                setFeedPage(1);
               } else {
                 setApiListings(prev => {
-                  const newList = [...prev, ...result.items];
+                  const newList = dedupeById([...prev, ...result.items]);
                   console.log('🔍 SearchResult: loadListings - Appending', result.items.length, 'items, total now:', newList.length);
                   return newList;
                 });
                 setOffset(prev => prev + PAGE_SIZE);
+                setFeedPage(prev => prev + 1);
                 if (result.total !== undefined && result.total !== totalCount) {
                   setTotalCount(result.total);
                 }
               }
-              setHasMore(result.hasMore);
+              // 更稳健：根据总数与已加载（去重后）数量判断是否还有更多
+              {
+                const nextTotal = result.total ?? totalCount ?? 0;
+                setHasMore(mergedLength < nextTotal || (Boolean(result?.hasMore) && result.items.length === PAGE_SIZE));
+              }
               console.log('🔍 SearchResult: loadListings - Final state: items=', resetOffset ? result.items.length : 'appended', ', hasMore=', result.hasMore, ', totalCount=', result.total);
               return;
             } catch (error) {
@@ -395,15 +486,24 @@ export default function SearchResultScreen() {
       }
 
       // Build filter parameters for regular search (non-"For You" sort)
+      // 使用优先的 gender（从 route params 或 selectedGender state）
       const params: any = {
         search: query || undefined,
-        category: selectedCategory !== 'All' ? selectedCategory : undefined,
-        gender: mapGenderOptionToApiParam(selectedGender),
+        gender: mapGenderOptionToApiParam(genderToUse), // 使用优先的 gender
         condition: selectedCondition !== "All" ? selectedCondition : undefined,
         minPrice: minPrice ? parseFloat(minPrice) : undefined,
         maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
         sort: mapSortToApiParam(sortBy),
       };
+      
+      // 使用 categoryId - 优先使用 initialCategoryId
+      if (initialCategoryId) {
+        params.categoryId = initialCategoryId;
+      } else if (selectedCategory !== 'All' && categoriesData?.categoryMap) {
+        params.categoryId = categoriesData.categoryMap[selectedCategory];
+      } else if (selectedCategory !== 'All') {
+        params.category = selectedCategory;
+      }
 
       if (sizesParam?.length) {
         params.sizes = sizesParam;
@@ -466,6 +566,11 @@ export default function SearchResultScreen() {
   // Track previous filter values to detect changes
   const prevFiltersRef = useRef<string>('');
   
+  // 最简单方式：route params 传入时，应用到状态
+  // FilterModal 使用 tempCategory 和 tempGender 显示选中状态
+  const routeParamsAppliedRef = useRef<string>('');
+  const isInitialMountRef = useRef(true);
+  
   // Load listings when filters change
   useEffect(() => {
     // Build current filter signature
@@ -480,12 +585,113 @@ export default function SearchResultScreen() {
       sortBy,
     });
 
-    // Only reload if filters actually changed
-    if (prevFiltersRef.current !== currentFilters) {
+    console.log('🔍 SearchResult: Filter change effect triggered:', {
+      currentFilters,
+      prevFilters: prevFiltersRef.current,
+      filtersChanged: prevFiltersRef.current !== currentFilters,
+      isInitialMount: isInitialMountRef.current,
+      filters: {
+        query,
+        selectedCategory,
+        selectedGender,
+        selectedSize,
+        selectedCondition,
+        minPrice,
+        maxPrice,
+        sortBy,
+      },
+    });
+
+    // Only reload if filters actually changed (or on initial mount)
+    if (prevFiltersRef.current !== currentFilters || isInitialMountRef.current) {
+      console.log('🔍 SearchResult: Filters changed, loading listings');
       prevFiltersRef.current = currentFilters;
+      isInitialMountRef.current = false;
       loadListings(true);
+    } else {
+      console.log('🔍 SearchResult: Filters unchanged, skipping load');
     }
   }, [query, selectedCategory, selectedGender, selectedSize, selectedCondition, minPrice, maxPrice, sortBy, loadListings]);
+  
+  // Handle route params separately - only update state if params changed
+  // 如果有 categoryId，需要从 categories 数据中找到对应的名称
+  useEffect(() => {
+    const hasCategoryId = initialCategoryId && initialCategoryId > 0;
+    const hasCategory = initialCategory && initialCategory !== "All";
+    const hasGender = normalizedInitialGender && normalizedInitialGender !== "All";
+    
+    // 如果有 categoryId，尝试从 categories 数据中找到对应的名称
+    let categoryNameToUse: string | undefined;
+    if (hasCategoryId && categories.length > 0) {
+      // 从 categories 数据中查找 categoryId 对应的名称
+      // categories 数据格式: CategoryData 包含 men/women/unisex，每个包含 { id, subcategories }
+      const allCategoryEntries = [
+        ...Object.entries(categoriesData?.men || {}),
+        ...Object.entries(categoriesData?.women || {}),
+        ...Object.entries(categoriesData?.unisex || {}),
+      ];
+      const foundCategory = allCategoryEntries.find(([_, data]) => 
+        typeof data === 'object' && data?.id === initialCategoryId
+      );
+      if (foundCategory) {
+        categoryNameToUse = foundCategory[0];
+        console.log('🔍 SearchResult: Found category name for ID:', { categoryId: initialCategoryId, categoryName: categoryNameToUse });
+      } else if (categoriesData?.categoryMap) {
+        // 使用 categoryMap 查找
+        const found = Object.entries(categoriesData.categoryMap).find(([_, id]) => id === initialCategoryId);
+        if (found) {
+          categoryNameToUse = found[0];
+          console.log('🔍 SearchResult: Found category name from categoryMap:', { categoryId: initialCategoryId, categoryName: categoryNameToUse });
+        }
+      }
+    } else if (hasCategory) {
+      categoryNameToUse = initialCategory;
+    }
+    
+    const paramsKey = `${initialCategoryId || initialCategory || ''}-${normalizedInitialGender || ''}`;
+    
+    // 如果 route params 有值且未应用过，应用它们
+    if ((categoryNameToUse || hasGender) && routeParamsAppliedRef.current !== paramsKey) {
+      console.log('🔍 SearchResult: Route params changed, applying to state:', {
+        categoryId: initialCategoryId,
+        category: initialCategory,
+        categoryNameToUse,
+        gender: normalizedInitialGender,
+        previousKey: routeParamsAppliedRef.current,
+        currentKey: paramsKey,
+        currentSelectedCategory: selectedCategory,
+        currentSelectedGender: selectedGender,
+      });
+      
+      // 设置到临时状态（FilterModal 使用）
+      if (categoryNameToUse && categoryNameToUse !== tempCategory) {
+        console.log('🔍 SearchResult: Updating tempCategory:', categoryNameToUse);
+        setTempCategory(categoryNameToUse);
+      }
+      if (hasGender && normalizedInitialGender !== tempGender) {
+        console.log('🔍 SearchResult: Updating tempGender:', normalizedInitialGender);
+        setTempGender(normalizedInitialGender);
+      }
+      
+      // 直接应用到实际筛选状态（这会触发 filter change effect）
+      // 使用 categoryId 作为 selectedCategory（如果是数字字符串）
+      if (categoryNameToUse && categoryNameToUse !== selectedCategory) {
+        console.log('🔍 SearchResult: Updating selectedCategory:', categoryNameToUse);
+        setSelectedCategory(categoryNameToUse);
+      }
+      if (hasGender && normalizedInitialGender !== selectedGender) {
+        console.log('🔍 SearchResult: Updating selectedGender:', normalizedInitialGender);
+        setSelectedGender(normalizedInitialGender);
+      }
+      
+      // 重置 feed seed & page
+      seedRef.current = (Date.now() % 2147483647) | 0;
+      setFeedPage(1);
+      
+      // 标记为已应用
+      routeParamsAppliedRef.current = paramsKey;
+    }
+  }, [initialCategoryId, initialCategory, normalizedInitialGender, selectedCategory, selectedGender, tempCategory, tempGender, categoriesData]);
 
   // Load more listings when scrolling to bottom
   const loadMore = React.useCallback(async () => {
@@ -536,47 +742,36 @@ export default function SearchResultScreen() {
         sizeParam = selectedSize.trim();
       }
 
+      // 确定要使用的 gender：优先使用 route params 中的 gender（在整个 loadMore 函数中）
+      const genderToUseInLoadMore = normalizedInitialGender && normalizedInitialGender !== "All" 
+        ? normalizedInitialGender 
+        : selectedGender;
+
       // If "For You" is selected, use feed algorithm (same logic as loadListings)
       if (sortBy === "For You") {
         const searchQuery = query || "";
         
-        // Use existing seed for pagination consistency
-        const currentSeed = feedSeed ?? Math.floor(Math.random() * 2147483647);
-        if (!feedSeed) {
-          setFeedSeed(currentSeed); // Save seed if not already set
-        }
-        
-        const searchParams: any = {
-          q: searchQuery,
-          limit: PAGE_SIZE,
-          page: Math.floor(currentOffset / PAGE_SIZE) + 1,
-          offset: currentOffset,
-          gender: mapGenderOptionToApiParam(selectedGender),
-          seed: currentSeed, // Pass seed for consistent sorting
-        };
-
-        if (selectedCategory !== 'All') {
-          const categoryId = parseInt(selectedCategory, 10);
-          if (!isNaN(categoryId)) {
-            searchParams.categoryId = categoryId;
-          } else {
-            searchParams.category = selectedCategory;
-          }
-        }
-
+        // 先判断是否为复杂筛选，复杂筛选直接走常规搜索的分页逻辑
         const hasComplexFilters = selectedCondition !== "All" || minPrice || maxPrice || sizeParam || sizesParam?.length;
-        
         if (hasComplexFilters) {
           // Fallback to regular search for complex filters
           const params: any = {
             search: searchQuery || undefined,
-            category: selectedCategory !== 'All' ? selectedCategory : undefined,
-            gender: mapGenderOptionToApiParam(selectedGender),
+            gender: mapGenderOptionToApiParam(genderToUseInLoadMore), // 使用优先的 gender
             condition: selectedCondition !== "All" ? selectedCondition : undefined,
             minPrice: minPrice ? parseFloat(minPrice) : undefined,
             maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
             sort: "Latest",
           };
+          
+          // 使用 categoryId - 优先使用 initialCategoryId
+          if (initialCategoryId) {
+            params.categoryId = initialCategoryId;
+          } else if (selectedCategory !== 'All' && categoriesData?.categoryMap) {
+            params.categoryId = categoriesData.categoryMap[selectedCategory];
+          } else if (selectedCategory !== 'All') {
+            params.category = selectedCategory;
+          }
 
           if (sizesParam?.length) {
             params.sizes = sizesParam;
@@ -597,21 +792,63 @@ export default function SearchResultScreen() {
           });
           
           setApiListings(prev => [...prev, ...result.items]);
-          setHasMore(result.hasMore);
+          setHasMore(result.items.length === PAGE_SIZE);
           setOffset(prev => prev + PAGE_SIZE);
           return;
         }
 
+        // Use stable seed from ref (never null)
+        const currentSeed = seedRef.current;
+        
+        const searchParams: any = {
+          q: searchQuery,
+          limit: PAGE_SIZE,
+          page: Math.max(1, feedPage + 1),
+          offset: currentOffset,
+          gender: mapGenderOptionToApiParam(genderToUseInLoadMore), // 使用优先的 gender
+          seed: currentSeed, // Pass seed for consistent sorting
+        };
+
+        // 使用 categoryId - 优先使用 initialCategoryId
+        if (initialCategoryId) {
+          searchParams.categoryId = initialCategoryId;
+          console.log('🔍 SearchResult: loadMore - Using categoryId from route params:', initialCategoryId);
+        } else if (selectedCategory !== 'All') {
+          // 如果没有 initialCategoryId，尝试从 categoryMap 查找
+          if (categoriesData?.categoryMap && categoriesData.categoryMap[selectedCategory]) {
+            searchParams.categoryId = categoriesData.categoryMap[selectedCategory];
+            console.log('🔍 SearchResult: loadMore - Found categoryId from categoryMap:', categoriesData.categoryMap[selectedCategory]);
+          } else {
+            searchParams.category = selectedCategory;
+            console.log('🔍 SearchResult: loadMore - Using category name (fallback):', selectedCategory);
+          }
+        }
+        
+        console.log('🔍 SearchResult: loadMore - Using gender:', {
+          initialGenderParam,
+          normalizedInitialGender,
+          selectedGender,
+          genderToUseInLoadMore,
+          mappedGender: mapGenderOptionToApiParam(genderToUseInLoadMore),
+        });
+
         try {
           const result = await listingsService.searchListings(searchQuery, searchParams);
           console.log('🔍 SearchResult: loadMore feed search - Received', result.items.length, 'items, hasMore:', result.hasMore, 'total:', result.total, 'current offset:', currentOffset);
+          // Precompute merged length using current state to correctly compute hasMore
+          const mergedLength = dedupeById([...apiListings, ...result.items]).length;
           setApiListings(prev => {
-            const newList = [...prev, ...result.items];
+            const newList = dedupeById([...prev, ...result.items]);
             console.log('🔍 SearchResult: loadMore - Total items after merge:', newList.length, '(prev:', prev.length, '+ new:', result.items.length, ')');
             return newList;
           });
-          setHasMore(result.hasMore);
+          // 更稳健：根据总数与已加载（去重后）数量判断是否还有更多
+          {
+            const nextTotal = result.total ?? totalCount ?? 0;
+            setHasMore(mergedLength < nextTotal || (Boolean(result?.hasMore) && result.items.length === PAGE_SIZE));
+          }
           setOffset(prev => prev + PAGE_SIZE);
+          setFeedPage(prev => prev + 1);
           return;
         } catch (error) {
           console.error('🔍 SearchResult: Feed algorithm search failed in loadMore, falling back:', error);
@@ -619,15 +856,24 @@ export default function SearchResultScreen() {
       }
 
       // Build filter parameters for regular search (non-"For You" sort)
+      // 使用优先的 gender（从 route params 或 selectedGender state）
       const params: any = {
         search: query || undefined,
-        category: selectedCategory !== 'All' ? selectedCategory : undefined,
-        gender: mapGenderOptionToApiParam(selectedGender),
+        gender: mapGenderOptionToApiParam(genderToUseInLoadMore), // 使用优先的 gender
         condition: selectedCondition !== "All" ? selectedCondition : undefined,
         minPrice: minPrice ? parseFloat(minPrice) : undefined,
         maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
         sort: mapSortToApiParam(sortBy),
       };
+      
+      // 使用 categoryId - 优先使用 initialCategoryId
+      if (initialCategoryId) {
+        params.categoryId = initialCategoryId;
+      } else if (selectedCategory !== 'All' && categoriesData?.categoryMap) {
+        params.categoryId = categoriesData.categoryMap[selectedCategory];
+      } else if (selectedCategory !== 'All') {
+        params.category = selectedCategory;
+      }
 
       if (sizesParam?.length) {
         params.sizes = sizesParam;
@@ -691,10 +937,23 @@ export default function SearchResultScreen() {
 
   const handleOpenFilters = () => {
     // Sync temp filters with current applied filters
-    setTempCategory(selectedCategory);
+    // 优先使用当前已应用的选择，避免被初始路由参数覆盖
+    const categoryToUse = selectedCategory;
+    const genderToUse = selectedGender;
+    
+    console.log('🔍 SearchResult: Opening filter modal:', {
+      routeCategory: initialCategory,
+      routeGender: normalizedInitialGender,
+      currentCategory: selectedCategory,
+      currentGender: selectedGender,
+      usingCategory: categoryToUse,
+      usingGender: genderToUse,
+    });
+    
+    setTempCategory(categoryToUse);
     setTempSize(selectedSize);
     setTempCondition(selectedCondition);
-    setTempGender(selectedGender);
+    setTempGender(genderToUse);
     setTempMinPrice(minPrice);
     setTempMaxPrice(maxPrice);
     setTempSortBy(sortBy);
@@ -722,7 +981,9 @@ export default function SearchResultScreen() {
     setFilterModalVisible(false);
     // Reset feed seed when filters change to get new randomized order
     if (tempSortBy === "For You") {
-      setFeedSeed(null); // Will be regenerated on next loadListings call
+      // Reset seed/page to start a fresh feed sequence
+      seedRef.current = (Date.now() % 2147483647) | 0;
+      setFeedPage(1);
     }
   };
 
