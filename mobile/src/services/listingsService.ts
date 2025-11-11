@@ -33,6 +33,8 @@ export interface ListingsQueryParams {
   sizes?: string[];
   condition?: string;
   sort?: string;
+  seed?: number; // Seed for feed algorithm pagination consistency
+  page?: number; // Page number for feed algorithm
 }
 
 // 分页响应类型
@@ -559,6 +561,7 @@ export class ListingsService {
         page: params?.page,
         offset: params?.offset,
         gender: params?.gender,
+        seed: params?.seed, // Pass seed for consistent pagination
       };
 
       // 如果有category，尝试转换为categoryId（如果category是数字）

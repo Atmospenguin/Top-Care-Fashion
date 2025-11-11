@@ -355,52 +355,133 @@ export async function GET(req: NextRequest) {
       const { Prisma } = await import("@prisma/client");
       
       // Debug: Log the order from get_search_feed
+      console.log('🔍 Feed search - RPC call params:', {
+        p_supabase_user_id: supabaseUserId || null,
+        p_search_query: feedSearchQuery,
+        p_limit: limit,
+        p_offset: offset,
+        p_seed: seedId,
+        p_gender: gender || null,
+        p_category_id: parsedCategoryId,
+      });
+      console.log('🔍 Feed search - RPC returned items:', data.length);
       console.log('🔍 Feed search order:', data.slice(0, 5).map((r: SearchRow) => ({ id: r.id, title: r.title, price_cents: r.price_cents, final_score: r.final_score })));
+      if (data.length < limit && offset > 0) {
+        console.warn('🔍 Feed search - WARNING: Received fewer items than requested!', {
+          requested: limit,
+          received: data.length,
+          offset,
+        });
+      }
       
-      // Calculate total count using the same filter logic as get_search_feed and fallbackSearch
-      // This ensures consistent count calculation regardless of feed algorithm
-      const where: any = {
-        listed: true,
-        sold: false,
-      };
+      // Calculate total count using raw SQL to match get_search_feed filter logic exactly
+      // This includes tags search which Prisma doesn't support well
+      let totalCount = 0;
+      try {
+        // Build SQL query that matches get_search_feed's inv_gender_search CTE exactly
+        const sqlParts: string[] = [];
+        const sqlParams: any[] = [];
+        let paramIndex = 1;
 
-      // Priority: categoryId > category name (same as get_search_feed function)
-      if (parsedCategoryId) {
-        where.category_id = parsedCategoryId;
-      } else if (category) {
-        where.category = {
-          name: { contains: category, mode: "insensitive" },
-        };
-      }
+        // Base conditions
+        sqlParts.push('SELECT COUNT(*) as count FROM public.listings l');
+        sqlParts.push('WHERE l.listed = true AND l.sold = false');
 
-      // Gender filter (same as get_search_feed function)
-      if (gender) {
-        const normalizeGender = (value: string): "Men" | "Women" | "Unisex" | undefined => {
-          const lower = value.toLowerCase();
-          if (lower === "men" || lower === "male") return "Men";
-          if (lower === "women" || lower === "female") return "Women";
-          if (lower === "unisex" || lower === "all") return "Unisex";
-          return undefined;
-        };
+        // Gender filter (same as get_search_feed)
+        if (gender) {
+          const normalizeGender = (value: string): "Men" | "Women" | "Unisex" | undefined => {
+            const lower = value.toLowerCase();
+            if (lower === "men" || lower === "male") return "Men";
+            if (lower === "women" || lower === "female") return "Women";
+            if (lower === "unisex" || lower === "all") return "Unisex";
+            return undefined;
+          };
 
-        const normalizedGender = normalizeGender(gender);
-        if (normalizedGender) {
-          where.gender = normalizedGender;
+          const normalizedGender = normalizeGender(gender);
+          if (normalizedGender) {
+            if (normalizedGender === "Men") {
+              sqlParts.push(`AND l.gender IN ('Men', 'Unisex')`);
+            } else if (normalizedGender === "Women") {
+              sqlParts.push(`AND l.gender IN ('Women', 'Unisex')`);
+            }
+            // Unisex doesn't need filtering (allows all)
+          }
         }
-      }
 
-      // Search query filter (only if search query is not empty, same as get_search_feed function)
-      if (normalizedSearchQuery && normalizedSearchQuery.length > 0) {
-        const searchFilters: any[] = [
-          { name: { contains: normalizedSearchQuery, mode: "insensitive" } },
-          { description: { contains: normalizedSearchQuery, mode: "insensitive" } },
-          { brand: { contains: normalizedSearchQuery, mode: "insensitive" } },
-        ];
-        where.OR = searchFilters;
-      }
+        // Category filter
+        if (parsedCategoryId) {
+          sqlParts.push(`AND l.category_id = $${paramIndex}`);
+          sqlParams.push(parsedCategoryId);
+          paramIndex++;
+        } else if (category) {
+          sqlParts.push(`AND EXISTS (SELECT 1 FROM public.listing_categories c WHERE c.id = l.category_id AND lower(c.name) LIKE $${paramIndex})`);
+          sqlParams.push(`%${category.toLowerCase()}%`);
+          paramIndex++;
+        }
 
-      // Calculate total count (matches the filter conditions used in get_search_feed)
-      const totalCount = await prisma.listings.count({ where });
+        // Search query filter (includes tags search, same as get_search_feed)
+        if (normalizedSearchQuery && normalizedSearchQuery.length > 0) {
+          const searchPattern = `%${normalizedSearchQuery.toLowerCase()}%`;
+          sqlParts.push(`AND (
+            lower(l.name) LIKE $${paramIndex}
+            OR lower(COALESCE(l.description, '')) LIKE $${paramIndex}
+            OR lower(COALESCE(l.brand, '')) LIKE $${paramIndex}
+            OR EXISTS (
+              SELECT 1 FROM jsonb_array_elements_text(l.tags) AS tag
+              WHERE lower(tag) LIKE $${paramIndex}
+            )
+          )`);
+          sqlParams.push(searchPattern);
+          paramIndex++;
+        }
+
+        const countSql = sqlParts.join(' ');
+        const countResult = await prisma.$queryRawUnsafe<[{ count: bigint }]>(countSql, ...sqlParams);
+        totalCount = Number(countResult[0]?.count || 0);
+        console.log('🔍 Feed search - Total count from SQL:', totalCount);
+      } catch (error) {
+        console.error('🔍 Feed search - Error calculating count with SQL, falling back to Prisma:', error);
+        // Fallback to Prisma count (without tags search)
+        const where: any = {
+          listed: true,
+          sold: false,
+        };
+
+        if (parsedCategoryId) {
+          where.category_id = parsedCategoryId;
+        } else if (category) {
+          where.category = {
+            name: { contains: category, mode: "insensitive" },
+          };
+        }
+
+        if (gender) {
+          const normalizeGender = (value: string): "Men" | "Women" | "Unisex" | undefined => {
+            const lower = value.toLowerCase();
+            if (lower === "men" || lower === "male") return "Men";
+            if (lower === "women" || lower === "female") return "Women";
+            if (lower === "unisex" || lower === "all") return "Unisex";
+            return undefined;
+          };
+
+          const normalizedGender = normalizeGender(gender);
+          if (normalizedGender) {
+            where.gender = normalizedGender;
+          }
+        }
+
+        if (normalizedSearchQuery && normalizedSearchQuery.length > 0) {
+          const searchFilters: any[] = [
+            { name: { contains: normalizedSearchQuery, mode: "insensitive" } },
+            { description: { contains: normalizedSearchQuery, mode: "insensitive" } },
+            { brand: { contains: normalizedSearchQuery, mode: "insensitive" } },
+          ];
+          where.OR = searchFilters;
+        }
+
+        totalCount = await prisma.listings.count({ where });
+        console.log('🔍 Feed search - Total count from Prisma (fallback):', totalCount);
+      }
       
       // Fetch only the fields we need to supplement (size, condition, material, seller, etc.)
       // Use the order from data array to preserve feed algorithm sorting
@@ -430,6 +511,13 @@ export async function GET(req: NextRequest) {
       // Create a map for quick lookup (order doesn't matter here)
       const listingMap = new Map<number, (typeof listings)[number]>();
       listings.forEach((listing) => listingMap.set(listing.id, listing));
+
+      // Debug: Check if all items from RPC were found in Prisma query
+      const missingIds = listingIds.filter((id: number) => !listingMap.has(id));
+      if (missingIds.length > 0) {
+        console.warn('🔍 Feed search - Missing listings in Prisma query:', missingIds);
+      }
+      console.log('🔍 Feed search - Prisma found listings:', listings.length, 'out of', listingIds.length);
 
       // Process items in the EXACT order from data array (preserves feed algorithm sorting)
       const items = data.map((row: SearchRow) => {
@@ -548,7 +636,15 @@ export async function GET(req: NextRequest) {
       });
 
       // Debug: Log the final order
+      console.log('🔍 Feed search - Final items count:', items.length, 'out of', data.length, 'from RPC');
+      console.log('🔍 Feed search - Offset:', offset, 'Limit:', limit, 'Total count:', totalCount);
+      console.log('🔍 Feed search - Has more:', offset + items.length < totalCount);
       console.log('🔍 Final API response order:', items.slice(0, 5).map((i: any) => ({ id: i.id, title: i.title, price: i.price })));
+      
+      // Ensure all items from RPC are included (no filtering)
+      if (items.length !== data.length) {
+        console.warn('🔍 Feed search - WARNING: Items count mismatch! RPC returned', data.length, 'but items array has', items.length);
+      }
 
       return NextResponse.json({
         success: true,

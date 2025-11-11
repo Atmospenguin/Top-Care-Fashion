@@ -141,12 +141,15 @@ export default function SearchResultScreen() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
+  const [feedSeed, setFeedSeed] = useState<number | null>(null); // Store seed for feed algorithm consistency
   const PAGE_SIZE = 20;
   const viewedItemsRef = useRef<Set<string>>(new Set()); // 追踪已记录views的商品
 
   useEffect(() => {
     setSelectedGender(normalizedInitialGender);
     setTempGender(normalizedInitialGender);
+    // Reset feed seed when query changes
+    setFeedSeed(null);
   }, [normalizedInitialGender]);
 
   // Load categories from database
@@ -281,11 +284,23 @@ export default function SearchResultScreen() {
       if (sortBy === "For You") {
         const searchQuery = query || "";
         
+        // Generate or reuse seed for consistent pagination
+        // Reset seed when starting a new search (resetOffset = true)
+        const currentSeed = resetOffset 
+          ? Math.floor(Math.random() * 2147483647) // Generate new seed for new search
+          : (feedSeed ?? Math.floor(Math.random() * 2147483647)); // Reuse existing seed for pagination
+        
+        if (resetOffset) {
+          setFeedSeed(currentSeed); // Save seed for pagination
+        }
+        
         const searchParams: any = {
+          q: searchQuery,
           limit: PAGE_SIZE,
           page: Math.floor(currentOffset / PAGE_SIZE) + 1,
           offset: currentOffset,
           gender: mapGenderOptionToApiParam(selectedGender),
+          seed: currentSeed, // Pass seed for consistent sorting
         };
 
         // Add category if not "All"
@@ -350,26 +365,33 @@ export default function SearchResultScreen() {
         // Use feed algorithm search
         console.log('🔍 SearchResult: Using feed algorithm (For You) with params:', searchParams);
         
-        try {
-          const result = await listingsService.searchListings(searchQuery, searchParams);
-          
-          if (resetOffset) {
-            setApiListings(result.items);
-            setOffset(PAGE_SIZE);
-            setTotalCount(result.total || 0);
-          } else {
-            setApiListings(prev => [...prev, ...result.items]);
-            setOffset(prev => prev + PAGE_SIZE);
-            if (result.total !== undefined && result.total !== totalCount) {
-              setTotalCount(result.total);
+            try {
+              const result = await listingsService.searchListings(searchQuery, searchParams);
+              console.log('🔍 SearchResult: loadListings feed search - Received', result.items.length, 'items, hasMore:', result.hasMore, 'total:', result.total, 'offset:', currentOffset);
+              
+              if (resetOffset) {
+                console.log('🔍 SearchResult: loadListings - Resetting listings to', result.items.length, 'items');
+                setApiListings(result.items);
+                setOffset(PAGE_SIZE);
+                setTotalCount(result.total || 0);
+              } else {
+                setApiListings(prev => {
+                  const newList = [...prev, ...result.items];
+                  console.log('🔍 SearchResult: loadListings - Appending', result.items.length, 'items, total now:', newList.length);
+                  return newList;
+                });
+                setOffset(prev => prev + PAGE_SIZE);
+                if (result.total !== undefined && result.total !== totalCount) {
+                  setTotalCount(result.total);
+                }
+              }
+              setHasMore(result.hasMore);
+              console.log('🔍 SearchResult: loadListings - Final state: items=', resetOffset ? result.items.length : 'appended', ', hasMore=', result.hasMore, ', totalCount=', result.total);
+              return;
+            } catch (error) {
+              console.error('🔍 SearchResult: Feed algorithm search failed, falling back to regular search:', error);
+              // Fall through to regular search
             }
-          }
-          setHasMore(result.hasMore);
-          return;
-        } catch (error) {
-          console.error('🔍 SearchResult: Feed algorithm search failed, falling back to regular search:', error);
-          // Fall through to regular search
-        }
       }
 
       // Build filter parameters for regular search (non-"For You" sort)
@@ -518,11 +540,19 @@ export default function SearchResultScreen() {
       if (sortBy === "For You") {
         const searchQuery = query || "";
         
+        // Use existing seed for pagination consistency
+        const currentSeed = feedSeed ?? Math.floor(Math.random() * 2147483647);
+        if (!feedSeed) {
+          setFeedSeed(currentSeed); // Save seed if not already set
+        }
+        
         const searchParams: any = {
+          q: searchQuery,
           limit: PAGE_SIZE,
           page: Math.floor(currentOffset / PAGE_SIZE) + 1,
           offset: currentOffset,
           gender: mapGenderOptionToApiParam(selectedGender),
+          seed: currentSeed, // Pass seed for consistent sorting
         };
 
         if (selectedCategory !== 'All') {
@@ -574,7 +604,12 @@ export default function SearchResultScreen() {
 
         try {
           const result = await listingsService.searchListings(searchQuery, searchParams);
-          setApiListings(prev => [...prev, ...result.items]);
+          console.log('🔍 SearchResult: loadMore feed search - Received', result.items.length, 'items, hasMore:', result.hasMore, 'total:', result.total, 'current offset:', currentOffset);
+          setApiListings(prev => {
+            const newList = [...prev, ...result.items];
+            console.log('🔍 SearchResult: loadMore - Total items after merge:', newList.length, '(prev:', prev.length, '+ new:', result.items.length, ')');
+            return newList;
+          });
           setHasMore(result.hasMore);
           setOffset(prev => prev + PAGE_SIZE);
           return;
@@ -685,6 +720,10 @@ export default function SearchResultScreen() {
     setMaxPrice(tempMaxPrice);
     setSortBy(tempSortBy);
     setFilterModalVisible(false);
+    // Reset feed seed when filters change to get new randomized order
+    if (tempSortBy === "For You") {
+      setFeedSeed(null); // Will be regenerated on next loadListings call
+    }
   };
 
   const handleScroll = (event: any) => {

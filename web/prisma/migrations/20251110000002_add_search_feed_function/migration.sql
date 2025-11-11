@@ -73,19 +73,16 @@ BEGIN
 
   RETURN QUERY
   WITH
-  -- Inventory + gender gate + search filter
+  -- Inventory + search filter
+  -- 注意：在搜索时，我们不使用gender过滤，而是让所有匹配搜索的商品都显示
+  -- gender可以作为个性化因素影响排序，但不应该完全过滤掉商品
   inv_gender_search AS (
     SELECT l.id AS item_id
     FROM public.listings l
     WHERE l.listed = true
       AND l.sold = false
-      AND (
-        CASE
-          WHEN v_gender_norm IN ('male','men')     THEN l.gender IN ('Men','Unisex')
-          WHEN v_gender_norm IN ('female','women') THEN l.gender IN ('Women','Unisex')
-          ELSE true
-        END
-      )
+      -- 分类过滤（如果提供category_id）
+      AND (p_category_id IS NULL OR l.category_id = p_category_id)
       -- 搜索过滤：匹配名称、描述、品牌、标签
       -- 如果搜索查询为空或只有通配符，则跳过搜索过滤（返回所有商品，由feed算法个性化排序）
       AND (
@@ -101,8 +98,32 @@ BEGIN
           WHERE lower(tag) LIKE '%' || v_search_query_normalized || '%'
         )
       )
-      -- 分类过滤（如果提供category_id）
-      AND (p_category_id IS NULL OR l.category_id = p_category_id)
+  ),
+
+  -- Gender match scoring (for personalization, not filtering)
+  -- 将gender匹配作为个性化因素，影响最终分数，但不过滤商品
+  gender_match_scores AS (
+    SELECT
+      g.item_id,
+      CASE
+        WHEN v_gender_norm IN ('male','men') THEN
+          CASE 
+            WHEN l.gender = 'Men' THEN 1.0
+            WHEN l.gender = 'Unisex' THEN 0.8
+            WHEN l.gender = 'Women' THEN 0.3
+            ELSE 0.5
+          END
+        WHEN v_gender_norm IN ('female','women') THEN
+          CASE 
+            WHEN l.gender = 'Women' THEN 1.0
+            WHEN l.gender = 'Unisex' THEN 0.8
+            WHEN l.gender = 'Men' THEN 0.3
+            ELSE 0.5
+          END
+        ELSE 0.8  -- unisex users see all items with similar scores
+      END AS gender_match_score
+    FROM inv_gender_search g
+    JOIN public.listings l ON l.id = g.item_id
   ),
 
   -- Extract user behavior preferences from historical interactions (only if user exists)
@@ -249,12 +270,15 @@ BEGIN
           AND (l.tags ?| ARRAY[st.tag_keyword])
       ) AS tag_match,
 
+      -- engagement_aff: 只有当用户有偏好或行为数据时，且商品在候选池中时，才为true
+      -- 如果用户没有偏好或行为数据，engagement_aff应该为false，但不应该影响商品的显示
       (c.item_id IN (SELECT item_id FROM cand_search)
+       AND v_user_id IS NOT NULL
        AND (
-         EXISTS (SELECT 1 FROM brand_mappings_resolved WHERE v_user_id IS NOT NULL)
-         OR EXISTS (SELECT 1 FROM style_tags WHERE v_user_id IS NOT NULL)
-         OR EXISTS (SELECT 1 FROM user_behavior_brands WHERE v_user_id IS NOT NULL)
-         OR EXISTS (SELECT 1 FROM user_behavior_tags WHERE v_user_id IS NOT NULL)
+         EXISTS (SELECT 1 FROM brand_mappings_resolved)
+         OR EXISTS (SELECT 1 FROM style_tags)
+         OR EXISTS (SELECT 1 FROM user_behavior_brands)
+         OR EXISTS (SELECT 1 FROM user_behavior_tags)
        )) AS engagement_aff,
       
       -- Behavior-based matching flags (only if user exists)
@@ -292,9 +316,10 @@ BEGIN
       WHERE lr.listing_id = c.item_id
       ORDER BY lr.final_score DESC
       LIMIT 1
-    ) r ON TRUE
-    LEFT JOIN search_relevance_scores srs ON srs.item_id = c.item_id
-  ),
+      ) r ON TRUE
+      LEFT JOIN search_relevance_scores srs ON srs.item_id = c.item_id
+      LEFT JOIN gender_match_scores gms ON gms.item_id = c.item_id
+    ),
 
   -- Normalize within candidates using boosted score
   stats AS (
@@ -312,11 +337,15 @@ BEGIN
       f.is_boosted_flag,
       f.boost_weight_value,
       f.search_relevance_val,
-      CASE
-        WHEN s.mx > s.mn THEN
-          (COALESCE(f.boosted_score_raw, 0) - s.mn) / NULLIF(s.mx - s.mn, 0)
-        ELSE 0
-      END AS boost_norm,
+      -- 确保boost_norm不为负数，避免降低最终分数
+      GREATEST(
+        0,
+        CASE
+          WHEN s.mx > s.mn THEN
+            (COALESCE(f.boosted_score_raw, 0) - s.mn) / NULLIF(s.mx - s.mn, 0)
+          ELSE 0
+        END
+      ) AS boost_norm,
       f.brand_match,
       f.tag_match,
       f.tag_match_count,
@@ -369,27 +398,42 @@ BEGIN
         )
         ELSE (
           -- 有搜索查询：搜索相关性 + feed算法评分
-          0.30 * sc.search_relevance_val  -- 搜索相关性
-          + 0.25 * sc.boost_norm  -- 趋势分数（降低权重，因为搜索更关注相关性）
-          + CASE 
-              -- 如果用户存在，应用个性化推荐
-              WHEN v_user_id IS NOT NULL THEN (
-                0.20 * CASE WHEN sc.engagement_aff THEN 1 ELSE 0 END  -- 用户偏好匹配
-                + CASE 
-                    -- Explicit preferences (用户手动选择的品牌/风格) - 最高优先级
-                    WHEN sc.brand_match AND sc.tag_match THEN 0.20  -- 品牌+标签同时匹配
-                    WHEN sc.tag_match_count >= 2 THEN 0.18  -- 多个标签匹配
-                    WHEN sc.brand_match OR sc.tag_match THEN 0.15  -- 单个匹配
-                    -- Behavior-based recommendations (基于用户历史交互) - 中等优先级
-                    WHEN sc.behavior_brand_match AND sc.behavior_tag_match THEN 0.12  -- 行为: 品牌+标签
-                    WHEN sc.behavior_tag_match_count >= 2 THEN 0.10  -- 行为: 多个标签
-                    WHEN sc.behavior_brand_match OR sc.behavior_tag_match THEN 0.08  -- 行为: 单个匹配
-                    ELSE 0
-                  END
-              )
-              -- 如果用户不存在，只使用搜索相关性和趋势分数
-              ELSE 0.20 * CASE WHEN sc.engagement_aff THEN 1 ELSE 0 END
-            END
+          -- 确保所有商品都有基础分数，即使不匹配用户偏好
+          -- 最小基础分数：搜索相关性（0.3） + 基础个性化分数（0.15）= 0.45
+            GREATEST(
+              0.40,  -- 绝对最小分数，确保所有匹配搜索的商品都能显示
+              0.30 * sc.search_relevance_val  -- 搜索相关性（所有商品都有，即使是0.3）
+              + 0.25 * sc.boost_norm  -- 趋势分数（所有商品都有，即使很低，现在保证不为负数）
+              + 0.05 * sc.gender_match_val  -- gender匹配分数（作为个性化因素，匹配时1.0，不匹配时0.3）
+              + CASE 
+                  -- 如果用户存在，应用个性化推荐
+                  WHEN v_user_id IS NOT NULL THEN (
+                    -- 个性化加分：匹配用户偏好的商品获得额外分数，但不匹配的商品也有基础分数
+                    -- 重要：即使engagement_aff为false，也要给基础分数，确保所有商品都能显示
+                    CASE 
+                      WHEN sc.engagement_aff THEN 0.20  -- 匹配时0.20
+                      ELSE 0.15  -- 不匹配时0.15基础分（增加基础分数，确保所有商品都有足够分数）
+                    END
+                    + CASE 
+                        -- Explicit preferences (用户手动选择的品牌/风格) - 最高优先级
+                        WHEN sc.brand_match AND sc.tag_match THEN 0.20  -- 品牌+标签同时匹配
+                        WHEN sc.tag_match_count >= 2 THEN 0.18  -- 多个标签匹配
+                        WHEN sc.brand_match OR sc.tag_match THEN 0.15  -- 单个匹配
+                        -- Behavior-based recommendations (基于用户历史交互) - 中等优先级
+                        WHEN sc.behavior_brand_match AND sc.behavior_tag_match THEN 0.12  -- 行为: 品牌+标签
+                        WHEN sc.behavior_tag_match_count >= 2 THEN 0.10  -- 行为: 多个标签
+                        WHEN sc.behavior_brand_match OR sc.behavior_tag_match THEN 0.08  -- 行为: 单个匹配
+                        ELSE 0  -- 不匹配时，仍有0.15基础分（来自engagement_aff的ELSE分支）
+                      END
+                  )
+                  -- 如果用户不存在，只使用搜索相关性和趋势分数
+                  ELSE (
+                    0.30 * sc.search_relevance_val  -- 搜索相关性
+                    + 0.25 * sc.boost_norm  -- 趋势分数
+                    + 0.20 * CASE WHEN sc.engagement_aff THEN 1 ELSE 0 END  -- 用户偏好匹配（匿名用户时为0）
+                  )
+                END
+            )
         )
       END AS final_score_val,
       CASE
@@ -429,23 +473,28 @@ BEGIN
     FROM ranked r
     JOIN public.listing_card_v lc ON lc.id = r.item_id
   ),
-  decayed AS (
-    SELECT
-      item_id,
-      card_title,
-      card_image_url,
-      card_price_cents::int AS card_price_cents_int,
-      card_brand,
-      card_tags,
-      src_label,
-      fair_score_raw,
-      boosted_score_raw,
-      is_boosted_flag,
-      boost_weight_value,
-      search_relevance_score,
-      (final_score_val * power(0.85, greatest(brand_rank - 1, 0)))::numeric AS final_score_num
-    FROM ranked_page
-  ),
+    decayed AS (
+      SELECT
+        item_id,
+        card_title,
+        card_image_url,
+        card_price_cents::int AS card_price_cents_int,
+        card_brand,
+        card_tags,
+        src_label,
+        fair_score_raw,
+        boosted_score_raw,
+        is_boosted_flag,
+        boost_weight_value,
+        search_relevance_score,
+        -- 应用brand decay，但确保最终分数不低于最小阈值（0.05）
+        -- 这样可以确保所有商品都能显示，即使brand_rank很高
+        GREATEST(
+          0.05,  -- 最小分数阈值，确保所有商品都能显示
+          (final_score_val * power(0.85, greatest(brand_rank - 1, 0)))::numeric
+        ) AS final_score_num
+      FROM ranked_page
+    ),
   -- Score buckets: group items by score ranges for better randomization
   bucketed AS (
     SELECT
