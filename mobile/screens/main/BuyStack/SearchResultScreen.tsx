@@ -455,7 +455,8 @@ export default function SearchResultScreen() {
                   setTotalCount(result.total);
                 }
               }
-              setHasMore(result.hasMore);
+              // 兼容后端 hasMore 不准：只要拿满一页就允许继续加载
+              setHasMore(Boolean(result?.hasMore) || result.items.length === PAGE_SIZE);
               console.log('🔍 SearchResult: loadListings - Final state: items=', resetOffset ? result.items.length : 'appended', ', hasMore=', result.hasMore, ', totalCount=', result.total);
               return;
             } catch (error) {
@@ -822,7 +823,8 @@ export default function SearchResultScreen() {
             console.log('🔍 SearchResult: loadMore - Total items after merge:', newList.length, '(prev:', prev.length, '+ new:', result.items.length, ')');
             return newList;
           });
-          setHasMore(result.hasMore);
+          // 兼容后端 hasMore 不准：只要拿满一页就允许继续加载
+          setHasMore(Boolean(result?.hasMore) || result.items.length === PAGE_SIZE);
           setOffset(prev => prev + PAGE_SIZE);
           return;
         } catch (error) {
