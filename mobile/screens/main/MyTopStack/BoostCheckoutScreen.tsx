@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Alert,
   ScrollView,
@@ -6,9 +6,10 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 
@@ -20,6 +21,7 @@ import {
   listingsService,
   type UserBenefitsPayload,
 } from "../../../src/services";
+import type { BoostedListingSummary } from "../../../src/services/listingsService";
 import type { PaymentMethod } from "../../../src/services/paymentMethodsService";
 import { ApiError } from "../../../src/config/api";
 
@@ -39,6 +41,8 @@ export default function BoostCheckoutScreen() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
     useState<PaymentMethod | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [boostedListings, setBoostedListings] = useState<BoostedListingSummary[]>([]);
+  const [checkingBoosted, setCheckingBoosted] = useState(true);
 
   useEffect(() => {
     if (benefitsSnapshot) {
@@ -70,6 +74,34 @@ export default function BoostCheckoutScreen() {
       mounted = false;
     };
   }, [benefitsSnapshot]);
+
+  // ✅ 检查是否有已boosted的listings
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      const checkBoosted = async () => {
+        try {
+          setCheckingBoosted(true);
+          const boosted = await listingsService.getBoostedListings();
+          if (!isMounted) return;
+          setBoostedListings(boosted);
+        } catch (error) {
+          console.error("❌ Error checking boosted listings:", error);
+          if (isMounted) {
+            setBoostedListings([]);
+          }
+        } finally {
+          if (isMounted) {
+            setCheckingBoosted(false);
+          }
+        }
+      };
+      checkBoosted();
+      return () => {
+        isMounted = false;
+      };
+    }, [])
+  );
 
   const listingNames = useMemo(() => {
     if (listings.length > 0) {
@@ -116,17 +148,73 @@ export default function BoostCheckoutScreen() {
   const totalDue = Number((paidBoostCount * pricePerBoost).toFixed(2));
   const requiresPaymentMethod = totalDue > 0;
 
-  const confirmLabel = processing
-    ? "Scheduling…"
-    : totalDue > 0
-    ? `Pay $${totalDue.toFixed(2)} & Boost`
-    : "Boost with free credits";
+  // ✅ 检查是否有已boosted的listings
+  const alreadyBoostedListings = useMemo(() => {
+    if (checkingBoosted || boostedListings.length === 0) return [];
+    
+    const activeOrScheduled = boostedListings.filter(
+      (item) => item.status === "ACTIVE" || item.status === "SCHEDULED"
+    );
+    
+    return listingIds.filter((id) =>
+      activeOrScheduled.some((boosted) => String(boosted.listingId) === String(id))
+    );
+  }, [boostedListings, listingIds, checkingBoosted]);
+
+  const hasAlreadyBoosted = alreadyBoostedListings.length > 0;
+  const allAlreadyBoosted = alreadyBoostedListings.length === listingCount && listingCount > 0;
+
+  const confirmLabel = useMemo(() => {
+    if (allAlreadyBoosted) {
+      return "Already Boosted";
+    }
+    if (hasAlreadyBoosted) {
+      return "Some Already Boosted";
+    }
+    if (processing) {
+      return "Scheduling…";
+    }
+    if (totalDue > 0) {
+      return `Pay $${totalDue.toFixed(2)} & Boost`;
+    }
+    return "Boost with free credits";
+  }, [allAlreadyBoosted, hasAlreadyBoosted, processing, totalDue]);
 
   const disableConfirm =
-    processing || listingCount === 0 || (requiresPaymentMethod && !selectedPaymentMethod);
+    processing || 
+    listingCount === 0 || 
+    (requiresPaymentMethod && !selectedPaymentMethod) ||
+    allAlreadyBoosted ||
+    checkingBoosted;
 
   const handleConfirm = async () => {
     if (disableConfirm) {
+      return;
+    }
+
+    // ✅ 最后检查一次是否有已boosted的listings
+    if (hasAlreadyBoosted) {
+      const boostedNames = listings
+        .filter((listing) => alreadyBoostedListings.includes(listing.id))
+        .map((listing) => listing.title || `Listing ${listing.id}`)
+        .slice(0, 3);
+      
+      const message = allAlreadyBoosted
+        ? `All selected listings are already being boosted. Please wait for the current boost to expire before boosting again.`
+        : `Some listings are already being boosted:\n\n${boostedNames.join(", ")}${boostedNames.length < alreadyBoostedListings.length ? ` and ${alreadyBoostedListings.length - boostedNames.length} more` : ""}\n\nPlease wait for the current boost to expire before boosting again.`;
+
+      Alert.alert(
+        "Already Boosted",
+        message,
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              navigation.goBack();
+            },
+          },
+        ]
+      );
       return;
     }
 
@@ -232,6 +320,28 @@ export default function BoostCheckoutScreen() {
               </Text>
             </View>
           </View>
+
+          {/* ✅ 显示已boosted警告 */}
+          {hasAlreadyBoosted && !checkingBoosted ? (
+            <View style={styles.errorBanner}>
+              <Icon name="warning" size={18} color="#FF6B6B" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.errorTitle}>Already Boosted</Text>
+                <Text style={styles.errorText}>
+                  {allAlreadyBoosted
+                    ? "All selected listings are already being boosted. Please wait for the current boost to expire."
+                    : `${alreadyBoostedListings.length} of ${listingCount} listing${listingCount === 1 ? "" : "s"} already boosted. Please remove them or wait for the current boost to expire.`}
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
+          {checkingBoosted ? (
+            <View style={styles.infoBanner}>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={styles.infoText}>Checking boost status…</Text>
+            </View>
+          ) : null}
 
           {benefitsLoading ? (
             <Text style={styles.infoText}>Refreshing membership benefits…</Text>
@@ -367,6 +477,37 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#FFD166",
     flex: 1,
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    backgroundColor: "rgba(255,107,107,0.15)",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,107,107,0.3)",
+  },
+  errorTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FF6B6B",
+    marginBottom: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    color: "rgba(255,107,107,0.9)",
+    lineHeight: 16,
+  },
+  infoBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   confirmButton: {
     marginTop: 12,

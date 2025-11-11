@@ -466,6 +466,7 @@ const styles = StyleSheet.create({
   row: { justifyContent: "space-between" },
   gridItem: {
     width: "48%",
+    marginTop: 10,
     marginBottom: 16,
     borderRadius: 12,
     overflow: "hidden",

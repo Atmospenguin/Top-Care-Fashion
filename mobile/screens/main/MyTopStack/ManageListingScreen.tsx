@@ -263,6 +263,25 @@ export default function ManageListingScreen() {
       return;
     }
 
+    // ✅ 检查是否已经boosted
+    if (boostInfo && (boostInfo.status === "ACTIVE" || boostInfo.status === "SCHEDULED")) {
+      Alert.alert(
+        "Already Boosted",
+        `This listing is currently being boosted${boostInfo.endsAt ? ` until ${new Date(boostInfo.endsAt).toLocaleDateString()}` : ""}. Please wait for the current boost to expire before boosting again.`,
+        [
+          {
+            text: "View Boost Status",
+            onPress: () => {
+              // Navigate to BoostedListingScreen
+              navigation.navigate("BoostedListing");
+            },
+          },
+          { text: "OK", style: "cancel" },
+        ]
+      );
+      return;
+    }
+
     navigation.navigate("Premium", {
       screen: "PromotionPlans",
       params: {

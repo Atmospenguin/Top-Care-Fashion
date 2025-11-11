@@ -29,6 +29,12 @@ export interface ListingsQueryParams {
   limit?: number;
   offset?: number;
   gender?: string;
+  size?: string;
+  sizes?: string[];
+  condition?: string;
+  sort?: string;
+  seed?: number; // Seed for feed algorithm pagination consistency
+  page?: number; // Page number for feed algorithm
 }
 
 // 分页响应类型
@@ -472,6 +478,22 @@ export class ListingsService {
   // 获取商品列表（支持分页）
   async getListings(params?: ListingsQueryParams): Promise<ListingsResponse> {
     try {
+      const queryParams: Record<string, any> = params ? { ...params } : {};
+
+      if (Array.isArray(queryParams.sizes)) {
+        const normalizedSizes = queryParams.sizes
+          .map((value: unknown) =>
+            typeof value === "string" ? value.trim() : value
+          )
+          .filter((value): value is string => typeof value === "string" && value.length > 0);
+
+        if (normalizedSizes.length > 0) {
+          queryParams.sizes = normalizedSizes.join(",");
+        } else {
+          delete queryParams.sizes;
+        }
+      }
+
       const response = await apiClient.get<{
         success: boolean;
         data: {
@@ -481,7 +503,7 @@ export class ListingsService {
         }
       }>(
         API_CONFIG.ENDPOINTS.LISTINGS,
-        params
+        queryParams
       );
 
       if (response.data?.success && response.data.data) {
@@ -529,9 +551,62 @@ export class ListingsService {
     }
   }
 
-  // 搜索商品
+  // 搜索商品（使用feed算法搜索端点，移动端默认启用）
   async searchListings(query: string, params?: Omit<ListingsQueryParams, 'search'>): Promise<ListingsResponse> {
-    return this.getListings({ ...params, search: query });
+    try {
+      // 使用新的搜索端点，移动端默认启用feed算法（通过x-mobile-app头识别）
+      const searchParams: Record<string, any> = {
+        q: query,  // 搜索端点使用q参数
+        limit: params?.limit,
+        page: params?.page,
+        offset: params?.offset,
+        gender: params?.gender,
+        seed: params?.seed, // Pass seed for consistent pagination
+      };
+
+      // 如果有category，尝试转换为categoryId（如果category是数字）
+      if (params?.category) {
+        const categoryId = parseInt(params.category, 10);
+        if (!isNaN(categoryId)) {
+          searchParams.categoryId = categoryId;
+        } else {
+          // 如果不是数字，保留category名称（fallback会处理）
+          searchParams.category = params.category;
+        }
+      }
+
+      const response = await apiClient.get<{
+        success: boolean;
+        data: {
+          items: ListingItem[];
+          hasMore: boolean;
+          total: number;
+          searchQuery?: string;
+          useFeed?: boolean;
+        }
+      }>(
+        API_CONFIG.ENDPOINTS.SEARCH,
+        searchParams
+      );
+
+      if (response.data?.success && response.data.data) {
+        return {
+          items: response.data.data.items.map((item) =>
+            this.sanitizeListingItem(item)
+          ),
+          hasMore: response.data.data.hasMore,
+          total: response.data.data.total,
+        };
+      }
+
+      // 如果搜索端点失败，fallback到传统搜索
+      console.warn('Search endpoint failed, falling back to traditional search');
+      return this.getListings({ ...params, search: query });
+    } catch (error) {
+      console.error('Error searching listings with feed algorithm:', error);
+      // Fallback到传统搜索
+      return this.getListings({ ...params, search: query });
+    }
   }
 
   // 按分类获取商品

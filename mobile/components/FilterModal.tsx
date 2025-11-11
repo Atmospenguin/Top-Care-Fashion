@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Icon from "./Icon";
 
@@ -62,9 +63,13 @@ function FilterModal({
   onClear,
   applyButtonLabel = "Apply Filters",
 }: FilterModalProps) {
+  const insets = useSafeAreaInsets();
   const isRangeSection = (section: AllFilterSection): section is RangeFilterSection => {
     return section.type === "range";
   };
+  
+  // 计算底部安全区域高度，确保内容不被遮挡
+  const bottomSafeAreaHeight = Math.max(insets.bottom, 0);
 
   return (
     <Modal
@@ -93,78 +98,112 @@ function FilterModal({
               )}
             </View>
 
-            <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
-              {sections.map((section) => {
-                if (isRangeSection(section)) {
+            <ScrollView 
+              style={styles.modalContent} 
+              contentContainerStyle={styles.modalContentContainer}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}
+              alwaysBounceVertical={false}
+            >
+              {sections && sections.length > 0 ? (
+                sections.map((section) => {
+                  // Handle range section
+                  if (isRangeSection(section)) {
+                    // Display empty string if value is 0 or invalid, otherwise display the value
+                    const minValue = section.minValue && section.minValue > 0 ? String(section.minValue) : '';
+                    const maxValue = section.maxValue && section.maxValue > 0 ? String(section.maxValue) : '';
+                    
+                    return (
+                      <View key={section.key} style={{ marginBottom: 16 }}>
+                        <Text style={styles.filterSectionTitle}>{section.title}</Text>
+                        <View style={styles.rangeContainer}>
+                          <TextInput
+                            style={[styles.rangeInput, { marginRight: 12 }]}
+                            placeholder={section.minPlaceholder || "Min"}
+                            placeholderTextColor="#999"
+                            value={minValue}
+                            onChangeText={section.onMinChange}
+                            keyboardType="decimal-pad"
+                            textAlignVertical="center"
+                          />
+                          <Text style={styles.rangeSeparator}>-</Text>
+                          <TextInput
+                            style={[styles.rangeInput, { marginLeft: 12 }]}
+                            placeholder={section.maxPlaceholder || "Max"}
+                            placeholderTextColor="#999"
+                            value={maxValue}
+                            onChangeText={section.onMaxChange}
+                            keyboardType="decimal-pad"
+                            textAlignVertical="center"
+                          />
+                        </View>
+                      </View>
+                    );
+                  }
+
+                  // Handle regular filter section with options
+                  const filterSection = section as FilterSection;
+                  
+                  // Safety check: ensure options array exists and has items
+                  if (!filterSection.options || filterSection.options.length === 0) {
+                    return null;
+                  }
+
                   return (
-                    <View key={section.key}>
-                      <Text style={styles.filterSectionTitle}>{section.title}</Text>
-                      <View style={styles.rangeContainer}>
-                        <TextInput
-                          style={styles.rangeInput}
-                          placeholder={section.minPlaceholder || "Min"}
-                          placeholderTextColor="#999"
-                          value={String(section.minValue)}
-                          onChangeText={section.onMinChange}
-                          keyboardType="decimal-pad"
-                          textAlignVertical="center"
-                        />
-                        <Text style={styles.rangeSeparator}>-</Text>
-                        <TextInput
-                          style={styles.rangeInput}
-                          placeholder={section.maxPlaceholder || "Max"}
-                          placeholderTextColor="#999"
-                          value={String(section.maxValue)}
-                          onChangeText={section.onMaxChange}
-                          keyboardType="decimal-pad"
-                          textAlignVertical="center"
-                        />
+                    <View key={section.key} style={{ marginBottom: 0}}>
+                      <Text style={styles.filterSectionTitle}>{filterSection.title}</Text>
+                      <View style={styles.filterOptions}>
+                        {filterSection.options.map((option, index) => {
+                          const isActive = filterSection.selectedValue === option.value;
+                          return (
+                            <TouchableOpacity
+                              key={`${section.key}-${option.value}-${index}`}
+                              style={[
+                                styles.filterChip,
+                                isActive && styles.filterChipActive,
+                                { margin: 5 },
+                              ]}
+                              onPress={() => filterSection.onSelect(option.value)}
+                              accessibilityRole="button"
+                              accessibilityLabel={option.label}
+                            >
+                              <Text
+                                style={[
+                                  styles.filterChipText,
+                                  isActive && styles.filterChipTextActive,
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {option.label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
                     </View>
                   );
-                }
-
-                return (
-                  <View key={section.key}>
-                    <Text style={styles.filterSectionTitle}>{section.title}</Text>
-                    <View style={styles.filterOptions}>
-                      {section.options.map((option) => {
-                        const isActive = section.selectedValue === option.value;
-                        return (
-                          <TouchableOpacity
-                            key={option.label}
-                            style={[
-                              styles.filterChip,
-                              isActive && styles.filterChipActive,
-                            ]}
-                            onPress={() => section.onSelect(option.value)}
-                            accessibilityRole="button"
-                          >
-                            <Text
-                              style={[
-                                styles.filterChipText,
-                                isActive && styles.filterChipTextActive,
-                              ]}
-                            >
-                              {option.label}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-                );
-              })}
+                })
+              ) : (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text style={{ color: '#999', fontSize: 14 }}>No filter options available</Text>
+                </View>
+              )}
             </ScrollView>
 
             <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.applyButton}
-                onPress={onApply}
-                accessibilityRole="button"
-              >
-                <Text style={styles.applyButtonText}>{applyButtonLabel}</Text>
-              </TouchableOpacity>
+              <View style={[styles.footerContentWrapper, { paddingBottom: bottomSafeAreaHeight }]}>
+                <TouchableOpacity
+                  style={styles.applyButton}
+                  onPress={onApply}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.applyButtonText}>{applyButtonLabel}</Text>
+                </TouchableOpacity>
+              </View>
+              {/* Android safe area fill - ensures white background covers transparent safe area */}
+              {Platform.OS === 'android' && bottomSafeAreaHeight > 0 && (
+                <View style={[styles.androidSafeAreaFill, { height: bottomSafeAreaHeight }]} />
+              )}
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -173,7 +212,7 @@ function FilterModal({
   );
 }
 
-export default React.memo(FilterModal);
+export default FilterModal;
 
 const styles = StyleSheet.create({
   modalOverlay: {
@@ -189,7 +228,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: "85%",
+    height: "90%", // Increased height to show more content
+    flexDirection: "column",
   },
   modalHeader: {
     flexDirection: "row",
@@ -211,8 +251,12 @@ const styles = StyleSheet.create({
     color: "#666",
   },
   modalContent: {
+    flex: 1, // Take all available space between header and footer
+  },
+  modalContentContainer: {
     paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingTop: 0,
+    paddingBottom: 20 // Reduced bottom padding
   },
   filterSectionTitle: {
     fontSize: 16,
@@ -224,7 +268,7 @@ const styles = StyleSheet.create({
   filterOptions: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    marginHorizontal: -5,
   },
   filterChip: {
     paddingHorizontal: 16,
@@ -250,7 +294,6 @@ const styles = StyleSheet.create({
   rangeContainer: {
     flexDirection: "row",
     alignItems: "center",
-    columnGap: 12,
     marginBottom: 16,
   },
   rangeInput: {
@@ -271,10 +314,15 @@ const styles = StyleSheet.create({
     color: "#666",
   },
   modalFooter: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#e5e5e5",
+    backgroundColor: "#fff", // Ensure background covers safe area on Android
+    position: "relative",
+  },
+  footerContentWrapper: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    // paddingBottom will be set dynamically based on safe area
   },
   applyButton: {
     backgroundColor: "#111",
@@ -282,6 +330,13 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
+  },
+  androidSafeAreaFill: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#fff", // Fill safe area with white background on Android to prevent transparency
   },
   applyButtonText: {
     fontSize: 16,

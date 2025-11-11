@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Dimensions, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
@@ -10,7 +10,7 @@ import Icon from "../../../components/Icon";
 import Avatar from "../../../components/Avatar";
 import type { MyTopStackParamList } from "./index";
 import type { RootStackParamList } from "../../../App";
-import { listingsService } from "../../../src/services/listingsService";
+import { listingsService, type BoostedListingSummary } from "../../../src/services/listingsService";
 import type { ListingItem } from "../../../types/shop";
 import { DEFAULT_AVATAR } from "../../../constants/assetUrls";
 
@@ -39,6 +39,8 @@ export default function ActiveListingDetailScreen() {
   const [listing, setListing] = useState<ListingItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [boostInfo, setBoostInfo] = useState<BoostedListingSummary | null>(null);
+  const [loadingBoostInfo, setLoadingBoostInfo] = useState(true);
   const genderLabel = useMemo(
     () => formatGenderLabel(listing?.gender),
     [listing?.gender],
@@ -155,6 +157,46 @@ export default function ActiveListingDetailScreen() {
     fetchListing();
   }, [route.params?.listingId, navigation]);
 
+  // ✅ 获取boost状态
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      const listingId = route.params?.listingId;
+      if (!listingId) {
+        setBoostInfo(null);
+        setLoadingBoostInfo(false);
+        return;
+      }
+
+      const loadBoostInfo = async () => {
+        try {
+          setLoadingBoostInfo(true);
+          const boostedListings = await listingsService.getBoostedListings();
+          if (!isMounted) return;
+          const matched = boostedListings.find(
+            (item) => String(item.listingId) === String(listingId)
+          );
+          setBoostInfo(matched ?? null);
+        } catch (error) {
+          if (isMounted) {
+            console.error("❌ Error fetching boost status:", error);
+            setBoostInfo(null);
+          }
+        } finally {
+          if (isMounted) {
+            setLoadingBoostInfo(false);
+          }
+        }
+      };
+
+      loadBoostInfo();
+
+      return () => {
+        isMounted = false;
+      };
+    }, [route.params?.listingId])
+  );
+
   // ✅ 处理Manage Listing点击
   const handleManageListing = () => {
     if (listing) {
@@ -165,14 +207,23 @@ export default function ActiveListingDetailScreen() {
   // ✅ 处理Boost Listing点击
   const handleBoostListing = () => {
     if (!listing) return;
-    navigation.navigate("Premium", {
-      screen: "PromotionPlans",
-      params: {
-        selectedListingIds: [listing.id],
-        selectedListings: [listing],
-      },
+    
+    // 如果已经boosted，导航到BoostedListingScreen
+    if (boostInfo && (boostInfo.status === "ACTIVE" || boostInfo.status === "SCHEDULED")) {
+      navigation.navigate("BoostedListing");
+      return;
+    }
+    
+    // 如果没有boosted，导航到PromotionPlans (在MyTopStack中)
+    navigation.navigate("PromotionPlans", {
+      selectedListingIds: [listing.id],
+      selectedListings: [listing],
     });
   };
+
+  // ✅ 检查是否已boosted
+  const isBoosted = boostInfo && (boostInfo.status === "ACTIVE" || boostInfo.status === "SCHEDULED");
+  const boostButtonText = isBoosted ? "Boosting..." : "Boost Listing";
 
   if (loading) {
     return (
@@ -378,7 +429,7 @@ export default function ActiveListingDetailScreen() {
           style={styles.primaryButton}
           onPress={handleBoostListing}
         >
-          <Text style={styles.primaryText}>Boost Listing</Text>
+          <Text style={styles.primaryText}>{boostButtonText}</Text>
         </TouchableOpacity>
       </View>
     </View>
