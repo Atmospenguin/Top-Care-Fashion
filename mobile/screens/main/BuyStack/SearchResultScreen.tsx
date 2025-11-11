@@ -93,6 +93,17 @@ export default function SearchResultScreen() {
     return Array.from(CLOTHING_SIZES);
   }, []);
 
+  // 简单去重，避免跨页重复（与 Home Feed 一致）
+  const dedupeById = useCallback((arr: ListingItem[]) => {
+    const seen = new Set<string>();
+    return arr.filter((it) => {
+      const id = String(it.id);
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }, []);
+
   // Get user's preferred size(s) based on category
   // Returns a single size string for specific categories, or an array for "All" category
   const getUserPreferredSizes = useCallback((category: string): string[] => {
@@ -171,7 +182,9 @@ export default function SearchResultScreen() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
-  const [feedSeed, setFeedSeed] = useState<number | null>(null); // Store seed for feed algorithm consistency
+  // Feed pagination state (mirror Home Feed)
+  const seedRef = useRef<number>((Date.now() % 2147483647) | 0);
+  const [feedPage, setFeedPage] = useState(1);
   const PAGE_SIZE = 20;
   const viewedItemsRef = useRef<Set<string>>(new Set()); // 追踪已记录views的商品
 
@@ -334,20 +347,17 @@ export default function SearchResultScreen() {
       if (sortBy === "For You") {
         const searchQuery = query || "";
         
-        // Generate or reuse seed for consistent pagination
-        // Reset seed when starting a new search (resetOffset = true)
-        const currentSeed = resetOffset 
-          ? Math.floor(Math.random() * 2147483647) // Generate new seed for new search
-          : (feedSeed ?? Math.floor(Math.random() * 2147483647)); // Reuse existing seed for pagination
-        
+        // Stable seed (reset when resetOffset), mirror FeedList
         if (resetOffset) {
-          setFeedSeed(currentSeed); // Save seed for pagination
+          seedRef.current = (Date.now() % 2147483647) | 0;
+          setFeedPage(1);
         }
+        const currentSeed = seedRef.current;
         
         const searchParams: any = {
           q: searchQuery,
           limit: PAGE_SIZE,
-          page: Math.floor(currentOffset / PAGE_SIZE) + 1,
+          page: resetOffset ? 1 : Math.max(1, Math.floor(currentOffset / PAGE_SIZE) + 1),
           offset: currentOffset,
           gender: mapGenderOptionToApiParam(genderToUse), // 使用优先的 gender
           seed: currentSeed, // Pass seed for consistent sorting
@@ -441,16 +451,18 @@ export default function SearchResultScreen() {
               
               if (resetOffset) {
                 console.log('🔍 SearchResult: loadListings - Resetting listings to', result.items.length, 'items');
-                setApiListings(result.items);
+                setApiListings(dedupeById(result.items));
                 setOffset(PAGE_SIZE);
                 setTotalCount(result.total || 0);
+                setFeedPage(1);
               } else {
                 setApiListings(prev => {
-                  const newList = [...prev, ...result.items];
+                  const newList = dedupeById([...prev, ...result.items]);
                   console.log('🔍 SearchResult: loadListings - Appending', result.items.length, 'items, total now:', newList.length);
                   return newList;
                 });
                 setOffset(prev => prev + PAGE_SIZE);
+                setFeedPage(prev => prev + 1);
                 if (result.total !== undefined && result.total !== totalCount) {
                   setTotalCount(result.total);
                 }
@@ -664,8 +676,9 @@ export default function SearchResultScreen() {
         setSelectedGender(normalizedInitialGender);
       }
       
-      // 重置 feed seed
-      setFeedSeed(null);
+      // 重置 feed seed & page
+      seedRef.current = (Date.now() % 2147483647) | 0;
+      setFeedPage(1);
       
       // 标记为已应用
       routeParamsAppliedRef.current = paramsKey;
@@ -776,17 +789,13 @@ export default function SearchResultScreen() {
           return;
         }
 
-        // Use existing seed for pagination consistency; do NOT generate a new seed here
-        if (feedSeed == null) {
-          console.warn('🔍 SearchResult: loadMore aborted - feedSeed not initialized yet');
-          return;
-        }
-        const currentSeed = feedSeed;
+        // Use stable seed from ref (never null)
+        const currentSeed = seedRef.current;
         
         const searchParams: any = {
           q: searchQuery,
           limit: PAGE_SIZE,
-          page: Math.floor(currentOffset / PAGE_SIZE) + 1,
+          page: Math.max(1, feedPage + 1),
           offset: currentOffset,
           gender: mapGenderOptionToApiParam(genderToUseInLoadMore), // 使用优先的 gender
           seed: currentSeed, // Pass seed for consistent sorting
@@ -819,13 +828,14 @@ export default function SearchResultScreen() {
           const result = await listingsService.searchListings(searchQuery, searchParams);
           console.log('🔍 SearchResult: loadMore feed search - Received', result.items.length, 'items, hasMore:', result.hasMore, 'total:', result.total, 'current offset:', currentOffset);
           setApiListings(prev => {
-            const newList = [...prev, ...result.items];
+            const newList = dedupeById([...prev, ...result.items]);
             console.log('🔍 SearchResult: loadMore - Total items after merge:', newList.length, '(prev:', prev.length, '+ new:', result.items.length, ')');
             return newList;
           });
           // 兼容后端 hasMore 不准：只要拿满一页就允许继续加载
           setHasMore(Boolean(result?.hasMore) || result.items.length === PAGE_SIZE);
           setOffset(prev => prev + PAGE_SIZE);
+          setFeedPage(prev => prev + 1);
           return;
         } catch (error) {
           console.error('🔍 SearchResult: Feed algorithm search failed in loadMore, falling back:', error);
@@ -958,7 +968,9 @@ export default function SearchResultScreen() {
     setFilterModalVisible(false);
     // Reset feed seed when filters change to get new randomized order
     if (tempSortBy === "For You") {
-      setFeedSeed(null); // Will be regenerated on next loadListings call
+      // Reset seed/page to start a fresh feed sequence
+      seedRef.current = (Date.now() % 2147483647) | 0;
+      setFeedPage(1);
     }
   };
 
