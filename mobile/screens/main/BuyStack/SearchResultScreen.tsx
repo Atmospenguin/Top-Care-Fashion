@@ -455,7 +455,7 @@ export default function SearchResultScreen() {
                   setTotalCount(result.total);
                 }
               }
-              setHasMore(result.items.length === PAGE_SIZE);
+              setHasMore(result.hasMore);
               console.log('🔍 SearchResult: loadListings - Final state: items=', resetOffset ? result.items.length : 'appended', ', hasMore=', result.hasMore, ', totalCount=', result.total);
               return;
             } catch (error) {
@@ -822,7 +822,7 @@ export default function SearchResultScreen() {
             console.log('🔍 SearchResult: loadMore - Total items after merge:', newList.length, '(prev:', prev.length, '+ new:', result.items.length, ')');
             return newList;
           });
-          setHasMore(result.items.length === PAGE_SIZE);
+          setHasMore(result.hasMore);
           setOffset(prev => prev + PAGE_SIZE);
           return;
         } catch (error) {
