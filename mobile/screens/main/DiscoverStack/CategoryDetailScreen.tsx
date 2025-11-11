@@ -47,7 +47,7 @@ export default function CategoryDetailScreen() {
     if (!categories || !categories[genderKey] || !categories[genderKey][mainCategory]) {
       return [];
     }
-    return categories[genderKey][mainCategory];
+    return categories[genderKey][mainCategory].subcategories || [];
   }, [categories, genderKey, mainCategory]);
 
   if (loading) {
