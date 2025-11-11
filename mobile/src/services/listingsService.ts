@@ -561,6 +561,7 @@ export class ListingsService {
         q: query,  // 搜索端点使用q参数
         limit: params?.limit,
         page: params?.page,
+        offset: params?.offset,
         gender: params?.gender,
         seed: params?.seed, // Pass seed for consistent pagination
       };

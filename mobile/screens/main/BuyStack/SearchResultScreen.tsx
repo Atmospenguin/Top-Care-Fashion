@@ -348,6 +348,7 @@ export default function SearchResultScreen() {
           q: searchQuery,
           limit: PAGE_SIZE,
           page: Math.floor(currentOffset / PAGE_SIZE) + 1,
+          offset: currentOffset,
           gender: mapGenderOptionToApiParam(genderToUse), // 使用优先的 gender
           seed: currentSeed, // Pass seed for consistent sorting
         };
@@ -510,7 +511,7 @@ export default function SearchResultScreen() {
       });
 
       console.log('🔍 SearchResult: Received items:', result.items.length);
-      console.log('🔍 SearchResult: Has more:', false);
+      console.log('🔍 SearchResult: Has more:', result.hasMore);
       console.log('🔍 SearchResult: Total:', result.total);
 
       if (resetOffset) {
@@ -524,7 +525,7 @@ export default function SearchResultScreen() {
           setTotalCount(result.total);
         }
       }
-      setHasMore(false);
+      setHasMore(result.hasMore);
     } catch (error) {
       console.error('🔍 SearchResult: Error loading listings:', error);
       if (resetOffset) {
@@ -728,9 +729,9 @@ export default function SearchResultScreen() {
       if (sortBy === "For You") {
         const searchQuery = query || "";
         
-        // Use existing seed for pagination consistency; if missing, avoid paginating to prevent duplicates
+        // Use existing seed for pagination consistency; do NOT generate a new seed here
         if (feedSeed == null) {
-          console.warn('🔍 SearchResult: loadMore aborted - feedSeed is null, waiting for initial load to set seed');
+          console.warn('🔍 SearchResult: loadMore aborted - feedSeed not initialized yet');
           return;
         }
         const currentSeed = feedSeed;
@@ -739,6 +740,7 @@ export default function SearchResultScreen() {
           q: searchQuery,
           limit: PAGE_SIZE,
           page: Math.floor(currentOffset / PAGE_SIZE) + 1,
+          offset: currentOffset,
           gender: mapGenderOptionToApiParam(genderToUseInLoadMore), // 使用优先的 gender
           seed: currentSeed, // Pass seed for consistent sorting
         };
@@ -1062,9 +1064,8 @@ export default function SearchResultScreen() {
         contentContainerStyle={styles.gridContent}
         onScroll={handleScroll}
         scrollEventThrottle={16}
-        // disable pagination
-        onEndReached={undefined}
-        onEndReachedThreshold={undefined}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={handleViewableItemsChanged}
         renderItem={({ item }) => (
