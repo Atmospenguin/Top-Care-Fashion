@@ -208,6 +208,11 @@ function mapSizeToDisplay(value: unknown): string | null {
     return null;
   }
 
+  // Preserve "N/A" exactly, do not treat as placeholder and do not split
+  if (/^n\/a$/i.test(trimmed)) {
+    return "N/A";
+  }
+
   let candidate = trimmed;
   if (
     (trimmed.startsWith("[") && trimmed.endsWith("]")) ||

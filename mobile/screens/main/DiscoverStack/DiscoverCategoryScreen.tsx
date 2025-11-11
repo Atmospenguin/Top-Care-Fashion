@@ -41,10 +41,15 @@ export default function DiscoverCategoryScreen() {
   const mainCategories = useMemo(() => {
     const genderCategories = categories?.[gender];
     if (!genderCategories) {
-      return [] as string[];
+      return [] as Array<{ name: string; id: number }>;
     }
     const available = Object.keys(genderCategories);
-    return sortCategories(available);
+    const sorted = sortCategories(available);
+    // Map to include both name and ID
+    return sorted.map(name => ({
+      name,
+      id: genderCategories[name]?.id || (categories?.categoryMap?.[name] ?? 0),
+    })).filter(cat => cat.id > 0); // Only include categories with valid IDs
   }, [categories, gender]);
 
   const headerTitle = gender === "men" ? "Men" : gender === "women" ? "Women" : "Unisex";
@@ -97,10 +102,10 @@ export default function DiscoverCategoryScreen() {
         iconColor="#111"
       />
       {mainCategories.map((category) => {
-        const label = category.replace(/\b\w/g, (c) => c.toUpperCase());
+        const label = category.name.replace(/\b\w/g, (c) => c.toUpperCase());
         return (
           <TouchableOpacity
-            key={category}
+            key={category.name}
             style={styles.item}
             onPress={() =>
               navigation
@@ -108,7 +113,7 @@ export default function DiscoverCategoryScreen() {
                 ?.getParent()
                 ?.navigate('Buy', {
                   screen: 'SearchResult',
-                  params: { query: '', category, gender },
+                  params: { query: '', categoryId: category.id, gender },
                 })
             }
           >

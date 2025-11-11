@@ -98,6 +98,12 @@ const mapConditionToDisplay = (conditionEnum: string | null | undefined): string
 const mapSizeToDisplay = (sizeValue: string | null | undefined): string | null => {
   if (!sizeValue) return null;
   const value = sizeValue.trim();
+
+  // Preserve "N/A" exactly, do not split into "N"
+  if (/^n\/a$/i.test(value)) {
+    return "N/A";
+  }
+
   if (value.includes("/")) {
     const firstPart = value.split("/")[0].trim();
     if (["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"].includes(firstPart)) {
@@ -300,13 +306,45 @@ export async function GET(req: NextRequest) {
     if (useFeed) {
       const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY);
 
-      // Parse categoryId if provided
-      const parsedCategoryId = categoryId ? parseInt(categoryId, 10) : null;
-      if (categoryId && isNaN(parsedCategoryId as any)) {
-        return NextResponse.json(
-          { error: "Invalid categoryId", success: false },
-          { status: 400 }
-        );
+      // Parse categoryId if provided, or look up categoryId from category name
+      let parsedCategoryId: number | null = null;
+      console.log('🔍 Search API - Received params:', {
+        categoryId,
+        category,
+        categoryIdType: typeof categoryId,
+        categoryIdValue: categoryId,
+      });
+      if (categoryId) {
+        parsedCategoryId = parseInt(categoryId, 10);
+        console.log('🔍 Search API - Parsed categoryId:', parsedCategoryId);
+        if (isNaN(parsedCategoryId)) {
+          console.error('🔍 Search API - Invalid categoryId:', categoryId);
+          return NextResponse.json(
+            { error: "Invalid categoryId", success: false },
+            { status: 400 }
+          );
+        }
+      } else if (category) {
+        console.log('🔍 Search API - No categoryId, looking up category name:', category);
+        // If category name is provided but not categoryId, look it up
+        const { prisma } = await import("@/lib/db");
+        const categoryRecord = await prisma.listing_categories.findFirst({
+          where: {
+            name: {
+              contains: category,
+              mode: "insensitive",
+            },
+          },
+          select: {
+            id: true,
+          },
+        });
+        if (categoryRecord) {
+          parsedCategoryId = categoryRecord.id;
+          console.log(`🔍 Found categoryId ${parsedCategoryId} for category name "${category}"`);
+        } else {
+          console.warn(`🔍 Category name "${category}" not found, proceeding without category filter`);
+        }
       }
 
       // For feed algorithm, if search query is empty, pass empty string
