@@ -333,10 +333,16 @@ export async function GET(req: Request) {
 
     const mapSizeToDisplay = (sizeValue: string | null): string | null => {
       if (!sizeValue) return null;
+      const trimmed = sizeValue.trim();
+
+      // Preserve "N/A" exactly, do not split into "N"
+      if (/^n\/a$/i.test(trimmed)) {
+        return "N/A";
+      }
       
       // 处理复杂的尺码字符串（如 "M / EU 38 / UK 10 / US 6"）
-      if (sizeValue.includes("/")) {
-        const parts = sizeValue.split("/");
+      if (trimmed.includes("/")) {
+        const parts = trimmed.split("/");
         const firstPart = parts[0].trim();
         
         // 如果第一部分是字母尺码，直接返回

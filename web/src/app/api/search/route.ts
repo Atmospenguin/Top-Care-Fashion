@@ -98,6 +98,12 @@ const mapConditionToDisplay = (conditionEnum: string | null | undefined): string
 const mapSizeToDisplay = (sizeValue: string | null | undefined): string | null => {
   if (!sizeValue) return null;
   const value = sizeValue.trim();
+
+  // Preserve "N/A" exactly, do not split into "N"
+  if (/^n\/a$/i.test(value)) {
+    return "N/A";
+  }
+
   if (value.includes("/")) {
     const firstPart = value.split("/")[0].trim();
     if (["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"].includes(firstPart)) {

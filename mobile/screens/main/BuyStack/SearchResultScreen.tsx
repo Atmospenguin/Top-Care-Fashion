@@ -510,7 +510,7 @@ export default function SearchResultScreen() {
       });
 
       console.log('🔍 SearchResult: Received items:', result.items.length);
-      console.log('🔍 SearchResult: Has more:', result.hasMore);
+      console.log('🔍 SearchResult: Has more:', false);
       console.log('🔍 SearchResult: Total:', result.total);
 
       if (resetOffset) {
@@ -524,7 +524,7 @@ export default function SearchResultScreen() {
           setTotalCount(result.total);
         }
       }
-      setHasMore(result.hasMore);
+      setHasMore(false);
     } catch (error) {
       console.error('🔍 SearchResult: Error loading listings:', error);
       if (resetOffset) {
@@ -1062,8 +1062,9 @@ export default function SearchResultScreen() {
         contentContainerStyle={styles.gridContent}
         onScroll={handleScroll}
         scrollEventThrottle={16}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
+        // disable pagination
+        onEndReached={undefined}
+        onEndReachedThreshold={undefined}
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={handleViewableItemsChanged}
         renderItem={({ item }) => (
