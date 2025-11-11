@@ -96,21 +96,6 @@ export async function GET(request: NextRequest) {
           : null,
       };
 
-      if (notification.type === 'ORDER' || notification.type === 'REVIEW') {
-        console.log(`🔔 Formatting ${notification.type} notification ${notification.id}:`, {
-          raw_order_id: notification.order_id,
-          raw_conversation_id:
-            "conversation_id" in notification ? notification.conversation_id : undefined,
-          formatted_orderId: formatted.orderId,
-          formatted_conversationId: formatted.conversationId,
-          related_user_id: notification.related_user_id,
-          related_user_avatar: notification.related_user?.avatar_url,
-          image_url_static: notification.image_url,
-          final_image: notificationImage,
-          final_listingImage: listingImage,
-        });
-      }
-
       return formatted;
     });
 

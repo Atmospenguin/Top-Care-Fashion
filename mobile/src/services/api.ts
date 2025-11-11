@@ -268,6 +268,7 @@ class ApiClient {
     const defaultOptions: RequestInit = {
       headers: {
         ...authHeaders,
+        'x-mobile-app': 'true',  // 标识移动端请求
         ...options.headers,
       },
     };

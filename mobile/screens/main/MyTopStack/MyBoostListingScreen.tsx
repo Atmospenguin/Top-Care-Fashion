@@ -18,7 +18,7 @@ import type { MyTopStackParamList } from "./index";
 import type { RootStackParamList } from "../../../App";
 import type { PremiumStackParamList } from "../PremiumStack";
 import { benefitsService, type UserBenefitsPayload } from "../../../src/services";
-import { listingsService } from "../../../src/services/listingsService";
+import { listingsService, type BoostedListingSummary } from "../../../src/services/listingsService";
 import type { ListingItem } from "../../../types/shop";
 import { useAuth } from "../../../contexts/AuthContext";
 
@@ -39,6 +39,7 @@ export default function BoostListingScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [boostedCount, setBoostedCount] = useState(0);
   const [loadingBoosted, setLoadingBoosted] = useState(false);
+  const [boostedListings, setBoostedListings] = useState<BoostedListingSummary[]>([]);
 
   const loadScreenData = useCallback(
     async (isCancelled?: () => boolean) => {
@@ -54,6 +55,7 @@ export default function BoostListingScreen() {
         setLoadingListings(false);
         setBoostedCount(0);
         setLoadingBoosted(false);
+        setBoostedListings([]);
         return;
       }
 
@@ -94,8 +96,10 @@ export default function BoostListingScreen() {
       }
 
       if (boostedResult.status === "fulfilled") {
-        const activeCount = boostedResult.value.filter(
-          (item) => item.status === "ACTIVE"
+        const boosted = boostedResult.value;
+        setBoostedListings(boosted);
+        const activeCount = boosted.filter(
+          (item) => item.status === "ACTIVE" || item.status === "SCHEDULED"
         ).length;
         setBoostedCount(activeCount);
       } else {
@@ -103,6 +107,7 @@ export default function BoostListingScreen() {
           "Failed to load boosted listings for boost screen",
           boostedResult.reason
         );
+        setBoostedListings([]);
         setBoostedCount(0);
       }
 
@@ -131,11 +136,21 @@ export default function BoostListingScreen() {
     setRefreshing(false);
   }, [loadScreenData]);
 
+  // ✅ 计算哪些 listings 已经被 boost (ACTIVE 或 SCHEDULED)
+  const boostedListingIds = useMemo(() => {
+    return new Set(
+      boostedListings
+        .filter((item) => item.status === "ACTIVE" || item.status === "SCHEDULED")
+        .map((item) => String(item.listingId))
+    );
+  }, [boostedListings]);
+
   useEffect(() => {
     setSelected((prev) => {
       const retained: Record<string, boolean> = {};
       listings.forEach((listing) => {
-        if (prev[listing.id]) {
+        // ✅ 移除已 boost 的 listings 的选择
+        if (prev[listing.id] && !boostedListingIds.has(listing.id)) {
           retained[listing.id] = true;
         }
       });
@@ -146,7 +161,7 @@ export default function BoostListingScreen() {
         prevKeys.every((key) => retained[key]);
       return isSame ? prev : retained;
     });
-  }, [listings]);
+  }, [listings, boostedListingIds]);
 
   const selectedCount = useMemo(
     () => Object.keys(selected).length,
@@ -160,6 +175,10 @@ export default function BoostListingScreen() {
 
   const toggle = useCallback(
     (id: string) => {
+      // ✅ 阻止选择已 boost 的 listings
+      if (boostedListingIds.has(id)) {
+        return;
+      }
       setSelected((state) => {
         if (!listings.some((item) => item.id === id)) {
           return state;
@@ -173,7 +192,7 @@ export default function BoostListingScreen() {
         return next;
       });
     },
-    [listings]
+    [listings, boostedListingIds]
   );
 
   const renderEmptyComponent = useCallback(() => {
@@ -314,40 +333,83 @@ export default function BoostListingScreen() {
         }
         renderItem={({ item }) => {
           const isSelected = !!selected[item.id];
+          const isBoosted = boostedListingIds.has(item.id);
           const price = Number(item.price ?? 0);
           const primaryImage = item.images?.[0] ?? null;
           const title = item.title || "Unnamed listing";
+          
+          // ✅ 获取 boost 状态信息
+          const boostInfo = boostedListings.find(
+            (boosted) => String(boosted.listingId) === item.id
+          );
+          const boostStatus = boostInfo?.status;
+          
           return (
             <TouchableOpacity
-              activeOpacity={0.9}
+              activeOpacity={isBoosted ? 1 : 0.9}
               onPress={() => toggle(item.id)}
-              style={styles.card}
+              style={[
+                styles.card,
+                isBoosted && styles.cardBoosted,
+              ]}
+              disabled={isBoosted}
             >
               {primaryImage ? (
                 <Image
                   source={{ uri: primaryImage }}
-                  style={styles.cardImg}
+                  style={[
+                    styles.cardImg,
+                    isBoosted && styles.cardImgBoosted,
+                  ]}
                   resizeMode="cover"
                 />
               ) : (
-                <View style={styles.cardPlaceholder}>
+                <View style={[
+                  styles.cardPlaceholder,
+                  isBoosted && styles.cardPlaceholderBoosted,
+                ]}>
                   <Icon name="image-outline" size={20} color="#999" />
                 </View>
               )}
-              {/* 右上角选择圆点 */}
-              <View
-                style={[
-                  styles.checkDot,
-                  isSelected && { borderColor: "#111" },
-                ]}
-              >
-                {isSelected ? <View style={styles.checkDotInner} /> : null}
-              </View>
+              
+              {/* ✅ Boost Badge */}
+              {isBoosted && (
+                <View style={styles.boostBadge}>
+                  <Icon name="flash-outline" size={10} color="#111" />
+                  <Text style={styles.boostBadgeText}>
+                    {boostStatus === "SCHEDULED" ? "Scheduled" : "Boosted"}
+                  </Text>
+                </View>
+              )}
+              
+              {/* 右上角选择圆点 - 只在未 boost 时显示 */}
+              {!isBoosted && (
+                <View
+                  style={[
+                    styles.checkDot,
+                    isSelected && { borderColor: "#111" },
+                  ]}
+                >
+                  {isSelected ? <View style={styles.checkDotInner} /> : null}
+                </View>
+              )}
+              
               <View style={styles.cardBody}>
-                <Text numberOfLines={1} style={styles.cardTitle}>
+                <Text 
+                  numberOfLines={1} 
+                  style={[
+                    styles.cardTitle,
+                    isBoosted && styles.cardTitleBoosted,
+                  ]}
+                >
                   {title}
                 </Text>
-                <Text style={styles.priceText}>${price.toFixed(2)}</Text>
+                <Text style={[
+                  styles.priceText,
+                  isBoosted && styles.priceTextBoosted,
+                ]}>
+                  ${price.toFixed(2)}
+                </Text>
               </View>
             </TouchableOpacity>
           );
@@ -438,13 +500,22 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
   },
+  cardBoosted: {
+    opacity: 0.7,
+  },
   cardImg: { width: "100%", height: "70%", backgroundColor: "#eaeaea" },
+  cardImgBoosted: {
+    opacity: 0.8,
+  },
   cardPlaceholder: {
     width: "100%",
     height: "70%",
     backgroundColor: "#eaeaea",
     alignItems: "center",
     justifyContent: "center",
+  },
+  cardPlaceholderBoosted: {
+    opacity: 0.8,
   },
   checkDot: {
     position: "absolute",
@@ -465,6 +536,31 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "#111",
   },
+  boostBadge: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FFD700",
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    zIndex: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  boostBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#111",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
   cardBody: {
     padding: 6,
   },
@@ -473,7 +569,13 @@ const styles = StyleSheet.create({
     color: "#555",
     marginBottom: 2,
   },
+  cardTitleBoosted: {
+    color: "#999",
+  },
   priceText: { fontWeight: "700", color: "#111", fontSize: 13 },
+  priceTextBoosted: {
+    color: "#999",
+  },
   emptyState: {
     flex: 1,
     alignItems: "center",

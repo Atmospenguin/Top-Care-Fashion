@@ -8,6 +8,11 @@ export async function GET(req: Request) {
     const category = searchParams.get("category");
     const search = searchParams.get("search");
     const genderParam = searchParams.get("gender");
+    const sizeParam = searchParams.get("size");
+    const sizesParam = searchParams.get("sizes"); // Support multiple sizes (comma-separated)
+    const conditionParam = searchParams.get("condition");
+    const minPriceParam = searchParams.get("minPrice");
+    const maxPriceParam = searchParams.get("maxPrice");
     const limit = Math.max(parseInt(searchParams.get("limit") || "20", 10), 1);
     const pageParam = searchParams.get("page");
     const explicitOffset = parseInt(searchParams.get("offset") || "0", 10);
@@ -21,13 +26,13 @@ export async function GET(req: Request) {
       sold: false,
     };
 
-    if (category) {
+    if (category && category !== "All") {
       where.category = {
         name: { contains: category, mode: "insensitive" },
       };
     }
 
-    if (genderParam) {
+    if (genderParam && genderParam !== "All") {
       const normalizeGender = (value: string): "Men" | "Women" | "Unisex" | undefined => {
         const lower = value.toLowerCase();
         if (lower === "men" || lower === "male") return "Men";
@@ -42,29 +47,173 @@ export async function GET(req: Request) {
       }
     }
 
+    // Filter by condition
+    if (conditionParam && conditionParam !== "All") {
+      // Map display condition to enum value
+      const mapConditionToEnum = (conditionStr: string): "NEW" | "LIKE_NEW" | "GOOD" | "FAIR" | "POOR" | undefined => {
+        const conditionMap: Record<string, "NEW" | "LIKE_NEW" | "GOOD" | "FAIR" | "POOR"> = {
+          "Brand New": "NEW",
+          "New": "NEW",
+          "Like New": "LIKE_NEW",
+          "Like new": "LIKE_NEW",
+          "like new": "LIKE_NEW",
+          "Good": "GOOD",
+          "good": "GOOD",
+          "Fair": "FAIR",
+          "fair": "FAIR",
+          "Poor": "POOR",
+          "poor": "POOR",
+        };
+        return conditionMap[conditionStr] || conditionMap[conditionStr.trim()];
+      };
+
+      const conditionEnum = mapConditionToEnum(conditionParam);
+      if (conditionEnum) {
+        where.condition_type = conditionEnum;
+      }
+    }
+
+    // Filter by price range
+    if (minPriceParam || maxPriceParam) {
+      const minPrice = minPriceParam ? parseFloat(minPriceParam) : null;
+      const maxPrice = maxPriceParam ? parseFloat(maxPriceParam) : null;
+
+      if (minPrice !== null && !isNaN(minPrice) && maxPrice !== null && !isNaN(maxPrice)) {
+        where.price = {
+          gte: minPrice,
+          lte: maxPrice,
+        };
+      } else if (minPrice !== null && !isNaN(minPrice)) {
+        where.price = {
+          gte: minPrice,
+        };
+      } else if (maxPrice !== null && !isNaN(maxPrice)) {
+        where.price = {
+          lte: maxPrice,
+        };
+      }
+    }
+
+    // Filter by search (process before size to build base conditions)
+    const searchFilters: any[] = [];
     if (search) {
       const trimmed = search.trim();
       if (trimmed.length > 0) {
-        const searchFilters: any[] = [
+        searchFilters.push(
           { name: { contains: trimmed, mode: "insensitive" } },
           { description: { contains: trimmed, mode: "insensitive" } },
-          { brand: { contains: trimmed, mode: "insensitive" } },
-        ];
-
-        // NOTE: Prisma JSON filter on Postgres does not support `has` on Json at this version.
-        // If you need to search tags (stored as JSON array), consider migrating to a text[] column
-        // and use `hasSome`/`hasEvery`, or use `path` + `string_contains` with JSONPath when
-        // Prisma adds broader support. For now, we skip tags to avoid runtime errors.
-
-        where.OR = searchFilters;
+          { brand: { contains: trimmed, mode: "insensitive" } }
+        );
       }
+    }
+
+    // Filter by size (supports single or multiple sizes)
+    const sizeFilters: any[] = [];
+    const sizeTokens = new Set<string>();
+
+    if (sizesParam) {
+      sizesParam
+        .split(",")
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0 && value !== "All" && value !== "My Size")
+        .forEach((value) => sizeTokens.add(value));
+    }
+
+    if (sizeParam && sizeParam !== "All" && sizeParam !== "My Size") {
+      sizeTokens.add(sizeParam.trim());
+    }
+
+    const sizesToFilter = Array.from(sizeTokens);
+    const hasSizeFilters = sizesToFilter.length > 0;
+
+    if (hasSizeFilters) {
+      console.log(`🔍 Size filter: searching for ${sizesToFilter.length} size(s):`, sizesToFilter);
+    }
+
+    sizesToFilter.forEach((rawSize) => {
+      const normalizedSize = rawSize.trim();
+      if (!normalizedSize) {
+        return;
+      }
+
+      const normalizedSizeUpper = normalizedSize.toUpperCase();
+      const isNumericSize = /^\d+$/.test(normalizedSize);
+      const isSingleLetter = normalizedSize.length === 1;
+
+      if (isNumericSize) {
+        sizeFilters.push({ size: { equals: normalizedSize, mode: "insensitive" } });
+        sizeFilters.push({ size: { startsWith: `${normalizedSize} `, mode: "insensitive" } });
+        sizeFilters.push({ size: { startsWith: `${normalizedSize}/`, mode: "insensitive" } });
+        sizeFilters.push({ size: { contains: ` / ${normalizedSize} `, mode: "insensitive" } });
+        sizeFilters.push({ size: { contains: ` / ${normalizedSize}/`, mode: "insensitive" } });
+        sizeFilters.push({ size: { contains: `/${normalizedSize} `, mode: "insensitive" } });
+        sizeFilters.push({ size: { contains: `/${normalizedSize}/`, mode: "insensitive" } });
+        return;
+      }
+
+      if (isSingleLetter && normalizedSizeUpper === "L") {
+        sizeFilters.push({ size: { equals: normalizedSize, mode: "insensitive" } });
+        sizeFilters.push({ size: { startsWith: `${normalizedSize} `, mode: "insensitive" } });
+        sizeFilters.push({ size: { startsWith: `${normalizedSize}/`, mode: "insensitive" } });
+        sizeFilters.push({ size: { contains: ` / ${normalizedSize} `, mode: "insensitive" } });
+        sizeFilters.push({ size: { contains: ` / ${normalizedSize}/`, mode: "insensitive" } });
+        sizeFilters.push({ size: { contains: `/${normalizedSize} `, mode: "insensitive" } });
+        sizeFilters.push({ size: { contains: `/${normalizedSize}/`, mode: "insensitive" } });
+        return;
+      }
+
+      if (isSingleLetter) {
+        sizeFilters.push({ size: { equals: normalizedSize, mode: "insensitive" } });
+        sizeFilters.push({ size: { startsWith: `${normalizedSize} `, mode: "insensitive" } });
+        sizeFilters.push({ size: { startsWith: `${normalizedSize}/`, mode: "insensitive" } });
+        sizeFilters.push({ size: { contains: ` / ${normalizedSize} `, mode: "insensitive" } });
+        sizeFilters.push({ size: { contains: ` / ${normalizedSize}/`, mode: "insensitive" } });
+        sizeFilters.push({ size: { contains: `/${normalizedSize} `, mode: "insensitive" } });
+        sizeFilters.push({ size: { contains: `/${normalizedSize}/`, mode: "insensitive" } });
+        sizeFilters.push({ size: { endsWith: ` / ${normalizedSize}`, mode: "insensitive" } });
+        sizeFilters.push({ size: { endsWith: `/${normalizedSize}`, mode: "insensitive" } });
+        return;
+      }
+
+      sizeFilters.push({ size: { equals: normalizedSize, mode: "insensitive" } });
+      sizeFilters.push({ size: { startsWith: `${normalizedSize} `, mode: "insensitive" } });
+      sizeFilters.push({ size: { startsWith: `${normalizedSize}/`, mode: "insensitive" } });
+      sizeFilters.push({ size: { contains: ` / ${normalizedSize} `, mode: "insensitive" } });
+      sizeFilters.push({ size: { contains: ` / ${normalizedSize}/`, mode: "insensitive" } });
+      sizeFilters.push({ size: { contains: `/${normalizedSize} `, mode: "insensitive" } });
+      sizeFilters.push({ size: { contains: `/${normalizedSize}/`, mode: "insensitive" } });
+      sizeFilters.push({ size: { endsWith: ` / ${normalizedSize}`, mode: "insensitive" } });
+      sizeFilters.push({ size: { endsWith: `/${normalizedSize}`, mode: "insensitive" } });
+
+      if (normalizedSizeUpper.length >= 3) {
+        sizeFilters.push({ size: { contains: normalizedSize, mode: "insensitive" } });
+      }
+    });
+
+    // Combine search and size filters with AND logic
+    // (search in name/description/brand) AND (size matches one of the patterns)
+    if (searchFilters.length > 0 && sizeFilters.length > 0) {
+      // Both search and size filters exist - combine with AND
+      if (!where.AND) {
+        where.AND = [];
+      }
+      where.AND.push({ OR: searchFilters });
+      where.AND.push({ OR: sizeFilters });
+    } else if (searchFilters.length > 0) {
+      // Only search filters
+      where.OR = searchFilters;
+    } else if (sizeFilters.length > 0) {
+      // Only size filters
+      where.OR = sizeFilters;
     }
 
     const orderBy: Prisma.listingsOrderByWithRelationInput = (() => {
       switch (sortParam) {
         case "price-asc":
+        case "Price Low to High":
           return { price: "asc" };
         case "price-desc":
+        case "Price High to Low":
           return { price: "desc" };
         case "name-asc":
           return { name: "asc" };
@@ -73,6 +222,7 @@ export async function GET(req: Request) {
         case "date-asc":
           return { created_at: "asc" };
         case "date-desc":
+        case "Latest":
         default:
           return { created_at: "desc" };
       }
@@ -82,6 +232,11 @@ export async function GET(req: Request) {
   const totalCount = await prisma.listings.count({
     where,
   });
+
+  // Debug: Log the where clause for size filtering
+  if (hasSizeFilters) {
+    console.log(`🔍 Size filter WHERE clause:`, JSON.stringify(where, null, 2));
+  }
 
   // 获取 listings
   const listings = await prisma.listings.findMany({
@@ -109,6 +264,33 @@ export async function GET(req: Request) {
       take: limit,
       skip: offset,
     });
+
+    // Debug: Log the sizes of returned listings
+    if (hasSizeFilters) {
+      const returnedSizes = listings.map(l => l.size).filter(Boolean);
+      const uniqueSizes = [...new Set(returnedSizes)];
+      console.log(`🔍 Size filter results: found ${listings.length} listings`);
+      console.log(`🔍 Requested sizes:`, sizesToFilter);
+      console.log(`🔍 Returned sizes:`, uniqueSizes);
+      console.log(`🔍 Sample size values:`, returnedSizes.slice(0, 10));
+
+      const requestedSizeSet = new Set(sizesToFilter.map((value) => value.toUpperCase()));
+      const mismatched = uniqueSizes.filter((size) => {
+        if (!size) return false;
+        const sizeUpper = size.toUpperCase();
+        if (requestedSizeSet.has(sizeUpper)) {
+          return false;
+        }
+        if (requestedSizeSet.has("L") && sizeUpper.includes("L") && sizeUpper !== "L") {
+          return true;
+        }
+        return true;
+      });
+
+      if (mismatched.length > 0) {
+        console.warn(`⚠️ WARNING: Found sizes outside the requested set:`, mismatched);
+      }
+    }
 
     const toArray = (value: unknown): string[] => {
       if (!value) return [];
