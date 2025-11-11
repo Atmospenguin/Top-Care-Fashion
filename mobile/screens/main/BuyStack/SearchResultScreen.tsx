@@ -449,6 +449,11 @@ export default function SearchResultScreen() {
               const result = await listingsService.searchListings(searchQuery, searchParams);
               console.log('🔍 SearchResult: loadListings feed search - Received', result.items.length, 'items, hasMore:', result.hasMore, 'total:', result.total, 'offset:', currentOffset);
               
+              // Prepare merged length for hasMore calculation (must use deduped length)
+              const mergedLength = resetOffset
+                ? dedupeById(result.items).length
+                : dedupeById([...apiListings, ...result.items]).length;
+
               if (resetOffset) {
                 console.log('🔍 SearchResult: loadListings - Resetting listings to', result.items.length, 'items');
                 setApiListings(dedupeById(result.items));
@@ -467,11 +472,10 @@ export default function SearchResultScreen() {
                   setTotalCount(result.total);
                 }
               }
-              // 更稳健：根据总数与已加载数量判断是否还有更多
+              // 更稳健：根据总数与已加载（去重后）数量判断是否还有更多
               {
                 const nextTotal = result.total ?? totalCount ?? 0;
-                const loadedSoFar = (resetOffset ? 0 : apiListings.length) + result.items.length;
-                setHasMore(loadedSoFar < nextTotal || (Boolean(result?.hasMore) && result.items.length === PAGE_SIZE));
+                setHasMore(mergedLength < nextTotal || (Boolean(result?.hasMore) && result.items.length === PAGE_SIZE));
               }
               console.log('🔍 SearchResult: loadListings - Final state: items=', resetOffset ? result.items.length : 'appended', ', hasMore=', result.hasMore, ', totalCount=', result.total);
               return;
@@ -831,16 +835,17 @@ export default function SearchResultScreen() {
         try {
           const result = await listingsService.searchListings(searchQuery, searchParams);
           console.log('🔍 SearchResult: loadMore feed search - Received', result.items.length, 'items, hasMore:', result.hasMore, 'total:', result.total, 'current offset:', currentOffset);
+          // Precompute merged length using current state to correctly compute hasMore
+          const mergedLength = dedupeById([...apiListings, ...result.items]).length;
           setApiListings(prev => {
             const newList = dedupeById([...prev, ...result.items]);
             console.log('🔍 SearchResult: loadMore - Total items after merge:', newList.length, '(prev:', prev.length, '+ new:', result.items.length, ')');
             return newList;
           });
-          // 更稳健：根据总数与已加载数量判断是否还有更多
+          // 更稳健：根据总数与已加载（去重后）数量判断是否还有更多
           {
             const nextTotal = result.total ?? totalCount ?? 0;
-            const loadedSoFar = apiListings.length + result.items.length;
-            setHasMore(loadedSoFar < nextTotal || (Boolean(result?.hasMore) && result.items.length === PAGE_SIZE));
+            setHasMore(mergedLength < nextTotal || (Boolean(result?.hasMore) && result.items.length === PAGE_SIZE));
           }
           setOffset(prev => prev + PAGE_SIZE);
           setFeedPage(prev => prev + 1);
