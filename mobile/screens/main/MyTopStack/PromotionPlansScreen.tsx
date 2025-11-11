@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Alert,
   ImageBackground,
@@ -7,9 +7,10 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 
@@ -19,6 +20,7 @@ import type { PremiumStackParamList } from "../PremiumStack";
 import { PREMIUM_BG } from "../../../constants/assetUrls";
 import { LOGO_FULL_COLOR } from "../../../constants/assetUrls";
 import { benefitsService, type UserBenefitsPayload } from "../../../src/services";
+import { listingsService, type BoostedListingSummary } from "../../../src/services/listingsService";
 import { apiClient } from "../../../src/services/api";
 import type { ListingItem } from "../../../types/shop";
 const BACKGROUND_IMAGE = PREMIUM_BG;
@@ -54,6 +56,8 @@ export default function PromotionPlansScreen() {
   const [benefits, setBenefits] = useState<UserBenefitsPayload["benefits"] | null>(initialBenefits);
   const [plans, setPlans] = useState<PricingPlan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [boostedListings, setBoostedListings] = useState<BoostedListingSummary[]>([]);
+  const [loadingBoosted, setLoadingBoosted] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -101,6 +105,34 @@ export default function PromotionPlansScreen() {
     };
   }, []);
 
+  // ✅ 加载boosted listings状态，检查是否有重复boost
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      const loadBoosted = async () => {
+        try {
+          setLoadingBoosted(true);
+          const boosted = await listingsService.getBoostedListings();
+          if (!isMounted) return;
+          setBoostedListings(boosted);
+        } catch (error) {
+          console.error("❌ Error loading boosted listings:", error);
+          if (isMounted) {
+            setBoostedListings([]);
+          }
+        } finally {
+          if (isMounted) {
+            setLoadingBoosted(false);
+          }
+        }
+      };
+      loadBoosted();
+      return () => {
+        isMounted = false;
+      };
+    }, [])
+  );
+
   const freePlan = useMemo(() => plans.find((plan) => plan.type === "FREE"), [plans]);
   const premiumPlan = useMemo(() => plans.find((plan) => plan.type === "PREMIUM"), [plans]);
   const selectedListings = useMemo(() => preselectedListings, [preselectedListings]);
@@ -111,6 +143,22 @@ export default function PromotionPlansScreen() {
     return selectedListingIdsParam;
   }, [selectedListingIdsParam, selectedListings]);
   const selectionCount = selectedListings.length || selectedListingIds.length;
+
+  // ✅ 检查是否有已boosted的listings
+  const alreadyBoostedListings = useMemo(() => {
+    if (loadingBoosted || boostedListings.length === 0) return [];
+    
+    const activeOrScheduled = boostedListings.filter(
+      (item) => item.status === "ACTIVE" || item.status === "SCHEDULED"
+    );
+    
+    return selectedListingIds.filter((id) =>
+      activeOrScheduled.some((boosted) => String(boosted.listingId) === String(id))
+    );
+  }, [boostedListings, selectedListingIds, loadingBoosted]);
+
+  const hasAlreadyBoosted = alreadyBoostedListings.length > 0;
+  const allAlreadyBoosted = alreadyBoostedListings.length === selectionCount && selectionCount > 0;
 
   const normalisePercent = (value?: number | null) => {
     if (typeof value !== "number" || Number.isNaN(value)) {
@@ -216,15 +264,51 @@ export default function PromotionPlansScreen() {
 
   const isPremiumMember = benefits?.isPremium === true;
   const isSelectingPremium = selectedPlan === "premium";
-  const ctaLabel = isSelectingPremium
-    ? (isPremiumMember ? "BOOST NOW" : "UPGRADE & BOOST")
-    : "CHECKOUT WITH FREE PLAN";
+  const ctaLabel = useMemo(() => {
+    if (allAlreadyBoosted) {
+      return "Already Boosted";
+    }
+    if (hasAlreadyBoosted) {
+      return "Some Already Boosted";
+    }
+    return isSelectingPremium
+      ? (isPremiumMember ? "BOOST NOW" : "UPGRADE & BOOST")
+      : "CHECKOUT WITH FREE PLAN";
+  }, [allAlreadyBoosted, hasAlreadyBoosted, isSelectingPremium, isPremiumMember]);
 
-  const isCtaDisabled = loading || selectionCount === 0;
+  const isCtaDisabled = loading || selectionCount === 0 || allAlreadyBoosted || loadingBoosted;
 
   const handleCtaPress = () => {
     if (selectionCount === 0) {
       Alert.alert("No listings selected", "Choose at least one listing to boost.");
+      return;
+    }
+
+    // ✅ 检查是否有已boosted的listings
+    if (hasAlreadyBoosted) {
+      const boostedNames = selectedListings
+        .filter((listing) => alreadyBoostedListings.includes(listing.id))
+        .map((listing) => listing.title || `Listing ${listing.id}`)
+        .slice(0, 3);
+      
+      const message = allAlreadyBoosted
+        ? `All selected listings are already being boosted. Please wait for the current boost to expire before boosting again.`
+        : `Some listings are already being boosted:\n\n${boostedNames.join(", ")}${boostedNames.length < alreadyBoostedListings.length ? ` and ${alreadyBoostedListings.length - boostedNames.length} more` : ""}\n\nPlease wait for the current boost to expire before boosting again.`;
+
+      Alert.alert(
+        "Already Boosted",
+        message,
+        [
+          {
+            text: "View Boosted Listings",
+            onPress: () => {
+              // Navigate to BoostedListingScreen if in MyTopStack, or show alternative
+              navigation.goBack();
+            },
+          },
+          { text: "OK", style: "cancel" },
+        ]
+      );
       return;
     }
 
@@ -273,9 +357,14 @@ export default function PromotionPlansScreen() {
             <Text style={styles.heading}>Boost Plans</Text>
 
             <View style={styles.selectionCard}>
-              <Text style={styles.selectionTitle}>
-                {selectionCount} listing{selectionCount === 1 ? "" : "s"} selected
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                <Text style={styles.selectionTitle}>
+                  {selectionCount} listing{selectionCount === 1 ? "" : "s"} selected
+                </Text>
+                {loadingBoosted ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : null}
+              </View>
               <Text style={styles.selectionSubtitle}>
                 3-day boost • {isSelectingPremium ? "Premium pricing applies" : "Standard pricing"}
               </Text>
@@ -289,6 +378,18 @@ export default function PromotionPlansScreen() {
                     ? ` +${selectedListings.length - 3} more`
                     : ""}
                 </Text>
+              ) : null}
+              
+              {/* ✅ 显示已boosted提醒 */}
+              {hasAlreadyBoosted && !loadingBoosted ? (
+                <View style={styles.warningBanner}>
+                  <Icon name="information-circle" size={16} color="#FFD166" />
+                  <Text style={styles.warningText}>
+                    {allAlreadyBoosted
+                      ? "All selected listings are already being boosted."
+                      : `${alreadyBoostedListings.length} of ${selectionCount} listing${selectionCount === 1 ? "" : "s"} already boosted.`}
+                  </Text>
+                </View>
               ) : null}
             </View>
 
@@ -475,6 +576,25 @@ const styles = StyleSheet.create({
   selectionMeta: {
     fontSize: 12,
     color: "rgba(255,255,255,0.7)",
+    includeFontPadding: false,
+  },
+  warningBanner: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,209,102,0.15)",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,209,102,0.3)",
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#FFD166",
+    fontWeight: "600",
     includeFontPadding: false,
   },
   ctaButton: {
