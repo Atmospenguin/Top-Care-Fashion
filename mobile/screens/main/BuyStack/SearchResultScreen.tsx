@@ -467,8 +467,12 @@ export default function SearchResultScreen() {
                   setTotalCount(result.total);
                 }
               }
-              // 兼容后端 hasMore 不准：只要拿满一页就允许继续加载
-              setHasMore(Boolean(result?.hasMore) || result.items.length === PAGE_SIZE);
+              // 更稳健：根据总数与已加载数量判断是否还有更多
+              {
+                const nextTotal = result.total ?? totalCount ?? 0;
+                const loadedSoFar = (resetOffset ? 0 : apiListings.length) + result.items.length;
+                setHasMore(loadedSoFar < nextTotal || (Boolean(result?.hasMore) && result.items.length === PAGE_SIZE));
+              }
               console.log('🔍 SearchResult: loadListings - Final state: items=', resetOffset ? result.items.length : 'appended', ', hasMore=', result.hasMore, ', totalCount=', result.total);
               return;
             } catch (error) {
@@ -832,8 +836,12 @@ export default function SearchResultScreen() {
             console.log('🔍 SearchResult: loadMore - Total items after merge:', newList.length, '(prev:', prev.length, '+ new:', result.items.length, ')');
             return newList;
           });
-          // 兼容后端 hasMore 不准：只要拿满一页就允许继续加载
-          setHasMore(Boolean(result?.hasMore) || result.items.length === PAGE_SIZE);
+          // 更稳健：根据总数与已加载数量判断是否还有更多
+          {
+            const nextTotal = result.total ?? totalCount ?? 0;
+            const loadedSoFar = apiListings.length + result.items.length;
+            setHasMore(loadedSoFar < nextTotal || (Boolean(result?.hasMore) && result.items.length === PAGE_SIZE));
+          }
           setOffset(prev => prev + PAGE_SIZE);
           setFeedPage(prev => prev + 1);
           return;
