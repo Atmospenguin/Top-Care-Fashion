@@ -7,30 +7,30 @@
 ![React Native](https://img.shields.io/badge/React_Native-0.81-61DAFB?style=for-the-badge&logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript)
 
-**A modern AI-powered fashion marketplace platform combining peer-to-peer commerce with intelligent styling features**
+**A modern AI-powered fashion marketplace platform combining peer-to-peer commerce with  intelligent styling features**
 
-[Features](#-features) • [Architecture](#️-architecture) • [Getting Started](#-quick-start) • [Documentation](#-documentation)
+[Features](#features) • [Architecture](#architecture) • [Getting Started](#quick-start) • [Documentation](#documentation)
 
 </div>
 
 ---
 
-## 📖 About
+## About
 
 **Top Care Fashion** is a full-stack fashion marketplace that revolutionizes the way users buy, sell, and discover fashion. Built with cutting-edge technologies, it combines traditional e-commerce functionality with AI-powered features to create a unique shopping experience.
 
 ### What Makes It Special
 
-- **🤖 AI-Powered Styling**: Leverage Google Cloud Vision and Gemini AI for outfit recommendations, product classification, and content moderation
-- **👗 Mix & Match Feature**: Create and save outfit combinations with AI-powered style analysis and recommendations
-- **💎 Premium Subscription Model**: Tiered pricing with enhanced features for power users
-- **📱 Cross-Platform**: Unified experience across web (Next.js) and mobile (React Native/Expo)
-- **🔒 Enterprise-Grade Security**: Supabase Auth with Row-Level Security policies
-- **⚡ Serverless Architecture**: Scalable deployment on Vercel with edge network optimization
+- **AI-Powered Styling**: Leverage Google Cloud Vision and Gemini AI for outfit recommendations, product classification, and content moderation
+- **Mix & Match Feature**: Create and save outfit combinations with AI-powered style analysis and recommendations
+- **Premium Subscription Model**: Tiered pricing with enhanced features for power users
+- **Cross-Platform**: Unified experience across web (Next.js) and mobile (React Native/Expo)
+- **Enterprise-Grade Security**: Supabase Auth with Row-Level Security policies
+- **Serverless Architecture**: Scalable deployment on Vercel with edge network optimization
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -108,7 +108,7 @@
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 For detailed architecture documentation, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
@@ -204,9 +204,9 @@ Top-Care-Fashion/
 
 ---
 
-## 📱 Features
+## Features
 
-### 🛍️ E-Commerce Core
+### E-Commerce Core
 
 #### Product Marketplace
 - Browse and search products with advanced filters
@@ -223,7 +223,7 @@ Top-Care-Fashion/
 - Multiple payment methods support
 - Shipping address management
 
-### 🤖 AI-Powered Features
+### AI-Powered Features
 
 #### Mix & Match Outfit Builder
 - Create outfit combinations from marketplace items
@@ -239,7 +239,7 @@ Top-Care-Fashion/
 - **Content Safety**: NSFW detection and moderation
 - **Style Analysis**: Fashion trend and compatibility insights
 
-### 👥 Social Features
+### Social Features
 
 - User profiles with bio, location, preferences
 - Follow/follower system with visibility controls
@@ -249,7 +249,7 @@ Top-Care-Fashion/
 - Real-time messaging between users
 - Activity feeds and notifications
 
-### 💎 Premium Subscription
+### Premium Subscription
 
 Three subscription tiers with enhanced features:
 
@@ -267,7 +267,7 @@ Three subscription tiers with enhanced features:
 - Quarterly: $18.90 ($6.30/mo)
 - Annual: $59.90 ($4.99/mo)
 
-### 🔔 Notifications & Messaging
+### Notifications & Messaging
 
 - Push notifications (mobile via Expo)
 - In-app notification center
@@ -276,7 +276,7 @@ Three subscription tiers with enhanced features:
 - Unread message counters
 - Conversation status (ACTIVE, ARCHIVED, DELETED)
 
-### 🛡️ Admin Dashboard
+### Admin Dashboard
 
 Comprehensive admin panel with 13 management sections:
 
@@ -296,7 +296,7 @@ Comprehensive admin panel with 13 management sections:
 
 ---
 
-## 🗄️ Database
+## Database
 
 ### Schema Overview
 
@@ -349,7 +349,7 @@ The database consists of **40+ Prisma models** organized into logical domains:
 
 ---
 
-## 🔧 Development
+## Development
 
 ### Web Development
 
@@ -405,7 +405,7 @@ npm run test
 
 ---
 
-## 📦 API Documentation
+## API Documentation
 
 The platform exposes **119 REST API endpoints** organized by feature domain.
 
@@ -458,7 +458,7 @@ For complete API documentation, see [ARCHITECTURE.md](./ARCHITECTURE.md#7-api-st
 
 ---
 
-## 🔐 Security
+## Security
 
 ### Authentication & Authorization
 
@@ -482,7 +482,7 @@ For complete API documentation, see [ARCHITECTURE.md](./ARCHITECTURE.md#7-api-st
 
 ---
 
-## 🚀 Deployment
+## Deployment
 
 ### Web Application
 
@@ -538,7 +538,7 @@ eas update --branch production
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Comprehensive architecture documentation
 - **[Test Accounts](./docs/TEST_ACCOUNTS.md)** - Sample user credentials for testing
@@ -547,7 +547,7 @@ eas update --branch production
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please follow these steps:
 
@@ -568,7 +568,7 @@ We welcome contributions! Please follow these steps:
 
 ---
 
-## 🐛 Known Issues
+## Known Issues
 
 - Mobile app may require clearing Expo cache if dependencies change
 - Some AI features require Google Cloud API key
@@ -576,13 +576,13 @@ We welcome contributions! Please follow these steps:
 
 ---
 
-## 📝 License
+## License
 
 This project is proprietary software. All rights reserved.
 
 ---
 
-## 🆘 Support
+## Support
 
 - **GitHub Issues**: [Report bugs or request features](https://github.com/Atmospenguin/Top-Care-Fashion/issues)
 - **GitHub Discussions**: [Ask questions and share ideas](https://github.com/Atmospenguin/Top-Care-Fashion/discussions)
@@ -590,7 +590,7 @@ This project is proprietary software. All rights reserved.
 
 ---
 
-## 🎨 Brand Guidelines
+## Brand Guidelines
 
 ### Colors
 - **Primary**: #F54B3D (Vibrant Red)
@@ -611,7 +611,7 @@ Available in multiple formats:
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **Next.js Team** - For the incredible React framework
 - **Vercel** - For seamless deployment platform
@@ -622,7 +622,7 @@ Available in multiple formats:
 
 ---
 
-## 📊 Project Stats
+## Project Stats
 
 - **Total API Endpoints**: 119
 - **Database Models**: 40+
@@ -638,6 +638,6 @@ Available in multiple formats:
 
 **Write by Cheng Zhenxi**
 
-[⬆ Back to Top](#top-care-fashion)
+[Back to Top](#top-care-fashion)
 
 </div>
