@@ -117,7 +117,6 @@ if (normalizedPassword.length < 6) {
           dob: normalizedDob,
           gender: normalizedGender,
         },
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback`,
       },
     });
 

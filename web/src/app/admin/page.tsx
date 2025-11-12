@@ -111,27 +111,6 @@ export default function AdminHomePage() {
       icon: "🚩",
       color: "bg-red-50 border-red-200",
     },
-    {
-      title: "Feedback",
-      description: "View user feedback and suggestions",
-      href: "/admin/feedback",
-      icon: "💭",
-      color: "bg-teal-50 border-teal-200",
-    },
-    {
-      title: "FAQ",
-      description: "Manage frequently asked questions",
-      href: "/admin/faq",
-      icon: "❓",
-      color: "bg-amber-50 border-amber-200",
-    },
-    {
-      title: "Landing Page",
-      description: "Manage landing page content",
-      href: "/admin/content",
-      icon: "📝",
-      color: "bg-slate-50 border-slate-200",
-    },
   ];
 
   return (

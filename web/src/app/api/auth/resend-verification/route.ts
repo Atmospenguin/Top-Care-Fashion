@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       type: 'signup',
       email: normalizedEmail,
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback`,
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/auth/callback`,
       }
     });
 
