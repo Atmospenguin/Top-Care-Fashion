@@ -35,6 +35,22 @@ function SignInContent() {
 
       await signIn(normalizedEmail, password);
       setStatus("Success");
+      
+      // Check if user is Admin and redirect accordingly
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.user?.role === "Admin") {
+            router.push("/admin");
+            return;
+          }
+        }
+      } catch (err) {
+        // If check fails, continue with normal redirect
+        console.error("Error checking user role:", err);
+      }
+      
       router.push("/");
     } catch (err: any) {
       const errorMessage = err?.message || "Sign in failed";
