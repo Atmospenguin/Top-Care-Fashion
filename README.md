@@ -541,7 +541,6 @@ eas update --branch production
 ## 📚 Documentation
 
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Comprehensive architecture documentation
-- **[Mobile README](./mobile/README.md)** - React Native app details
 - **[Test Accounts](./docs/TEST_ACCOUNTS.md)** - Sample user credentials for testing
 - **[Plans & Pricing](./docs/Plans%20&%20Pricing.md)** - Subscription tier details
 - **[Functional Hierarchy](./docs/Functional%20Hierarchy.txt)** - Feature breakdown
@@ -637,7 +636,7 @@ Available in multiple formats:
 
 <div align="center">
 
-**Built with ❤️ by the Top Care Fashion Team**
+**Write by Cheng Zhenxi**
 
 [⬆ Back to Top](#top-care-fashion)
 
