@@ -310,26 +310,26 @@ For complete database documentation, see [DATABASE_SCHEMA.md](./docs/DATABASE_SC
 
 ### Database Statistics
 
-- **Total Tables**: 32 tables (including system tables)
-- **Main Business Tables**: 28 tables
-- **Prisma Models**: 28 models
-- **Enum Types**: 15 enums
-- **Total Indexes**: 141 indexes (29 primary keys + 112 functional indexes)
-- **Functional Indexes**: 112 indexes for query optimization
-- **Unique Indexes**: 49 indexes (29 primary keys + 20 unique constraints)
+- **Total Tables**: 28 tables (27 business tables + 1 system table)
+- **Main Business Tables**: 27 tables
+- **Prisma Models**: 27 models
+- **Enum Types**: 19 enum types (15 actively used, 4 potentially unused)
+- **Total Indexes**: 148 indexes (27 primary keys + 121 functional indexes)
+- **Functional Indexes**: 121 indexes (25 unique indexes + 96 regular indexes)
+- **Unique Indexes**: 52 indexes (27 primary keys + 25 unique constraint indexes)
+- **Unique Constraints**: 35 constraints (27 primary keys + 8 unique constraints)
 - **Foreign Keys**: Comprehensive referential integrity
 - **JSON Fields**: 10+ JSON columns for flexible data storage
 
 ### Schema Overview
 
-The database consists of **28 Prisma models** organized into logical domains:
+The database consists of **27 Prisma models** organized into logical domains:
 
 #### Core Commerce Models
 - **users** (31 fields) - User accounts, authentication, preferences, premium status, visibility settings
 - **listings** (30 fields) - Product catalog with images, analytics, condition ratings, inventory management
 - **listing_categories** (12 fields) - Hierarchical categories with AI keywords, slug support, parent-child relationships
 - **orders** (20 fields) - Complete order lifecycle with 8 status states, commission tracking, payment integration
-- **order_items** (6 fields) - Line items for each order with quantity and pricing
 - **transactions** (10 fields) - Payment processing records with status workflow
 - **cart_items** (6 fields) - Shopping cart storage with unique user-listing constraints
 
@@ -360,6 +360,7 @@ The database consists of **28 Prisma models** organized into logical domains:
 - **reports** (9 fields) - Content/user abuse reports with status tracking (OPEN/RESOLVED/DISMISSED)
 - **site_stats** (6 fields) - Platform-wide statistics (singleton table with aggregated metrics)
 - **releases** (10 fields) - Mobile app version management with platform support (iOS/Android)
+- **brand_mappings** (5 fields) - Brand name mapping for standardizing user-provided brand names
 
 #### Special Tables
 
@@ -691,10 +692,10 @@ Available in multiple formats:
 ## Project Stats
 
 - **Total API Endpoints**: 119
-- **Database Models**: 28 main business models
-- **Database Tables**: 32 total (28 business + 4 system)
-- **Enum Types**: 15 enums
-- **Database Indexes**: 141 total (112 functional + 29 primary keys)
+- **Database Models**: 27 main business models
+- **Database Tables**: 28 total (27 business + 1 system)
+- **Enum Types**: 19 enum types (15 actively used)
+- **Database Indexes**: 148 total (121 functional + 27 primary keys)
 - **Frontend Components**: 100+
 - **Lines of Code**: 118785 total
 - **Supported Platforms**: Web, iOS, Android

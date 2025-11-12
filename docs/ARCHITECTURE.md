@@ -849,7 +849,6 @@ model listings {
   // Relations
   user            users       @relation(fields: [user_id], references: [id])
   category        listing_categories? @relation(fields: [category_id], references: [id])
-  order_items     order_items[]
   cart_items      cart_items[]
   likes           user_likes[]
   // ... more relations
@@ -895,7 +894,6 @@ model orders {
   // Relations
   buyer             users       @relation("buyer", fields: [buyer_id], references: [id])
   seller            users       @relation("seller", fields: [seller_id], references: [id])
-  order_items       order_items[]
   transactions      transactions[]
   reviews           reviews[]
 }
@@ -983,8 +981,6 @@ Strategic indexes for performance optimization:
 #### One-to-Many Relationships
 - users → listings (one user has many listings)
 - users → orders (as buyer or seller)
-- listings → order_items
-- orders → order_items
 - conversations → messages
 
 #### Many-to-Many Relationships
@@ -3509,7 +3505,6 @@ describe('POST /api/auth/signin', () => {
 users ───────────────────┐
   │                       │
   ├── listings            │
-  │     ├── order_items   │
   │     ├── cart_items    │
   │     └── user_likes    │
   │                       │

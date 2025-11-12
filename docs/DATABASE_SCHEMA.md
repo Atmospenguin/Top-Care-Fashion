@@ -12,12 +12,13 @@ This document provides a detailed description of the database structure for the 
 
 ## Database Statistics
 
-- **Total Tables**: 32 tables (including system tables)
-- **Main Business Tables**: 28 tables
-- **Enum Types**: 19 enum types defined
-- **Total Indexes**: 141 indexes (29 primary keys + 112 functional indexes)
-- **Unique Indexes**: 49 indexes (29 primary keys + 20 unique constraints)
-- **Functional Indexes**: 112 indexes for query optimization
+- **Total Tables**: 28 tables (27 business tables + 1 system table `_prisma_migrations`)
+- **Main Business Tables**: 27 tables
+- **Enum Types**: 19 enum types defined (15 actively used, 4 potentially unused)
+- **Total Indexes**: 148 indexes (27 primary keys + 121 functional indexes)
+- **Unique Indexes**: 52 indexes (27 primary keys + 25 unique constraint indexes)
+- **Functional Indexes**: 121 indexes (25 unique indexes + 96 regular indexes)
+- **Unique Constraints**: 35 constraints (27 primary keys + 8 unique constraints)
 
 ---
 
@@ -158,7 +159,7 @@ Product/listings table, storing all listed product information.
 
 **Relationships**:
 - Many-to-one: category → listing_categories, seller → users
-- One-to-many: cart_items, conversations, listing_clicks, listing_stats_daily, listing_promotions, notifications, order_items, orders, saved_outfits (base/top/bottom/shoe), transactions, user_likes
+- One-to-many: cart_items, conversations, listing_clicks, listing_stats_daily, listing_promotions, notifications, orders, saved_outfits (base/top/bottom/shoe), transactions, user_likes
 
 ---
 
@@ -346,33 +347,11 @@ Order information table.
 
 **Relationships**:
 - Many-to-one: buyer → users, seller → users, listing → listings, payment_method_ref → user_payment_methods
-- One-to-many: reviews, transactions, order_items
+- One-to-many: reviews, transactions
 
 ---
 
-### 10. order_items (Order Items Table)
-
-Order item details table.
-
-| Field Name | Type | Constraints | Description |
-|------------|------|-------------|-------------|
-| id | Int | PK, Auto | Order item ID |
-| order_id | Int? | | Order ID |
-| listing_id | Int? | FK → listings.id | Listing ID |
-| quantity | Int | NOT NULL | Quantity |
-| price | Decimal(10,2) | NOT NULL | Unit price |
-| created_at | DateTime? | DEFAULT: now() | Creation timestamp |
-
-**Indexes**:
-- idx_order_items_listing_id: listing_id
-- idx_order_items_order_id: order_id
-
-**Relationships**:
-- Many-to-one: listing → listings
-
----
-
-### 11. transactions (Transactions Table)
+### 10. transactions (Transactions Table)
 
 Transaction records table.
 
@@ -404,7 +383,7 @@ Transaction records table.
 
 ---
 
-### 12. reviews (Reviews Table)
+### 11. reviews (Reviews Table)
 
 User reviews table, supporting mutual reviews between buyers and sellers.
 
@@ -437,7 +416,7 @@ User reviews table, supporting mutual reviews between buyers and sellers.
 
 ---
 
-### 13. feedback (Feedback Table)
+### 12. feedback (Feedback Table)
 
 User feedback table.
 
@@ -469,7 +448,7 @@ User feedback table.
 
 ---
 
-### 14. faq (FAQ Table)
+### 13. faq (FAQ Table)
 
 Frequently asked questions table.
 
@@ -494,7 +473,7 @@ Frequently asked questions table.
 
 ---
 
-### 15. landing_content (Landing Content Table)
+### 14. landing_content (Landing Content Table)
 
 Homepage content configuration table.
 
@@ -518,7 +497,7 @@ Homepage content configuration table.
 
 ---
 
-### 16. site_stats (Site Stats Table)
+### 15. site_stats (Site Stats Table)
 
 Website statistics data table.
 
@@ -533,7 +512,7 @@ Website statistics data table.
 
 ---
 
-### 17. pricing_plans (Pricing Plans Table)
+### 16. pricing_plans (Pricing Plans Table)
 
 Pricing plans table.
 
@@ -560,7 +539,7 @@ Pricing plans table.
 
 ---
 
-### 18. reports (Reports Table)
+### 17. reports (Reports Table)
 
 User reports table.
 
@@ -582,7 +561,7 @@ User reports table.
 
 ---
 
-### 19. user_follows (User Follows Table)
+### 18. user_follows (User Follows Table)
 
 User follow relationships table.
 
@@ -606,7 +585,7 @@ User follow relationships table.
 
 ---
 
-### 20. user_likes (User Likes Table)
+### 19. user_likes (User Likes Table)
 
 User likes for listings table.
 
@@ -635,7 +614,7 @@ User likes for listings table.
 
 ---
 
-### 21. conversations (Conversations Table)
+### 20. conversations (Conversations Table)
 
 User conversations/chat table.
 
@@ -666,7 +645,7 @@ User conversations/chat table.
 
 ---
 
-### 22. messages (Messages Table)
+### 21. messages (Messages Table)
 
 Conversation messages table.
 
@@ -693,7 +672,7 @@ Conversation messages table.
 
 ---
 
-### 23. notifications (Notifications Table)
+### 22. notifications (Notifications Table)
 
 User notifications table.
 
@@ -724,27 +703,7 @@ User notifications table.
 
 ---
 
-### 24. outfit_items (Outfit Items Table)
-
-Outfit items table (using UUID).
-
-| Field Name | Type | Constraints | Description |
-|------------|------|-------------|-------------|
-| id | String(UUID) | PK, DEFAULT: gen_random_uuid() | Item ID |
-| outfit_id | String(UUID) | NOT NULL | Outfit ID |
-| item_id | String(255) | NOT NULL | Product ID |
-| category | String(50)? | | Category |
-| item_data | Json? | | Item data (JSON) |
-| created_at | DateTime? | DEFAULT: now() | Creation timestamp |
-
-**Indexes**:
-- idx_outfit_items_outfit_id: outfit_id
-
-**Note**: This table contains Row Level Security (RLS) and requires additional configuration.
-
----
-
-### 25. saved_outfits (Saved Outfits Table)
+### 23. saved_outfits (Saved Outfits Table)
 
 User saved outfits table.
 
@@ -775,7 +734,7 @@ User saved outfits table.
 
 ---
 
-### 26. listing_clicks (Listing Clicks Table)
+### 24. listing_clicks (Listing Clicks Table)
 
 Listing click records table.
 
@@ -804,7 +763,7 @@ Listing click records table.
 
 ---
 
-### 27. listing_stats_daily (Listing Stats Daily Table)
+### 25. listing_stats_daily (Listing Stats Daily Table)
 
 Daily listing statistics data table.
 
@@ -833,7 +792,7 @@ Daily listing statistics data table.
 
 ---
 
-### 28. releases (Releases Table)
+### 26. releases (Releases Table)
 
 Application version releases table.
 
@@ -857,6 +816,30 @@ Application version releases table.
 - idx_releases_version_platform: (version, platform)
 - idx_releases_current: is_current
 - idx_releases_platform: platform
+
+---
+
+### 27. brand_mappings (Brand Mappings Table)
+
+Brand name mapping table for standardizing user-provided brand names.
+
+| Field Name | Type | Constraints | Description |
+|------------|------|-------------|-------------|
+| id | Int | PK, Auto | Mapping ID |
+| user_brand_name | String | UNIQUE, NOT NULL | User-provided brand name |
+| db_brand_name | String? | | Standardized database brand name |
+| created_at | DateTime? | DEFAULT: now() | Creation timestamp |
+| updated_at | DateTime? | DEFAULT: now() | Update timestamp |
+
+**Unique Constraints**:
+- `brand_mappings_user_brand_name_key`: user_brand_name UNIQUE
+
+**Indexes**:
+- `idx_brand_mappings_user_brand`: user_brand_name (index for efficient brand lookups)
+- `brand_mappings_user_brand_name_key`: user_brand_name UNIQUE (unique constraint index)
+
+**Relationships**:
+- No foreign key relationships (standalone mapping table)
 
 ---
 
@@ -1010,7 +993,6 @@ listings (Listings)
 ├── listing_clicks (Clicks) [listing_id]
 ├── listing_stats_daily (Daily Stats) [listing_id]
 ├── saved_outfits (Saved Outfits) [base/top/bottom/shoe_item_id]
-├── order_items (Order Items) [listing_id]
 └── user_likes (User Likes) [listing_id]
 
 orders (Orders)
@@ -1027,33 +1009,35 @@ orders (Orders)
 
 ### Index Statistics
 
-- **Total Indexes**: 141 indexes
-- **Primary Key Indexes**: 29 indexes (one per table)
-- **Functional Indexes**: 112 indexes (non-primary key indexes)
-- **Unique Indexes**: 49 indexes (29 primary keys + 20 unique constraints)
-- **Regular Indexes**: 92 indexes (non-unique, non-primary key indexes)
+- **Total Indexes**: 148 indexes
+- **Primary Key Indexes**: 27 indexes (one per business table)
+- **Functional Indexes**: 121 indexes (non-primary key indexes)
+- **Unique Indexes**: 52 indexes (27 primary keys + 25 unique constraint indexes)
+- **Regular Indexes**: 96 indexes (non-unique, non-primary key indexes)
+- **Unique Constraints**: 35 constraints (27 primary keys + 8 unique constraints)
 
 ### Main Index Types
 
 1. **Foreign Key Indexes**: All foreign key fields are indexed to optimize join queries
-2. **Unique Indexes**: 49 indexes (29 primary keys + 20 unique constraints) to ensure data uniqueness
-3. **Composite Indexes**: Multi-field indexes (e.g., user_id + listing_id, listing_id + date, buyer_id + listing_id + created_at)
-4. **GIN Indexes**: JSONB field indexes for full-text search:
+2. **Unique Indexes**: 52 indexes (27 primary keys + 25 unique constraint indexes) to ensure data uniqueness
+3. **Unique Constraints**: 35 constraints (27 primary keys + 8 unique constraints, some constraints may have multiple indexes)
+4. **Composite Indexes**: Multi-field indexes (e.g., user_id + listing_id, listing_id + date, buyer_id + listing_id + created_at)
+5. **GIN Indexes**: JSONB field indexes for full-text search:
    - `listings.tags` (with jsonb_path_ops and standard GIN)
    - `users.preferred_styles`
    - `users.preferred_brands`
-5. **Expression Indexes**: Indexes on computed expressions:
+6. **Expression Indexes**: Indexes on computed expressions:
    - `idx_listings_brand_lower`: lower(brand) for case-insensitive search
    - `idx_listings_tags_textsearch`: lower(tags::text) for text search
-6. **Time Indexes**: Created_at, updated_at, clicked_at indexes for time range queries and sorting
-7. **Partial Indexes**: Conditional indexes for filtered queries:
+7. **Time Indexes**: Created_at, updated_at, clicked_at indexes for time range queries and sorting
+8. **Partial Indexes**: Conditional indexes for filtered queries:
    - `idx_listings_active`: WHERE listed = true AND sold = false
    - `idx_listings_active_gender`: WHERE listed = true AND sold = false (with gender)
    - `idx_listing_promotions_active_boosted`: WHERE status = 'ACTIVE'
    - `idx_listing_promotions_paid_amount`: WHERE paid_amount > 0
    - `idx_listing_clicks_*_bucket_unique`: WHERE user_id IS NOT NULL/NULL with bucket_10s
-8. **Descending Indexes**: Indexes with DESC sort for reverse chronological queries
-9. **Covering Indexes**: Indexes with INCLUDE columns for query optimization
+9. **Descending Indexes**: Indexes with DESC sort for reverse chronological queries
+10. **Covering Indexes**: Indexes with INCLUDE columns for query optimization
 
 ### Key Indexes
 
@@ -1164,6 +1148,11 @@ orders (Orders)
 **Message Table**:
 - `messages.idempotencyKey`: Idempotency key unique (for message deduplication)
 
+**Brand Mappings Table**:
+- `brand_mappings.user_brand_name`: User brand name unique (for brand name mapping)
+
+**Note**: Some unique constraints may have multiple indexes created for performance optimization. The total count of unique constraints (35) includes all primary keys and unique constraints, while unique indexes (52) includes all indexes enforcing uniqueness, including those created for performance.
+
 ---
 
 ## Special Table Notes
@@ -1222,13 +1211,9 @@ The database contains additional views and materialized views that are not defin
 - **listing_recommendations_with_boost**: View for recommendations with promotion boost
 - **listing_coclicks**: View or table for co-click analysis
 
-### Additional Tables
+### Additional Database Objects
 
-- **brand_mappings**: Table for brand name mapping (5 columns, 4 indexes)
-  - Maps user-provided brand names to standardized database brand names
-  - Includes indexes for efficient brand lookups
-
-**Note**: These objects are managed separately from Prisma migrations and may be created via SQL migrations or database functions.
+**Note**: Views and materialized views are managed separately from Prisma migrations and may be created via SQL migrations or database functions.
 
 ---
 
@@ -1255,7 +1240,7 @@ The database contains additional views and materialized views that are not defin
 - `listing_promotions` - ✅ Sellers can manage own promotions, public can view active promotions
 - `reports` - ✅ Users can view own reports, admins can manage reports
 
-**Tables without RLS** (11 tables):
+**Tables without RLS** (10 tables):
 - `listing_clicks` - Contains user behavior data
 - `listing_categories` - Public data, should restrict writes
 - `faq` - Public data, should restrict writes
@@ -1265,7 +1250,7 @@ The database contains additional views and materialized views that are not defin
 - `landing_content` - Public data, should restrict writes
 - `releases` - Public data, should restrict writes
 - `listing_stats_daily` - Statistics data, should restrict writes
-- `brand_mappings` - Mapping data, should restrict writes
+- `brand_mappings` - Mapping data, should restrict writes (public read, admin write)
 - `_prisma_migrations` - System table (excluded from RLS)
 
 ### RLS Policies Summary
