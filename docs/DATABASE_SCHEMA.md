@@ -1229,3 +1229,83 @@ The database contains additional views and materialized views that are not defin
   - Includes indexes for efficient brand lookups
 
 **Note**: These objects are managed separately from Prisma migrations and may be created via SQL migrations or database functions.
+
+---
+
+## Row-Level Security (RLS)
+
+### Current RLS Status
+
+**Tables with RLS Enabled** (17 tables):
+- `users` - Users can read own user row
+- `cart_items` - Users can manage own cart
+- `listings` - Sellers can manage own listings, public can read active listings
+- `orders` - Users can view own orders (as buyer or seller)
+- `reviews` - Public can read, reviewers can update own reviews
+- `transactions` - Users can view own transactions
+- `user_addresses` - Users can manage own addresses
+- `user_likes` - Users can view, insert, and delete own likes
+- `user_payment_methods` - Users can manage own payment methods
+- `conversations` - ✅ Participants can view own conversations, backend has full access
+- `messages` - ✅ Senders and receivers can view messages, backend has full access
+- `notifications` - ✅ Users can view own notifications, backend can manage all
+- `saved_outfits` - ✅ Users can manage own outfits, backend has full access
+- `user_follows` - ✅ Public can view public follows, users can manage own follows
+- `premium_subscriptions` - ✅ Users can view own subscriptions, backend can manage all
+- `listing_promotions` - ✅ Sellers can manage own promotions, public can view active promotions
+- `reports` - ✅ Users can view own reports, admins can manage reports
+
+**Tables without RLS** (11 tables):
+- `listing_clicks` - Contains user behavior data
+- `listing_categories` - Public data, should restrict writes
+- `faq` - Public data, should restrict writes
+- `feedback` - Public data, should restrict writes
+- `pricing_plans` - Public data, should restrict writes
+- `site_stats` - Public data, should restrict writes
+- `landing_content` - Public data, should restrict writes
+- `releases` - Public data, should restrict writes
+- `listing_stats_daily` - Statistics data, should restrict writes
+- `brand_mappings` - Mapping data, should restrict writes
+- `_prisma_migrations` - System table (excluded from RLS)
+
+### RLS Policies Summary
+
+**Current Policies**:
+1. **User Data Protection**: Users can only access their own data (cart_items, user_addresses, user_payment_methods, user_likes, saved_outfits, premium_subscriptions)
+2. **Listing Access**: Public can read active listings, sellers can manage own listings
+3. **Order Access**: Users can view own orders (as buyer or seller)
+4. **Review Access**: Public can read reviews, reviewers can update own reviews
+5. **Transaction Access**: Users can view own transactions
+6. **Conversation & Message Access**: Participants can view own conversations and messages
+7. **Notification Access**: Users can view own notifications
+8. **Social Access**: Public can view public follows, users can manage own follows
+9. **Promotion Access**: Sellers can manage own promotions, public can view active promotions
+10. **Report Access**: Users can view own reports, admins can manage reports
+11. **Backend Access**: Service role has full access to all tables (listings, transactions, reviews, conversations, messages, notifications, saved_outfits, user_follows, premium_subscriptions, listing_promotions, reports)
+
+### RLS Recommendations
+
+**High Priority** ✅ **已完成** (2025-01-27):
+1. ✅ Enable RLS for `conversations` table (user private conversation data)
+2. ✅ Enable RLS for `messages` table (user private message data)
+3. ✅ Enable RLS for `notifications` table (user private notification data)
+4. ✅ Enable RLS for `saved_outfits` table (user private outfit data)
+5. ✅ Enable RLS for `user_follows` table (user relationship data)
+6. ✅ Enable RLS for `premium_subscriptions` table (user subscription and payment data)
+7. ✅ Enable RLS for `listing_promotions` table (seller promotion data)
+8. ✅ Enable RLS for `reports` table (sensitive report data)
+
+**Migration Script**: `20250127000002_enable_rls_high_priority_tables` ✅ **已执行**
+
+**Medium Priority** (Implement within 1 month):
+1. Enable RLS for public data tables with write restrictions (listing_categories, faq, feedback, pricing_plans, site_stats, landing_content, releases, listing_stats_daily, brand_mappings)
+2. Enable RLS for `listing_clicks` table (user behavior data)
+
+**For detailed RLS implementation recommendations, see**: `docs/RLS_RECOMMENDATIONS.md`
+
+### RLS Security Considerations
+
+1. **User Authentication**: All RLS policies use `auth.uid()` from Supabase Auth
+2. **Backend Access**: Service role (`auth.role() = 'service_role'`) has full access for backend operations
+3. **Performance**: Index on `users.supabase_user_id` is critical for RLS policy performance
+4. **Testing**: All RLS policies should be tested with different user roles and scenarios
