@@ -526,9 +526,6 @@ eas build --platform ios
 # Build for Android
 eas build --platform android
 
-# Submit to app stores
-eas submit --platform ios
-eas submit --platform android
 ```
 
 **Over-the-Air Updates**:
@@ -627,10 +624,10 @@ Available in multiple formats:
 - **Total API Endpoints**: 119
 - **Database Models**: 40+
 - **Frontend Components**: 100+
-- **Lines of Code**: ~50,000+
+- **Lines of Code**: 118785 total
 - **Supported Platforms**: Web, iOS, Android
 - **Languages**: TypeScript, JavaScript, SQL
-- **Development Time**: Ongoing
+- **Development Time**: 2 months and 15 days
 
 ---
 
