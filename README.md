@@ -298,54 +298,123 @@ Comprehensive admin panel with 13 management sections:
 
 ## Database
 
+For complete database documentation, see [DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md)
+
+### Database Overview
+
+- **Database Type**: PostgreSQL 17.6.1
+- **ORM**: Prisma 6.19.0
+- **Platform**: Supabase
+- **Region**: ap-southeast-1
+- **Connection**: Connection pooling via PgBouncer
+
+### Database Statistics
+
+- **Total Tables**: 32 tables (including system tables)
+- **Main Business Tables**: 28 tables
+- **Prisma Models**: 28 models
+- **Enum Types**: 15 enums
+- **Total Indexes**: 141 indexes (29 primary keys + 112 functional indexes)
+- **Functional Indexes**: 112 indexes for query optimization
+- **Unique Indexes**: 49 indexes (29 primary keys + 20 unique constraints)
+- **Foreign Keys**: Comprehensive referential integrity
+- **JSON Fields**: 10+ JSON columns for flexible data storage
+
 ### Schema Overview
 
-The database consists of **40+ Prisma models** organized into logical domains:
+The database consists of **28 Prisma models** organized into logical domains:
 
-#### Core Models
-- **users** - User accounts, authentication, premium status
-- **listings** - Product catalog with images and analytics
-- **listing_categories** - Hierarchical categories with AI keywords
-- **orders** - Transaction records with status workflow
-- **order_items** - Line items for each order
-- **transactions** - Payment processing records
-- **cart_items** - Shopping cart storage
+#### Core Commerce Models
+- **users** (31 fields) - User accounts, authentication, preferences, premium status, visibility settings
+- **listings** (30 fields) - Product catalog with images, analytics, condition ratings, inventory management
+- **listing_categories** (12 fields) - Hierarchical categories with AI keywords, slug support, parent-child relationships
+- **orders** (20 fields) - Complete order lifecycle with 8 status states, commission tracking, payment integration
+- **order_items** (6 fields) - Line items for each order with quantity and pricing
+- **transactions** (10 fields) - Payment processing records with status workflow
+- **cart_items** (6 fields) - Shopping cart storage with unique user-listing constraints
 
-#### User Features
-- **user_addresses** - Shipping addresses with geocoding
-- **user_payment_methods** - Stored payment options
-- **user_follows** - Social graph (followers/following)
-- **user_likes** - Favorited listings
-- **saved_outfits** - Mix & Match outfit collections
-- **premium_subscriptions** - Subscription tracking
+#### User Management & Profiles
+- **user_addresses** (14 fields) - Shipping addresses with type classification, default address support
+- **user_payment_methods** (11 fields) - Stored payment options with card metadata (last4, expiry)
+- **user_follows** (4 fields) - Social graph (followers/following) with unique constraints
+- **user_likes** (4 fields) - Favorited listings with timestamp tracking
+- **saved_outfits** (16 fields) - Mix & Match outfit collections with AI ratings, color harmony, style tips
+- **premium_subscriptions** (9 fields) - Subscription tracking with duration, status, expiration dates
 
-#### Communication
-- **conversations** - Chat threads between users
-- **messages** - Individual messages with read status
-- **notifications** - Push and system notifications
-- **reviews** - User ratings and feedback
+#### Communication & Social
+- **conversations** (9 fields) - Chat threads between users with type classification (ORDER/SUPPORT/GENERAL)
+- **messages** (9 fields) - Individual messages with read status, idempotency keys, type support (TEXT/IMAGE/SYSTEM)
+- **notifications** (13 fields) - Push and system notifications with read status, related entities
+- **reviews** (12 fields) - Bilateral user ratings and feedback (buyer ↔ seller) with images support
 
-#### Commerce
-- **listing_promotions** - Boost campaigns with analytics
-- **pricing_plans** - Subscription plan definitions
-- **listing_clicks** - Click tracking
-- **listing_stats_daily** - Daily aggregated metrics
+#### Commerce Features
+- **listing_promotions** (15 fields) - Boost campaigns with analytics (views, clicks, uplift percentages)
+- **pricing_plans** (18 fields) - Subscription plan definitions with monthly/quarterly/annual pricing
+- **listing_clicks** (5 fields) - Detailed click tracking with 10-second bucket aggregation
+- **listing_stats_daily** (8 fields) - Daily aggregated metrics (views, likes, clicks) per listing
 
 #### Content & Support
-- **faq** - Frequently asked questions
-- **feedback** - Customer testimonials
-- **landing_content** - CMS for landing page
-- **reports** - Content/user abuse reports
-- **site_stats** - Platform-wide statistics
-- **releases** - Mobile app version management
+- **faq** (9 fields) - Frequently asked questions with categories, public/private visibility
+- **feedback** (15 fields) - Customer testimonials with ratings, tags, priority, status workflow
+- **landing_content** (15 fields) - CMS for landing page (singleton table with hero, features, carousel images)
+- **reports** (9 fields) - Content/user abuse reports with status tracking (OPEN/RESOLVED/DISMISSED)
+- **site_stats** (6 fields) - Platform-wide statistics (singleton table with aggregated metrics)
+- **releases** (10 fields) - Mobile app version management with platform support (iOS/Android)
+
+#### Special Tables
+- **outfit_items** (6 fields) - Outfit items with UUID support and Row-Level Security (RLS) enabled
 
 ### Database Features
-- **50+ indexes** for query optimization
-- **Foreign key constraints** with cascading deletes
-- **JSON columns** for flexible schema
-- **PostgreSQL enums** for type safety
-- **Row-Level Security (RLS)** for data isolation
-- **Timestamps** (created_at, updated_at) on all tables
+
+#### Indexing Strategy
+- **Total Indexes**: 141 indexes (29 primary keys + 112 functional indexes)
+- **Foreign Key Indexes**: All foreign keys indexed for optimal join performance
+- **Unique Indexes**: 49 indexes (29 primary keys + 20 unique constraints)
+- **Composite Indexes**: Multi-field indexes (user_id + listing_id, listing_id + date)
+- **GIN Indexes**: JSONB field indexes (listings.tags, users.preferred_styles, users.preferred_brands) for full-text search
+- **Time-based Indexes**: Created_at, updated_at indexes for time-range queries
+- **Partial Indexes**: Conditional indexes (e.g., active listings, paid promotions)
+
+#### Data Integrity
+- **Foreign Key Constraints**: Cascading deletes for related data, RESTRICT for critical records
+- **Unique Constraints**: Username, email, cart items, follows, likes, conversations
+- **Check Constraints**: Enum validation, status state validation
+- **Default Values**: Timestamps, counters, status defaults
+
+#### Advanced Features
+- **JSON Columns**: Flexible schema for preferences, tags, images, payment details, features
+- **PostgreSQL Enums**: Type-safe enums (Gender, UserRole, OrderStatus, ConditionType, etc.)
+- **Row-Level Security (RLS)**: Enabled on outfit_items table for data isolation
+- **Timestamps**: Created_at and updated_at on all tables for audit trails
+- **Soft Deletes**: Status-based soft deletes (ARCHIVED, DELETED) for conversations
+- **Aggregation Support**: Daily stats tables for performance optimization
+
+#### Key Relationships
+- **Users** → 17+ one-to-many relationships (listings, orders, reviews, messages, etc.)
+- **Listings** → 10+ relationships (category, seller, promotions, stats, outfits)
+- **Orders** → Multiple relationships (buyer, seller, listing, payment method, reviews)
+- **Hierarchical Categories** → Self-referential parent-child relationships
+
+### Database Migration
+
+Database migrations are managed via Prisma Migrate:
+
+```bash
+# Generate Prisma Client
+npx prisma generate
+
+# Create new migration
+npx prisma migrate dev --name migration_name
+
+# Apply migrations
+npx prisma migrate deploy
+
+# Database GUI
+npx prisma studio
+```
+
+Migration files are located in `web/prisma/migrations/` with versioned SQL files.
+
 
 ---
 
@@ -454,7 +523,7 @@ The platform exposes **119 REST API endpoints** organized by feature domain.
 - Transaction oversight
 - Content management
 
-For complete API documentation, see [ARCHITECTURE.md](./ARCHITECTURE.md#7-api-structure--endpoints).
+For complete API documentation, see [ARCHITECTURE.md](docs/ARCHITECTURE.md#7-api-structure--endpoints).
 
 ---
 
@@ -537,7 +606,8 @@ eas update --branch production
 
 ## Documentation
 
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Comprehensive architecture documentation
+- **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** - Comprehensive architecture documentation
+- **[DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md)** - Complete database structure documentation
 - **[Test Accounts](./docs/TEST_ACCOUNTS.md)** - Sample user credentials for testing
 - **[Plans & Pricing](./docs/Plans%20&%20Pricing.md)** - Subscription tier details
 - **[Functional Hierarchy](./docs/Functional%20Hierarchy.txt)** - Feature breakdown
@@ -622,7 +692,10 @@ Available in multiple formats:
 ## Project Stats
 
 - **Total API Endpoints**: 119
-- **Database Models**: 40+
+- **Database Models**: 28 main business models
+- **Database Tables**: 32 total (28 business + 4 system)
+- **Enum Types**: 15 enums
+- **Database Indexes**: 141 total (112 functional + 29 primary keys)
 - **Frontend Components**: 100+
 - **Lines of Code**: 118785 total
 - **Supported Platforms**: Web, iOS, Android

@@ -14,7 +14,10 @@ This document provides a detailed description of the database structure for the 
 
 - **Total Tables**: 32 tables (including system tables)
 - **Main Business Tables**: 28 tables
-- **Enum Types**: 13 enums
+- **Enum Types**: 19 enum types defined
+- **Total Indexes**: 141 indexes (29 primary keys + 112 functional indexes)
+- **Unique Indexes**: 49 indexes (29 primary keys + 20 unique constraints)
+- **Functional Indexes**: 112 indexes for query optimization
 
 ---
 
@@ -58,6 +61,19 @@ User account information table, storing basic user information and preferences.
 | likes_visibility | VisibilitySetting | DEFAULT: PUBLIC | Likes visibility |
 | follows_visibility | VisibilitySetting | DEFAULT: PUBLIC | Follows visibility |
 
+**Unique Constraints**:
+- `users_username_key`: username UNIQUE
+- `users_email_key`: email UNIQUE
+- `users_supabase_user_id_key`: supabase_user_id UNIQUE
+
+**Indexes**:
+- `users_username_key`: username (unique index)
+- `users_email_key`: email (unique index)
+- `users_supabase_user_id_key`: supabase_user_id (unique index)
+- `idx_users_supabase_user_id`: supabase_user_id (non-unique index for queries)
+- `idx_users_pref_styles`: preferred_styles (GIN index for JSONB queries)
+- `idx_users_pref_brands`: preferred_brands (GIN index for JSONB queries)
+
 **Relationships**:
 - One-to-many: cart_items, conversations (initiator/participant), faq, feedback, listing_clicks, listing_promotions, listings (seller), messages (sender/receiver), notifications, orders (buyer/seller), reviews (reviewer/reviewee), saved_outfits, transactions (buyer/seller), user_addresses, user_follows (follower/following), user_likes, user_payment_methods, premium_subscriptions
 
@@ -81,6 +97,10 @@ Product category table with hierarchical structure support.
 | is_active | Boolean? | DEFAULT: true | Whether active |
 | ai_keywords | Json? | | AI keywords (JSON) |
 | ai_weight_boost | Float? | DEFAULT: 1.0 | AI weight boost |
+
+**Unique Constraints**:
+- `listing_categories_name_key`: name UNIQUE
+- `listing_categories_slug_key`: slug UNIQUE (if provided)
 
 **Relationships**:
 - Self-referential: parent_id → listing_categories (many-to-one)
@@ -126,9 +146,15 @@ Product/listings table, storing all listed product information.
 | clicks_count | Int | DEFAULT: 0 | Click count |
 
 **Indexes**:
-- idx_listings_category_id: category_id
-- idx_listings_seller_id: seller_id
-- idx_listings_tags_gin: tags (GIN index for JSONB queries)
+- `listings_category_id_idx`: category_id (foreign key index)
+- `listings_seller_id_idx`: seller_id (foreign key index)
+- `idx_listings_tags_gin`: tags (GIN index with jsonb_path_ops for JSONB queries)
+- `idx_listings_tags_gin_ops`: tags (GIN index for JSONB queries)
+- `idx_listings_tags_textsearch`: tags (B-tree index on lower(tags::text) for text search)
+- `idx_listings_gender`: gender (for gender-based filtering)
+- `idx_listings_brand_lower`: brand (B-tree index on lower(brand) for case-insensitive brand search)
+- `idx_listings_active`: id (partial index: WHERE listed = true AND sold = false)
+- `idx_listings_active_gender`: (gender, id) (partial composite index: WHERE listed = true AND sold = false)
 
 **Relationships**:
 - Many-to-one: category → listing_categories, seller → users
@@ -159,9 +185,12 @@ Product promotion information table, recording promotion campaigns and performan
 | updated_at | DateTime | DEFAULT: now() | Update timestamp |
 
 **Indexes**:
-- idx_listing_promotions_seller_id: seller_id
-- idx_listing_promotions_listing_id: listing_id
-- idx_listing_promotions_status: status
+- `idx_listing_promotions_seller_id`: seller_id (foreign key index)
+- `idx_listing_promotions_listing_id`: listing_id (foreign key index)
+- `idx_promotions_listing_id`: listing_id (duplicate index for promotion queries)
+- `idx_listing_promotions_status`: status (status filter index)
+- `idx_listing_promotions_active_boosted`: (listing_id, status, ends_at) WHERE status = 'ACTIVE' (partial index for active promotions)
+- `idx_listing_promotions_paid_amount`: paid_amount WHERE paid_amount > 0 (partial index for paid promotions)
 
 **Relationships**:
 - Many-to-one: listing → listings, seller → users
@@ -304,12 +333,16 @@ Order information table.
 | quantity | Int? | DEFAULT: 1 | Quantity |
 
 **Indexes**:
-- idx_orders_buyer_id: buyer_id
-- idx_orders_created_at: created_at
-- idx_orders_payment_method_id: payment_method_id
-- idx_orders_seller_id: seller_id
-- idx_orders_status: status
-- idx_orders_listing_id: listing_id
+- `idx_orders_buyer_id`: buyer_id (foreign key index)
+- `orders_buyer_id_idx`: buyer_id (duplicate index for buyer queries)
+- `idx_orders_seller_id`: seller_id (foreign key index)
+- `orders_seller_id_idx`: seller_id (duplicate index for seller queries)
+- `orders_listing_id_idx`: listing_id (foreign key index)
+- `idx_orders_created_at`: created_at (time-based index for sorting)
+- `idx_orders_status`: status (status filter index)
+- `orders_status_idx`: status (duplicate status index)
+- `idx_orders_payment_method_id`: payment_method_id (payment method index)
+- `orders_order_number_key`: order_number UNIQUE (unique constraint index)
 
 **Relationships**:
 - Many-to-one: buyer → users, seller → users, listing → listings, payment_method_ref → user_payment_methods
@@ -357,11 +390,14 @@ Transaction records table.
 | updated_at | DateTime? | DEFAULT: now() | Update timestamp |
 
 **Indexes**:
-- idx_transactions_buyer_id: buyer_id
-- idx_transactions_seller_id: seller_id
-- idx_transactions_listing_id: listing_id
-- idx_transactions_order_id: order_id
-- idx_transactions_created_at: created_at
+- `transactions_buyer_id_idx`: buyer_id (foreign key index)
+- `transactions_seller_id_idx`: seller_id (foreign key index)
+- `transactions_listing_id_idx`: listing_id (foreign key index)
+- `idx_transactions_listing_id`: listing_id (duplicate index)
+- `transactions_listing_id_key`: listing_id UNIQUE (unique constraint index)
+- `idx_transactions_order_id`: order_id (foreign key index)
+- `idx_transactions_created_at`: created_at (time-based index)
+- `idx_tx_buyer_listing_time`: (buyer_id, listing_id, created_at DESC) (composite time index for buyer transaction history)
 
 **Relationships**:
 - Many-to-one: buyer → users, seller → users, listing → listings, orders → orders
@@ -585,10 +621,14 @@ User likes for listings table.
 - UNIQUE(user_id, listing_id): Only one like per user per listing
 
 **Indexes**:
-- idx_user_likes_created_at: created_at
-- idx_user_likes_listing_id: listing_id
-- idx_user_likes_user_id: user_id
-- idx_user_likes_user_listing: (user_id, listing_id)
+- `idx_user_likes_user_id`: user_id (foreign key index)
+- `user_likes_user_id_idx`: user_id (duplicate index for user queries)
+- `idx_user_likes_listing_id`: listing_id (foreign key index)
+- `user_likes_listing_id_idx`: listing_id (duplicate index for listing queries)
+- `idx_user_likes_user_listing`: (user_id, listing_id) (composite index)
+- `user_likes_user_id_listing_id_key`: (user_id, listing_id) UNIQUE (unique constraint index)
+- `idx_user_likes_created_at`: created_at (time-based index)
+- `idx_likes_user_listing_time`: (user_id, listing_id, created_at DESC) (composite time index for chronological like queries)
 
 **Relationships**:
 - Many-to-one: user → users, listing → listings
@@ -748,10 +788,16 @@ Listing click records table.
 | bucket_10s | BigInt? | | 10-second bucket (for time aggregation) |
 
 **Indexes**:
-- idx_listing_clicks_clicked_at: clicked_at
-- idx_listing_clicks_listing_id: listing_id
-- idx_listing_clicks_user_listing: (user_id, listing_id)
-- idx_listing_clicks_clicked_at_desc: clicked_at (DESC)
+- `idx_listing_clicks_listing_id`: listing_id (foreign key index)
+- `idx_listing_clicks_clicked_at`: clicked_at (time-based index)
+- `listing_clicks_clicked_at_idx`: clicked_at DESC (descending time index)
+- `listing_clicks_listing_id_idx`: listing_id (duplicate index for listing queries)
+- `listing_clicks_user_id_idx`: user_id (for user-specific queries)
+- `idx_listing_clicks_user_listing`: (user_id, listing_id) (composite index)
+- `idx_clicks_user_listing_time`: (user_id, listing_id, clicked_at DESC) (composite time index)
+- `listing_clicks_unique_user_10s`: (listing_id, user_id, bucket_10s) UNIQUE WHERE user_id IS NOT NULL (unique partial index)
+- `idx_listing_clicks_user_bucket_unique`: (listing_id, user_id, bucket_10s) UNIQUE WHERE user_id IS NOT NULL AND bucket_10s IS NOT NULL (unique partial index)
+- `idx_listing_clicks_anon_bucket_unique`: (listing_id, bucket_10s) UNIQUE WHERE user_id IS NULL AND bucket_10s IS NOT NULL (unique partial index for anonymous clicks)
 
 **Relationships**:
 - Many-to-one: listing → listings, user → users
@@ -777,8 +823,10 @@ Daily listing statistics data table.
 - UNIQUE(listing_id, date): Only one stats record per listing per day
 
 **Indexes**:
-- idx_listing_stats_daily_listing_id: listing_id
-- idx_listing_stats_daily_date: date
+- `idx_listing_stats_daily_listing_id`: listing_id (foreign key index)
+- `idx_listing_stats_daily_date`: date (date filter index)
+- `idx_listing_stats_daily_listing_date`: (listing_id, date) UNIQUE (unique constraint index)
+- `idx_listing_stats_daily_lookup`: (listing_id, date) (composite index for date range queries)
 
 **Relationships**:
 - Many-to-one: listing → listings
@@ -893,6 +941,48 @@ Application version releases table.
 - `FOLLOWERS_ONLY` - Followers only
 - `PRIVATE` - Private
 
+### 16. AddressType
+- `HOME` - Home address
+- `WORK` - Work address
+- `OTHER` - Other address type
+
+**Note**: This enum is defined but may not be actively used in the current schema.
+
+### 17. CartItemStatus
+- `ACTIVE` - Active cart item
+- `REMOVED` - Removed from cart
+- `PURCHASED` - Purchased item
+
+**Note**: This enum is defined but may not be actively used in the current schema.
+
+### 18. PaymentMethodType
+- `CREDIT_CARD` - Credit card
+- `DEBIT_CARD` - Debit card
+- `PAYPAL` - PayPal
+- `APPLE_PAY` - Apple Pay
+- `GOOGLE_PAY` - Google Pay
+
+**Note**: This enum is defined but may not be actively used in the current schema (payment methods use String type).
+
+### 19. notificationtype
+- `ORDER` - Order notifications
+- `LIKE` - Like notifications
+- `FOLLOW` - Follow notifications
+- `REVIEW` - Review notifications
+- `SYSTEM` - System notifications
+
+**Note**: This enum is defined but may not be actively used in the current schema (notifications use String type).
+
+---
+
+## Enum Usage Summary
+
+**Actively Used Enums** (15):
+- Gender, UserRole, UserStatus, ConditionType, TxStatus, OrderStatus, ReviewerType, PlanType, PromotionStatus, ReportTargetType, ReportStatus, ConversationType, ConversationStatus, MessageType, VisibilitySetting
+
+**Defined but Possibly Unused Enums** (4):
+- AddressType, CartItemStatus, PaymentMethodType, notificationtype
+
 ---
 
 ## Entity Relationship Diagram
@@ -935,20 +1025,92 @@ orders (Orders)
 
 ## Indexing Strategy
 
+### Index Statistics
+
+- **Total Indexes**: 141 indexes
+- **Primary Key Indexes**: 29 indexes (one per table)
+- **Functional Indexes**: 112 indexes (non-primary key indexes)
+- **Unique Indexes**: 49 indexes (29 primary keys + 20 unique constraints)
+- **Regular Indexes**: 92 indexes (non-unique, non-primary key indexes)
+
 ### Main Index Types
 
 1. **Foreign Key Indexes**: All foreign key fields are indexed to optimize join queries
-2. **Unique Indexes**: Used to ensure data uniqueness (e.g., username, email)
-3. **Composite Indexes**: Used to optimize multi-field queries (e.g., user_id + listing_id)
-4. **GIN Indexes**: Used for full-text search on JSONB fields (e.g., listings.tags)
-5. **Time Indexes**: Used for time range queries and sorting
+2. **Unique Indexes**: 49 indexes (29 primary keys + 20 unique constraints) to ensure data uniqueness
+3. **Composite Indexes**: Multi-field indexes (e.g., user_id + listing_id, listing_id + date, buyer_id + listing_id + created_at)
+4. **GIN Indexes**: JSONB field indexes for full-text search:
+   - `listings.tags` (with jsonb_path_ops and standard GIN)
+   - `users.preferred_styles`
+   - `users.preferred_brands`
+5. **Expression Indexes**: Indexes on computed expressions:
+   - `idx_listings_brand_lower`: lower(brand) for case-insensitive search
+   - `idx_listings_tags_textsearch`: lower(tags::text) for text search
+6. **Time Indexes**: Created_at, updated_at, clicked_at indexes for time range queries and sorting
+7. **Partial Indexes**: Conditional indexes for filtered queries:
+   - `idx_listings_active`: WHERE listed = true AND sold = false
+   - `idx_listings_active_gender`: WHERE listed = true AND sold = false (with gender)
+   - `idx_listing_promotions_active_boosted`: WHERE status = 'ACTIVE'
+   - `idx_listing_promotions_paid_amount`: WHERE paid_amount > 0
+   - `idx_listing_clicks_*_bucket_unique`: WHERE user_id IS NOT NULL/NULL with bucket_10s
+8. **Descending Indexes**: Indexes with DESC sort for reverse chronological queries
+9. **Covering Indexes**: Indexes with INCLUDE columns for query optimization
 
 ### Key Indexes
 
-- `listings.tags`: GIN index supporting JSONB queries
-- `user_likes(user_id, listing_id)`: Composite unique index
-- `listing_stats_daily(listing_id, date)`: Composite unique index
-- `orders`: Multi-field indexes (buyer_id, seller_id, status, created_at)
+#### Listings Table (9 indexes)
+- `listings_category_id_idx`: Foreign key index for category joins
+- `listings_seller_id_idx`: Foreign key index for seller joins
+- `idx_listings_tags_gin`: GIN index with jsonb_path_ops for efficient JSONB tag queries
+- `idx_listings_tags_gin_ops`: GIN index for general JSONB tag queries
+- `idx_listings_tags_textsearch`: B-tree index on lower(tags::text) for text search
+- `idx_listings_gender`: Gender-based filtering
+- `idx_listings_brand_lower`: Case-insensitive brand search
+- `idx_listings_active`: Partial index for active listings (WHERE listed = true AND sold = false)
+- `idx_listings_active_gender`: Partial composite index for active listings filtered by gender
+
+#### Users Table (6 indexes)
+- `users_username_key`: Unique index for username
+- `users_email_key`: Unique index for email
+- `users_supabase_user_id_key`: Unique index for Supabase user ID
+- `idx_users_supabase_user_id`: Index on Supabase user ID for queries
+- `idx_users_pref_styles`: GIN index on preferred_styles JSONB for preference queries
+- `idx_users_pref_brands`: GIN index on preferred_brands JSONB for brand preference queries
+
+#### Listing Clicks Table (10 indexes)
+- Multiple indexes for click tracking including:
+  - Composite indexes for user-listing-time queries
+  - Partial unique indexes for anonymous and user-based bucket aggregation
+  - Time-based indexes for chronological queries
+
+#### User Likes Table (8 indexes)
+- `user_likes_user_id_listing_id_key`: Composite unique index
+- `idx_user_likes_user_listing`: Composite index for user-listing queries
+- `idx_likes_user_listing_time`: Composite time index for chronological like queries
+- Multiple single-column indexes for user_id and listing_id
+
+#### Orders Table (10 indexes)
+- Multiple indexes on buyer_id, seller_id, status, created_at, listing_id
+- Unique index on order_number
+- Payment method index
+
+#### Transactions Table (8 indexes)
+- `idx_tx_buyer_listing_time`: Composite time index for buyer transaction history
+- Unique index on listing_id
+- Multiple indexes on buyer_id, seller_id, listing_id, order_id, created_at
+
+#### Listing Promotions Table (6 indexes)
+- `idx_listing_promotions_seller_id`: Foreign key index for seller joins
+- `idx_listing_promotions_listing_id`: Foreign key index for listing joins
+- `idx_promotions_listing_id`: Duplicate index for promotion queries
+- `idx_listing_promotions_status`: Status filter index
+- `idx_listing_promotions_active_boosted`: Partial composite index (listing_id, status, ends_at) WHERE status = 'ACTIVE' for active promotions
+- `idx_listing_promotions_paid_amount`: Partial index on paid_amount WHERE paid_amount > 0 for paid promotions
+
+#### Listing Stats Daily Table (4 indexes)
+- `idx_listing_stats_daily_listing_id`: Foreign key index for listing joins
+- `idx_listing_stats_daily_date`: Date filter index for date range queries
+- `idx_listing_stats_daily_listing_date`: Composite unique index (listing_id, date)
+- `idx_listing_stats_daily_lookup`: Composite index (listing_id, date) for efficient date range lookups
 
 ---
 
@@ -962,13 +1124,45 @@ orders (Orders)
 
 ### Unique Constraints
 
+**User Table**:
 - `users.username`: Username unique
 - `users.email`: Email unique
 - `users.supabase_user_id`: Supabase user ID unique
-- `cart_items(user_id, listing_id)`: Cart item unique
-- `user_follows(follower_id, following_id)`: Follow relationship unique
-- `user_likes(user_id, listing_id)`: Like relationship unique
-- `conversations(initiator_id, participant_id, listing_id)`: Conversation unique
+
+**Category Table**:
+- `listing_categories.name`: Category name unique
+- `listing_categories.slug`: Category slug unique
+
+**Cart Table**:
+- `cart_items(user_id, listing_id)`: Cart item unique (one item per user per listing)
+
+**Follow Table**:
+- `user_follows(follower_id, following_id)`: Follow relationship unique (one follow per user pair)
+
+**Like Table**:
+- `user_likes(user_id, listing_id)`: Like relationship unique (one like per user per listing)
+
+**Conversation Table**:
+- `conversations(initiator_id, participant_id, listing_id)`: Conversation unique (one conversation per user pair per listing)
+
+**Review Table**:
+- `reviews(transaction_id, reviewer_id)`: Review unique (one review per transaction per reviewer)
+- `reviews(transaction_id, reviewer_type)`: Review unique (one review per transaction per reviewer type)
+
+**Order Table**:
+- `orders.order_number`: Order number unique
+
+**Transaction Table**:
+- `transactions.listing_id`: Listing ID unique (one transaction per listing)
+
+**Listing Stats Table**:
+- `listing_stats_daily(listing_id, date)`: Stats unique (one stats record per listing per day)
+
+**Release Table**:
+- `releases(version, platform)`: Release unique (one release per version per platform)
+
+**Message Table**:
+- `messages.idempotencyKey`: Idempotency key unique (for message deduplication)
 
 ---
 
@@ -981,8 +1175,9 @@ orders (Orders)
 
 ### Statistics Tables
 
-- `listing_stats_daily`: Daily aggregated listing statistics
-- `listing_clicks`: Records each click for detailed analysis
+- `listing_stats_daily`: Daily aggregated listing statistics (views, likes, clicks per listing per day)
+- `listing_clicks`: Records each click for detailed analysis with 10-second bucket aggregation for performance
+- `listing_promotions`: Promotion analytics with view/click tracking and uplift calculations
 
 ### JSON Field Usage
 
@@ -1011,3 +1206,26 @@ web/prisma/migrations/
 - Other migration files: See `web/prisma/migrations/` directory
 
 ---
+
+## Additional Database Objects
+
+### Views and Materialized Views
+
+The database contains additional views and materialized views that are not defined in the Prisma schema but are used for analytics and performance optimization:
+
+- **listing_card_v**: View for listing card display
+- **listing_activity_scores_fast**: Materialized view for fast activity score queries
+- **listing_activity_scores_main**: Materialized view for main activity score queries
+- **listing_recommendations_fast**: Materialized view for fast recommendation queries
+- **listing_recommendations_main**: Materialized view for main recommendation queries
+- **listing_recommendations_main_fair**: Materialized view for fair score-based recommendations
+- **listing_recommendations_with_boost**: View for recommendations with promotion boost
+- **listing_coclicks**: View or table for co-click analysis
+
+### Additional Tables
+
+- **brand_mappings**: Table for brand name mapping (5 columns, 4 indexes)
+  - Maps user-provided brand names to standardized database brand names
+  - Includes indexes for efficient brand lookups
+
+**Note**: These objects are managed separately from Prisma migrations and may be created via SQL migrations or database functions.
