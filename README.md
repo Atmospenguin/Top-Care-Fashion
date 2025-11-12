@@ -25,7 +25,7 @@
 - **Mix & Match Feature**: Create and save outfit combinations with AI-powered style analysis and recommendations
 - **Premium Subscription Model**: Tiered pricing with enhanced features for power users
 - **Cross-Platform**: Unified experience across web (Next.js) and mobile (React Native/Expo)
-- **Enterprise-Grade Security**: Supabase Auth with Row-Level Security policies
+- **Enterprise-Grade Security**: Supabase Auth with Row-Level Security (RLS) on 17 tables
 - **Serverless Architecture**: Scalable deployment on Vercel with edge network optimization
 
 ---
@@ -362,7 +362,6 @@ The database consists of **28 Prisma models** organized into logical domains:
 - **releases** (10 fields) - Mobile app version management with platform support (iOS/Android)
 
 #### Special Tables
-- **outfit_items** (6 fields) - Outfit items with UUID support and Row-Level Security (RLS) enabled
 
 ### Database Features
 
@@ -384,7 +383,7 @@ The database consists of **28 Prisma models** organized into logical domains:
 #### Advanced Features
 - **JSON Columns**: Flexible schema for preferences, tags, images, payment details, features
 - **PostgreSQL Enums**: Type-safe enums (Gender, UserRole, OrderStatus, ConditionType, etc.)
-- **Row-Level Security (RLS)**: Enabled on outfit_items table for data isolation
+- **Row-Level Security (RLS)**: Enabled on 17 tables for data isolation and access control
 - **Timestamps**: Created_at and updated_at on all tables for audit trails
 - **Soft Deletes**: Status-based soft deletes (ARCHIVED, DELETED) for conversations
 - **Aggregation Support**: Daily stats tables for performance optimization
@@ -533,7 +532,7 @@ For complete API documentation, see [ARCHITECTURE.md](docs/ARCHITECTURE.md#7-api
 
 - **Supabase Auth** - Industry-standard authentication service
 - **JWT Tokens** - Secure session management
-- **Row-Level Security (RLS)** - Database-level access control
+- **Row-Level Security (RLS)** - Database-level access control on 17 tables (user data, conversations, messages, notifications, etc.)
 - **Role-Based Access Control (RBAC)** - USER vs ADMIN roles
 - **Email Verification** - Required before account activation
 

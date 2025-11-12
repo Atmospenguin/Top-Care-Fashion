@@ -9,63 +9,66 @@ datasource db {
 }
 
 model users {
-  id                         Int                    @id @default(autoincrement())
-  username                   String                 @unique @db.VarChar(64)
-  email                      String                 @unique @db.VarChar(191)
-  dob                        DateTime?              @db.Date
+  id                         Int                     @id @default(autoincrement())
+  username                   String                  @unique @db.VarChar(64)
+  email                      String                  @unique @db.VarChar(191)
+  dob                        DateTime?               @db.Date
   gender                     Gender?
-  role                       UserRole               @default(USER)
-  status                     UserStatus             @default(ACTIVE)
-  is_premium                 Boolean                @default(false)
-  premium_until              DateTime?              @db.Timestamptz(6)
-  average_rating             Decimal?               @db.Decimal(3, 2)
-  total_reviews              Int                    @default(0)
-  created_at                 DateTime               @default(now()) @db.Timestamptz(6)
-  supabase_user_id           String?                @unique @db.Uuid
+  role                       UserRole                @default(USER)
+  status                     UserStatus              @default(ACTIVE)
+  is_premium                 Boolean                 @default(false)
+  premium_until              DateTime?               @db.Timestamptz(6)
+  average_rating             Decimal?                @db.Decimal(3, 2)
+  total_reviews              Int                     @default(0)
+  created_at                 DateTime                @default(now()) @db.Timestamptz(6)
+  supabase_user_id           String?                 @unique @db.Uuid
   avatar_url                 String?
-  phone_number               String?                @db.VarChar(20)
+  phone_number               String?                 @db.VarChar(20)
   bio                        String?
-  location                   String?                @db.VarChar(100)
-  updated_at                 DateTime?              @default(now()) @db.Timestamp(6)
-  phone                      String?                @db.VarChar(20)
+  location                   String?                 @db.VarChar(100)
+  updated_at                 DateTime?               @default(now()) @db.Timestamp(6)
+  phone                      String?                 @db.VarChar(20)
   preferred_styles           Json?
-  preferred_size_top         String?                @db.VarChar(50)
-  preferred_size_bottom      String?                @db.VarChar(50)
-  preferred_size_shoe        String?                @db.VarChar(50)
+  preferred_size_top         String?                 @db.VarChar(50)
+  preferred_size_bottom      String?                 @db.VarChar(50)
+  preferred_size_shoe        String?                 @db.VarChar(50)
   preferred_brands           Json?
-  mix_match_used_count       Int?                   @default(0)
-  free_promotions_used       Int?                   @default(0)
-  free_promotions_reset_at   DateTime?              @db.Timestamptz(6)
-  last_sign_in_at            DateTime?              @db.Timestamptz(6)
-  country                    String?                @db.VarChar(64)
-  likes_visibility           VisibilitySetting      @default(PUBLIC)
-  follows_visibility         VisibilitySetting      @default(PUBLIC)
+  mix_match_used_count       Int?                    @default(0)
+  free_promotions_used       Int?                    @default(0)
+  free_promotions_reset_at   DateTime?               @db.Timestamptz(6)
+  last_sign_in_at            DateTime?               @db.Timestamptz(6)
+  country                    String?                 @db.VarChar(64)
+  likes_visibility           VisibilitySetting       @default(PUBLIC)
+  follows_visibility         VisibilitySetting       @default(PUBLIC)
   cart_items                 cart_items[]
-  conversations_initiated    conversations[]        @relation("ConversationInitiator")
-  conversations_participated conversations[]        @relation("ConversationParticipant")
+  conversations_initiated    conversations[]         @relation("ConversationInitiator")
+  conversations_participated conversations[]         @relation("ConversationParticipant")
   faqs                       faq[]
   feedbacks                  feedback[]
   listing_clicks             listing_clicks[]
   listing_promotions         listing_promotions[]
-  listings_as_seller         listings[]             @relation("UserListings")
-  messages_received          messages[]             @relation("MessageReceiver")
-  messages_sent              messages[]             @relation("MessageSender")
-  notifications_related      notifications[]        @relation("NotificationRelatedUser")
-  notifications              notifications[]        @relation("UserNotifications")
-  orders_bought              orders[]               @relation("OrderBuyer")
-  orders_sold                orders[]               @relation("OrderSeller")
-  reviews_received           reviews[]              @relation("Reviewee")
-  reviews_written            reviews[]              @relation("Reviewer")
-  saved_outfits              saved_outfits[]
-  transactions_buy           transactions[]         @relation("Buyer")
-  transactions_sell          transactions[]         @relation("Seller")
-  addresses                  user_addresses[]
-  following                  user_follows[]           @relation("UserFollowers")
-  followers                  user_follows[]           @relation("UserFollowing")
-  likes                      user_likes[]             @relation("UserLikes")
-  payment_methods            user_payment_methods[]
+  listings_as_seller         listings[]              @relation("UserListings")
+  messages_received          messages[]              @relation("MessageReceiver")
+  messages_sent              messages[]              @relation("MessageSender")
+  notifications_related      notifications[]         @relation("NotificationRelatedUser")
+  notifications              notifications[]         @relation("UserNotifications")
+  orders_bought              orders[]                @relation("OrderBuyer")
+  orders_sold                orders[]                @relation("OrderSeller")
   premium_subscriptions      premium_subscriptions[]
+  reviews_received           reviews[]               @relation("Reviewee")
+  reviews_written            reviews[]               @relation("Reviewer")
+  saved_outfits              saved_outfits[]
+  transactions_buy           transactions[]          @relation("Buyer")
+  transactions_sell          transactions[]          @relation("Seller")
+  addresses                  user_addresses[]
+  following                  user_follows[]          @relation("UserFollowers")
+  followers                  user_follows[]          @relation("UserFollowing")
+  likes                      user_likes[]            @relation("UserLikes")
+  payment_methods            user_payment_methods[]
 
+  @@index([preferred_brands], map: "idx_users_pref_brands", type: Gin)
+  @@index([preferred_styles], map: "idx_users_pref_styles", type: Gin)
+  @@index([supabase_user_id], map: "idx_users_supabase_user_id")
   @@map("users")
 }
 
@@ -91,56 +94,57 @@ model listing_categories {
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model listings {
-  id                                                   Int                  @id @default(autoincrement())
-  name                                                 String               @db.VarChar(120)
+  id                                                   Int                   @id @default(autoincrement())
+  name                                                 String                @db.VarChar(120)
   description                                          String?
   category_id                                          Int?
   seller_id                                            Int?
-  listed                                               Boolean              @default(true)
-  sold                                                 Boolean              @default(false)
-  price                                                Decimal              @db.Decimal(10, 2)
+  listed                                               Boolean               @default(true)
+  sold                                                 Boolean               @default(false)
+  price                                                Decimal               @db.Decimal(10, 2)
   image_url                                            String?
-  image_urls                                           Json?                @db.Json
-  brand                                                String?              @db.VarChar(100)
-  size                                                 String?              @db.VarChar(50)
-  condition_type                                       ConditionType        @default(GOOD)
+  image_urls                                           Json?                 @db.Json
+  brand                                                String?               @db.VarChar(100)
+  size                                                 String?               @db.VarChar(50)
+  condition_type                                       ConditionType         @default(GOOD)
   tags                                                 Json?
-  created_at                                           DateTime             @default(now()) @db.Timestamptz(6)
-  sold_at                                              DateTime?            @db.Timestamptz(6)
-  original_price                                       Decimal?             @db.Decimal(10, 2)
-  material                                             String?              @db.VarChar(100)
-  weight                                               Decimal?             @db.Decimal(8, 2)
-  dimensions                                           String?              @db.VarChar(50)
-  sku                                                  String?              @db.VarChar(50)
-  inventory_count                                      Int?                 @default(1)
-  views_count                                          Int?                 @default(0)
-  likes_count                                          Int?                 @default(0)
-  updated_at                                           DateTime?            @default(now()) @db.Timestamp(6)
-  gender                                               Gender?              @default(Unisex)
-  shipping_option                                      String?              @db.VarChar(50)
-  shipping_fee                                         Decimal?             @db.Decimal(10, 2)
-  location                                             String?              @db.VarChar(100)
-  clicks_count                                         Int                  @default(0)
+  created_at                                           DateTime              @default(now()) @db.Timestamptz(6)
+  sold_at                                              DateTime?             @db.Timestamptz(6)
+  original_price                                       Decimal?              @db.Decimal(10, 2)
+  material                                             String?               @db.VarChar(100)
+  weight                                               Decimal?              @db.Decimal(8, 2)
+  dimensions                                           String?               @db.VarChar(50)
+  sku                                                  String?               @db.VarChar(50)
+  inventory_count                                      Int?                  @default(1)
+  views_count                                          Int?                  @default(0)
+  likes_count                                          Int?                  @default(0)
+  updated_at                                           DateTime?             @default(now()) @db.Timestamp(6)
+  gender                                               Gender?               @default(Unisex)
+  shipping_option                                      String?               @db.VarChar(50)
+  shipping_fee                                         Decimal?              @db.Decimal(10, 2)
+  location                                             String?               @db.VarChar(100)
+  clicks_count                                         Int                   @default(0)
   cart_items                                           cart_items[]
   conversations                                        conversations[]
   listing_clicks                                       listing_clicks[]
-  listing_stats_daily                                  listing_stats_daily[]
   promotions                                           listing_promotions[]
-  category                                             listing_categories?  @relation(fields: [category_id], references: [id])
-  seller                                               users?               @relation("UserListings", fields: [seller_id], references: [id])
-  notifications                                        notifications[]      @relation("NotificationListing")
-  order_items                                          order_items[]
+  listing_stats_daily                                  listing_stats_daily[]
+  category                                             listing_categories?   @relation(fields: [category_id], references: [id])
+  seller                                               users?                @relation("UserListings", fields: [seller_id], references: [id])
+  notifications                                        notifications[]       @relation("NotificationListing")
   orders                                               orders[]
-  saved_outfits_saved_outfits_base_item_idTolistings   saved_outfits[]      @relation("saved_outfits_base_item_idTolistings")
-  saved_outfits_saved_outfits_bottom_item_idTolistings saved_outfits[]      @relation("saved_outfits_bottom_item_idTolistings")
-  saved_outfits_saved_outfits_shoe_item_idTolistings   saved_outfits[]      @relation("saved_outfits_shoe_item_idTolistings")
-  saved_outfits_saved_outfits_top_item_idTolistings    saved_outfits[]      @relation("saved_outfits_top_item_idTolistings")
+  saved_outfits_saved_outfits_base_item_idTolistings   saved_outfits[]       @relation("saved_outfits_base_item_idTolistings")
+  saved_outfits_saved_outfits_bottom_item_idTolistings saved_outfits[]       @relation("saved_outfits_bottom_item_idTolistings")
+  saved_outfits_saved_outfits_shoe_item_idTolistings   saved_outfits[]       @relation("saved_outfits_shoe_item_idTolistings")
+  saved_outfits_saved_outfits_top_item_idTolistings    saved_outfits[]       @relation("saved_outfits_top_item_idTolistings")
   transactions                                         transactions?
-  likes                                                user_likes[]         @relation("ListingLikes")
+  likes                                                user_likes[]          @relation("ListingLikes")
 
   @@index([category_id])
   @@index([seller_id])
   @@index([tags(ops: JsonbPathOps)], map: "idx_listings_tags_gin", type: Gin)
+  @@index([gender], map: "idx_listings_gender")
+  @@index([tags], map: "idx_listings_tags_gin_ops", type: Gin)
   @@map("listings")
 }
 
@@ -155,17 +159,18 @@ model listing_promotions {
   clicks               Int             @default(0)
   view_uplift_percent  Int             @default(0)
   click_uplift_percent Int             @default(0)
-  boost_weight         Decimal         @default(1.50) @db.Decimal(4, 2)
   used_free_credit     Boolean         @default(false)
-  paid_amount          Decimal         @default(0.00) @db.Decimal(6, 2)
   created_at           DateTime        @default(now()) @db.Timestamptz(6)
   updated_at           DateTime        @default(now()) @db.Timestamptz(6)
+  boost_weight         Decimal?        @default(1.50) @db.Decimal(4, 2)
+  paid_amount          Decimal?        @default(0.00) @db.Decimal(6, 2)
   listing              listings        @relation(fields: [listing_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   seller               users           @relation(fields: [seller_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([seller_id], map: "idx_listing_promotions_seller_id")
   @@index([listing_id], map: "idx_listing_promotions_listing_id")
   @@index([status], map: "idx_listing_promotions_status")
+  @@index([listing_id], map: "idx_promotions_listing_id")
   @@map("listing_promotions")
 }
 
@@ -284,20 +289,6 @@ model orders {
   @@map("orders")
 }
 
-model order_items {
-  id         Int       @id @default(autoincrement())
-  order_id   Int?
-  listing_id Int?
-  quantity   Int
-  price      Decimal   @db.Decimal(10, 2)
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  listing    listings? @relation(fields: [listing_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@index([listing_id], map: "idx_order_items_listing_id")
-  @@index([order_id], map: "idx_order_items_order_id")
-  @@map("order_items")
-}
-
 model transactions {
   id         Int       @id @default(autoincrement())
   buyer_id   Int
@@ -320,6 +311,7 @@ model transactions {
   @@index([order_id], map: "idx_transactions_order_id")
   @@index([created_at], map: "idx_transactions_created_at")
   @@index([listing_id], map: "idx_transactions_listing_id")
+  @@index([buyer_id, listing_id, created_at(sort: Desc)], map: "idx_tx_buyer_listing_time")
   @@map("transactions")
 }
 
@@ -489,6 +481,7 @@ model user_likes {
   @@index([user_id, listing_id], map: "idx_user_likes_user_listing")
   @@index([listing_id])
   @@index([user_id])
+  @@index([user_id, listing_id, created_at(sort: Desc)], map: "idx_likes_user_listing_time")
   @@map("user_likes")
 }
 
@@ -563,18 +556,6 @@ model notifications {
   @@map("notifications")
 }
 
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model outfit_items {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  outfit_id  String    @db.Uuid
-  item_id    String    @db.VarChar(255)
-  category   String?   @db.VarChar(50)
-  item_data  Json?
-  created_at DateTime? @default(now()) @db.Timestamptz(6)
-
-  @@index([outfit_id], map: "idx_outfit_items_outfit_id")
-}
-
 model saved_outfits {
   id                                              Int       @id @default(autoincrement())
   user_id                                         Int
@@ -589,8 +570,8 @@ model saved_outfits {
   ai_rating                                       Int?
   style_name                                      String?   @db.VarChar(100)
   color_harmony_score                             Int?
-  color_harmony_feedback                          String?   @db.Text
-  style_tips                                      String?   @db.Text
+  color_harmony_feedback                          String?
+  style_tips                                      String?
   vibe                                            String?   @db.VarChar(50)
   listings_saved_outfits_base_item_idTolistings   listings? @relation("saved_outfits_base_item_idTolistings", fields: [base_item_id], references: [id], onUpdate: NoAction)
   listings_saved_outfits_bottom_item_idTolistings listings? @relation("saved_outfits_bottom_item_idTolistings", fields: [bottom_item_id], references: [id], onUpdate: NoAction)
@@ -616,6 +597,7 @@ model listing_clicks {
   @@index([clicked_at(sort: Desc)])
   @@index([listing_id])
   @@index([user_id])
+  @@index([user_id, listing_id, clicked_at(sort: Desc)], map: "idx_clicks_user_listing_time")
 }
 
 model listing_stats_daily {
@@ -632,6 +614,7 @@ model listing_stats_daily {
   @@unique([listing_id, date], map: "idx_listing_stats_daily_listing_date")
   @@index([listing_id], map: "idx_listing_stats_daily_listing_id")
   @@index([date], map: "idx_listing_stats_daily_date")
+  @@index([listing_id, date], map: "idx_listing_stats_daily_lookup")
   @@map("listing_stats_daily")
 }
 
@@ -652,6 +635,17 @@ model releases {
   @@index([is_current], map: "idx_releases_current")
   @@index([platform], map: "idx_releases_platform")
   @@map("releases")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model brand_mappings {
+  id              Int       @id @default(autoincrement())
+  user_brand_name String    @unique
+  db_brand_name   String?
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([user_brand_name], map: "idx_brand_mappings_user_brand")
 }
 
 enum Gender {
