@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, Suspense } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-function VerifyEmailSuccessContent() {
+export default function VerifyEmailSuccessPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [secondsRemaining, setSecondsRemaining] = useState(5);
@@ -78,20 +78,6 @@ function VerifyEmailSuccessContent() {
         </div>
       </section>
     </div>
-  );
-}
-
-export default function VerifyEmailSuccessPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-[calc(100vh-200px)] flex items-center justify-center">
-        <section className="max-w-lg w-full mx-4">
-          <h1 className="text-3xl font-semibold text-gray-900">Loading...</h1>
-        </section>
-      </div>
-    }>
-      <VerifyEmailSuccessContent />
-    </Suspense>
   );
 }
 
