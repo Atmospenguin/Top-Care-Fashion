@@ -37,6 +37,7 @@ import { useAutoClassify } from "../../../src/hooks/useAutoClassify";
 import { ClassifyResponse, checkImagesSFW, describeProduct } from "../../../src/services/aiService";
 import type { ListingItem } from "../../../types/shop";
 import { sortCategories } from "../../../utils/categoryHelpers";
+import { onSellFormReset } from "../../../src/events/sellFormEvents";
 
 /** --- Options (categories loaded dynamically from database) --- */
 const BRAND_OPTIONS = [
@@ -371,13 +372,14 @@ export default function SellScreen({
     setInitializingDraft(false);
   }, []);
 
-  // When leaving this screen (e.g., to ConfirmSell/Checkout), clear the form so it's fresh on return
   useEffect(() => {
-    const unsubscribe = navigation.addListener("blur", () => {
+    return onSellFormReset(() => {
+      if (route.params?.draftId !== undefined) {
+        navigation.setParams({ draftId: undefined });
+      }
       resetForm();
     });
-    return unsubscribe;
-  }, [navigation, resetForm]);
+  }, [navigation, resetForm, route.params?.draftId]);
 
   useEffect(() => {
     if (!showSize && size === "Other" && shouldFocusSizeInput.current) {
@@ -1238,9 +1240,13 @@ export default function SellScreen({
           navigation.navigate("Drafts");
         }}
         rightAction={
-          <TouchableOpacity onPress={() => navigation.navigate("Drafts")} style={{ paddingRight: 4 }}>
-            <Icon name="file-tray-outline" size={22} color="#111" />
-          </TouchableOpacity>
+          isEditingDraft
+            ? undefined
+            : (
+              <TouchableOpacity onPress={() => navigation.navigate("Drafts")} style={{ paddingRight: 4 }}>
+                <Icon name="file-tray-outline" size={22} color="#111" />
+              </TouchableOpacity>
+            )
         }
       />
 

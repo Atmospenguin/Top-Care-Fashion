@@ -25,6 +25,7 @@ import type { PaymentMethod } from "../../../src/services/paymentMethodsService"
 import type { CreateListingRequest } from "../../../src/services/listingsService";
 import type { MyTopStackParamList } from "./index";
 import type { ListingItem } from "../../../types/shop";
+import { emitSellFormReset } from "../../../src/events/sellFormEvents";
 
 type ConfirmCreateParams = {
   mode: "create";
@@ -421,6 +422,7 @@ export default function ConfirmSellScreen() {
       try {
         setProcessing(true);
         const created = await listingsService.createListing(createDraft);
+        emitSellFormReset({ reason: "posted" });
         setFinalListing(created);
         setListing(created);
         Alert.alert(

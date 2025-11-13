@@ -197,11 +197,15 @@ export async function POST(req: Request) {
         size: size ?? null,
         condition_type: mapConditionToEnum(condition),
         material: material || null,
-        tags: tags || Prisma.JsonNull,
+        tags:
+          Array.isArray(tags) && tags.length > 0 ? tags : Prisma.DbNull,
     category_id: categoryId,
     gender: resolvedGenderValue,
         seller_id: sessionUser.id,
-        image_urls: images || Prisma.JsonNull,
+        image_urls:
+          Array.isArray(images) && images.length > 0
+            ? images
+            : Prisma.DbNull,
         listed: true,
         sold: false,
         shipping_option: shippingOption || null,

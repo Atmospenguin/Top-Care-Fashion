@@ -19,7 +19,7 @@ node_modules/
 /build
 /dist
 /out
-/.next/
+**/.next/**
 
 # Environment variables
 .env

@@ -97,8 +97,7 @@ export default function DraftsScreen({ navigation }: DraftsScreenProps) {
         title="Drafts"
         showBack
         onBackPress={() => {
-          // 返回到 SellMain（新建状态，不带 draftId）
-          navigation.navigate("SellMain");
+          navigation.goBack();
         }}
         rightAction={
           <TouchableOpacity onPress={() => fetchDrafts()} disabled={loading || refreshing}>
