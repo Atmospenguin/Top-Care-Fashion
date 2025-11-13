@@ -49,7 +49,7 @@ const STYLE_OPTIONS = [
   },
   {
     name: "Luxury Designer",
-    img: "https://www.chanel.com/us/img/t_one/q_auto:good,f_auto,fl_lossy,dpr_1.2/w_1920/prd-emea/sys-master-content-hfe-h6e-9980941336606look-003-spring-summer-2023-chanel-show.jpg",
+    img: "https://assets.vogue.com/photos/633c1b5fd3985aae1bd1bd97/master/w_2560%2Cc_limit/00004-chanel-spring-2023-ready-to-wear-credit-gorunway.jpg",
   },
 ];
 

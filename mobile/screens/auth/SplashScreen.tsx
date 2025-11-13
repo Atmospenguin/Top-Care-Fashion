@@ -3,7 +3,7 @@ import { View, StyleSheet } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { LOGO_WHITE } from "../../constants/assetUrls";
 import { useAuth } from "../../contexts/AuthContext";
-import { getCurrentUser } from "../../api";
+import { authService } from "../../src/services/authService";
 
 type RootStackParamList = {
   Splash: undefined;
@@ -40,8 +40,7 @@ export default function SplashScreen({ navigation }: Props) {
         // 检查用户偏好是否完整
         let hasCompletePreferences = false;
         try {
-          const me = await getCurrentUser();
-          const u = (me as any)?.data?.user || null;
+          const u = await authService.getCurrentUser();
           // 严格检查：要求所有偏好字段都已填写（包括生日）
           hasCompletePreferences = Boolean(
             u &&

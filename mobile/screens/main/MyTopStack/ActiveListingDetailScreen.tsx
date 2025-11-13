@@ -207,18 +207,24 @@ export default function ActiveListingDetailScreen() {
   // ✅ 处理Boost Listing点击
   const handleBoostListing = () => {
     if (!listing) return;
-    
+
     // 如果已经boosted，导航到BoostedListingScreen
     if (boostInfo && (boostInfo.status === "ACTIVE" || boostInfo.status === "SCHEDULED")) {
       navigation.navigate("BoostedListing");
       return;
     }
-    
-    // 如果没有boosted，导航到PromotionPlans (在MyTopStack中)
-    navigation.navigate("PromotionPlans", {
-      selectedListingIds: [listing.id],
-      selectedListings: [listing],
-    });
+
+    // 如果没有boosted，导航到PremiumStack的PromotionPlans（全屏模式）
+    const rootNav = navigation.getParent();
+    if (rootNav) {
+      rootNav.navigate("Premium", {
+        screen: "PromotionPlans",
+        params: {
+          selectedListingIds: [listing.id],
+          selectedListings: [listing],
+        },
+      });
+    }
   };
 
   // ✅ 检查是否已boosted

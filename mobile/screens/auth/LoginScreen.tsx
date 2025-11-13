@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { RootStackParamList } from "../../App";
 import { LOGO_FULL_COLOR } from "../../constants/assetUrls";
 import { useAuth } from "../../contexts/AuthContext";
-import { getCurrentUser } from "../../api";
+import { authService } from "../../src/services/authService";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
 
@@ -66,8 +66,7 @@ export default function LoginScreen({ navigation }: Props) {
       // 登录成功后，拉取一次用户资料以判定是否已有偏好
       let hasCompletePreferences = false;
       try {
-        const me = await getCurrentUser();
-        const u = (me as any)?.data?.user || null;
+        const u = await authService.getCurrentUser();
         // 严格检查：要求所有偏好字段都已填写（包括生日）
         hasCompletePreferences = Boolean(
           u &&
