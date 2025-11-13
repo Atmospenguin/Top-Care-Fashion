@@ -960,13 +960,8 @@ export default function SellScreen({
         result = await listingsService.updateDraft(editingDraftId, payload);
         setLoadedDraft(result);
         hydrateDraftFromListing(result);
-        Alert.alert("Draft updated", "Your changes are saved to drafts.", [
-          { text: "Keep editing", style: "cancel" },
-          {
-            text: "View drafts",
-            onPress: () => navigation.navigate("Drafts"),
-          },
-        ]);
+        // 编辑模式下保存后直接返回草稿箱，不弹窗
+        navigation.goBack();
       } else {
         result = await listingsService.createDraft(payload);
         setEditingDraftId(result.id);
@@ -1237,7 +1232,7 @@ export default function SellScreen({
         showBack={isEditingDraft}
         onBackPress={() => {
           // 从编辑草稿返回到 Drafts 页面
-          navigation.navigate("Drafts");
+          navigation.goBack();
         }}
         rightAction={
           isEditingDraft

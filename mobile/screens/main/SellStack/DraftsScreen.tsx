@@ -15,7 +15,7 @@ import Header from "../../../components/Header";
 import Icon from "../../../components/Icon";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { SellStackParamList } from "./SellStackNavigator";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, CommonActions } from "@react-navigation/native";
 import { listingsService } from "../../../src/services/listingsService";
 import type { ListingItem } from "../../../types/shop";
 
@@ -97,7 +97,13 @@ export default function DraftsScreen({ navigation }: DraftsScreenProps) {
         title="Drafts"
         showBack
         onBackPress={() => {
-          navigation.goBack();
+          // 重置导航栈到 SellMain（新建模式），避免在编辑模式和草稿箱之间来回跳转
+          navigation.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: "SellMain" }],
+            })
+          );
         }}
         rightAction={
           <TouchableOpacity onPress={() => fetchDrafts()} disabled={loading || refreshing}>
