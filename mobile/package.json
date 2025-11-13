@@ -6,7 +6,10 @@
     "start": "npx expo start",
     "android": "npx expo run:android",
     "ios": "npx expo run:ios",
-    "web": "npx expo start --web"
+    "web": "npx expo start --web",
+    "update:development": "eas update --branch development --message 'Development OTA'",
+    "update:preview": "eas update --branch preview --message 'Preview OTA'",
+    "update:production": "eas update --branch production --message 'Production OTA'"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -17,6 +20,7 @@
     "@react-navigation/material-top-tabs": "^7.0.0",
     "@react-navigation/native": "^7.1.0",
     "@react-navigation/native-stack": "^7.1.0",
+    "eas-cli": "^16.27.0",
     "expo": "^54.0.23",
     "expo-asset": "~12.0.9",
     "expo-file-system": "~19.0.17",
