@@ -140,7 +140,20 @@ export default function DraftsScreen({ navigation }: DraftsScreenProps) {
           return (
             <TouchableOpacity
               style={styles.draftRow}
-              onPress={() => navigation.navigate("SellMain", { draftId: item.id })}
+              onPress={() => {
+                // 重置导航栈，确保 SellMain 在栈底，Drafts 在中间，编辑模式在顶部
+                // 这样返回时从左边滑入
+                navigation.dispatch(
+                  CommonActions.reset({
+                    index: 2,
+                    routes: [
+                      { name: "SellMain" },
+                      { name: "Drafts" },
+                      { name: "SellMain", params: { draftId: item.id } },
+                    ],
+                  })
+                );
+              }}
               onLongPress={() => handleDeleteDraft(item)}
               delayLongPress={250}
             >

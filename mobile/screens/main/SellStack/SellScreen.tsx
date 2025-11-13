@@ -23,7 +23,7 @@ import * as ImageManipulator from "expo-image-manipulator";
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useFocusEffect, useRoute } from "@react-navigation/native";
+import { useFocusEffect, useRoute, CommonActions } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { SellStackParamList } from "./SellStackNavigator";
 import {
@@ -1231,7 +1231,7 @@ export default function SellScreen({
         title={headerTitle}
         showBack={isEditingDraft}
         onBackPress={() => {
-          // 从编辑草稿返回到 Drafts 页面
+          // 从编辑草稿返回到 Drafts 页面，直接 goBack 应该从左边滑入
           navigation.goBack();
         }}
         rightAction={
