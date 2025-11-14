@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 
 type AssetItem = {
   name: string;
@@ -34,8 +34,24 @@ export default function AssetLibraryManager({
   const [folders, setFolders] = useState<string[]>([]);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   // Track whether user has interacted to avoid sending empty selection on initial mount
   const userTouchedRef = useRef(false);
+  const dragThrottleRef = useRef<NodeJS.Timeout | null>(null);
+  // Use state for temporary display order during drag (only updates visual, not actual selected)
+  const [tempDisplayOrder, setTempDisplayOrder] = useState<string[] | null>(null);
+  // Use refs to access latest values in callbacks
+  const selectedRef = useRef(selected);
+  const tempDisplayOrderRef = useRef(tempDisplayOrder);
+  
+  // Keep refs in sync
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+  
+  useEffect(() => {
+    tempDisplayOrderRef.current = tempDisplayOrder;
+  }, [tempDisplayOrder]);
 
   // Fetch items from API
   async function fetchItems() {
@@ -58,6 +74,15 @@ export default function AssetLibraryManager({
     fetchItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bucket, prefix]);
+
+  // Cleanup throttle on unmount
+  useEffect(() => {
+    return () => {
+      if (dragThrottleRef.current) {
+        clearTimeout(dragThrottleRef.current);
+      }
+    };
+  }, []);
 
   // Toggle selection
   function toggleSelect(path: string) {
@@ -122,29 +147,66 @@ export default function AssetLibraryManager({
   // Apply selection removed — onApply is called automatically on selection changes
 
   // Drag and drop reorder
-  function handleDragStart(path: string) {
+  const handleDragStart = useCallback((path: string) => {
     setDraggedItem(path);
-  }
+    setDragOverIndex(null);
+    // Store current order for drag operations
+    setTempDisplayOrder([...selected]);
+  }, [selected]);
 
-  function handleDragOver(e: React.DragEvent, targetPath: string) {
+  const handleDragOver = useCallback((e: React.DragEvent, targetPath: string) => {
     e.preventDefault();
     if (!draggedItem || draggedItem === targetPath) return;
 
-    const dragIdx = selected.indexOf(draggedItem);
-    const targetIdx = selected.indexOf(targetPath);
+    // Use tempDisplayOrder if available, otherwise use selected
+    const currentOrder = tempDisplayOrder || selected;
+    const dragIdx = currentOrder.indexOf(draggedItem);
+    const targetIdx = currentOrder.indexOf(targetPath);
     
-    if (dragIdx === -1 || targetIdx === -1) return;
+    if (dragIdx === -1 || targetIdx === -1 || dragIdx === targetIdx) return;
 
-    const newSelected = [...selected];
-    newSelected.splice(dragIdx, 1);
-    newSelected.splice(targetIdx, 0, draggedItem);
-    userTouchedRef.current = true;
-    setSelected(newSelected);
-  }
+    // Update visual indicator (lightweight state update)
+    setDragOverIndex(targetIdx);
 
-  function handleDragEnd() {
+    // Throttle the order update to reduce flickering
+    if (dragThrottleRef.current) {
+      return;
+    }
+
+    // Update temp display order (for visual feedback only) with throttling
+    dragThrottleRef.current = setTimeout(() => {
+      // Use refs to get latest values
+      const latestOrder = tempDisplayOrderRef.current || selectedRef.current;
+      const latestDragIdx = latestOrder.indexOf(draggedItem);
+      const latestTargetIdx = latestOrder.indexOf(targetPath);
+      
+      if (latestDragIdx !== -1 && latestTargetIdx !== -1 && latestDragIdx !== latestTargetIdx) {
+        const newOrder = [...latestOrder];
+        newOrder.splice(latestDragIdx, 1);
+        newOrder.splice(latestTargetIdx, 0, draggedItem);
+        setTempDisplayOrder(newOrder);
+      }
+      
+      dragThrottleRef.current = null;
+    }, 100); // Throttle to 100ms for smoother updates
+  }, [draggedItem, selected, tempDisplayOrder]);
+
+  const handleDragEnd = useCallback(() => {
+    if (dragThrottleRef.current) {
+      clearTimeout(dragThrottleRef.current);
+      dragThrottleRef.current = null;
+    }
+    
+    // Finalize the order from temp display order
+    if (tempDisplayOrder) {
+      userTouchedRef.current = true;
+      setSelected([...tempDisplayOrder]);
+    }
+    
+    setTempDisplayOrder(null);
     setDraggedItem(null);
-  }
+    setDragOverIndex(null);
+  }, [tempDisplayOrder]);
 
   // Move selected item
   function moveItem(path: string, direction: -1 | 1) {
@@ -280,9 +342,16 @@ export default function AssetLibraryManager({
     setPreviewIndex(previewIndex + 1);
   }
 
-  const selectedItems = selected
-    .map(path => items.find(i => i.path === path))
-    .filter(Boolean) as AssetItem[];
+  // Use temp order during drag, otherwise use selected
+  const displayOrder = useMemo(() => {
+    return tempDisplayOrder || selected;
+  }, [selected, tempDisplayOrder]);
+
+  const selectedItems = useMemo(() => {
+    return displayOrder
+      .map(path => items.find(i => i.path === path))
+      .filter(Boolean) as AssetItem[];
+  }, [displayOrder, items]);
 
   const allPaths = items.map((i) => i.path);
   const isAllSelected = selected.length > 0 && selected.length === allPaths.length;
@@ -378,16 +447,24 @@ export default function AssetLibraryManager({
             SELECTED ({selectedItems.length}) - Drag to reorder
           </div>
           <div className="flex flex-wrap gap-2">
-            {selectedItems.map((item, idx) => (
+            {selectedItems.map((item, idx) => {
+              const isDragging = draggedItem === item.path;
+              const isDragOver = dragOverIndex === idx && draggedItem && draggedItem !== item.path;
+              
+              return (
               <div
                 key={item.path}
                 draggable
                 onDragStart={() => handleDragStart(item.path)}
                 onDragOver={(e) => handleDragOver(e, item.path)}
                 onDragEnd={handleDragEnd}
-                className={`group relative flex items-center gap-2 px-3 py-2 bg-white border-2 rounded-lg cursor-move hover:shadow-lg transition-all ${
-                  draggedItem === item.path ? "opacity-50 scale-95" : "opacity-100"
+                className={`group relative flex items-center gap-2 px-3 py-2 bg-white border-2 rounded-lg cursor-move hover:shadow-lg ${
+                  isDragging ? "opacity-50 z-50" : isDragOver ? "opacity-90 border-blue-600" : "opacity-100"
                 } border-blue-400`}
+                style={{
+                  transform: isDragging ? 'scale(0.95)' : 'scale(1)',
+                  transition: isDragging ? 'none' : 'opacity 0.15s ease-out, transform 0.15s ease-out, border-color 0.15s ease-out'
+                }}
               >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <span className="text-xs font-bold text-blue-600">#{idx + 1}</span>
@@ -419,7 +496,8 @@ export default function AssetLibraryManager({
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -459,14 +537,25 @@ export default function AssetLibraryManager({
                 {/* Image */}
                 <div
                   onClick={() => toggleSelect(item.path)}
-                  className="relative w-full bg-gray-100 cursor-pointer aspect-square"
+                  className="relative w-full bg-gray-100 cursor-pointer aspect-square overflow-hidden"
                 >
-                  { }
                   <img
                     src={item.url}
                     alt={item.name}
+                    loading="lazy"
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const placeholder = target.parentElement?.querySelector('.image-placeholder');
+                      if (placeholder) {
+                        (placeholder as HTMLElement).style.display = 'flex';
+                      }
+                    }}
                   />
+                  <div className="image-placeholder absolute inset-0 flex items-center justify-center text-gray-400 text-xs" style={{ display: 'none' }}>
+                    Failed to load
+                  </div>
                   
                   {/* Hover Overlay */}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
@@ -599,12 +688,26 @@ export default function AssetLibraryManager({
 
             {/* Image Container */}
             <div className="relative w-full h-[600px] bg-gray-100 flex items-center justify-center">
-              { }
               <img
                 src={items[previewIndex].url}
                 alt={items[previewIndex].name}
                 className="max-w-full max-h-full object-contain"
+                loading="eager"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  const placeholder = target.parentElement?.querySelector('.preview-placeholder');
+                  if (placeholder) {
+                    (placeholder as HTMLElement).style.display = 'flex';
+                  }
+                }}
               />
+              <div className="preview-placeholder absolute inset-0 flex items-center justify-center text-gray-400" style={{ display: 'none' }}>
+                <div className="text-center">
+                  <div className="text-4xl mb-2">⚠️</div>
+                  <div>Failed to load image</div>
+                </div>
+              </div>
             </div>
 
             {/* Info Bar */}

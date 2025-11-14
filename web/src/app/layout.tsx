@@ -35,15 +35,16 @@ export const metadata: Metadata = {
     title: "Top Care Fashion",
     description: "Your personal AI-powered fashion companion for outfit recommendations and style inspiration",
   },
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 5,
-  },
   robots: {
     index: true,
     follow: true,
   },
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({
