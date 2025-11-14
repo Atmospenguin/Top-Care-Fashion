@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 
 /**
+ * Resolve site URL for email redirects
+ */
+function resolveSiteUrl(req: NextRequest) {
+  const envUrl =
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.SUPABASE_RESET_REDIRECT_URL ||
+    process.env.APP_ORIGIN ||
+    "";
+  if (envUrl.trim()) return envUrl.trim().replace(/\/+$/, "");
+
+  const origin = req.nextUrl.origin;
+  return origin.replace(/\/+$/, "");
+}
+
+/**
  * API route to resend email verification link
  * POST /api/auth/resend-verification
  * Body: { email: string }
@@ -27,13 +43,18 @@ export async function POST(req: NextRequest) {
     console.log("📧 Resending verification email to:", normalizedEmail);
 
     const supabase = await createSupabaseServer();
+    const redirectBase = resolveSiteUrl(req);
+    const redirectUrl = `${redirectBase}/verify-email/success`;
+
+    console.log('[resend-verification] redirectBase:', redirectBase);
+    console.log('[resend-verification] redirectUrl:', redirectUrl);
 
     // Resend verification email using Supabase
     const { error } = await supabase.auth.resend({
       type: 'signup',
       email: normalizedEmail,
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/auth/callback`,
+        emailRedirectTo: redirectUrl,
       }
     });
 

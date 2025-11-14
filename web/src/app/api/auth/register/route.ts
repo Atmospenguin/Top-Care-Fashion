@@ -45,6 +45,22 @@ function extractValidationErrors(error: unknown): string | null {
   return null;
 }
 
+/**
+ * Resolve site URL for email redirects
+ */
+function resolveSiteUrl(req: NextRequest) {
+  const envUrl =
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.SUPABASE_RESET_REDIRECT_URL ||
+    process.env.APP_ORIGIN ||
+    "";
+  if (envUrl.trim()) return envUrl.trim().replace(/\/+$/, "");
+
+  const origin = req.nextUrl.origin;
+  return origin.replace(/\/+$/, "");
+}
+
 export async function POST(req: NextRequest) {
   //ding cheng input
   console.log("🟢 Register route called");
@@ -107,6 +123,13 @@ if (normalizedPassword.length < 6) {
 
   const supabase = await createSupabaseServer();
 
+  // Resolve redirect URL for email verification
+  const redirectBase = resolveSiteUrl(req);
+  const emailRedirectUrl = `${redirectBase}/verify-email/success`;
+  
+  console.log('[register] redirectBase:', redirectBase);
+  console.log('[register] emailRedirectUrl:', emailRedirectUrl);
+
   try {
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: normalizedEmail,
@@ -117,6 +140,7 @@ if (normalizedPassword.length < 6) {
           dob: normalizedDob,
           gender: normalizedGender,
         },
+        emailRedirectTo: emailRedirectUrl,
       },
     });
 
