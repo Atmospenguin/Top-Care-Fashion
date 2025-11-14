@@ -976,7 +976,7 @@ export default function EditListingScreen() {
           <Text style={styles.fieldLabel}>Brand</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowBrand(true)}>
             <Text style={styles.selectValue}>
-              {brand !== "Select" ? brand : "Select"}
+              {brand && brand !== "Select" ? brand : "Select"}
             </Text>
           </TouchableOpacity>
 
@@ -1219,12 +1219,10 @@ export default function EditListingScreen() {
         onClose={() => setShowGender(false)}
         onSelect={setGender}
       />
-      <OptionPicker
-        title="Select brand"
+      <BrandPickerModal
         visible={showBrand}
-        options={BRAND_OPTIONS}
-        value={brand}
         onClose={() => setShowBrand(false)}
+        value={brand}
         onSelect={handleSelectBrand}
       />
       {/* Tag Picker Modal */}
@@ -1235,6 +1233,71 @@ export default function EditListingScreen() {
         setTags={setTags}
       />
     </View>
+  );
+}
+
+function BrandPickerModal({
+  visible,
+  onClose,
+  value,
+  onSelect,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  value: string;
+  onSelect: (value: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+
+  const filtered = BRAND_OPTIONS.filter((brand) =>
+    brand.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <Modal transparent visible={visible} animationType="slide">
+      <Pressable style={styles.sheetMask} onPress={onClose} />
+      <View style={styles.brandSheet}>
+        <View style={styles.brandSheetHeader}>
+          <Text style={styles.brandSheetTitle}>Select brand</Text>
+          <TouchableOpacity onPress={onClose}>
+            <Icon name="close" size={24} color="#111" />
+          </TouchableOpacity>
+        </View>
+
+        <TextInput
+          style={styles.brandSearch}
+          placeholder="Search brands..."
+          value={search}
+          onChangeText={setSearch}
+          textAlignVertical="center"
+        />
+
+        <ScrollView style={{ height: 500 }}>
+          {filtered.map((brand) => {
+            const selected = value === brand;
+            return (
+              <TouchableOpacity
+                key={brand}
+                style={[styles.brandOption, selected && styles.brandOptionSelected]}
+                onPress={() => {
+                  onSelect(brand);
+                  onClose();
+                }}
+              >
+                <Text style={[styles.brandOptionText, selected && { color: "#fff" }]}>
+                  {brand}
+                </Text>
+                {selected && <Text style={{ color: "#fff", fontSize: 18 }}>✓</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        <TouchableOpacity style={styles.sheetCancel} onPress={onClose}>
+          <Text style={{ fontWeight: "600" }}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
   );
 }
 
@@ -1721,6 +1784,58 @@ const styles = StyleSheet.create({
   thumbnailImage: {
     width: "100%",
     height: "100%",
+  },
+  brandSheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 16,
+    maxHeight: "80%",
+  },
+  brandSheetHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  brandSheetTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  brandSearch: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "android" ? 0 : 10,
+    fontSize: 15,
+    backgroundColor: "#fafafa",
+    marginBottom: 12,
+    minHeight: 46,
+    includeFontPadding: false,
+  },
+  brandOption: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "#eee",
+    borderRadius: 10,
+    marginBottom: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  brandOptionSelected: {
+    backgroundColor: "#5B21B6",
+    borderColor: "#5B21B6",
+  },
+  brandOptionText: {
+    fontSize: 15,
+    color: "#111",
   },
   // clearTiny removed (legacy back link)
 });
