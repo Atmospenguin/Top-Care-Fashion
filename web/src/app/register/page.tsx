@@ -19,6 +19,22 @@ export default function RegisterPage() {
   const usernameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const emailTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Handle username input - only allow letters, numbers, underscore, and hyphen
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Only allow alphanumeric characters, underscore, and hyphen
+    const filteredValue = value.replace(/[^a-zA-Z0-9_-]/g, '');
+    setUsername(filteredValue);
+  };
+
+  // Handle email input - remove spaces
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Remove all spaces from email
+    const filteredValue = value.replace(/\s/g, '');
+    setEmail(filteredValue);
+  };
+
   // Check username availability with debounce
   useEffect(() => {
     if (usernameTimeoutRef.current) {
@@ -28,6 +44,14 @@ export default function RegisterPage() {
     const trimmedUsername = username.trim();
     if (trimmedUsername.length === 0) {
       setUsernameError(null);
+      setIsCheckingUsername(false);
+      return;
+    }
+
+    // Validate username format: only letters, numbers, underscore, and hyphen
+    const usernameRegex = /^[a-zA-Z0-9_-]+$/;
+    if (!usernameRegex.test(trimmedUsername)) {
+      setUsernameError("Username can only contain letters, numbers, underscore, and hyphen");
       setIsCheckingUsername(false);
       return;
     }
@@ -79,6 +103,13 @@ export default function RegisterPage() {
     const trimmedEmail = email.trim().toLowerCase();
     if (trimmedEmail.length === 0) {
       setEmailError(null);
+      setIsCheckingEmail(false);
+      return;
+    }
+
+    // Check for spaces in email
+    if (trimmedEmail.includes(' ')) {
+      setEmailError("Email cannot contain spaces");
       setIsCheckingEmail(false);
       return;
     }
@@ -140,20 +171,38 @@ export default function RegisterPage() {
       return;
     }
 
+    // Validate username format before submission
+    const trimmedUsername = username.trim();
+    const usernameRegex = /^[a-zA-Z0-9_-]+$/;
+    if (!usernameRegex.test(trimmedUsername)) {
+      setStatus("Username can only contain letters, numbers, underscore, and hyphen");
+      return;
+    }
+
+    if (trimmedUsername.length < 3) {
+      setStatus("Username must be at least 3 characters");
+      return;
+    }
+
+    // Validate email format before submission
+    const trimmedEmail = email.trim().toLowerCase();
+    if (trimmedEmail.includes(' ')) {
+      setStatus("Email cannot contain spaces");
+      return;
+    }
+
+    const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z][A-Za-z0-9.-]*\.[A-Za-z]{2,}$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setStatus("Invalid e-mail entered, pls re-enter a valid email");
+      return;
+    }
+
     setStatus("Submitting...");
 
     // ding cheng input
 
     //switching between my backend input(true) and superbase(false) for testing
     const USE_BACKEND = true;
-
-    // email format validation on front end
-
-    const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z][A-Za-z0-9.-]*\.[A-Za-z]{2,}$/;
-  if (!emailRegex.test(email)) {
-    setStatus("Invalid e-mail entered, pls re-enter a valid email");
-    return;
-  }
 
     // Password validation
     if (password.length < 6) {
@@ -173,7 +222,7 @@ export default function RegisterPage() {
         const res = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, email, password }),
+          body: JSON.stringify({ username: trimmedUsername, email: trimmedEmail, password }),
         });
 
         const data = await res.json();
@@ -181,15 +230,15 @@ export default function RegisterPage() {
 
         setStatus("Success! Please check your email to verify your account.");
         setTimeout(() => {
-          router.push(`/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}`);
+          router.push(`/verify-email?email=${encodeURIComponent(trimmedEmail)}`);
         }, 1500);
       } else {
 
         //  use Supabase code(false)
-        await signUp({ username, email, password });
+        await signUp({ username: trimmedUsername, email: trimmedEmail, password });
         setStatus("Success! Please check your email to verify your account.");
         setTimeout(() => {
-          router.push(`/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}`);
+          router.push(`/verify-email?email=${encodeURIComponent(trimmedEmail)}`);
         }, 1500);
       }
     } catch (err: unknown) {
@@ -220,8 +269,8 @@ export default function RegisterPage() {
                 : "border-gray-300 focus:ring-gray-300"
             }`}
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Username"
+            onChange={handleUsernameChange}
+            placeholder="Username (letters, numbers, _, - only)"
             required
           />
           {isCheckingUsername && (
@@ -243,8 +292,8 @@ export default function RegisterPage() {
                 : "border-gray-300 focus:ring-gray-300"
             }`}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
+            onChange={handleEmailChange}
+            placeholder="Email (no spaces)"
             required
           />
           {isCheckingEmail && (
