@@ -24,6 +24,8 @@ interface LastCheckData {
   };
 }
 
+type ConversationUpdateCallback = () => void;
+
 class PollingService {
   private intervalId: NodeJS.Timeout | null = null;
   private appState: AppStateStatus = 'active';
@@ -37,12 +39,37 @@ class PollingService {
     },
   };
   private currentConversationId: string | null = null; // 当前打开的对话ID
+  private conversationUpdateCallbacks: Set<ConversationUpdateCallback> = new Set(); // UI刷新回调
 
   /**
    * 设置当前打开的对话ID（用于避免在当前对话中显示通知）
    */
   setCurrentConversationId(conversationId: string | null): void {
     this.currentConversationId = conversationId;
+  }
+
+  /**
+   * 订阅对话更新事件（用于UI自动刷新）
+   */
+  onConversationUpdate(callback: ConversationUpdateCallback): () => void {
+    this.conversationUpdateCallbacks.add(callback);
+    // 返回取消订阅函数
+    return () => {
+      this.conversationUpdateCallbacks.delete(callback);
+    };
+  }
+
+  /**
+   * 通知所有订阅者对话已更新
+   */
+  private notifyConversationUpdate(): void {
+    this.conversationUpdateCallbacks.forEach(callback => {
+      try {
+        callback();
+      } catch (error) {
+        console.error('❌ Error in conversation update callback:', error);
+      }
+    });
   }
 
   /**
@@ -230,6 +257,9 @@ class PollingService {
             lastMessageTime: new Date(conv.lastMessageTime).getTime(),
           };
 
+          // 🔥 通知UI刷新（无论是否未读，只要有新消息就刷新）
+          this.notifyConversationUpdate();
+
           // 检查对话是否有未读消息（仅在有新消息且未读时才获取完整消息详情并通知）
           if (conv.isUnread) {
             // 获取对话的最新消息详情（仅在有新消息且未读时才调用）
@@ -339,6 +369,7 @@ class PollingService {
       },
     };
     this.currentConversationId = null;
+    this.conversationUpdateCallbacks.clear();
     console.log('✅ PollingService data reset');
   }
 }

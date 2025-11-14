@@ -438,11 +438,13 @@ export async function GET(req: NextRequest) {
           const normalizedGender = normalizeGender(gender);
           if (normalizedGender) {
             if (normalizedGender === "Men") {
-              sqlParts.push(`AND l.gender IN ('Men', 'Unisex')`);
+              sqlParts.push(`AND l.gender = 'Men'`);
             } else if (normalizedGender === "Women") {
-              sqlParts.push(`AND l.gender IN ('Women', 'Unisex')`);
+              sqlParts.push(`AND l.gender = 'Women'`);
+            } else if (normalizedGender === "Unisex") {
+              sqlParts.push(`AND l.gender = 'Unisex'`);
             }
-            // Unisex doesn't need filtering (allows all)
+            // If gender is not specified, show all items
           }
         }
 
@@ -504,6 +506,7 @@ export async function GET(req: NextRequest) {
 
           const normalizedGender = normalizeGender(gender);
           if (normalizedGender) {
+            // Only match exact gender (exclude Unisex when searching for Men/Women)
             where.gender = normalizedGender;
           }
         }

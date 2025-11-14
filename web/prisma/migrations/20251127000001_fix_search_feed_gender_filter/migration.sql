@@ -60,8 +60,9 @@ BEGIN
     WHERE u.supabase_user_id = p_supabase_user_id;
   END IF;
 
-  -- Use provided gender if specified and not 'unisex', otherwise use user's gender from database
-  IF p_gender IS NOT NULL AND lower(trim(p_gender)) NOT IN ('unisex', '') THEN
+  -- Use provided gender parameter if specified, otherwise use user's gender from database
+  -- If p_gender is explicitly 'unisex', use 'unisex' (don't fallback to user's gender)
+  IF p_gender IS NOT NULL AND trim(p_gender) != '' THEN
     v_gender_norm := lower(trim(p_gender));
   ELSIF v_user_gender IS NOT NULL THEN
     v_gender_norm := lower(v_user_gender);
@@ -81,14 +82,15 @@ BEGIN
       -- 分类过滤（如果提供category_id）
       AND (p_category_id IS NULL OR l.category_id = p_category_id)
       -- Gender过滤：根据v_gender_norm过滤商品
-      -- 男性用户：只显示 Men 和 Unisex 商品
-      -- 女性用户：只显示 Women 和 Unisex 商品
-      -- Unisex/未设置：显示所有商品
+      -- 男性用户：只显示 Men 商品（不包含 Unisex）
+      -- 女性用户：只显示 Women 商品（不包含 Unisex）
+      -- Unisex：只显示 Unisex 商品
+      -- 未设置：显示所有商品
       AND (
-        v_gender_norm = 'unisex'
-        OR l.gender = 'Unisex'
-        OR (v_gender_norm IN ('male', 'men') AND l.gender IN ('Men', 'Unisex'))
-        OR (v_gender_norm IN ('female', 'women') AND l.gender IN ('Women', 'Unisex'))
+        (v_gender_norm IN ('male', 'men') AND l.gender = 'Men')
+        OR (v_gender_norm IN ('female', 'women') AND l.gender = 'Women')
+        OR (v_gender_norm = 'unisex' AND l.gender = 'Unisex')
+        OR (v_gender_norm IS NULL OR v_gender_norm = '')
       )
       -- 搜索过滤：匹配名称、描述、品牌、标签
       -- 如果搜索查询为空或只有通配符，则跳过搜索过滤（返回所有商品，由feed算法个性化排序）

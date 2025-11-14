@@ -10,6 +10,7 @@ import {
   Pressable,
   Animated,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -18,7 +19,7 @@ import { Swipeable } from "react-native-gesture-handler";
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import ASSETS from "../../../constants/assetUrls";
-import { messagesService, type Conversation } from "../../../src/services";
+import { messagesService, pollingService, type Conversation } from "../../../src/services";
 import { notificationService } from "../../../src/services/notificationService";
 import { useAuth } from "../../../contexts/AuthContext";
 import { premiumService } from "../../../src/services";
@@ -92,6 +93,7 @@ export default function InboxScreen() {
   const [selectedFilter, setSelectedFilter] = useState<string>("All");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
   const anim = useRef(new Animated.Value(0)).current;
@@ -125,11 +127,18 @@ export default function InboxScreen() {
 
   // 添加焦点监听，每次返回时刷新数据
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
+    const unsubscribe = navigation.addListener("focus", () => {
       // Reuse MyPremiumScreen logic: sync premium status on focus
       if (user?.id) {
-        premiumService.getStatus()
-          .then((status) => updateUser({ ...(user as any), isPremium: status.isPremium, premiumUntil: status.premiumUntil }))
+        premiumService
+          .getStatus()
+          .then((status) =>
+            updateUser({
+              // Only patch premium fields to avoid overriding core user info with stale data
+              isPremium: status.isPremium,
+              premiumUntil: status.premiumUntil,
+            } as any),
+          )
           .catch(() => {});
       }
       console.log("🔍 InboxScreen focused, refreshing conversations...");
@@ -138,11 +147,26 @@ export default function InboxScreen() {
     });
 
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, user?.id]);
 
-  const loadConversations = async () => {
+  // ✅ 订阅轮询服务的更新事件，自动刷新对话列表
+  useEffect(() => {
+    const unsubscribe = pollingService.onConversationUpdate(() => {
+      console.log("🔄 PollingService detected new messages, refreshing InboxScreen...");
+      loadConversations();
+      loadUnreadNotificationCount();
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const loadConversations = async (isRefresh = false) => {
     try {
-      setIsLoading(true);
+      if (isRefresh) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
       console.log("🔍 Loading conversations from API...");
       
       const apiConversations = await messagesService.getConversations();
@@ -185,7 +209,14 @@ export default function InboxScreen() {
       setConversations([topSupportConversation]);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
+  };
+
+  // ✅ 下拉刷新处理函数
+  const handleRefresh = () => {
+    loadConversations(true);
+    loadUnreadNotificationCount();
   };
 
   // 删除对话处理函数
@@ -306,6 +337,14 @@ export default function InboxScreen() {
         contentContainerStyle={{ padding: 16 }}
         data={filteredThreads}
         keyExtractor={(item) => item.id}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor="#F54B3D"
+            colors={["#F54B3D"]}
+          />
+        }
         renderItem={({ item }) => {
           // 渲染右滑删除按钮
           const renderRightActions = () => (
