@@ -91,6 +91,29 @@ function extractImageUrls(imageUrls: unknown, imageUrl: string | null): string[]
   return [];
 }
 
+function createSeededRng(seed: number) {
+  let t = (seed >>> 0) || 1;
+  return () => {
+    t += 0x6d2b79f5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffleWithSeed<T>(input: T[], seed?: number): T[] {
+  if (!Number.isFinite(seed) || seed === undefined || seed === null) {
+    return input;
+  }
+  const rng = createSeededRng(seed);
+  const arr = [...input];
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 // ---------------- Auth extraction ----------------
 async function getSupabaseUserIdFromRequest(req: NextRequest): Promise<string | null> {
   // 1) Try mobile Bearer token
@@ -133,15 +156,21 @@ try {
 }
 
 // ---------------- TRENDING (no auth) ----------------
-async function fetchTrending(limit: number, offset: number): Promise<{ items: FeedRow[]; meta: any }> {
+async function fetchTrending(
+  limit: number,
+  offset: number,
+  seedId?: number
+): Promise<{ items: FeedRow[]; meta: any }> {
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY);
+
+  const fetchUntil = Math.max(0, offset + limit - 1);
 
   // Use the new view that includes boost information
   const { data: recs, error: recErr } = await admin
     .from("listing_recommendations_with_boost")
     .select("listing_id,fair_score,final_score,is_boosted,boost_weight")
     .order("final_score", { ascending: false })  // Order by final_score (includes boost)
-    .range(offset, offset + limit - 1);
+    .range(0, fetchUntil);
 
   if (recErr) {
     return { items: [], meta: { error: recErr.message, mode: "trending", limit, offset } };
@@ -210,9 +239,18 @@ async function fetchTrending(limit: number, offset: number): Promise<{ items: Fe
     })
     .filter(Boolean) as FeedRow[];
 
+  const randomized = shuffleWithSeed(items, seedId);
+  const paged = randomized.slice(offset, offset + limit);
+
   return {
-    items,
-    meta: { mode: "trending", page: Math.floor(offset / limit) + 1, limit, cached: false },
+    items: paged,
+    meta: {
+      mode: "trending",
+      page: Math.floor(offset / limit) + 1,
+      limit,
+      cached: false,
+      seedId: seedId ?? null,
+    },
   };
 }
 
@@ -354,7 +392,7 @@ export async function GET(req: NextRequest) {
         return okJson(rest, { status });
       }
     } else {
-      result = await fetchTrending(limit, offset);
+      result = await fetchTrending(limit, offset, seedId);
     }
 
     const data = { items: result.items, meta: { ...(result.meta || {}), cached: false } };
