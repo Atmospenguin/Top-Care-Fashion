@@ -1,7 +1,7 @@
 # Top Care Fashion - Architecture Documentation
 
-**Version**: 1.0
-**Last Updated**: 2025-11-12
+**Version**: 1.1
+**Last Updated**: 2025-11-14
 **Status**: Production
 
 ---
@@ -168,7 +168,7 @@ ORM: Prisma 6.19.0
   - Migration system
   - Schema introspection
 
-Database: PostgreSQL 15+
+Database: PostgreSQL 17.6.1
   - Hosted on Supabase
   - Connection pooling (PgBouncer)
   - Row-Level Security (RLS)
@@ -703,7 +703,7 @@ mobile/
 
 ### 5.1 Database Schema Overview
 
-The database consists of **40+ tables** (Prisma models) organized into logical domains.
+The database consists of **28 tables** (27 business tables + 1 system table `_prisma_migrations`) organized into logical domains.
 
 #### 5.1.1 Entity-Relationship Diagram (High-Level)
 
@@ -745,45 +745,45 @@ The database consists of **40+ tables** (Prisma models) organized into logical d
 #### 5.2.1 users
 ```prisma
 model users {
-  id                Int       @id @default(autoincrement())
-  username          String    @unique
-  email             String    @unique
-  password_hash     String?   // Legacy field
-  role              UserRole  @default(USER)
-  status            UserStatus @default(ACTIVE)
-
-  // Profile
-  full_name         String?
-  bio               String?
-  avatar_url        String?
-  location          String?
-  date_of_birth     DateTime?
-  gender            Gender?
-
-  // Premium
-  is_premium        Boolean   @default(false)
-
-  // Stats
-  likes_count       Int       @default(0)
-  followers_count   Int       @default(0)
-  following_count   Int       @default(0)
-
-  // Privacy
-  likes_visibility  VisibilitySetting @default(PUBLIC)
-  follows_visibility VisibilitySetting @default(PUBLIC)
-
-  // Timestamps
-  created_at        DateTime  @default(now())
-  updated_at        DateTime  @updatedAt
-  last_login        DateTime?
+  id                      Int                 @id @default(autoincrement())
+  username                String(64)          @unique
+  email                   String(191)         @unique
+  dob                     DateTime?
+  gender                  Gender?
+  role                    UserRole            @default(USER)
+  status                  UserStatus          @default(ACTIVE)
+  is_premium              Boolean             @default(false)
+  premium_until           DateTime?
+  average_rating          Decimal(3,2)?
+  total_reviews           Int                 @default(0)
+  created_at              DateTime            @default(now())
+  supabase_user_id        String(UUID)?       @unique
+  avatar_url              String?
+  phone_number            String(20)?
+  phone                   String(20)?
+  bio                     String?
+  location                String(100)?
+  updated_at              DateTime?           @default(now())
+  preferred_styles        Json?
+  preferred_size_top      String(50)?
+  preferred_size_bottom   String(50)?
+  preferred_size_shoe     String(50)?
+  preferred_brands        Json?
+  mix_match_used_count    Int?                @default(0)
+  free_promotions_used    Int?                @default(0)
+  free_promotions_reset_at DateTime?
+  last_sign_in_at         DateTime?
+  country                 String(64)?
+  likes_visibility        VisibilitySetting   @default(PUBLIC)
+  follows_visibility      VisibilitySetting   @default(PUBLIC)
 
   // Relations
-  listings          listings[]
-  orders_as_buyer   orders[]  @relation("buyer")
-  orders_as_seller  orders[]  @relation("seller")
-  cart_items        cart_items[]
-  messages_sent     messages[] @relation("sender")
-  messages_received messages[] @relation("receiver")
+  listings                listings[]
+  orders_as_buyer         orders[]            @relation("buyer")
+  orders_as_seller        orders[]            @relation("seller")
+  cart_items              cart_items[]
+  messages_sent           messages[]          @relation("sender")
+  messages_received       messages[]          @relation("receiver")
   // ... more relations
 }
 
@@ -813,44 +813,42 @@ enum VisibilitySetting {
 #### 5.2.2 listings
 ```prisma
 model listings {
-  id              Int         @id @default(autoincrement())
-  user_id         Int
-  name            String
-  description     String?
-  price           Decimal     @db.Decimal(10, 2)
-
-  // Product details
-  size            String?
-  condition       ConditionType
-  brand           String?
-  gender          Gender?
-  color           String?
-
-  // Images
-  image_urls      String[]    // Array of URLs
-
-  // Status
-  status          String      @default("active")
-  is_sold         Boolean     @default(false)
-  inventory       Int         @default(1)
-
-  // Analytics
-  views_count     Int         @default(0)
-  likes_count     Int         @default(0)
-  clicks_count    Int         @default(0)
-
-  // Category
-  category_id     Int?
-
-  // Timestamps
-  created_at      DateTime    @default(now())
-  updated_at      DateTime    @updatedAt
+  id                Int               @id @default(autoincrement())
+  name              String(120)
+  description       String?
+  category_id       Int?
+  seller_id         Int?
+  listed            Boolean           @default(true)
+  sold              Boolean           @default(false)
+  price             Decimal(10,2)
+  image_url         String?
+  image_urls        Json?
+  brand             String(100)?
+  size              String(50)?
+  condition_type    ConditionType     @default(GOOD)
+  tags              Json?
+  created_at        DateTime          @default(now())
+  sold_at           DateTime?
+  original_price    Decimal(10,2)?
+  material          String(100)?
+  weight            Decimal(8,2)?
+  dimensions        String(50)?
+  sku               String(50)?
+  inventory_count   Int?              @default(1)
+  views_count       Int?              @default(0)
+  likes_count       Int?              @default(0)
+  updated_at        DateTime?         @default(now())
+  gender            Gender?           @default(Unisex)
+  shipping_option   String(50)?
+  shipping_fee      Decimal(10,2)?
+  location          String(100)?
+  clicks_count      Int               @default(0)
 
   // Relations
-  user            users       @relation(fields: [user_id], references: [id])
-  category        listing_categories? @relation(fields: [category_id], references: [id])
-  cart_items      cart_items[]
-  likes           user_likes[]
+  category          listing_categories? @relation(fields: [category_id], references: [id])
+  seller            users?            @relation(fields: [seller_id], references: [id])
+  cart_items        cart_items[]
+  likes             user_likes[]
   // ... more relations
 }
 
@@ -866,34 +864,32 @@ enum ConditionType {
 #### 5.2.3 orders
 ```prisma
 model orders {
-  id                Int         @id @default(autoincrement())
+  id                Int                 @id @default(autoincrement())
   buyer_id          Int
   seller_id         Int
-
-  // Amounts
-  total_amount      Decimal     @db.Decimal(10, 2)
-  subtotal          Decimal     @db.Decimal(10, 2)
-  commission        Decimal     @db.Decimal(10, 2)
-  shipping_fee      Decimal     @db.Decimal(10, 2) @default(0)
-
-  // Status
-  status            OrderStatus @default(IN_PROGRESS)
-
-  // Addresses (JSON)
-  shipping_address  Json?
-  billing_address   Json?
-
-  // Payment
-  payment_method    String?
-
-  // Timestamps
-  created_at        DateTime    @default(now())
-  updated_at        DateTime    @updatedAt
-  completed_at      DateTime?
+  listing_id        Int
+  status            OrderStatus         @default(IN_PROGRESS)
+  created_at        DateTime            @default(now())
+  updated_at        DateTime            @default(now())
+  order_number      String(50)?         @unique
+  total_amount      Decimal(10,2)?
+  shipping_method   String(100)?
+  notes             String?
+  buyer_name        String(100)?
+  buyer_phone       String(20)?
+  shipping_address  String?
+  payment_method    String(50)?
+  payment_details   Json?
+  payment_method_id Int?
+  commission_rate   Decimal(5,4)?
+  commission_amount Decimal(10,2)?
+  quantity          Int?                @default(1)
 
   // Relations
-  buyer             users       @relation("buyer", fields: [buyer_id], references: [id])
-  seller            users       @relation("seller", fields: [seller_id], references: [id])
+  buyer             users               @relation("buyer", fields: [buyer_id], references: [id])
+  seller            users               @relation("seller", fields: [seller_id], references: [id])
+  listing           listings            @relation(fields: [listing_id], references: [id])
+  payment_method_ref user_payment_methods? @relation(fields: [payment_method_id], references: [id])
   transactions      transactions[]
   reviews           reviews[]
 }
@@ -913,25 +909,29 @@ enum OrderStatus {
 #### 5.2.4 saved_outfits
 ```prisma
 model saved_outfits {
-  id              Int         @id @default(autoincrement())
-  user_id         Int
-  name            String?
-
-  // Outfit items (JSON array of listing IDs)
-  items           Json
-
-  // AI Analysis
-  ai_rating       Decimal?    @db.Decimal(3, 2)
-  style_tips      String?
-  color_harmony   String?
-  vibe            String?
-
-  // Timestamps
-  created_at      DateTime    @default(now())
-  updated_at      DateTime    @updatedAt
+  id                      Int         @id @default(autoincrement())
+  user_id                 Int
+  outfit_name             String(100)?
+  base_item_id            Int?
+  top_item_id             Int?
+  bottom_item_id          Int?
+  shoe_item_id            Int?
+  accessory_ids           Int[]       @default([])
+  created_at              DateTime?   @default(now())
+  updated_at              DateTime?   @default(now())
+  ai_rating               Int?
+  style_name              String(100)?
+  color_harmony_score     Int?
+  color_harmony_feedback  String?
+  style_tips              String?
+  vibe                    String(50)?
 
   // Relations
-  user            users       @relation(fields: [user_id], references: [id])
+  user                    users       @relation(fields: [user_id], references: [id])
+  base_item               listings?   @relation("BaseItem", fields: [base_item_id], references: [id])
+  top_item                listings?   @relation("TopItem", fields: [top_item_id], references: [id])
+  bottom_item             listings?   @relation("BottomItem", fields: [bottom_item_id], references: [id])
+  shoe_item               listings?   @relation("ShoeItem", fields: [shoe_item_id], references: [id])
 }
 ```
 
@@ -948,10 +948,10 @@ Strategic indexes for performance optimization:
 @@index([created_at])
 
 // Listings
-@@index([user_id])
+@@index([seller_id])
 @@index([category_id])
-@@index([status])
-@@index([is_sold])
+@@index([listed])
+@@index([sold])
 @@index([created_at])
 @@index([price])
 @@index([brand])
@@ -979,8 +979,9 @@ Strategic indexes for performance optimization:
 ### 5.4 Database Relationships
 
 #### One-to-Many Relationships
-- users → listings (one user has many listings)
+- users → listings (one seller has many listings via seller_id)
 - users → orders (as buyer or seller)
+- listings → orders (one listing can have multiple orders)
 - conversations → messages
 
 #### Many-to-Many Relationships
@@ -996,14 +997,15 @@ Strategic indexes for performance optimization:
 ```prisma
 // Example: Cascade delete
 model listings {
-  user_id Int
-  user    users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  seller_id Int?
+  seller    users? @relation(fields: [seller_id], references: [id], onDelete: Cascade)
 }
 ```
 
 #### Default Values
 ```prisma
-status      String   @default("active")
+listed      Boolean  @default(true)
+sold        Boolean  @default(false)
 created_at  DateTime @default(now())
 is_premium  Boolean  @default(false)
 ```
@@ -1539,7 +1541,7 @@ export async function DELETE(
   }
 
   // Check ownership or admin
-  if (listing.user_id !== user.id && user.role !== 'ADMIN') {
+  if (listing.seller_id !== user.id && user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -3267,13 +3269,13 @@ const nextConfig = {
 const listings = await prisma.listings.findMany()
 for (const listing of listings) {
   const user = await prisma.users.findUnique({
-    where: { id: listing.user_id }
+    where: { id: listing.seller_id }
   }) // N additional queries
 }
 
 // Good - Use include
 const listings = await prisma.listings.findMany({
-  include: { user: true } // Single query with join
+  include: { seller: true } // Single query with join
 })
 ```
 
@@ -3549,7 +3551,7 @@ Frontend:
 
 Backend:
   Prisma: 6.19.0
-  PostgreSQL: 15+
+  PostgreSQL: 17.6.1
 
 External Services:
   Supabase: Latest
