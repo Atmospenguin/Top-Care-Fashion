@@ -53,6 +53,20 @@ const DEFAULT_BRAND_NAMES = [
   "ASOS",
   "Brandy Melville",
   "Chanel",
+  "Prada",
+  "The North Face",
+  "Converse",
+  "New Balance",
+  "Puma",
+  "Calvin Klein",
+  "Uniqlo",
+  "H&M",
+  "Louis Vuitton",
+  "Burberry",
+  "Supreme",
+  "Vans",
+  "Reebok",
+  "Forever 21",
 ];
 
 const toBrandSummaries = (names: string[]): BrandSummary[] =>
@@ -260,13 +274,14 @@ export default function DiscoverMainScreen() {
             {(() => {
               const effective: BrandSummary[] = (() => {
                 if (preferredBrands.length > 0) {
-                  const map = new Map(brands.map((b) => [b.name.toLowerCase(), b.listingsCount] as const));
+                  // 有偏好品牌：显示用户选择的品牌
                   return preferredBrands.map((name) => ({
                     name,
-                    listingsCount: map.get(name.toLowerCase()) ?? 0,
+                    listingsCount: 0,
                   }));
                 }
-                return brands;
+                // 无偏好品牌：直接显示默认品牌
+                return toBrandSummaries(DEFAULT_BRAND_NAMES);
               })();
 
               return effective.length === 0 ? (
