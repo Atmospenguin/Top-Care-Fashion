@@ -50,11 +50,6 @@ interface PricingPlan {
   type: string;
   name: string;
   description: string;
-  pricing: {
-    monthly: string | null;
-    quarterly: string | null;
-    annual: string | null;
-  };
   listingLimit: number | null;
   promotionPrice: string;
   promotionDiscount: string | null;
@@ -1156,29 +1151,43 @@ export default function ContentManagementPage() {
                     <label htmlFor={`${plan.type}-description`} className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                     <input id={`${plan.type}-description`} type="text" value={plan.description} onChange={(e) => { const updated = [...pricingPlans]; updated[planIndex].description = e.target.value; setPricingPlans(updated); }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label htmlFor={`${plan.type}-monthly`} className="block text-sm font-medium text-gray-700 mb-1">Monthly Price</label>
-                      <input id={`${plan.type}-monthly`} type="number" step="0.01" value={plan.pricing.monthly || ''} onChange={(e) => { const updated = [...pricingPlans]; updated[planIndex].pricing.monthly = e.target.value || null; setPricingPlans(updated); }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label htmlFor={`${plan.type}-quarterly`} className="block text-sm font-medium text-gray-700 mb-1">Quarterly Price</label>
-                      <input id={`${plan.type}-quarterly`} type="number" step="0.01" value={plan.pricing.quarterly || ''} onChange={(e) => { const updated = [...pricingPlans]; updated[planIndex].pricing.quarterly = e.target.value || null; setPricingPlans(updated); }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label htmlFor={`${plan.type}-annual`} className="block text-sm font-medium text-gray-700 mb-1">Annual Price</label>
-                      <input id={`${plan.type}-annual`} type="number" step="0.01" value={plan.pricing.annual || ''} onChange={(e) => { const updated = [...pricingPlans]; updated[planIndex].pricing.annual = e.target.value || null; setPricingPlans(updated); }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                  </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label htmlFor={`${plan.type}-commission`} className="block text-sm font-medium text-gray-700 mb-1">Commission Rate (%)</label>
                       <input id={`${plan.type}-commission`} type="number" step="0.01" value={plan.commissionRate} onChange={(e) => { const updated = [...pricingPlans]; updated[planIndex].commissionRate = e.target.value; setPricingPlans(updated); }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                     <div>
-                      <label htmlFor={`${plan.type}-promotion`} className="block text sm font-medium text-gray-700 mb-1">Promotion Price</label>
+                      <label htmlFor={`${plan.type}-promotion`} className="block text-sm font-medium text-gray-700 mb-1">Promotion Price</label>
                       <input id={`${plan.type}-promotion`} type="number" step="0.01" value={plan.promotionPrice} onChange={(e) => { const updated = [...pricingPlans]; updated[planIndex].promotionPrice = e.target.value; setPricingPlans(updated); }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label htmlFor={`${plan.type}-promotion-discount`} className="block text-sm font-medium text-gray-700 mb-1">Promotion Discount (%)</label>
+                      <input id={`${plan.type}-promotion-discount`} type="number" step="0.01" value={plan.promotionDiscount || ''} onChange={(e) => { const updated = [...pricingPlans]; updated[planIndex].promotionDiscount = e.target.value || null; setPricingPlans(updated); }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label htmlFor={`${plan.type}-listing-limit`} className="block text-sm font-medium text-gray-700 mb-1">Listing Limit</label>
+                      <input id={`${plan.type}-listing-limit`} type="number" value={plan.listingLimit || ''} onChange={(e) => { const updated = [...pricingPlans]; updated[planIndex].listingLimit = e.target.value ? Number(e.target.value) : null; setPricingPlans(updated); }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label htmlFor={`${plan.type}-mixmatch-limit`} className="block text-sm font-medium text-gray-700 mb-1">MixMatch Limit</label>
+                      <input id={`${plan.type}-mixmatch-limit`} type="number" value={plan.mixMatchLimit || ''} onChange={(e) => { const updated = [...pricingPlans]; updated[planIndex].mixMatchLimit = e.target.value ? Number(e.target.value) : null; setPricingPlans(updated); }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label htmlFor={`${plan.type}-free-promotion-credits`} className="block text-sm font-medium text-gray-700 mb-1">Free Promotion Credits</label>
+                      <input id={`${plan.type}-free-promotion-credits`} type="number" value={plan.freePromotionCredits || ''} onChange={(e) => { const updated = [...pricingPlans]; updated[planIndex].freePromotionCredits = e.target.value ? Number(e.target.value) : 0; setPricingPlans(updated); }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor={`${plan.type}-seller-badge`} className="block text-sm font-medium text-gray-700 mb-1">Seller Badge</label>
+                    <input id={`${plan.type}-seller-badge`} type="text" value={plan.sellerBadge || ''} onChange={(e) => { const updated = [...pricingPlans]; updated[planIndex].sellerBadge = e.target.value || null; setPricingPlans(updated); }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label htmlFor={`${plan.type}-features`} className="block text-sm font-medium text-gray-700 mb-1">Features (comma-separated)</label>
+                    <input id={`${plan.type}-features`} type="text" value={plan.features?.join(', ') || ''} onChange={(e) => { const updated = [...pricingPlans]; updated[planIndex].features = e.target.value ? e.target.value.split(',').map(f => f.trim()).filter(f => f) : []; setPricingPlans(updated); }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Feature 1, Feature 2, Feature 3" />
                   </div>
                   <div className="flex items-center">
                     <input id={`${plan.type}-popular`} type="checkbox" checked={plan.isPopular} onChange={(e) => { const updated = [...pricingPlans]; updated[planIndex].isPopular = e.target.checked; setPricingPlans(updated); }} className="mr-2" />
@@ -1309,3 +1318,4 @@ export default function ContentManagementPage() {
     </div>
   );
 }
+

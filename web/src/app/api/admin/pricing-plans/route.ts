@@ -6,7 +6,7 @@ type IncomingPlan = {
   type: string;
   name: string;
   description?: string | null;
-  pricing: {
+  pricing?: {
     monthly?: number | null;
     quarterly?: number | null;
     annual?: number | null;
@@ -58,10 +58,9 @@ export async function PUT(request: NextRequest) {
              mixmatch_limit = ?,
              free_promotion_credits = ?,
              seller_badge = ?,
-             features = ?,
-             is_popular = ?,
-             updated_at = NOW()
-           WHERE plan_type = ?`,
+             features = CAST(? AS jsonb),
+             is_popular = ?
+           WHERE plan_type = CAST(? AS "PlanType")`,
           [
             plan.name,
             plan.description ?? null,
