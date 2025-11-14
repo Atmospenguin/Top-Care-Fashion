@@ -248,27 +248,26 @@ export default function EditListingScreen() {
           setCondition(listingData.condition || "Select");
 
           const incomingSize = listingData.size?.trim() ?? "";
-          if (incomingSize && !SIZE_OPTIONS_CLOTHES.includes(incomingSize)) {
-            setSize("Other");
-            setCustomSize(incomingSize);
-          } else if (incomingSize) {
+          const allSizeOptions = [
+            ...SIZE_OPTIONS_CLOTHES,
+            ...SIZE_OPTIONS_SHOES,
+            ...SIZE_OPTIONS_ACCESSORIES,
+          ];
+          if (incomingSize && allSizeOptions.includes(incomingSize)) {
             setSize(incomingSize);
-            setCustomSize("");
+          } else if (incomingSize) {
+            setSize("Other");
           } else {
             setSize("Select");
-            setCustomSize("");
           }
 
           const incomingMaterial = listingData.material?.trim() ?? "";
-          if (incomingMaterial && !MATERIAL_OPTIONS.includes(incomingMaterial)) {
-            setMaterial("Other");
-            setCustomMaterial(incomingMaterial);
-          } else if (incomingMaterial) {
+          if (incomingMaterial && MATERIAL_OPTIONS.includes(incomingMaterial)) {
             setMaterial(incomingMaterial);
-            setCustomMaterial("");
+          } else if (incomingMaterial) {
+            setMaterial("Other");
           } else {
             setMaterial("Select");
-            setCustomMaterial("");
           }
 
           setPrice(listingData.price != null ? listingData.price.toString() : "");
@@ -348,30 +347,13 @@ export default function EditListingScreen() {
       return null;
     }
 
-    let resolvedSize: string | null = null;
-    if (size === "Other") {
-      const trimmedCustomSize = customSize.trim();
-      if (!trimmedCustomSize) {
-        Alert.alert("Missing Information", "Please enter a custom size");
-        return null;
-      }
-      resolvedSize = trimmedCustomSize;
-    } else if (size && size !== "Select") {
-      resolvedSize = size;
+    if (!gender || gender === "Select") {
+      Alert.alert("Missing Information", "Please select a gender");
+      return null;
     }
 
-    let resolvedMaterial = "Polyester";
-    if (material === "Other") {
-      const trimmedCustomMaterial = customMaterial.trim();
-      if (!trimmedCustomMaterial) {
-        Alert.alert("Missing Information", "Please enter a custom material");
-        return null;
-      }
-      resolvedMaterial = trimmedCustomMaterial;
-    } else if (material && material !== "Select") {
-      resolvedMaterial = material;
-    }
-
+    const resolvedSize = size && size !== "Select" ? size : null;
+    const resolvedMaterial = material && material !== "Select" ? material : "Polyester";
     const trimmedBrand = brand.trim();
     const resolvedGender = gender && gender !== "Select" ? gender.toLowerCase() : "unisex";
 
@@ -535,38 +517,6 @@ export default function EditListingScreen() {
   const [showBrand, setShowBrand] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
 
-  useEffect(() => {
-    if (!showSize && size === "Other" && shouldFocusSizeInput.current) {
-      shouldFocusSizeInput.current = false;
-      const timer = setTimeout(() => {
-        customSizeInputRef.current?.focus();
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [showSize, size]);
-
-  useEffect(() => {
-    if (!showMat && material === "Other" && shouldFocusMaterialInput.current) {
-      shouldFocusMaterialInput.current = false;
-      const timer = setTimeout(() => {
-        customMaterialInputRef.current?.focus();
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [showMat, material]);
-
-  useEffect(() => {
-    if (brand === "Others" && shouldFocusBrandInput.current) {
-      shouldFocusBrandInput.current = false;
-      const timer = setTimeout(() => {
-        brandCustomInputRef.current?.focus();
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [brand]);
 
   const handleDelete = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
@@ -574,12 +524,6 @@ export default function EditListingScreen() {
 
   const handleSelectBrand = (selected: string) => {
     setBrand(selected);
-    if (selected === "Others") {
-      shouldFocusBrandInput.current = true;
-    } else {
-      shouldFocusBrandInput.current = false;
-      setBrandCustom("");
-    }
   };
 
   // ✅ 添加图片上传功能
@@ -866,29 +810,25 @@ export default function EditListingScreen() {
             </>
           )}
 
+          {/* Gender - 必选 */}
+          <Text style={styles.sectionTitle}>
+            Gender <Text style={styles.requiredMark}>*</Text>
+          </Text>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowGender(true)}>
+            <Text style={styles.selectValue}>
+              {gender && gender !== "Select" ? gender : "Select"}
+            </Text>
+          </TouchableOpacity>
+
           {/* === 可选字段区域 === */}
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Additional Details (Optional)</Text>
 
           <Text style={styles.fieldLabel}>Brand</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowBrand(true)}>
             <Text style={styles.selectValue}>
-              {brand === "Others"
-                ? brandCustom || "Enter brand"
-                : brand !== "Select"
-                ? brand
-                : "Select"}
+              {brand !== "Select" ? brand : "Select"}
             </Text>
           </TouchableOpacity>
-          {brand === "Others" && (
-            <TextInput
-              ref={brandCustomInputRef}
-              style={styles.input}
-              placeholder="Enter brand (eg. Nike, Zara)"
-              value={brandCustom}
-              onChangeText={setBrandCustom}
-              textAlignVertical="center"
-            />
-          )}
 
           <Text style={styles.fieldLabel}>Condition</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowCond(true)}>
@@ -900,53 +840,14 @@ export default function EditListingScreen() {
           <Text style={styles.fieldLabel}>Size</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowSize(true)}>
             <Text style={styles.selectValue}>
-              {size === "Other"
-                ? customSize || "Enter custom size"
-                : size && size !== "Select"
-                ? size
-                : "Select"}
+              {size && size !== "Select" ? size : "Select"}
             </Text>
           </TouchableOpacity>
-          {size === "Other" && (
-            <TextInput
-              ref={customSizeInputRef}
-              style={styles.input}
-              placeholder="Enter custom size"
-              placeholderTextColor="#999"
-              value={customSize}
-              onChangeText={setCustomSize}
-              returnKeyType="done"
-              textAlignVertical="center"
-            />
-          )}
 
           <Text style={styles.fieldLabel}>Material</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowMat(true)}>
             <Text style={styles.selectValue}>
-              {material === "Other"
-                ? customMaterial || "Enter custom material"
-                : material && material !== "Select"
-                ? material
-                : "Select"}
-            </Text>
-          </TouchableOpacity>
-          {material === "Other" && (
-            <TextInput
-              ref={customMaterialInputRef}
-              style={styles.input}
-              placeholder="Enter custom material"
-              placeholderTextColor="#999"
-              value={customMaterial}
-              onChangeText={setCustomMaterial}
-              returnKeyType="done"
-              textAlignVertical="center"
-            />
-          )}
-
-          <Text style={styles.fieldLabel}>Gender</Text>
-          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowGender(true)}>
-            <Text style={styles.selectValue}>
-              {gender && gender !== "Select" ? gender : "Select"}
+              {material && material !== "Select" ? material : "Select"}
             </Text>
           </TouchableOpacity>
 
@@ -1134,14 +1035,7 @@ export default function EditListingScreen() {
         }
         value={size}
         onClose={() => setShowSize(false)}
-        onSelect={(value) => {
-          setSize(value);
-          if (value === "Other") {
-            shouldFocusSizeInput.current = true;
-          } else {
-            setCustomSize("");
-          }
-        }}
+        onSelect={setSize}
       />
       <OptionPicker
         title="Select material"
@@ -1149,14 +1043,7 @@ export default function EditListingScreen() {
         options={MATERIAL_OPTIONS}
         value={material}
         onClose={() => setShowMat(false)}
-        onSelect={(value) => {
-          setMaterial(value);
-          if (value === "Other") {
-            shouldFocusMaterialInput.current = true;
-          } else {
-            setCustomMaterial("");
-          }
-        }}
+        onSelect={setMaterial}
       />
       <OptionPicker
         title="Select shipping option"
