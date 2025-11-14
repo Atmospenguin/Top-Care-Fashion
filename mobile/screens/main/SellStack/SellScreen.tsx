@@ -342,11 +342,8 @@ export default function SellScreen({
     setUserPickedCategory(false);
     setCondition("Select");
     setSize("Select");
-    setCustomSize("");
     setMaterial("Select");
-    setCustomMaterial("");
     setBrand("Select");
-    setBrandCustom("");
     setPrice("");
     setQuantity("1"); // 🔥 重置库存数量
     setPhotos([]);
@@ -381,38 +378,6 @@ export default function SellScreen({
     });
   }, [navigation, resetForm, route.params?.draftId]);
 
-  useEffect(() => {
-    if (!showSize && size === "Other" && shouldFocusSizeInput.current) {
-      shouldFocusSizeInput.current = false;
-      const timer = setTimeout(() => {
-        customSizeInputRef.current?.focus();
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [showSize, size]);
-
-  useEffect(() => {
-    if (!showMaterial && material === "Other" && shouldFocusMaterialInput.current) {
-      shouldFocusMaterialInput.current = false;
-      const timer = setTimeout(() => {
-        customMaterialInputRef.current?.focus();
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [showMaterial, material]);
-
-  useEffect(() => {
-    if (brand === "Others" && shouldFocusBrandInput.current) {
-      shouldFocusBrandInput.current = false;
-      const timer = setTimeout(() => {
-        brandCustomInputRef.current?.focus();
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [brand]);
 
   const hydrateDraftFromListing = useCallback((listing: ListingItem) => {
     setTitle(listing.title ?? "");
@@ -444,46 +409,28 @@ export default function SellScreen({
       ...SIZE_OPTIONS_SHOES,
       ...SIZE_OPTIONS_ACCESSORIES,
     ];
-    if (listing.size) {
-      if (allSizeOptions.includes(listing.size)) {
-        setSize(listing.size);
-        setCustomSize("");
-      } else {
-        setSize("Other");
-        setCustomSize(listing.size);
-      }
+    if (listing.size && allSizeOptions.includes(listing.size)) {
+      setSize(listing.size);
+    } else if (listing.size) {
+      setSize("Other");
     } else {
       setSize("Select");
-      setCustomSize("");
     }
 
-    if (listing.material) {
-      if (MATERIAL_OPTIONS.includes(listing.material)) {
-        setMaterial(listing.material);
-        setCustomMaterial("");
-      } else {
-        setMaterial("Other");
-        setCustomMaterial(listing.material);
-      }
+    if (listing.material && MATERIAL_OPTIONS.includes(listing.material)) {
+      setMaterial(listing.material);
+    } else if (listing.material) {
+      setMaterial("Other");
     } else {
       setMaterial("Select");
-      setCustomMaterial("");
     }
 
-    if (listing.brand) {
-      if (listing.brand === "N/A") {
-        setBrand("N/A");
-        setBrandCustom("N/A");
-      } else if (BRAND_OPTIONS.includes(listing.brand)) {
-        setBrand(listing.brand);
-        setBrandCustom("");
-      } else {
-        setBrand("Others");
-        setBrandCustom(listing.brand);
-      }
+    if (listing.brand && BRAND_OPTIONS.includes(listing.brand)) {
+      setBrand(listing.brand);
+    } else if (listing.brand) {
+      setBrand("Others");
     } else {
       setBrand("Select");
-      setBrandCustom("");
     }
 
     setPrice(listing.price != null ? String(listing.price) : "");
@@ -785,16 +732,6 @@ export default function SellScreen({
 
   const handleSelectBrand = (selected: string) => {
     setBrand(selected);
-    if (selected === "Others") {
-      shouldFocusBrandInput.current = true;
-    } else {
-      shouldFocusBrandInput.current = false;
-      if (selected === "N/A") {
-        setBrandCustom("N/A");
-      } else {
-        setBrandCustom("");
-      }
-    }
   };
 
   const generateDescription = async () => {
@@ -871,34 +808,20 @@ export default function SellScreen({
       }
     }
 
-    if (brand === "N/A") {
-      payload.brand = "N/A";
-    } else if (brand === "Others") {
-      payload.brand = brandCustom.trim();
-    } else if (brand !== "Select") {
+    if (brand !== "Select") {
       payload.brand = brand;
     } else {
       payload.brand = "";
     }
 
-    const resolvedSize =
-      size === "Other"
-        ? customSize.trim()
-        : size !== "Select"
-        ? size
-        : null;
+    const resolvedSize = size !== "Select" ? size : null;
     payload.size = resolvedSize;
 
     if (condition !== "Select") {
       payload.condition = condition;
     }
 
-    const resolvedMaterial =
-      material === "Other"
-        ? customMaterial.trim()
-        : material !== "Select"
-        ? material
-        : null;
+    const resolvedMaterial = material !== "Select" ? material : null;
     payload.material = resolvedMaterial;
 
     payload.tags = tags;
@@ -1054,24 +977,8 @@ export default function SellScreen({
       return;
     }
 
-    const customSizeValue = customSize.trim();
-    if (size === "Other" && !customSizeValue) {
-      Alert.alert("Missing Information", "Please enter a custom size");
-      customSizeInputRef.current?.focus();
-      return;
-    }
-
-    const customMaterialValue = customMaterial.trim();
-    if (material === "Other" && !customMaterialValue) {
-      Alert.alert("Missing Information", "Please enter a custom material");
-      customMaterialInputRef.current?.focus();
-      return;
-    }
-
-    const customBrandValue = brandCustom.trim();
-    if (brand === "Others" && !customBrandValue) {
-      Alert.alert("Missing Information", "Please enter a brand");
-      brandCustomInputRef.current?.focus();
+    if (gender === "Select") {
+      Alert.alert("Missing Information", "Please select a gender");
       return;
     }
 
@@ -1111,22 +1018,9 @@ export default function SellScreen({
       .map((photo) => photo.remoteUrl!)
       .slice(0, PHOTO_LIMIT);
 
-    const resolvedSize =
-      size === "Other" ? customSizeValue : size !== "Select" ? size : null;
-    const resolvedMaterial =
-      material === "Other"
-        ? customMaterialValue
-        : material !== "Select"
-        ? material
-        : "Polyester";
-    const resolvedBrand =
-      brand === "N/A"
-        ? "N/A"
-        : brand !== "Select"
-        ? brand === "Others"
-          ? customBrandValue
-          : brand
-        : "";
+    const resolvedSize = size !== "Select" ? size : null;
+    const resolvedMaterial = material !== "Select" ? material : "Polyester";
+    const resolvedBrand = brand !== "Select" ? brand : "";
     const resolvedGender = gender !== "Select" ? gender.toLowerCase() : "unisex";
 
     setSaving(true);
@@ -1474,6 +1368,14 @@ export default function SellScreen({
             </Text>
           </TouchableOpacity>
 
+          {/* Gender - 必选 */}
+          <Text style={styles.sectionTitle}>
+            Gender <Text style={styles.requiredMark}>*</Text>
+          </Text>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowGender(true)}>
+            <Text style={styles.selectValue}>{gender !== "Select" ? gender : "Select"}</Text>
+          </TouchableOpacity>
+
           {/* Price */}
           <Text style={styles.sectionTitle}>
             Price <Text style={styles.requiredMark}>*</Text>
@@ -1545,61 +1447,22 @@ export default function SellScreen({
           <Text style={styles.fieldLabel}>Brand</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowBrand(true)}>
             <Text style={styles.selectValue}>
-              {brand === "Others" ? brandCustom || "Enter brand" : brand !== "Select" ? brand : "Select"}
+              {brand !== "Select" ? brand : "Select"}
             </Text>
           </TouchableOpacity>
-          {brand === "Others" && (
-            <TextInput
-              ref={brandCustomInputRef}
-              style={styles.input}
-              placeholder="Enter brand (eg. Nike, Zara)"
-              value={brandCustom}
-              onChangeText={setBrandCustom}
-              textAlignVertical="center"
-            />
-          )}
 
           <Text style={styles.fieldLabel}>Size</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowSize(true)}>
             <Text style={styles.selectValue}>
-              {size === "Other" ? customSize || "Enter custom size" : size !== "Select" ? size : "Select"}
+              {size !== "Select" ? size : "Select"}
             </Text>
           </TouchableOpacity>
-          {size === "Other" && (
-            <TextInput
-              ref={customSizeInputRef}
-              style={styles.input}
-              placeholder="Enter custom size"
-              placeholderTextColor="#999"
-              value={customSize}
-              onChangeText={setCustomSize}
-              returnKeyType="done"
-              textAlignVertical="center"
-            />
-          )}
 
           <Text style={styles.fieldLabel}>Material</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowMaterial(true)}>
             <Text style={styles.selectValue}>
-              {material === "Other" ? customMaterial || "Enter custom material" : material !== "Select" ? material : "Select"}
+              {material !== "Select" ? material : "Select"}
             </Text>
-          </TouchableOpacity>
-          {material === "Other" && (
-            <TextInput
-              ref={customMaterialInputRef}
-              style={styles.input}
-              placeholder="Enter custom material"
-              placeholderTextColor="#999"
-              value={customMaterial}
-              onChangeText={setCustomMaterial}
-              returnKeyType="done"
-              textAlignVertical="center"
-            />
-          )}
-
-          <Text style={styles.fieldLabel}>Gender</Text>
-          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowGender(true)}>
-            <Text style={styles.selectValue}>{gender !== "Select" ? gender : "Select"}</Text>
           </TouchableOpacity>
 
           {/* Tags */}
@@ -1766,14 +1629,7 @@ export default function SellScreen({
         }
         value={size}
         onClose={() => setShowSize(false)}
-        onSelect={(val) => {
-          setSize(val);
-          if (val === "Other") {
-            shouldFocusSizeInput.current = true;
-          } else {
-            setCustomSize("");
-          }
-        }}
+        onSelect={setSize}
       />
       <OptionPicker
         title="Select material"
@@ -1781,14 +1637,7 @@ export default function SellScreen({
         options={MATERIAL_OPTIONS}
         value={material}
         onClose={() => setShowMaterial(false)}
-        onSelect={(val) => {
-          setMaterial(val);
-          if (val === "Other") {
-            shouldFocusMaterialInput.current = true;
-          } else {
-            setCustomMaterial("");
-          }
-        }}
+        onSelect={setMaterial}
       />
       <OptionPicker
         title="Select shipping option"
