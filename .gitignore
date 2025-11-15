@@ -86,3 +86,4 @@ mobile/builds/
 
 # Claude & Cursor
 .claude/settings.local.json
+TOP.apk

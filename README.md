@@ -9,7 +9,7 @@
 
 **A modern AI-powered fashion marketplace platform combining peer-to-peer commerce with  intelligent styling features**
 
-[Features](#features) • [Architecture](#architecture) • [Getting Started](#quick-start) • [Documentation](#documentation)
+🌐 **[Live Production Site](https://top-care-fashion.vercel.app/)** • [Features](#features) • [Architecture](#architecture) • [Getting Started](#quick-start) • [Documentation](#documentation)
 
 </div>
 
@@ -18,6 +18,8 @@
 ## About
 
 **Top Care Fashion** is a full-stack fashion marketplace that revolutionizes the way users buy, sell, and discover fashion. Built with cutting-edge technologies, it combines traditional e-commerce functionality with AI-powered features to create a unique shopping experience.
+
+> 🌐 **Production Environment**: The application is live and deployed at **[https://top-care-fashion.vercel.app/](https://top-care-fashion.vercel.app/)**
 
 ### What Makes It Special
 
@@ -556,6 +558,8 @@ For complete API documentation, see [ARCHITECTURE.md](docs/ARCHITECTURE.md#7-api
 ### Web Application
 
 **Platform**: Vercel
+
+> 🌐 **Production URL**: **[https://top-care-fashion.vercel.app/](https://top-care-fashion.vercel.app/)**
 
 ```bash
 # Install Vercel CLI
