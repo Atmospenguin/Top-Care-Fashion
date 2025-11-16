@@ -1,0 +1,309 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Top Care Fashion Listing Schema",
+  "description": "完整的 Listing 数据结构定义，用于生成上传脚本",
+  "type": "object",
+  "required": ["title", "description", "price", "category", "shippingOption"],
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "商品标题",
+      "minLength": 1,
+      "maxLength": 120,
+      "examples": ["Vivienne Westwood 经典格纹衬衫", "Nike Air Max 运动鞋"]
+    },
+    "description": {
+      "type": "string",
+      "description": "商品详细描述",
+      "minLength": 1,
+      "examples": ["经典格纹设计，100% 纯棉材质，适合日常穿搭。"]
+    },
+    "price": {
+      "type": "number",
+      "description": "商品价格",
+      "minimum": 0.01,
+      "maximum": 99999999.99,
+      "examples": [99.99, 299.50, 1500.00]
+    },
+    "category": {
+      "type": "string",
+      "description": "商品分类",
+      "enum": ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"],
+      "examples": ["Tops", "Footwear", "Accessories"]
+    },
+    "shippingOption": {
+      "type": "string",
+      "description": "配送方式",
+      "enum": ["Standard", "Express", "Meet-up"],
+      "examples": ["Standard", "Express"]
+    },
+    "brand": {
+      "type": ["string", "null"],
+      "description": "品牌名称",
+      "maxLength": 100,
+      "examples": ["Vivienne Westwood", "Nike", "Chanel", null]
+    },
+    "size": {
+      "type": ["string", "null"],
+      "description": "尺码，支持多种格式：字母尺码(S/M/L/XL)、数字尺码(38/39/40)、组合尺码(M / EU 38)、特殊值(N/A/One Size/Free Size)",
+      "maxLength": 50,
+      "examples": ["M", "38", "M / EU 38 / UK 10", "N/A", "One Size", null]
+    },
+    "condition": {
+      "type": "string",
+      "description": "商品状况，会自动映射到数据库枚举",
+      "enum": ["Brand New", "New", "Like New", "Like new", "like new", "Good", "good", "Fair", "fair", "Poor", "poor"],
+      "default": "Good",
+      "examples": ["Like New", "Good", "Brand New"]
+    },
+    "material": {
+      "type": ["string", "null"],
+      "description": "材质",
+      "maxLength": 100,
+      "examples": ["Cotton", "Leather", "Polyester", null]
+    },
+    "tags": {
+      "type": "array",
+      "description": "标签数组，用于分类和搜索",
+      "items": {
+        "type": "string"
+      },
+      "examples": [
+        ["vintage", "designer", "classic"],
+        ["casual", "summer", "comfortable"],
+        []
+      ]
+    },
+    "gender": {
+      "type": "string",
+      "description": "性别，会自动映射到数据库枚举",
+      "enum": ["Men", "Women", "Unisex", "men", "male", "women", "female", "unisex", "uni", "all"],
+      "default": "Unisex",
+      "examples": ["Unisex", "Men", "Women"]
+    },
+    "images": {
+      "type": "array",
+      "description": "图片 URL 数组，至少需要一张图片",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 0,
+      "examples": [
+        ["https://example.com/image1.jpg", "https://example.com/image2.jpg"],
+        ["https://example.com/image.jpg"]
+      ]
+    },
+    "shippingFee": {
+      "type": ["number", "null"],
+      "description": "运费",
+      "minimum": 0,
+      "maximum": 99999999.99,
+      "examples": [5.00, 10.50, null]
+    },
+    "location": {
+      "type": ["string", "null"],
+      "description": "位置信息，当 shippingOption 为 'Meet-up' 时建议提供",
+      "maxLength": 100,
+      "examples": ["New York, NY", "Los Angeles, CA", null]
+    },
+    "quantity": {
+      "type": "integer",
+      "description": "库存数量",
+      "minimum": 1,
+      "default": 1,
+      "examples": [1, 5, 10]
+    },
+    "listed": {
+      "type": "boolean",
+      "description": "是否上架",
+      "default": true,
+      "examples": [true, false]
+    },
+    "sold": {
+      "type": "boolean",
+      "description": "是否已售出",
+      "default": false,
+      "examples": [false, true]
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "title": "Vivienne Westwood 经典格纹衬衫",
+      "description": "经典格纹设计，100% 纯棉材质，适合日常穿搭。",
+      "price": 299.99,
+      "category": "Tops",
+      "shippingOption": "Standard",
+      "brand": "Vivienne Westwood",
+      "size": "M",
+      "condition": "Like New",
+      "material": "Cotton",
+      "tags": ["vintage", "designer", "classic", "plaid"],
+      "gender": "Unisex",
+      "images": [
+        "https://example.com/image1.jpg",
+        "https://example.com/image2.jpg"
+      ],
+      "shippingFee": 5.00,
+      "quantity": 1
+    },
+    {
+      "title": "Nike Air Max 运动鞋",
+      "description": "经典款运动鞋，舒适透气，适合跑步和日常穿着。",
+      "price": 150.00,
+      "category": "Footwear",
+      "shippingOption": "Express",
+      "brand": "Nike",
+      "size": "42",
+      "condition": "Good",
+      "material": "Mesh",
+      "tags": ["sports", "running", "comfortable"],
+      "gender": "Unisex",
+      "images": ["https://example.com/shoe.jpg"],
+      "shippingFee": 8.00,
+      "quantity": 1
+    }
+  ],
+  "enums": {
+    "ConditionType": {
+      "database": ["NEW", "LIKE_NEW", "GOOD", "FAIR", "POOR"],
+      "api": {
+        "Brand New": "NEW",
+        "New": "NEW",
+        "Like New": "LIKE_NEW",
+        "Like new": "LIKE_NEW",
+        "like new": "LIKE_NEW",
+        "Good": "GOOD",
+        "good": "GOOD",
+        "Fair": "FAIR",
+        "fair": "FAIR",
+        "Poor": "POOR",
+        "poor": "POOR"
+      },
+      "default": "GOOD"
+    },
+    "Gender": {
+      "database": ["Men", "Women", "Unisex"],
+      "api": {
+        "men": "Men",
+        "male": "Men",
+        "women": "Women",
+        "female": "Women",
+        "unisex": "Unisex",
+        "uni": "Unisex",
+        "all": "Unisex"
+      },
+      "default": "Unisex"
+    },
+    "Category": {
+      "valid": ["Accessories", "Bottoms", "Footwear", "Outerwear", "Tops"],
+      "description": "通过名称解析为 category_id"
+    },
+    "ShippingOption": {
+      "valid": ["Standard", "Express", "Meet-up"],
+      "note": "当为 'Meet-up' 时，建议提供 location 字段"
+    }
+  },
+  "specialBrands": {
+    "description": "特殊品牌列表，建议自动添加特殊标签",
+    "brands": {
+      "Vivienne Westwood": {
+        "tags": ["designer", "luxury", "vintage"],
+        "note": "设计师品牌，建议添加 designer 和 luxury 标签"
+      },
+      "Chanel": {
+        "tags": ["designer", "luxury", "premium"],
+        "note": "奢侈品牌"
+      },
+      "Gucci": {
+        "tags": ["designer", "luxury", "premium"],
+        "note": "奢侈品牌"
+      },
+      "Prada": {
+        "tags": ["designer", "luxury"],
+        "note": "奢侈品牌"
+      },
+      "Louis Vuitton": {
+        "tags": ["designer", "luxury", "premium"],
+        "note": "奢侈品牌"
+      }
+    }
+  },
+  "fieldMappings": {
+    "title": "name",
+    "category": "category_id (通过 resolveCategoryId 解析)",
+    "condition": "condition_type (通过 mapConditionToEnum 映射)",
+    "quantity": "inventory_count",
+    "images": "image_urls (数组转 JSON)",
+    "shippingOption": "shipping_option",
+    "shippingFee": "shipping_fee"
+  },
+  "readOnlyFields": {
+    "description": "系统自动维护的字段，API 不支持设置",
+    "fields": [
+      "id",
+      "seller_id",
+      "created_at",
+      "updated_at",
+      "sold_at",
+      "views_count",
+      "likes_count",
+      "clicks_count"
+    ]
+  },
+  "unsupportedFields": {
+    "description": "数据库存在但 API 暂不支持的字段",
+    "fields": [
+      "original_price",
+      "weight",
+      "dimensions",
+      "sku"
+    ],
+    "note": "这些字段未来可能支持"
+  },
+  "validation": {
+    "requiredFields": ["title", "description", "price", "category", "shippingOption"],
+    "fieldLengths": {
+      "title": 120,
+      "brand": 100,
+      "size": 50,
+      "material": 100,
+      "location": 100
+    },
+    "businessRules": {
+      "listingLimit": {
+        "free": "有数量限制",
+        "premium": "无限制"
+      },
+      "paymentMethod": "用户必须至少有一个支付方式才能创建 listing",
+      "quantity": {
+        "min": 1,
+        "default": 1
+      }
+    }
+  },
+  "api": {
+    "endpoint": "POST /api/listings/create",
+    "authentication": "Bearer Token (JWT)",
+    "headers": {
+      "Authorization": "Bearer <token>",
+      "Content-Type": "application/json"
+    },
+    "errors": {
+      "401": {
+        "error": "Unauthorized",
+        "reason": "Token 无效或已过期"
+      },
+      "400": {
+        "error": "Missing required fields",
+        "reason": "缺少必需字段或字段格式错误"
+      },
+      "403": {
+        "error": "Listing limit reached",
+        "reason": "达到 listing 数量限制或缺少支付方式"
+      }
+    }
+  }
+}
+

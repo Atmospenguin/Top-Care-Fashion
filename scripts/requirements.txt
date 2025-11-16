@@ -1,0 +1,10 @@
+# Top Care Fashion - Listing 上传脚本依赖
+
+# 基础 HTTP 请求
+requests>=2.31.0
+
+# HTML 解析（用于 Farfetch 爬取）
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+
