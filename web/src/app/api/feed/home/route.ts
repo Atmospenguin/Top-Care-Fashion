@@ -19,7 +19,7 @@ type FeedRow = {
   price_cents: number | null;
   brand: string | null;
   tags: string[] | null;
-  source: "trending" | "brand" | "tag" | "brand&tag" | "affinity";
+  source: "trending" | "brand" | "tag" | "brand&tag" | "affinity" | "collab";
   fair_score: number | null;
   final_score: number | null;
   is_boosted?: boolean;

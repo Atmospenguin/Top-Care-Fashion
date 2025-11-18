@@ -141,7 +141,7 @@ export type HomeFeedItem = {
   price_cents: number;
   brand: string | null;
   tags: string[];
-  source: "trending" | "brand" | "tag" | "brand&tag" | "affinity";
+  source: "trending" | "brand" | "tag" | "brand&tag" | "affinity" | "collab";
   fair_score: number; // 0..1
   final_score?: number | null;
   is_boosted?: boolean;
