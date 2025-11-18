@@ -1,8 +1,6 @@
-# Top Care Fashion
+# [<img src="https://github.com/user-attachments/assets/d94348ad-6089-40e2-a0c9-ebfb2cd787c6" alt="logo_brandcolor" height="42"/>](https://top-care-fashion.vercel.app) Care Fashion
 
-<div align="center">
-
-![Top Care Fashion](https://img.shields.io/badge/Fashion-Marketplace-F54B3D?style=for-the-badge)
+[![Top Care Fashion](https://img.shields.io/badge/Production-Site-F54B3D?style=for-the-badge)](https://top-care-fashion.vercel.app)
 ![Next.js](https://img.shields.io/badge/Next.js-15.5-black?style=for-the-badge&logo=next.js)
 ![React Native](https://img.shields.io/badge/React_Native-0.81-61DAFB?style=for-the-badge&logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript)
