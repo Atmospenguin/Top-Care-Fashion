@@ -15,9 +15,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import type { TextInput as RNTextInput } from "react-native";
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from "expo-image-manipulator";
 import Icon from "../../../components/Icon";
 import Header from "../../../components/Header";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -27,6 +29,7 @@ import type { MyTopStackParamList } from "./index";
 import { listingsService } from "../../../src/services/listingsService";
 import type { ListingItem } from "../../../types/shop";
 import { sortCategories } from "../../../utils/categoryHelpers";
+import { checkImagesSFW } from "../../../src/services/aiService";
 
 /** --- Options --- */
 const BRAND_OPTIONS = [
@@ -259,6 +262,14 @@ const DEFAULT_TAGS = [
 
 const PHOTO_LIMIT = 9;
 
+type PhotoItem = {
+  id: string;
+  localUri: string;
+  remoteUrl?: string;
+  uploading: boolean;
+  error?: string;
+};
+
 /** --- Picker modal --- */
 function OptionPicker({
   title,
@@ -337,7 +348,7 @@ export default function EditListingScreen() {
   const [shippingOption, setShippingOption] = useState("Select");
   const [shippingFee, setShippingFee] = useState("");
   const [location, setLocation] = useState("");
-  const [images, setImages] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [gender, setGender] = useState("Select");
   const [tags, setTags] = useState<string[]>([]);
   const customSizeInputRef = useRef<RNTextInput | null>(null);
@@ -349,6 +360,7 @@ export default function EditListingScreen() {
   const [brandCustom, setBrandCustom] = useState("");
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const scrollViewRef = useRef<RNScrollView>(null);
+  const [moderationChecking, setModerationChecking] = useState(false);
 
   // Load categories from database
   useEffect(() => {
@@ -430,7 +442,17 @@ export default function EditListingScreen() {
           setShippingOption(listingData.shippingOption || "Select");
           setShippingFee(listingData.shippingFee ? listingData.shippingFee.toString() : "");
           setLocation(listingData.location || "");
-          setImages(listingData.images || []);
+          const remoteImages = Array.isArray(listingData.images)
+            ? listingData.images.filter((uri) => typeof uri === "string" && uri.trim().length > 0)
+            : [];
+          setPhotos(
+            remoteImages.map((uri, index) => ({
+              id: `${listingData.id}-${index}`,
+              localUri: uri,
+              remoteUrl: uri,
+              uploading: false,
+            }))
+          );
           setTags(listingData.tags || []);
           console.log("✅ Listing loaded for editing:", listingData.title);
         } else {
@@ -531,6 +553,20 @@ export default function EditListingScreen() {
       return null;
     }
 
+    if (photos.some((photo) => photo.uploading)) {
+      Alert.alert("Uploading", "Please wait for all photos to finish uploading.");
+      return null;
+    }
+
+    const uploadedImages = photos
+      .map((photo) => photo.remoteUrl)
+      .filter((uri): uri is string => typeof uri === "string" && uri.trim().length > 0);
+
+    if (photos.length && uploadedImages.length !== photos.length) {
+      Alert.alert("Processing Images", "Images are still being processed. Please try again shortly.");
+      return null;
+    }
+
     const updateData = {
       title: trimmedTitle,
       description: trimmedDescription,
@@ -542,7 +578,7 @@ export default function EditListingScreen() {
       material: resolvedMaterial,
       category,
       gender: resolvedGender,
-      images,
+      images: uploadedImages,
       tags,
       shippingOption,
       shippingFee: resolvedShippingFee,
@@ -668,132 +704,187 @@ export default function EditListingScreen() {
   const [showTagPicker, setShowTagPicker] = useState(false);
 
 
-  const handleDelete = (index: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
+  const ensureMediaPermissions = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        "Permission Required",
+        "Please enable photo library permissions in your device settings to select photos.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Open Settings",
+            onPress: () => console.log("User should manually open Settings"),
+          },
+        ]
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const ensureCameraPermissions = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        "Permission Required",
+        "Please enable camera permissions in your device settings to take photos.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Open Settings",
+            onPress: () => console.log("User should manually open Settings"),
+          },
+        ]
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const processSelectedAssets = async (assets: ImagePicker.ImagePickerAsset[]) => {
+    if (!assets.length) return;
+
+    const availableSlots = Math.max(PHOTO_LIMIT - photos.length, 0);
+    if (availableSlots <= 0) {
+      Alert.alert("Maximum Images", `You can only upload up to ${PHOTO_LIMIT} images.`);
+      return;
+    }
+
+    const assetsToUse = assets.slice(0, availableSlots);
+    if (assets.length > assetsToUse.length) {
+      Alert.alert(
+        "Too Many Images",
+        `Only ${PHOTO_LIMIT} photos are allowed. ${assets.length - assetsToUse.length} image(s) were not added.`
+      );
+    }
+
+    try {
+      const prepared = await Promise.all(
+        assetsToUse.map(async (asset) => {
+          const manipulated = await ImageManipulator.manipulateAsync(
+            asset.uri,
+            [],
+            { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
+          );
+          return manipulated.uri;
+        })
+      );
+
+      setModerationChecking(true);
+      const safe = await checkImagesSFW(prepared);
+      setModerationChecking(false);
+
+      if (!safe.allowAll) {
+        const firstBad = safe.results.find((r) => !r.allow);
+        const reason = firstBad?.reasons?.join(", ") || "policy";
+        Alert.alert("Content Warning", `Some photos may be NSFW (${reason}). Please choose different photos.`);
+        return;
+      }
+
+      for (const localUri of prepared) {
+        const tempId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        setPhotos((prev) => [...prev, { id: tempId, localUri, uploading: true }]);
+        try {
+          const remoteUrl = await listingsService.uploadListingImage(localUri);
+          setPhotos((prev) =>
+            prev.map((photo) => (photo.id === tempId ? { ...photo, remoteUrl, uploading: false } : photo))
+          );
+        } catch (error) {
+          console.error("Photo upload failed:", error);
+          setPhotos((prev) => prev.filter((photo) => photo.id !== tempId));
+          Alert.alert("Upload failed", "We couldn't upload that photo. Please try again.");
+        }
+      }
+    } catch (error) {
+      setModerationChecking(false);
+      console.error("Selection pipeline failed:", error);
+      Alert.alert("Error", "Failed to process photos. Please try again.");
+    }
+  };
+
+  const handleDelete = (photoId: string) => {
+    setPhotos((prev) => {
+      const index = prev.findIndex((photo) => photo.id === photoId);
+      const updated = prev.filter((photo) => photo.id !== photoId);
+      if (index !== -1) {
+        setPreviewIndex((prevIndex) => {
+          if (prevIndex === null) return null;
+          if (!updated.length) return null;
+          if (prevIndex === index) {
+            return Math.min(prevIndex, updated.length - 1);
+          }
+          if (prevIndex > index) {
+            return prevIndex - 1;
+          }
+          return prevIndex;
+        });
+      }
+      return updated;
+    });
   };
 
   const handleSelectBrand = (selected: string) => {
     setBrand(selected);
   };
 
-  // ✅ 添加图片上传功能
   const handleAddImage = async () => {
+    if (photos.length >= PHOTO_LIMIT) {
+      Alert.alert("Maximum Images", `You can only upload up to ${PHOTO_LIMIT} images.`);
+      return;
+    }
+    const allowed = await ensureMediaPermissions();
+    if (!allowed) return;
+
+    const availableSlots = Math.max(PHOTO_LIMIT - photos.length, 1);
     try {
-      if (images.length >= PHOTO_LIMIT) {
-        Alert.alert("Maximum Images", `You can only upload up to ${PHOTO_LIMIT} images.`);
-        return;
-      }
-
-      // 请求相册权限
-      const mediaPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (mediaPerm.status !== "granted") {
-        Alert.alert(
-          "Permission Required",
-          "Please enable photo library permissions in your device settings to select photos.",
-          [
-            { text: "Cancel", style: "cancel" },
-            { text: "Open Settings", onPress: () => {
-              console.log("User should manually open Settings");
-            }}
-          ]
-        );
-        return;
-      }
-
-      // 打开图片选择器
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-        allowsMultipleSelection: true, // 允许选择多张图片
+        allowsMultipleSelection: true,
+        quality: 0.85,
+        selectionLimit: availableSlots,
       });
-
-      if (!result.canceled && result.assets) {
-        const remainingSlots = PHOTO_LIMIT - images.length;
-        if (remainingSlots <= 0) {
-          Alert.alert("Maximum Images", `You can only upload up to ${PHOTO_LIMIT} images.`);
-          return;
-        }
-
-        const assetsToAdd = result.assets.slice(0, remainingSlots);
-        const newImages = assetsToAdd.map((asset) => asset.uri);
-        setImages((prev) => [...prev, ...newImages]);
-        console.log("📸 Added images:", newImages);
-
-        if (result.assets.length > assetsToAdd.length) {
-          Alert.alert(
-            "Too Many Images",
-            `Only ${PHOTO_LIMIT} photos are allowed. ${result.assets.length - assetsToAdd.length} image(s) were not added.`
-          );
-        }
-      }
-    } catch (error) {
-      console.error("Error adding images:", error);
+      if (result.canceled || !result.assets?.length) return;
+      await processSelectedAssets(result.assets);
+    } catch (error: any) {
+      console.error("Error adding images:", error?.message ?? String(error));
       Alert.alert("Error", "Failed to add images. Please try again.");
     }
   };
 
-  // ✅ 拍照功能
   const handleTakePhoto = async () => {
+    if (photos.length >= PHOTO_LIMIT) {
+      Alert.alert("Maximum Images", `You can only upload up to ${PHOTO_LIMIT} images.`);
+      return;
+    }
+    const allowed = await ensureCameraPermissions();
+    if (!allowed) return;
+
     try {
-      if (images.length >= PHOTO_LIMIT) {
-        Alert.alert("Maximum Images", `You can only upload up to ${PHOTO_LIMIT} images.`);
-        return;
-      }
-
-      // 请求相机权限
-      const cameraPerm = await ImagePicker.requestCameraPermissionsAsync();
-
-      if (cameraPerm.status !== "granted") {
-        Alert.alert(
-          "Permission Required",
-          "Please enable camera permissions in your device settings to take photos.",
-          [
-            { text: "Cancel", style: "cancel" },
-            { text: "Open Settings", onPress: () => {
-              console.log("User should manually open Settings");
-            }}
-          ]
-        );
-        return;
-      }
-
-      // 打开相机
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.85,
       });
-
-      if (!result.canceled && result.assets[0]) {
-        const newImage = result.assets[0].uri;
-        setImages((prev) => [...prev, newImage]);
-        console.log("📸 Took photo:", newImage);
-      }
-    } catch (error) {
-      console.error("Error taking photo:", error);
+      if (result.canceled || !result.assets?.length) return;
+      await processSelectedAssets([result.assets[0]]);
+    } catch (error: any) {
+      console.error("Error taking photo:", error?.message ?? String(error));
       Alert.alert("Error", "Failed to take photo. Please try again.");
     }
   };
 
-  // ✅ 显示图片选择选项
   const showImageOptions = () => {
-    if (images.length >= PHOTO_LIMIT) {
+    if (photos.length >= PHOTO_LIMIT) {
       Alert.alert("Maximum Images", `You can only upload up to ${PHOTO_LIMIT} images.`);
       return;
     }
-    Alert.alert(
-      "Add Photos",
-      "Choose how you'd like to add photos",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Photo Library", onPress: handleAddImage },
-        { text: "Camera", onPress: handleTakePhoto },
-      ]
-    );
+    Alert.alert("Add Photos", "Choose how you'd like to add photos", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Photo Library", onPress: handleAddImage },
+      { text: "Camera", onPress: handleTakePhoto },
+    ]);
   };
 
   if (loading) {
@@ -835,29 +926,32 @@ export default function EditListingScreen() {
         >
           {/* Photos */}
           <FlatList
-            data={images}
-            keyExtractor={(_, i) => i.toString()}
+            data={photos}
+            keyExtractor={(item) => item.id}
             horizontal
             showsHorizontalScrollIndicator={false}
             renderItem={({ item, index }) => (
-              <TouchableOpacity
-                style={styles.photoItem}
-                onPress={() => setPreviewIndex(index)}
-              >
-                <Image source={{ uri: item }} style={styles.photoImage} />
-                <TouchableOpacity
-                  style={styles.deleteBtn}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleDelete(index);
-                  }}
-                >
-                  <Text style={styles.deleteText}>✕</Text>
-                </TouchableOpacity>
+              <TouchableOpacity style={styles.photoItem} onPress={() => setPreviewIndex(index)}>
+                <Image source={{ uri: item.localUri }} style={styles.photoImage} />
+                {item.uploading ? (
+                  <View style={styles.photoUploadingOverlay}>
+                    <ActivityIndicator color="#fff" />
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.deleteBtn}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleDelete(item.id);
+                    }}
+                  >
+                    <Text style={styles.deleteText}>✕</Text>
+                  </TouchableOpacity>
+                )}
               </TouchableOpacity>
             )}
             ListFooterComponent={
-              images.length < PHOTO_LIMIT ? (
+              photos.length < PHOTO_LIMIT ? (
                 <TouchableOpacity style={styles.addPhotoBox} onPress={showImageOptions}>
                   <Icon name="add" size={26} color="#999" />
                   <Text style={styles.addPhotoText}>Add Photo</Text>
@@ -866,6 +960,12 @@ export default function EditListingScreen() {
             }
             style={{ marginBottom: 16 }}
           />
+          {moderationChecking && (
+            <View style={styles.moderationStatus}>
+              <ActivityIndicator size="small" color="#111" />
+              <Text style={styles.moderationText}>Checking photo safety…</Text>
+            </View>
+          )}
 
           {/* === 必填字段区域 === */}
 
@@ -1095,10 +1195,10 @@ export default function EditListingScreen() {
             contentOffset={{ x: (previewIndex ?? 0) * Dimensions.get("window").width, y: 0 }}
             style={styles.previewScrollView}
           >
-            {images.map((image) => (
-              <View key={image} style={styles.previewImageContainer}>
+            {photos.map((photo) => (
+              <View key={photo.id} style={styles.previewImageContainer}>
                 <Image
-                  source={{ uri: image }}
+                  source={{ uri: photo.localUri }}
                   style={styles.previewModalImage}
                   resizeMode="contain"
                 />
@@ -1110,7 +1210,7 @@ export default function EditListingScreen() {
           <View style={styles.previewTopBar}>
             <View style={styles.previewIndicator}>
               <Text style={styles.previewIndicatorText}>
-                {(previewIndex ?? 0) + 1} / {images.length}
+                {(previewIndex ?? 0) + 1} / {photos.length}
               </Text>
             </View>
             <TouchableOpacity
@@ -1122,16 +1222,16 @@ export default function EditListingScreen() {
           </View>
 
           {/* 底部缩略图导航 */}
-          {images.length > 1 && (
+          {photos.length > 1 && (
             <View style={styles.previewBottomBar}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.thumbnailContainer}
               >
-                {images.map((image, index) => (
+                {photos.map((photo, index) => (
                   <TouchableOpacity
-                    key={image}
+                    key={photo.id}
                     style={[
                       styles.thumbnail,
                       index === previewIndex && styles.thumbnailActive,
@@ -1145,7 +1245,7 @@ export default function EditListingScreen() {
                     }}
                   >
                     <Image
-                      source={{ uri: image }}
+                      source={{ uri: photo.localUri }}
                       style={styles.thumbnailImage}
                     />
                   </TouchableOpacity>
@@ -1433,6 +1533,12 @@ const styles = StyleSheet.create({
     height: "100%",
     resizeMode: "cover",
   },
+  photoUploadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   deleteBtn: {
     position: "absolute",
     top: 4,
@@ -1460,6 +1566,17 @@ const styles = StyleSheet.create({
     color: "#999",
     marginTop: 4,
     textAlign: "center",
+  },
+  moderationStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  moderationText: {
+    fontSize: 13,
+    color: "#555",
+    marginLeft: 8,
   },
 
   sectionTitle: { fontSize: 16, fontWeight: "600", marginTop: 12, marginBottom: 8 },
