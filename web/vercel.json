@@ -1,9 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/db-status",
-      "schedule": "*/10 * * * *"
-    }
-  ]
-}
-
