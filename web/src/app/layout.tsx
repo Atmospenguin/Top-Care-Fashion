@@ -5,6 +5,8 @@ import "./globals.css";
 import { AuthProvider } from "@/components/AuthContext";
 import NavBar from "@/components/NavBar";
 import BackToTopButton from "@/components/BackToTopButton";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 // Initialize Geist fonts
 const geistSans = GeistSans;
@@ -64,6 +66,8 @@ export default function RootLayout({
           <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
           <BackToTopButton />
         </AuthProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
