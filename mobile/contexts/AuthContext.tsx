@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useCallback,
+  useMemo,
+} from 'react';
 import { authService, premiumService } from '../src/services';
 import { apiClient } from '../src/services/api';
 import { navigateToLogin } from '../src/services/navigationService';
@@ -63,10 +71,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isAuthenticated = !!user;
 
   // 清除错误
-  const clearError = () => setError(null);
+  const clearError = useCallback(() => setError(null), []);
 
   // 登录
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     try {
       setLoading(true);
       setError(null);
@@ -90,10 +98,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // 注册
-  const register = async (username: string, email: string, password: string) => {
+  const register = useCallback(async (username: string, email: string, password: string) => {
     try {
       setLoading(true);
       setError(null);
@@ -116,10 +124,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // 登出
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       setLoading(true);
       console.log('🔍 Logging out user...');
@@ -134,10 +142,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(false);
       console.log('✅ User state cleared');
     }
-  };
+  }, []);
 
   // 请求密码重置
-  const requestPasswordReset = async (email: string) => {
+  const requestPasswordReset = useCallback(async (email: string) => {
     try {
       setError(null);
       await authService.forgotPassword(email);
@@ -145,10 +153,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setError(error.message || 'Failed to send reset email');
       throw error;
     }
-  };
+  }, []);
 
   // 重置密码
-  const resetPasswordHandler = async (token: string, newPassword: string) => {
+  const resetPasswordHandler = useCallback(async (token: string, newPassword: string) => {
     try {
       setError(null);
       await authService.resetPassword(token, newPassword);
@@ -156,9 +164,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setError(error.message || 'Failed to reset password');
       throw error;
     }
-  };
+  }, []);
 
-  const changePassword = async (currentPassword: string, newPassword: string) => {
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
     try {
       setError(null);
       await authService.changePassword(currentPassword, newPassword);
@@ -166,10 +174,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setError(error.message || 'Failed to change password');
       throw error;
     }
-  };
+  }, []);
 
   // 更新用户信息
-  const updateUser = (updatedUser: User) => {
+  const updateUser = useCallback((updatedUser: User) => {
     setUser((prev) => {
       if (!prev) {
         return {
@@ -189,7 +197,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         avatar_url: updatedUser.avatar_url ?? prev.avatar_url ?? null,
       };
     });
-  };
+  }, []);
 
   // 应用启动时检查用户登录状态（仅在存在本地 token 时触发服务器查询）
   useEffect(() => {
@@ -258,20 +266,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, []);
 
-  const value: AuthContextType = {
-    user,
-    loading,
-    isAuthenticated,
-    login,
-    register,
-    logout,
-    requestPasswordReset,
-    resetPassword: resetPasswordHandler,
-    changePassword,
-    updateUser,
-    error,
-    clearError,
-  };
+  const value: AuthContextType = useMemo(
+    () => ({
+      user,
+      loading,
+      isAuthenticated,
+      login,
+      register,
+      logout,
+      requestPasswordReset,
+      resetPassword: resetPasswordHandler,
+      changePassword,
+      updateUser,
+      error,
+      clearError,
+    }),
+    [
+      user,
+      loading,
+      isAuthenticated,
+      login,
+      register,
+      logout,
+      requestPasswordReset,
+      resetPasswordHandler,
+      changePassword,
+      updateUser,
+      error,
+      clearError,
+    ]
+  );
 
   return (
     <AuthContext.Provider value={value}>
