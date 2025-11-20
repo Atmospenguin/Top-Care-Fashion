@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View, TextInput, Alert, Modal, Platform } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, CommonActions } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
@@ -34,6 +35,7 @@ function getDeliveryEstimate(): string {
 }
 
 export default function CheckoutScreen() {
+  const insets = useSafeAreaInsets();
   const navigation =
     useNavigation<NativeStackNavigationProp<BuyStackParamList>>();
   const {
@@ -726,7 +728,13 @@ export default function CheckoutScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        <View style={styles.modalContainer}>
+        <SafeAreaView
+          style={[
+            styles.modalContainer,
+            { paddingBottom: Math.max(insets.bottom, 16) },
+          ]}
+          edges={["top", "bottom"]}
+        >
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setShowAddressSelector(false)}>
               <Text style={styles.modalCancel}>Cancel</Text>
@@ -813,7 +821,7 @@ export default function CheckoutScreen() {
               })
             )}
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
 
       {/* 🔥 编辑模态框 */}
@@ -822,7 +830,13 @@ export default function CheckoutScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        <View style={styles.modalContainer}>
+        <SafeAreaView
+          style={[
+            styles.modalContainer,
+            { paddingBottom: Math.max(insets.bottom, 16) },
+          ]}
+          edges={["top", "bottom"]}
+        >
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={handleCancelEdit}>
               <Text style={styles.modalCancel}>Cancel</Text>
@@ -931,7 +945,7 @@ export default function CheckoutScreen() {
               />
             )}
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
 
       {/* 🔥 添加新地址模态框 */}
@@ -940,7 +954,13 @@ export default function CheckoutScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        <View style={styles.modalContainer}>
+        <SafeAreaView
+          style={[
+            styles.modalContainer,
+            { paddingBottom: Math.max(insets.bottom, 16) },
+          ]}
+          edges={["top", "bottom"]}
+        >
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={handleCancelAddAddress}>
               <Text style={styles.modalCancel}>Cancel</Text>
@@ -1040,7 +1060,7 @@ export default function CheckoutScreen() {
               </View>
             </View>
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );

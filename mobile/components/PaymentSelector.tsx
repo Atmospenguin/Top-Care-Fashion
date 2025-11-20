@@ -9,6 +9,7 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from './Icon';
 import PaymentMethodForm, { type PaymentFormValue } from './PaymentMethodForm';
 import { paymentMethodsService, type PaymentMethod } from '../src/services';
@@ -34,6 +35,7 @@ export default function PaymentSelector({
   onSelect,
   style,
 }: PaymentSelectorProps) {
+  const insets = useSafeAreaInsets();
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -253,7 +255,13 @@ export default function PaymentSelector({
         presentationStyle="pageSheet"
         onRequestClose={() => setShowAddModal(false)}
       >
-        <View style={styles.modalContainer}>
+        <SafeAreaView
+          style={[
+            styles.modalContainer,
+            { paddingBottom: Math.max(insets.bottom, 16) },
+          ]}
+          edges={['top', 'bottom']}
+        >
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setShowAddModal(false)}>
               <Text style={styles.modalCancel}>Cancel</Text>
@@ -277,7 +285,7 @@ export default function PaymentSelector({
               showNote
             />
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );
