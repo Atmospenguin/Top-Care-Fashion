@@ -14,15 +14,27 @@ if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
 
-// Add connection health check
-export async function checkDatabaseConnection(): Promise<boolean> {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return true;
-  } catch (error) {
-    console.error("❌ Database connection check failed:", error);
-    return false;
+// Add connection health check with retry logic
+export async function checkDatabaseConnection(maxRetries = 2): Promise<boolean> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      if (attempt > 0) {
+        console.log(`✅ Database connection restored after ${attempt} retry(ies)`);
+      }
+      return true;
+    } catch (error) {
+      if (attempt < maxRetries) {
+        console.warn(`⚠️ Database connection attempt ${attempt + 1} failed, retrying...`);
+        // Wait for 500ms before retrying
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } else {
+        console.error("❌ Database connection check failed after all retries:", error);
+        return false;
+      }
+    }
   }
+  return false;
 }
 
 function buildSql(query: string, params: unknown[]): Prisma.Sql {
