@@ -108,14 +108,24 @@ export async function getSessionUser(req?: Request): Promise<SessionUser | null>
         try {
           const { data: { user: supabaseUser }, error } = await supabase.auth.getUser(token);
           // console.log("🔍 Supabase user:", supabaseUser?.id);
-          // console.log("🔍 Supabase error:", error);
+
+          if (error) {
+            // Log specific Supabase auth errors for debugging
+            if (error.message?.includes('expired')) {
+              console.log("🔍 Token expired, client should refresh");
+            } else {
+              console.log("🔍 Supabase auth error:", error.message);
+            }
+          }
+
           if (supabaseUser && !error) {
             const dbUser = await findUserBySupabaseId(supabaseUser.id);
             // console.log("🔍 DB user found:", dbUser?.username);
             return dbUser;
           }
         } catch (error) {
-          // console.log("❌ Bearer token auth failed:", error);
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.log("❌ Bearer token auth failed:", errorMsg);
         }
 
         // 如果提供了 Authorization header 但验证失败，不要 fallback 到 cookie

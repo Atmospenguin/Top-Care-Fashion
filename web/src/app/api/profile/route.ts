@@ -133,16 +133,49 @@ const selectUserProfile = {
  * 获取用户资料
  */
 export async function GET(req: NextRequest) {
-  const sessionUser = await getSessionUser(req);
-  const dbUser = sessionUser ? await prisma.users.findUnique({ where: { id: sessionUser.id }, select: selectUserProfile }) : null;
-  if (!dbUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  try {
+    const sessionUser = await getSessionUser(req);
 
-  return NextResponse.json({
-    success: true,
-    user: formatUserResponse(dbUser as UserProfile),
-  });
+    if (!sessionUser) {
+      return NextResponse.json(
+        { error: "Unauthorized", message: "No valid session found" },
+        { status: 401 }
+      );
+    }
+
+    const dbUser = await prisma.users.findUnique({
+      where: { id: sessionUser.id },
+      select: selectUserProfile
+    });
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: "User not found", message: "User account no longer exists" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      user: formatUserResponse(dbUser as UserProfile),
+    });
+  } catch (error) {
+    console.error("❌ Profile GET error:", error);
+    const errorMsg = error instanceof Error ? error.message : "Unknown error";
+
+    // Check if it's a database connection error
+    if (errorMsg.includes("Can't reach database") || errorMsg.includes("Connection")) {
+      return NextResponse.json(
+        { error: "Service unavailable", message: "Database connection failed. Please try again later." },
+        { status: 503 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Internal server error", message: errorMsg },
+      { status: 500 }
+    );
+  }
 }
 
 /**
@@ -151,9 +184,24 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const sessionUser = await getSessionUser(req);
-    const dbUser = sessionUser ? await prisma.users.findUnique({ where: { id: sessionUser.id }, select: selectUserProfile }) : null;
+
+    if (!sessionUser) {
+      return NextResponse.json(
+        { error: "Unauthorized", message: "No valid session found" },
+        { status: 401 }
+      );
+    }
+
+    const dbUser = await prisma.users.findUnique({
+      where: { id: sessionUser.id },
+      select: selectUserProfile
+    });
+
     if (!dbUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "User not found", message: "User account no longer exists" },
+        { status: 404 }
+      );
     }
 
     const data = await req.json();
@@ -264,10 +312,25 @@ export async function PATCH(req: NextRequest) {
     });
   } catch (err) {
     console.error("❌ Update profile failed:", err);
+    const errorMsg = err instanceof Error ? err.message : "Unknown error";
+
+    // Check if it's a database connection error
+    if (errorMsg.includes("Can't reach database") || errorMsg.includes("Connection")) {
+      return NextResponse.json(
+        {
+          error: "Service unavailable",
+          message: "Database connection failed. Please try again later.",
+          details: errorMsg,
+        },
+        { status: 503 },
+      );
+    }
+
     return NextResponse.json(
       {
         error: "Update failed",
-        details: err instanceof Error ? err.message : "Unknown error",
+        message: "Failed to update profile",
+        details: errorMsg,
       },
       { status: 400 },
     );
