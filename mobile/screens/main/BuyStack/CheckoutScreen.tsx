@@ -17,6 +17,7 @@ import {
   ordersService, 
   paymentMethodsService, 
   addressService,
+  cartService,
   type PaymentMethod,
   type ShippingAddress,
   type CreateAddressRequest,
@@ -447,6 +448,38 @@ export default function CheckoutScreen() {
         
         console.log("✅ Order created successfully:", newOrder);
         createdOrders.push(newOrder);
+      }
+      
+      // 🔥 订单创建成功，删除购物车中对应的商品
+      try {
+        console.log("🛒 Removing items from cart after successful order...");
+        const cartItems = await cartService.getCartItems();
+        
+        // 对于每个已下单的商品，查找并删除购物车中对应的商品
+        for (const bagItem of normalizedItems) {
+          const listingId = bagItem.item.id;
+          if (!listingId) continue;
+          
+          // 查找购物车中匹配的商品（通过 listing_id）
+          const matchingCartItem = cartItems.find(
+            cartItem => cartItem.item.id === listingId.toString() || 
+                       cartItem.item.id === listingId
+          );
+          
+          if (matchingCartItem) {
+            try {
+              await cartService.removeCartItem(matchingCartItem.id);
+              console.log(`✅ Removed cart item ${matchingCartItem.id} for listing ${listingId}`);
+            } catch (error) {
+              console.warn(`⚠️ Failed to remove cart item ${matchingCartItem.id}:`, error);
+              // 继续处理其他商品，不因为单个删除失败而中断
+            }
+          }
+        }
+        console.log("✅ Cart cleanup completed");
+      } catch (error) {
+        console.warn("⚠️ Failed to remove items from cart:", error);
+        // 即使删除购物车商品失败，也不影响订单创建成功的流程
       }
       
       // 🔥 订单创建成功，显示成功消息并跳转到 ChatScreen

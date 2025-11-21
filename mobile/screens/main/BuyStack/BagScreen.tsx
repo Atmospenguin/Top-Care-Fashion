@@ -215,6 +215,17 @@ export default function BagScreen() {
     };
   }, [displayItems]);
 
+  // 🔥 检查是否有库存问题（用于禁用 checkout 按钮）
+  const hasStockIssues = useMemo(() => {
+    return displayItems.some(bagItem => {
+      const availableQty = bagItem.item.availableQuantity;
+      if (availableQty === undefined || availableQty === null) {
+        return false; // 如果库存字段不存在，允许继续（向后兼容）
+      }
+      return availableQty <= 0 || availableQty < bagItem.quantity;
+    });
+  }, [displayItems]);
+
   // 删除商品
   const removeItem = async (cartItemId: number | undefined) => {
     if (isReadOnly || cartItemId === undefined) {
@@ -235,6 +246,36 @@ export default function BagScreen() {
     if (isReadOnly || cartItemId === undefined || newQuantity < 1) {
       return;
     }
+    
+    // 🔥 查找对应的购物车商品
+    const cartItem = cartItems.find(item => item.id === cartItemId);
+    if (!cartItem) {
+      console.error('Cart item not found:', cartItemId);
+      return;
+    }
+    
+    // 🔥 检查库存限制
+    const listingItem = cartItemToListingItem(cartItem.item);
+    if (listingItem.availableQuantity !== undefined && listingItem.availableQuantity !== null) {
+      if (listingItem.availableQuantity <= 0) {
+        Alert.alert(
+          'Out of Stock',
+          'This item is currently out of stock.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      if (newQuantity > listingItem.availableQuantity) {
+        Alert.alert(
+          'Insufficient Stock',
+          `Only ${listingItem.availableQuantity} item(s) available.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+    
     try {
       console.log('🔄 Updating cart item:', { cartItemId, newQuantity });
       const updatedItem = await cartService.updateCartItem(cartItemId, newQuantity);
@@ -460,24 +501,31 @@ export default function BagScreen() {
             <Text style={styles.secondaryText}>Continue browsing</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.primaryButton}
+            style={[
+              styles.primaryButton,
+              hasStockIssues && styles.primaryButtonDisabled,
+            ]}
+            disabled={hasStockIssues}
             onPress={() => {
-              // 🔥 验证库存
+              // 🔥 验证库存（同时检查 undefined 和 null）
               const outOfStockItems = displayItems.filter(
                 bagItem => bagItem.item.availableQuantity !== undefined && 
+                           bagItem.item.availableQuantity !== null &&
                            bagItem.item.availableQuantity <= 0
               );
               
               const insufficientStockItems = displayItems.filter(
                 bagItem => bagItem.item.availableQuantity !== undefined &&
+                           bagItem.item.availableQuantity !== null &&
                            bagItem.item.availableQuantity > 0 &&
                            bagItem.item.availableQuantity < bagItem.quantity
               );
               
               if (outOfStockItems.length > 0) {
+                const itemNames = outOfStockItems.map(b => b.item.title).join(', ');
                 Alert.alert(
                   'Out of Stock',
-                  'Some items in your cart are out of stock. Please remove them before proceeding.',
+                  `The following items are out of stock: ${itemNames}. Please remove them before proceeding.`,
                   [{ text: 'OK' }]
                 );
                 return;
@@ -511,7 +559,12 @@ export default function BagScreen() {
               });
             }}
           >
-            <Text style={styles.primaryText}>Proceed to checkout</Text>
+            <Text style={[
+              styles.primaryText,
+              hasStockIssues && styles.primaryTextDisabled,
+            ]}>
+              {hasStockIssues ? 'Check stock issues' : 'Proceed to checkout'}
+            </Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -686,7 +739,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 14,
   },
+  primaryButtonDisabled: {
+    backgroundColor: "#ccc",
+    opacity: 0.6,
+  },
   primaryText: { fontSize: 14, fontWeight: "700", color: "#fff" },
+  primaryTextDisabled: {
+    color: "#999",
+  },
   emptyState: {
     flex: 1,
     alignItems: "center",

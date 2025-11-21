@@ -281,6 +281,14 @@ export default function ListingDetailScreen() {
     return fee;
   }, [safeItem?.shippingFee]);
 
+  // 🔥 检查是否应该禁用购买按钮（库存不足或为0）
+  const isOutOfStock = useMemo(() => {
+    if (safeItem?.availableQuantity === undefined || safeItem?.availableQuantity === null) {
+      return false; // 如果库存字段不存在，允许购买（向后兼容）
+    }
+    return safeItem.availableQuantity <= 0 || purchaseQuantity > safeItem.availableQuantity;
+  }, [safeItem?.availableQuantity, purchaseQuantity]);
+
   const genderLabel = useMemo(() => formatGenderLabel(safeItem?.gender), [safeItem?.gender]);
   const likesCount = safeItem?.likesCount ?? 0;
   const listedOn = useMemo(() => formatDateString(safeItem?.createdAt), [safeItem?.createdAt]);
@@ -451,24 +459,25 @@ export default function ListingDetailScreen() {
   const handleAddToCart = async () => {
     if (!safeItem?.id || isAddingToCart || isOwnListingFinal) return;
     
-    // 🔥 检查库存是否足够
-    if (safeItem.availableQuantity !== undefined && purchaseQuantity > safeItem.availableQuantity) {
-      Alert.alert(
-        'Insufficient Stock',
-        `Only ${safeItem.availableQuantity} item(s) available.`,
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-    
-    // 🔥 检查库存是否为0
-    if (safeItem.availableQuantity !== undefined && safeItem.availableQuantity <= 0) {
-      Alert.alert(
-        'Out of Stock',
-        'This item is currently out of stock.',
-        [{ text: 'OK' }]
-      );
-      return;
+    // 🔥 检查库存是否足够（同时检查 undefined 和 null）
+    if (safeItem.availableQuantity !== undefined && safeItem.availableQuantity !== null) {
+      if (purchaseQuantity > safeItem.availableQuantity) {
+        Alert.alert(
+          'Insufficient Stock',
+          `Only ${safeItem.availableQuantity} item(s) available.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      if (safeItem.availableQuantity <= 0) {
+        Alert.alert(
+          'Out of Stock',
+          'This item is currently out of stock.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
     }
     
     setIsAddingToCart(true);
@@ -1153,25 +1162,50 @@ export default function ListingDetailScreen() {
               <TouchableOpacity
                 style={[
                   styles.secondaryButton,
-                  isAddingToCart ? styles.secondaryButtonDisabled : undefined,
+                  (isAddingToCart || isOutOfStock) ? styles.secondaryButtonDisabled : undefined,
                 ]}
                 onPress={handleAddToCart}
-                disabled={isAddingToCart}
+                disabled={isAddingToCart || isOutOfStock}
               >
-                <Icon name="bag-add-outline" size={20} color={isAddingToCart ? "#999" : "#111"} />
+                <Icon name="bag-add-outline" size={20} color={(isAddingToCart || isOutOfStock) ? "#999" : "#111"} />
                 <Text
                   style={[
                     styles.secondaryText,
-                    isAddingToCart ? styles.secondaryTextDisabled : undefined,
+                    (isAddingToCart || isOutOfStock) ? styles.secondaryTextDisabled : undefined,
                   ]}
                 >
-                  {isAddingToCart ? 'Adding...' : 'Add to Bag'}
+                  {isAddingToCart ? 'Adding...' : isOutOfStock ? 'Out of Stock' : 'Add to Bag'}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.primaryButton}
+                style={[
+                  styles.primaryButton,
+                  isOutOfStock ? styles.primaryButtonDisabled : undefined,
+                ]}
+                disabled={isOutOfStock}
                 onPress={async () => {
                 console.log("🔍 Buy Now button pressed from ListingDetailScreen");
+                
+                // 🔥 检查库存是否足够
+                if (safeItem.availableQuantity !== undefined && safeItem.availableQuantity !== null) {
+                  if (purchaseQuantity > safeItem.availableQuantity) {
+                    Alert.alert(
+                      'Insufficient Stock',
+                      `Only ${safeItem.availableQuantity} item(s) available.`,
+                      [{ text: 'OK' }]
+                    );
+                    return;
+                  }
+                  
+                  if (safeItem.availableQuantity <= 0) {
+                    Alert.alert(
+                      'Out of Stock',
+                      'This item is currently out of stock.',
+                      [{ text: 'OK' }]
+                    );
+                    return;
+                  }
+                }
                 
                 // 🔥 创建或获取与卖家的对话，以便下单后能回到聊天界面
                 try {
@@ -1225,7 +1259,9 @@ export default function ListingDetailScreen() {
                 }
               }}
             >
-              <Text style={styles.primaryText}>Buy Now</Text>
+              <Text style={[styles.primaryText, isOutOfStock ? styles.primaryTextDisabled : undefined]}>
+                {isOutOfStock ? 'Out of Stock' : 'Buy Now'}
+              </Text>
               </TouchableOpacity>
             </View>
           </>
@@ -1646,10 +1682,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 14,
   },
+  primaryButtonDisabled: {
+    backgroundColor: "#ccc",
+    opacity: 0.6,
+  },
   primaryText: {
     fontSize: 16,
     fontWeight: "700",
     color: "#fff",
+  },
+  primaryTextDisabled: {
+    color: "#999",
   },
   // Flag Modal Styles
   modalOverlay: {
