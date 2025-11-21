@@ -141,6 +141,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setError(null);
       setLoading(false);
       console.log('✅ User state cleared');
+
+      // 🔄 Ensure navigation stack resets so stale screens (e.g. previous My TOP state) unmount
+      navigateToLogin();
     }
   }, []);
 

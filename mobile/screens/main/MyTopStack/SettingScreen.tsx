@@ -87,8 +87,7 @@ export default function SettingScreen() {
             onPress={async () => {
               console.log("Logout pressed - clearing tokens");
               await logout();
-              console.log("Logout complete - navigating to Login");
-              rootNavigation.navigate("Login");
+              console.log("Logout complete - navigation reset triggered");
             }}
           />
         </View>
