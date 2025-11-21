@@ -460,14 +460,13 @@ const styles = StyleSheet.create({
   bannerSubtitle: { fontSize: 14, color: "#555" },
 
   gridContainer: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingBottom: 60,
   },
   row: { justifyContent: "space-between" },
   gridItem: {
-    width: "48%",
-    marginTop: 10,
-    marginBottom: 16,
+    flex: 1,
+    margin: 6,
     borderRadius: 12,
     overflow: "hidden",
     backgroundColor: "#f9f9f9",

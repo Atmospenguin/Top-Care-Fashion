@@ -1295,7 +1295,7 @@ const styles = StyleSheet.create({
   },
   gridItem: {
     flex: 1,
-    margin: 4,
+    margin: 6,
     borderRadius: 12,
     overflow: "hidden",
     backgroundColor: "#f9f9f9",
