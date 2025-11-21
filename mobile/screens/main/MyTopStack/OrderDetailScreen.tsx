@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
 import Header from "../../../components/Header";
-import { useRoute } from "@react-navigation/native";
+import { useRoute, CommonActions } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { MyTopStackParamList } from "./index";
 import { useNavigation } from "@react-navigation/native";
@@ -394,7 +394,30 @@ export default function OrderDetailScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
-      <Header title={`Order #${order.id}`} showBack />
+      <Header 
+        title={`Order #${order.id}`} 
+        showBack 
+        onBackPress={() => {
+          console.log("🔙 Back button pressed in OrderDetailScreen");
+          
+          // 🔍 调试：检查当前导航状态
+          const state = navigation.getState();
+          console.log("🔍 Current route name:", state.routes[state.index]?.name);
+          console.log("🔍 Routes count:", state.routes.length);
+          console.log("🔍 Can go back:", navigation.canGoBack());
+          
+          // 🔥 使用 CommonActions.reset 确保完全清理导航栈，避免来回跳转
+          // ✅ 重置到 MyTopMain，确保 OrderDetail 被完全卸载
+          navigation.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: "MyTopMain" }],
+            })
+          );
+          
+          console.log("✅ Navigated back to MyTopMain using reset");
+        }}
+      />
 
       <ScrollView contentContainerStyle={styles.container}>
         {/* 商品信息 */}

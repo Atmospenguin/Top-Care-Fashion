@@ -142,7 +142,11 @@ export default function MyTopStackNavigator() {
         name="OrderDetail"
         component={OrderDetailScreen}
         // cast to any because NativeStackNavigationOptions doesn't include tabBarStyle
-        options={{ tabBarStyle: { display: "none" } } as any}
+        options={{ 
+          tabBarStyle: { display: "none" },
+          // ✅ 确保 OrderDetail 在返回时被卸载，避免来回跳转
+          detachInactiveScreens: true 
+        } as any}
       />
       <Stack.Screen name="Security" component={SecurityScreen} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
