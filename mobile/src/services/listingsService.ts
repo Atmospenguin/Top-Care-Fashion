@@ -458,16 +458,41 @@ export class ListingsService {
 
   async uploadListingImage(imageUri: string): Promise<string> {
     try {
-      const imageData = await this.convertImageToBase64(imageUri);
       const fileName = this.extractFileName(imageUri);
+      
+      // 优先尝试 FormData 二进制上传（更高效）
+      try {
+        const formData = new FormData();
+        formData.append("file", {
+          uri: imageUri,
+          name: fileName,
+          type: "image/jpeg", // 默认 JPEG，因为 ImageManipulator 已转换为 JPEG
+        } as any);
 
-      const response = await apiClient.post<{ imageUrl: string }>(
-        '/api/listings/upload-image',
-        { imageData, fileName }
-      );
+        console.log("👉 Trying FormData upload for listing image...");
+        const response = await apiClient.post<{ imageUrl: string }>(
+          '/api/listings/upload-image',
+          formData
+        );
 
-      if (response.data?.imageUrl) {
-        return response.data.imageUrl;
+        if (response.data?.imageUrl) {
+          console.log("✅ FormData upload success");
+          return response.data.imageUrl;
+        }
+      } catch (formDataError) {
+        console.warn("⚠️ FormData upload failed, trying base64 fallback:", formDataError);
+        
+        // Fallback: base64 上传（向后兼容）
+        const imageData = await this.convertImageToBase64(imageUri);
+        const response = await apiClient.post<{ imageUrl: string }>(
+          '/api/listings/upload-image',
+          { imageData, fileName }
+        );
+
+        if (response.data?.imageUrl) {
+          console.log("✅ Base64 upload success (fallback)");
+          return response.data.imageUrl;
+        }
       }
 
       throw new Error('Image upload failed');

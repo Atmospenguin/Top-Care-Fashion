@@ -24,11 +24,52 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body: UploadRequestBody = await req.json();
-    const { imageData, fileName } = body;
+    const contentType = req.headers.get("content-type") || "";
+    let buffer: Buffer;
+    let fileName: string | undefined;
+    let extension: string;
+    let resolvedContentType: string;
 
-    if (typeof imageData !== "string" || !imageData.trim()) {
-      return NextResponse.json({ error: "Invalid image data" }, { status: 400 });
+    // 优先尝试 FormData 二进制上传
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      const file = formData.get("file") as File | null;
+      
+      if (!file) {
+        return NextResponse.json({ error: "No file provided in FormData" }, { status: 400 });
+      }
+
+      const arrayBuffer = await file.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+      fileName = file.name;
+      extension = deriveExtension(fileName);
+      resolvedContentType = file.type || resolveContentType(extension);
+      
+      console.log("🔍 FormData upload:", {
+        fileName,
+        fileSize: buffer.length,
+        fileType: file.type,
+        extension,
+      });
+    } else {
+      // Fallback: base64 JSON 格式（向后兼容）
+      const body: UploadRequestBody = await req.json();
+      const { imageData, fileName: fileNameInput } = body;
+
+      if (typeof imageData !== "string" || !imageData.trim()) {
+        return NextResponse.json({ error: "Invalid image data" }, { status: 400 });
+      }
+
+      fileName = typeof fileNameInput === "string" ? fileNameInput : undefined;
+      extension = deriveExtension(fileName);
+      resolvedContentType = resolveContentType(extension);
+      buffer = Buffer.from(imageData, "base64");
+      
+      console.log("🔍 Base64 upload (legacy):", {
+        fileName,
+        bufferSize: buffer.length,
+        extension,
+      });
     }
 
     const primaryBucket = DEFAULT_BUCKET.trim();
@@ -36,16 +77,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Storage bucket is not configured" }, { status: 500 });
     }
 
-    const extension = deriveExtension(typeof fileName === "string" ? fileName : undefined);
-    const contentType = resolveContentType(extension);
     const userId = sessionUser?.id || 'anonymous';
     const fileKey = `listing-${userId}-${Date.now()}-${randomUUID()}.${extension}`;
-    const buffer = Buffer.from(imageData, "base64");
 
     console.log("🔍 File details:", {
-      fileName: typeof fileName === "string" ? fileName : "unknown",
+      fileName: fileName || "unknown",
       extension,
-      contentType,
+      contentType: resolvedContentType,
       fileKey,
       bufferSize: buffer.length
     });
@@ -76,7 +114,7 @@ export async function POST(req: NextRequest) {
         .upload(fileKey, buffer, {
           cacheControl: "3600",
           upsert: false,
-          contentType,
+          contentType: resolvedContentType,
         });
 
       if (!uploadError) {
