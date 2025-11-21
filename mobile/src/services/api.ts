@@ -46,6 +46,19 @@ class ApiClient {
     this.timeout = API_CONFIG.TIMEOUT;
     this.supabaseUrl = SUPABASE_URL ?? null;
     this.supabaseAnonKey = SUPABASE_ANON_KEY ?? null;
+    
+    // 🔍 调试：检查 Supabase 配置
+    if (!this.supabaseUrl || !this.supabaseAnonKey) {
+      console.warn('⚠️ API Client - Supabase config missing! Token refresh will fail.');
+      console.warn('   Missing:', {
+        url: !this.supabaseUrl,
+        anonKey: !this.supabaseAnonKey
+      });
+      console.warn('   Please add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to mobile/.env');
+    } else {
+      console.log('✅ API Client - Supabase config loaded');
+    }
+    
     this.loadStoredTokens();
   }
 
@@ -105,14 +118,49 @@ class ApiClient {
         console.log("🔍 API Client - No refresh token available for session refresh");
         return false;
       }
+
+      // 🔥 优先使用后端 API 刷新（更安全，统一管理）
+      // 如果后端 API 失败，再尝试直接调用 Supabase（兜底）
+      try {
+        // 方法 1: 使用后端 API（推荐）
+        console.log("🔍 API Client - Refreshing session via backend API");
+        const backendRefreshEndpoint = `${this.baseURL}/api/auth/refresh`;
+        const backendResponse = await fetch(backendRefreshEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ refresh_token: tokenToRefresh }),
+        });
+
+        if (backendResponse.ok) {
+          const backendData = await backendResponse.json();
+          const newAccessToken = backendData.access_token;
+          const newRefreshToken = backendData.refresh_token || tokenToRefresh;
+
+          if (newAccessToken) {
+            this.setAuthToken(newAccessToken, newRefreshToken);
+            console.log("✅ API Client - Session refresh succeeded via backend API");
+            return true;
+          }
+        } else {
+          const errorBody = await backendResponse.text().catch(() => '');
+          console.warn(`🔍 API Client - Backend refresh failed: HTTP ${backendResponse.status}`, errorBody);
+        }
+      } catch (backendError) {
+        console.warn("🔍 API Client - Backend refresh error, trying direct Supabase:", backendError);
+      }
+
+      // 方法 2: 直接调用 Supabase（兜底，需要环境变量）
       if (!this.supabaseUrl || !this.supabaseAnonKey) {
-        console.warn("🔍 API Client - Supabase config missing, cannot refresh session");
+        console.warn("🔍 API Client - Supabase config missing, cannot use fallback refresh");
         return false;
       }
-      const refreshEndpoint = `${this.supabaseUrl.replace(/\/+$/, '')}/auth/v1/token?grant_type=refresh_token`;
+
       try {
-        console.log("🔍 API Client - Refreshing session via Supabase");
-        const response = await fetch(refreshEndpoint, {
+        console.log("🔍 API Client - Trying direct Supabase refresh as fallback");
+        const supabaseRefreshEndpoint = `${this.supabaseUrl.replace(/\/+$/, '')}/auth/v1/token?grant_type=refresh_token`;
+        const supabaseResponse = await fetch(supabaseRefreshEndpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -122,32 +170,32 @@ class ApiClient {
           body: JSON.stringify({ refresh_token: tokenToRefresh }),
         });
 
-        if (!response.ok) {
-          const errorBody = await response.text().catch(() => '');
-          console.warn(`🔍 API Client - Refresh request failed: HTTP ${response.status} ${response.statusText}`, errorBody);
+        if (!supabaseResponse.ok) {
+          const errorBody = await supabaseResponse.text().catch(() => '');
+          console.warn(`🔍 API Client - Supabase refresh failed: HTTP ${supabaseResponse.status}`, errorBody);
           return false;
         }
 
-        const data = await response.json();
+        const supabaseData = await supabaseResponse.json();
         const newAccessToken: string | undefined =
-          typeof data.access_token === 'string'
-            ? data.access_token
-            : data.session?.access_token;
+          typeof supabaseData.access_token === 'string'
+            ? supabaseData.access_token
+            : supabaseData.session?.access_token;
         const newRefreshToken: string | undefined =
-          typeof data.refresh_token === 'string'
-            ? data.refresh_token
-            : data.session?.refresh_token;
+          typeof supabaseData.refresh_token === 'string'
+            ? supabaseData.refresh_token
+            : supabaseData.session?.refresh_token;
 
         if (!newAccessToken) {
-          console.warn("🔍 API Client - Refresh response missing access token");
+          console.warn("🔍 API Client - Supabase refresh response missing access token");
           return false;
         }
 
         this.setAuthToken(newAccessToken, newRefreshToken ?? tokenToRefresh);
-        console.log("🔍 API Client - Session refresh succeeded");
+        console.log("✅ API Client - Session refresh succeeded via direct Supabase");
         return true;
       } catch (error) {
-        console.warn("🔍 API Client - Session refresh error:", error);
+        console.warn("🔍 API Client - Supabase refresh error:", error);
         return false;
       } finally {
         this.refreshPromise = null;
