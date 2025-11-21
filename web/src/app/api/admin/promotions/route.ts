@@ -22,7 +22,38 @@ interface PromotionRow {
   listing_name: string | null;
   listing_price: any;
   listing_image_url: string | null;
+  listing_image_urls: Prisma.JsonValue | null;
   seller_username: string | null;
+}
+
+function extractFirstImage(imageUrls: Prisma.JsonValue | null, fallback?: string | null) {
+  if (!imageUrls && fallback) return fallback;
+
+  const toArray = (value: Prisma.JsonValue | null): string[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value.map((v) => String(v)).filter(Boolean);
+    }
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed.map((v) => String(v)).filter(Boolean);
+        }
+      } catch (err) {
+        if (value.startsWith("http")) {
+          return [value];
+        }
+      }
+    }
+    return [];
+  };
+
+  const images = toArray(imageUrls);
+  if (images.length > 0) {
+    return images[0];
+  }
+  return fallback ?? null;
 }
 
 // Get all promotions (admin view)
@@ -56,6 +87,7 @@ export async function GET(req: NextRequest) {
         l.name AS listing_name,
         l.price AS listing_price,
         l.image_url AS listing_image_url,
+        l.image_urls AS listing_image_urls,
         u.username AS seller_username
       FROM listing_promotions lp
       INNER JOIN listings l ON l.id = lp.listing_id
@@ -81,7 +113,7 @@ export async function GET(req: NextRequest) {
       sellerUsername: row.seller_username || `User ${row.seller_id}`,
       listingName: row.listing_name || `Listing ${row.listing_id}`,
       listingPrice: row.listing_price ? Number(row.listing_price) : 0,
-      listingImage: row.listing_image_url,
+      listingImage: extractFirstImage(row.listing_image_urls, row.listing_image_url),
       status: row.status,
       startedAt: row.started_at.toISOString(),
       endsAt: row.ends_at ? row.ends_at.toISOString() : null,
