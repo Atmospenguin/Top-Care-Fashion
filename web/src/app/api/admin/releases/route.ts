@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@supabase/supabase-js";
-import { createSupabaseServer } from "@/lib/supabase";
 import { ensurePublicBucket } from "./helpers";
 
 export const runtime = "nodejs";
@@ -18,7 +17,9 @@ export async function GET(req: NextRequest) {
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   try {
-    const supabase = await createSupabaseServer();
+    const supabaseUrl = env("NEXT_PUBLIC_SUPABASE_URL");
+    const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
+    const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
     const { data: releases, error } = await supabase
       .from("releases")
       .select("*")
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
     const fileUrl = data.publicUrl;
 
     // Save release info to database
-    const supabase = await createSupabaseServer();
+    const supabase = supabaseAdmin;
     
     // If setAsCurrent, unset other current releases for this platform
     if (setAsCurrent) {
