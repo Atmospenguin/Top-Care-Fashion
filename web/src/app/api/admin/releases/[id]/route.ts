@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@supabase/supabase-js";
-import { createSupabaseServer } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 
@@ -24,10 +23,13 @@ export async function PATCH(
     const body = await req.json();
     const { isCurrent } = body;
 
-    const supabase = await createSupabaseServer();
+    // Use service role client to bypass RLS after admin check
+    const supabaseUrl = env("NEXT_PUBLIC_SUPABASE_URL");
+    const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
     // Get the release to know its platform
-    const { data: release, error: fetchError } = await supabase
+    const { data: release, error: fetchError } = await supabaseAdmin
       .from("releases")
       .select("platform")
       .eq("id", id)
@@ -39,14 +41,14 @@ export async function PATCH(
 
     // If setting as current, unset other current releases for this platform
     if (isCurrent) {
-      await supabase
+      await supabaseAdmin
         .from("releases")
         .update({ is_current: false })
         .eq("platform", release.platform);
     }
 
     // Update the release
-    const { data: updated, error: updateError } = await supabase
+    const { data: updated, error: updateError } = await supabaseAdmin
       .from("releases")
       .update({ is_current: isCurrent, updated_at: new Date().toISOString() })
       .eq("id", id)
@@ -75,10 +77,14 @@ export async function DELETE(
 
   try {
     const { id } = await context.params;
-    const supabase = await createSupabaseServer();
+
+    // Use service role client to bypass RLS after admin check
+    const supabaseUrl = env("NEXT_PUBLIC_SUPABASE_URL");
+    const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
     // Get release info before deleting
-    const { data: release, error: fetchError } = await supabase
+    const { data: release, error: fetchError } = await supabaseAdmin
       .from("releases")
       .select("*")
       .eq("id", id)
@@ -89,7 +95,7 @@ export async function DELETE(
     }
 
     // Delete from database
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await supabaseAdmin
       .from("releases")
       .delete()
       .eq("id", id);
@@ -101,10 +107,6 @@ export async function DELETE(
 
     // Try to delete from storage
     try {
-      const supabaseUrl = env("NEXT_PUBLIC_SUPABASE_URL");
-      const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
-      const supabaseAdmin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
-
       // Extract path from URL
       const url = new URL(release.file_url);
       const pathMatch = url.pathname.match(/\/storage\/v1\/object\/public\/releases\/(.+)/);
