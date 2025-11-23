@@ -141,8 +141,29 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
     console.log(`📖 Fetching listing ${listingId}`);
 
-    const listing = await prisma.listings.findUnique({
-      where: { id: listingId },
+    // 尝试获取当前用户（可选，用于检查是否是卖家本人）
+    const sessionUser = await getSessionUser(req).catch(() => null);
+
+    // 构建查询条件
+    const where: any = { id: listingId };
+    
+    // 如果是匿名用户，只允许查看已上架且未售出的 listing
+    if (!sessionUser) {
+      where.listed = true;
+      where.sold = false;
+    }
+    // 如果是已登录用户，可以查看已上架的 listing，或者自己创建的 listing
+
+    const listing = await prisma.listings.findFirst({
+      where: sessionUser
+        ? {
+            id: listingId,
+            OR: [
+              { listed: true, sold: false }, // 已上架且未售出
+              { seller_id: sessionUser.id }, // 或者是自己的 listing
+            ],
+          }
+        : where,
       include: {
         seller: {
           select: {
