@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import { useAuth } from "@/components/AuthContext";
 import type { Listing } from "@/types/admin";
 import Link from "next/link";
@@ -77,7 +77,7 @@ function getTxColor(status?: string) {
   }
 }
 
-export default function ListingManagementPage() {
+function ListingManagementContent() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const [items, setItems] = useState<EditingListing[]>([]);
@@ -808,5 +808,22 @@ function ListingTableRow({
         </td>
       )}
     </tr>
+  );
+}
+
+export default function ListingManagementPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold">Listing Management</h2>
+        <div className="animate-pulse space-y-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-16 bg-gray-200 rounded"></div>
+          ))}
+        </div>
+      </div>
+    }>
+      <ListingManagementContent />
+    </Suspense>
   );
 }

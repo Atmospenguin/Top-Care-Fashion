@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -92,7 +92,7 @@ const AvatarCircle = ({
   );
 };
 
-export default function ConversationDetailPage({
+function ConversationDetailContent({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -452,5 +452,26 @@ export default function ConversationDetailPage({
         )}
       </div>
     </div>
+  );
+}
+
+export default function ConversationDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  return (
+    <Suspense fallback={
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold">Conversation Details</h2>
+        <div className="animate-pulse space-y-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-16 bg-gray-200 rounded"></div>
+          ))}
+        </div>
+      </div>
+    }>
+      <ConversationDetailContent params={params} />
+    </Suspense>
   );
 }

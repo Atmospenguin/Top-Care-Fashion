@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { UserAccount } from "@/types/admin";
@@ -37,7 +37,7 @@ const AVATAR_SIZE_CLASSES: Record<number, string> = {
   72: "h-[72px] w-[72px]",
 };
 
-export default function UsersPage() {
+function UsersPageContent() {
   const searchParams = useSearchParams();
   const [users, setUsers] = useState<ExtendedUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -551,5 +551,22 @@ export default function UsersPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function UsersPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold">User Management</h2>
+        <div className="animate-pulse space-y-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-16 bg-gray-200 rounded"></div>
+          ))}
+        </div>
+      </div>
+    }>
+      <UsersPageContent />
+    </Suspense>
   );
 }

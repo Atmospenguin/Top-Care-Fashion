@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -93,7 +93,7 @@ const formatTimeAgo = (dateString: string | null) => {
   return date.toLocaleDateString();
 };
 
-export default function SupportPage() {
+function SupportPageContent() {
   const searchParams = useSearchParams();
   const [conversations, setConversations] = useState<SupportConversation[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, answered: 0 });
@@ -382,5 +382,24 @@ export default function SupportPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function SupportPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">TOP Support Dashboard</h2>
+          <div className="animate-pulse space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-24 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+        </div>
+      }
+    >
+      <SupportPageContent />
+    </Suspense>
   );
 }

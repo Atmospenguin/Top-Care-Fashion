@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { Listing } from "@/types/admin";
 import Link from "next/link";
@@ -66,7 +66,7 @@ function toImageArray(value: unknown): string[] {
   return [];
 }
 
-export default function ListingDetailPage() {
+function ListingDetailContent() {
   const params = useParams();
   const router = useRouter();
   const listingId = params.id as string;
@@ -746,4 +746,21 @@ function getTxColor(status?: string) {
     default:
       return 'bg-gray-100 text-gray-800';
   }
+}
+
+export default function ListingDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold">Listing Details</h2>
+        <div className="animate-pulse space-y-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-16 bg-gray-200 rounded"></div>
+          ))}
+        </div>
+      </div>
+    }>
+      <ListingDetailContent />
+    </Suspense>
+  );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Transaction } from "@/types/admin";
 import Link from "next/link";
@@ -16,7 +16,7 @@ interface PaginationInfo {
   totalPages: number;
 }
 
-export default function TransactionsPage() {
+function TransactionsPageContent() {
   const searchParams = useSearchParams();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -435,6 +435,25 @@ export default function TransactionsPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function TransactionsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-4">
+          <h2 className="text-2xl font-semibold">Transaction Management</h2>
+          <div className="animate-pulse space-y-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-16 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+        </div>
+      }
+    >
+      <TransactionsPageContent />
+    </Suspense>
   );
 }
 
