@@ -265,6 +265,10 @@ async function fetchForYou(
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY);
 
   // get_feed_v2函数现在从数据库读取用户的gender，传递null让函数自动从数据库读取
+  // admin.rpc 是 Supabase JS 客户端调用自定义的数据库远程过程调用（RPC, Remote Procedure Call）的方法，
+  // 用于从数据库服务器执行一段 SQL/Plpgsql 代码，然后返回数据结果。
+  // 这里它用来调用 get_feed_v2 这个存储过程/函数，获取为“foryou”模式定制的 feed 数据：
+  // 参数包括用户ID、模式、分页、随机种子，性别参数为null让后端自动从users表读取。
   const { data, error } = await admin.rpc("get_feed_v2", {
     p_supabase_user_id: supabaseUserId,
     p_mode: "foryou",

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
+  type AlertButton,
   Image,
   ScrollView,
   StyleSheet,
@@ -411,6 +412,75 @@ export default function ConfirmSellScreen() {
 
       if (!createDraft) {
         Alert.alert("Missing information", "Unable to post this listing.");
+        return;
+      }
+
+      // ✅ 确保 benefits 已加载（如果没有从 params 传递）
+      // ConfirmSellScreen 负责加载 benefits 并检查限制
+      let currentBenefits = benefits;
+      
+      // 如果 useEffect 正在加载中，等待加载完成（最多等待 2 秒）
+      if (!currentBenefits && loadingBenefits) {
+        const maxWait = 2000;
+        const startTime = Date.now();
+        while (!currentBenefits && Date.now() - startTime < maxWait) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          currentBenefits = benefits;
+        }
+      }
+      
+      // 如果仍未加载（useEffect 可能失败了），主动加载
+      if (!currentBenefits) {
+        try {
+          setLoadingBenefits(true);
+          const payload = await benefitsService.getUserBenefits();
+          currentBenefits = payload.benefits;
+          setBenefits(currentBenefits);
+          setLoadingBenefits(false);
+        } catch (err) {
+          console.warn("Failed to load benefits for listing check", err);
+          setLoadingBenefits(false);
+          // 继续执行，让后端最终验证
+        }
+      }
+
+      // ✅ 检查 listing 限制（由 ConfirmSellScreen 处理）
+      if (currentBenefits && !currentBenefits.canCreateListing) {
+        const listingLimit = currentBenefits.listingLimit;
+        
+        // 构建错误消息
+        const alertMessage = listingLimit === null
+          ? "You currently cannot post new listings."
+          : listingLimit === undefined
+          ? "You have reached the active listing limit for your plan. Remove an active listing or upgrade to Premium for unlimited listings."
+          : `You have reached the ${listingLimit} active listing limit for your plan. Remove an active listing or upgrade to Premium for unlimited listings.`;
+
+        // 如果 listingLimit 为 null，只显示 OK 按钮（不可升级的情况）
+        // 否则显示 Cancel 和 Upgrade 按钮
+        const alertButtons: AlertButton[] | undefined = listingLimit === null
+          ? undefined // 只有 OK 按钮
+          : [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Upgrade",
+                style: "default",
+                onPress: () => {
+                  const parentNavigator = (navigation as any)?.getParent?.();
+                  const rootNavigator = parentNavigator?.getParent?.();
+                  if (rootNavigator?.navigate) {
+                    rootNavigator.navigate("Premium", {
+                      screen: "PremiumPlans",
+                    });
+                  } else if (parentNavigator?.navigate) {
+                    parentNavigator.navigate("Premium", {
+                      screen: "PremiumPlans",
+                    });
+                  }
+                },
+              },
+            ];
+
+        Alert.alert("Listing limit reached", alertMessage, alertButtons);
         return;
       }
 

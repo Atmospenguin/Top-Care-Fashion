@@ -31,7 +31,6 @@ import {
   type CreateListingRequest,
   type DraftListingRequest,
 } from "../../../src/services/listingsService";
-import { benefitsService, type UserBenefitsPayload } from "../../../src/services";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useAutoClassify } from "../../../src/hooks/useAutoClassify";
 import { ClassifyResponse, checkImagesSFW, describeProduct } from "../../../src/services/aiService";
@@ -297,8 +296,6 @@ export default function SellScreen({
   const [loadedDraft, setLoadedDraft] = useState<ListingItem | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const [initializingDraft, setInitializingDraft] = useState(false);
-  const [benefits, setBenefits] = useState<UserBenefitsPayload["benefits"] | null>(null);
-  const [loadingBenefits, setLoadingBenefits] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
@@ -386,13 +383,14 @@ export default function SellScreen({
       try {
         setCategoriesLoading(true);
         const data = await listingsService.getCategories();
-        const allCategories = new Set<string>();
-        Object.values(data).forEach((genderData) => {
-          Object.keys(genderData).forEach((cat) => {
-            allCategories.add(cat);
-          });
-        });
-        const sorted = sortCategories(Array.from(allCategories));
+        
+        // ✅ 直接使用 categoryMap，包含所有预定义的 active 分类
+        // categoryMap 是后端从 listing_categories 表直接读取的，不依赖是否有商品
+        const allCategoryNames = data.categoryMap 
+          ? Object.keys(data.categoryMap)
+          : [];
+        
+        const sorted = sortCategories(allCategoryNames);
         setCategoryOptions(sorted);
       } catch (error) {
         console.error("Failed to load categories:", error);
@@ -405,48 +403,7 @@ export default function SellScreen({
     loadCategories();
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      let mounted = true;
-
-      const loadBenefits = async () => {
-        if (!user) {
-          if (mounted) {
-            setBenefits(null);
-          }
-          return;
-        }
-
-        try {
-          setLoadingBenefits(true);
-          const payload = await benefitsService.getUserBenefits();
-          if (!mounted) return;
-          setBenefits(payload.benefits);
-        } catch (err) {
-          console.warn("Failed to load benefits for sell screen", err);
-          if (mounted) {
-            setBenefits(null);
-          }
-        } finally {
-          if (mounted) {
-            setLoadingBenefits(false);
-          }
-        }
-      };
-
-      loadBenefits();
-      return () => {
-        mounted = false;
-      };
-    }, [user])
-  );
-
-  const listingLimitReached = benefits ? !benefits.canCreateListing : false;
-  const listingQuotaText = benefits
-    ? benefits.listingLimit === null
-      ? `Active listings: ${benefits.activeListingsCount} (Unlimited)`
-      : `Active listings: ${benefits.activeListingsCount}/${benefits.listingLimit}`
-    : null;
+  // ✅ Benefits 由 ConfirmSellScreen 处理，不需要在这里加载
 
   // Shipping
   const [shippingOption, setShippingOption] = useState("Select");
@@ -1050,32 +1007,8 @@ export default function SellScreen({
   };
 
   // 保存 listing
+  // ✅ 限制检查由 ConfirmSellScreen 处理，这里只做表单验证和导航
   const handlePostListing = async () => {
-    if (listingLimitReached) {
-      const listingLimit = benefits?.listingLimit;
-      const alertMessage = listingLimit === null
-        ? "You currently cannot post new listings."
-        : listingLimit === undefined
-        ? "You have reached the active listing limit for your plan. Remove an active listing or upgrade to Premium for unlimited listings."
-        : `You have reached the ${listingLimit} active listing limit for your plan. Remove an active listing or upgrade to Premium for unlimited listings.`;
-
-      const alertButtons: AlertButton[] | undefined = listingLimit === null
-        ? undefined
-        : [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Upgrade",
-              style: "default",
-              onPress: () =>
-                (navigation as any)?.getParent()?.getParent()?.navigate("Premium", {
-                  screen: "PremiumPlans",
-                }),
-            },
-          ];
-
-      Alert.alert("Listing limit reached", alertMessage, alertButtons);
-      return;
-    }
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       Alert.alert("Missing Information", "Please add a title");
@@ -1210,18 +1143,17 @@ export default function SellScreen({
       };
 
       const rootNavigator = navigation.getParent();
+      // ✅ ConfirmSellScreen 会自己加载 benefits 并检查限制
       const confirmParams = isEditingDraft
         ? {
             mode: "update" as const,
             listingId: editingDraftId!,
             draft: { ...listingData, listed: true, sold: false },
             listingSnapshot: loadedDraft ?? undefined,
-            benefitsSnapshot: benefits,
           }
         : {
             mode: "create" as const,
             draft: listingData,
-            benefitsSnapshot: benefits,
           };
 
       if ((rootNavigator as any)?.navigate) {
